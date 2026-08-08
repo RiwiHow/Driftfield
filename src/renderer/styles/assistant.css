@@ -1,0 +1,183 @@
+.assistant-pane {
+  background: var(--df-editor-raised);
+}
+
+.assistant-heading {
+  background: var(--df-sidebar);
+}
+
+.agent-selector {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 16px;
+  gap: 9px;
+  align-items: center;
+  margin: 11px 11px 8px;
+  padding: 8px;
+  text-align: left;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.agent-avatar,
+.message-avatar {
+  display: grid;
+  place-items: center;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
+  border-radius: 6px;
+}
+
+.agent-avatar {
+  width: 30px;
+  height: 30px;
+}
+
+.agent-selector > span:nth-child(2) {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.agent-selector strong {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.agent-selector small {
+  color: var(--muted-foreground);
+  font-size: 9px;
+}
+
+.conversation {
+  min-height: 0;
+  flex: 1;
+  padding: 14px 14px 18px;
+  overflow: auto;
+}
+
+.message-row {
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr);
+  gap: 9px;
+  margin-bottom: 19px;
+}
+
+.message-avatar {
+  width: 25px;
+  height: 25px;
+  border-radius: 999px;
+}
+
+.user-message .message-avatar {
+  color: var(--df-warm);
+  background: color-mix(in srgb, var(--df-warm) 11%, transparent);
+  border-color: color-mix(in srgb, var(--df-warm) 25%, transparent);
+}
+
+.message-content {
+  min-width: 0;
+}
+
+.message-author {
+  margin: 1px 0 5px;
+  color: var(--muted-foreground);
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.message-content p {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.agent-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 8px 2px;
+  padding: 9px 10px;
+  color: var(--muted-foreground);
+  font-size: 9px;
+  background: var(--secondary);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+
+.quick-prompts {
+  display: flex;
+  gap: 5px;
+  padding: 8px 11px;
+  overflow-x: auto;
+  border-top: 1px solid var(--border);
+}
+
+.quick-prompts button {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  color: var(--muted-foreground);
+  font-size: 9px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.quick-prompts button:hover {
+  color: var(--foreground);
+  background: var(--df-hover);
+}
+
+.composer {
+  margin: 0 11px 11px;
+  background: var(--df-sidebar);
+  border: 1px solid var(--input);
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgb(0 0 0 / 12%);
+}
+
+.composer:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+.composer textarea {
+  display: block;
+  width: 100%;
+  min-height: 66px;
+  padding: 10px 11px 4px;
+  color: var(--foreground);
+  font-size: 11px;
+  line-height: 1.55;
+  resize: none;
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+.composer textarea::placeholder {
+  color: var(--df-sidebar-muted);
+}
+
+.composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 6px 6px 10px;
+}
+
+.composer-footer span {
+  color: var(--df-sidebar-muted);
+  font-size: 9px;
+}
+
+.composer-footer button {
+  width: 27px;
+  height: 27px;
+}
+

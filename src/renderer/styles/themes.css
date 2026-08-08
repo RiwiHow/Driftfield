@@ -1,0 +1,123 @@
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+}
+
+:root {
+  color-scheme: dark;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --radius: 0.5rem;
+}
+
+[data-theme="tokyo-night"] {
+  --background: #1a1b26;
+  --foreground: #c0caf5;
+  --card: #1f2335;
+  --card-foreground: #c0caf5;
+  --popover: #24283b;
+  --popover-foreground: #c0caf5;
+  --primary: #7aa2f7;
+  --primary-foreground: #16161e;
+  --secondary: #202437;
+  --secondary-foreground: #a9b1d6;
+  --muted: #202437;
+  --muted-foreground: #737da3;
+  --accent: #292e42;
+  --accent-foreground: #c0caf5;
+  --border: #292e42;
+  --input: #343a52;
+  --ring: #7aa2f7;
+  --df-sidebar: #16161e;
+  --df-sidebar-muted: #565f89;
+  --df-editor: #1a1b26;
+  --df-editor-raised: #1f2335;
+  --df-hover: #202437;
+  --df-active: #292e42;
+  --df-selection: #33467c;
+  --df-positive: #9ece6a;
+  --df-warm: #e0af68;
+}
+
+[data-theme="one-dark"] {
+  --background: #282c34;
+  --foreground: #abb2bf;
+  --card: #2c313a;
+  --card-foreground: #abb2bf;
+  --popover: #2c313a;
+  --popover-foreground: #abb2bf;
+  --primary: #61afef;
+  --primary-foreground: #20242b;
+  --secondary: #2c313a;
+  --secondary-foreground: #abb2bf;
+  --muted: #2c313a;
+  --muted-foreground: #7f848e;
+  --accent: #353b45;
+  --accent-foreground: #d7dae0;
+  --border: #3e4451;
+  --input: #4b5263;
+  --ring: #61afef;
+  --df-sidebar: #21252b;
+  --df-sidebar-muted: #6f7580;
+  --df-editor: #282c34;
+  --df-editor-raised: #2c313a;
+  --df-hover: #2f343d;
+  --df-active: #353b45;
+  --df-selection: #3e4451;
+  --df-positive: #98c379;
+  --df-warm: #e5c07b;
+}
+
+[data-theme="github-light"] {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #1f2328;
+  --card: #ffffff;
+  --card-foreground: #1f2328;
+  --popover: #ffffff;
+  --popover-foreground: #1f2328;
+  --primary: #0969da;
+  --primary-foreground: #ffffff;
+  --secondary: #f6f8fa;
+  --secondary-foreground: #25292e;
+  --muted: #f6f8fa;
+  --muted-foreground: #59636e;
+  --accent: #eff2f5;
+  --accent-foreground: #1f2328;
+  --border: #d1d9e0;
+  --input: #818b98;
+  --ring: #0969da;
+  --df-sidebar: #f6f8fa;
+  --df-sidebar-muted: #818b98;
+  --df-editor: #ffffff;
+  --df-editor-raised: #f6f8fa;
+  --df-hover: #eff2f5;
+  --df-active: #e6eaef;
+  --df-selection: #b6d7fe;
+  --df-positive: #1a7f37;
+  --df-warm: #9a6700;
+}
+

@@ -1,0 +1,188 @@
+.library-pane {
+  background: var(--df-sidebar);
+}
+
+.pane-heading {
+  display: flex;
+  height: 43px;
+  min-height: 43px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 9px 0 14px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+
+.pane-heading-actions {
+  display: flex;
+}
+
+.pane-heading button {
+  width: 27px;
+  height: 27px;
+}
+
+.project-switcher {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 16px;
+  gap: 9px;
+  align-items: center;
+  margin: 12px 10px 14px;
+  padding: 9px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: default;
+}
+
+.project-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  color: var(--df-warm);
+  background: color-mix(in srgb, var(--df-warm) 12%, transparent);
+  border-radius: 6px;
+}
+
+.project-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.project-copy strong {
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-copy span {
+  overflow: hidden;
+  color: var(--df-sidebar-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manuscript-tree {
+  min-height: 0;
+  padding: 0 7px;
+  overflow: auto;
+}
+
+.tree-section-label {
+  padding: 7px 8px 5px;
+  color: var(--df-sidebar-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tree-section-spaced {
+  margin-top: 16px;
+}
+
+.tree-parent-row,
+.chapter-row,
+.tree-simple-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  border: 0;
+  cursor: pointer;
+}
+
+.tree-parent-row {
+  gap: 6px;
+  height: 28px;
+  padding: 0 7px;
+  color: var(--foreground);
+  font-size: 11px;
+}
+
+.tree-parent-row span,
+.chapter-row span,
+.tree-simple-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chapter-tree-list {
+  position: relative;
+  padding-left: 19px;
+}
+
+.chapter-tree-list::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 13px;
+  width: 1px;
+  background: var(--border);
+  content: "";
+}
+
+.chapter-row,
+.tree-simple-row {
+  gap: 7px;
+  height: 30px;
+  padding: 0 8px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  text-align: left;
+  background: transparent;
+  border-radius: 5px;
+}
+
+.chapter-row:hover,
+.tree-simple-row:hover {
+  color: var(--foreground);
+  background: var(--df-hover);
+}
+
+.chapter-row.is-active {
+  color: var(--foreground);
+  background: var(--df-active);
+}
+
+.chapter-row.is-active svg {
+  color: var(--primary);
+}
+
+.tree-count {
+  margin-left: auto;
+  color: var(--df-sidebar-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.library-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding: 7px 9px;
+  color: var(--df-sidebar-muted);
+  border-top: 1px solid var(--border);
+}
+
+.library-footer .library-settings {
+  color: var(--muted-foreground);
+}
+
+.library-footer > span {
+  padding-right: 5px;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+

@@ -1,0 +1,238 @@
+.editor-pane {
+  background: var(--df-editor);
+}
+
+.editor-tabs {
+  display: flex;
+  height: 43px;
+  min-height: 43px;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--df-sidebar);
+  border-bottom: 1px solid var(--border);
+}
+
+.editor-tab {
+  position: relative;
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  max-width: 310px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 13px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  border-right: 1px solid var(--border);
+}
+
+.editor-tab.is-active {
+  color: var(--foreground);
+  background: var(--df-editor);
+}
+
+.editor-tab.is-active::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 1px;
+  background: var(--df-editor);
+  content: "";
+}
+
+.editor-tab > span:not(.unsaved-dot) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unsaved-dot {
+  width: 6px;
+  height: 6px;
+  margin-left: 2px;
+  background: var(--df-warm);
+  border-radius: 999px;
+}
+
+.editor-tabs > button {
+  margin-right: 6px;
+  color: var(--muted-foreground);
+}
+
+.editor-surface {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.driftfield-mdx {
+  height: 100%;
+  color: var(--foreground);
+  background: var(--df-editor);
+  --baseBase: var(--df-editor);
+  --baseBgSubtle: var(--df-editor);
+  --baseBg: var(--df-editor-raised);
+  --baseBgHover: var(--df-hover);
+  --baseBgActive: var(--df-active);
+  --baseLine: var(--border);
+  --baseBorder: var(--border);
+  --baseBorderHover: var(--input);
+  --baseSolid: var(--muted-foreground);
+  --baseSolidHover: var(--foreground);
+  --baseText: var(--muted-foreground);
+  --baseTextContrast: var(--foreground);
+  --accentBase: var(--df-editor);
+  --accentBgSubtle: var(--secondary);
+  --accentBg: var(--accent);
+  --accentBgHover: var(--df-active);
+  --accentBgActive: var(--df-selection);
+  --accentLine: var(--border);
+  --accentBorder: var(--input);
+  --accentBorderHover: var(--primary);
+  --accentSolid: var(--primary);
+  --accentSolidHover: var(--primary);
+  --accentText: var(--primary);
+  --accentTextContrast: var(--primary-foreground);
+  --basePageBg: var(--df-editor);
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.driftfield-mdx .mdxeditor-root-contenteditable,
+.driftfield-mdx .mdxeditor-rich-text-editor,
+.driftfield-mdx .mdxeditor-diff-source-wrapper {
+  height: 100%;
+  min-height: 0;
+}
+
+.driftfield-mdx .mdxeditor-diff-source-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.manuscript-toolbar {
+  min-height: 39px;
+  padding: 4px 10px !important;
+  color: var(--muted-foreground);
+  background: var(--df-editor-raised) !important;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0 !important;
+}
+
+.manuscript-toolbar button,
+.manuscript-toolbar [role="button"] {
+  color: var(--muted-foreground);
+}
+
+.manuscript-toolbar button:hover,
+.manuscript-toolbar [role="button"]:hover {
+  color: var(--foreground);
+  background: var(--df-hover);
+}
+
+.manuscript-prose {
+  width: min(100%, 790px);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 48px clamp(40px, 7vw, 88px) 120px;
+  color: var(--foreground);
+  caret-color: var(--primary);
+  font-family: Georgia, "Noto Serif SC", "Songti SC", STSong, serif;
+  font-size: 17px;
+  line-height: 2;
+  outline: none;
+}
+
+.manuscript-prose h1,
+.manuscript-prose h2,
+.manuscript-prose h3 {
+  color: var(--foreground);
+  font-family: inherit;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.manuscript-prose h1 {
+  margin: 0 0 2.2rem;
+  font-size: 1.65rem;
+  letter-spacing: 0.03em;
+}
+
+.manuscript-prose h2 {
+  margin: 2rem 0 1rem;
+  font-size: 1.35rem;
+}
+
+.manuscript-prose p {
+  margin: 0 0 1.2em;
+}
+
+.manuscript-prose blockquote {
+  margin: 1.8rem 0;
+  padding: 0.25rem 0 0.25rem 1.1rem;
+  color: var(--muted-foreground);
+  font-style: italic;
+  border-left: 2px solid var(--primary);
+}
+
+.manuscript-prose ::selection,
+.driftfield-mdx .cm-content ::selection {
+  background: var(--df-selection);
+}
+
+.driftfield-mdx .mdxeditor-source-editor,
+.driftfield-mdx .mdxeditor-diff-editor,
+.driftfield-mdx .cm-editor,
+.driftfield-mdx .cm-scroller {
+  min-height: 0;
+  flex: 1;
+  color: var(--foreground);
+  background: var(--df-editor);
+}
+
+.driftfield-mdx .cm-content {
+  width: min(100%, 900px);
+  margin: 0 auto;
+  padding: 38px 52px 100px;
+  caret-color: var(--primary);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.driftfield-mdx .cm-gutters {
+  color: var(--df-sidebar-muted);
+  background: var(--df-sidebar);
+  border-right: 1px solid var(--border);
+}
+
+.driftfield-mdx .cm-activeLine,
+.driftfield-mdx .cm-activeLineGutter {
+  background: var(--df-hover);
+}
+
+.editor-statusbar {
+  display: flex;
+  height: 25px;
+  min-height: 25px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  color: var(--df-sidebar-muted);
+  font-size: 9px;
+  background: var(--df-sidebar);
+  border-top: 1px solid var(--border);
+}
+
+.editor-statusbar div {
+  display: flex;
+  gap: 13px;
+}
+
+
+@media (max-width: 1050px) {
+  .manuscript-prose {
+    padding-right: 38px;
+    padding-left: 38px;
+  }
+}

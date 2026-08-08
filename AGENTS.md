@@ -43,7 +43,7 @@ Driftfield/
     │   ├── main.tsx               # React entry
     │   ├── App.tsx                # Demo state and workspace composition
     │   ├── global.d.ts            # window.driftfield declaration
-    │   ├── styles.css             # Tailwind entry and application themes
+    │   ├── styles.css             # Renderer CSS entry; imports layers below
     │   ├── app/
     │   │   ├── types.ts           # Renderer-only workspace view types
     │   │   └── WorkspaceShell.tsx # Resizable three-pane application shell
@@ -52,6 +52,13 @@ Driftfield/
     │   │   ├── assistant/         # Agent conversation UI
     │   │   ├── editor/            # MDXEditor manuscript workspace
     │   │   └── library/           # Novel and chapter tree UI
+    │   ├── styles/
+    │   │   ├── themes.css         # Tailwind mappings and theme palettes
+    │   │   ├── base.css           # Document-level resets and defaults
+    │   │   ├── workspace.css      # Window chrome, panes, and resize handles
+    │   │   ├── library.css        # Novel library and chapter tree
+    │   │   ├── editor.css         # MDXEditor, manuscript, and status bar
+    │   │   └── assistant.css      # Agent conversation and composer
     │   └── lib/utils.ts           # Shared renderer class-name utility
     └── shared/
         └── electron-api.ts        # Shared preload API contract
@@ -180,9 +187,13 @@ The current UI foundation is intentionally small:
 - MDXEditor owns Markdown rich-text, source, and diff editing modes. Markdown is
   the intended manuscript interchange format.
 
-Define application themes through semantic CSS variables in `styles.css` and
-map library-specific variables onto them. Do not scatter One Dark, Tokyo Night,
-or other palette values through feature components.
+Keep `styles.css` as the single renderer stylesheet entry and preserve its import
+order: framework styles, themes, base rules, workspace layout, then feature
+styles. Define application themes through semantic CSS variables in
+`styles/themes.css` and map library-specific variables onto them. Keep shared
+window and panel rules in `styles/workspace.css`; place feature-specific rules in
+the matching library, editor, or assistant stylesheet. Do not scatter GitHub
+Light, One Dark, Tokyo Night, or other palette values through feature components.
 
 The chapter and conversation data currently shown by the renderer is an
 in-memory prototype. Do not label it as saved or persisted until narrow file or
