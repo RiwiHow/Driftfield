@@ -21,7 +21,7 @@
   "include": [
     "forge.config.ts",
     "forge.env.d.ts",
-    "vite.*.config.mts",
+    "config/**/*.mts",
     "src/**/*.ts",
     "src/**/*.tsx",
     "tests/**/*.ts"

@@ -28,10 +28,11 @@ Driftfield/
 ├── forge.env.d.ts
 ├── components.json              # shadcn/ui source-generation configuration
 ├── tsconfig.json
-├── vite.main.config.mts
-├── vite.agent-worker.config.mts  # Native ESM Pi utility-process bundle
-├── vite.preload.config.mts
-├── vite.renderer.config.mts
+├── config/
+│   └── vite/
+│       ├── electron.config.mts   # Shared Forge main/preload Vite config
+│       ├── agent-worker.config.mts # Native ESM Pi utility-process bundle
+│       └── renderer.config.mts   # React, Tailwind, and renderer paths
 ├── tests/                         # Centralized tests mirroring source areas
 │   ├── main/                      # Main services, policies, prompts, and i18n
 │   ├── renderer/                  # Renderer policies, state, and i18n
@@ -205,7 +206,9 @@ domain types.
 - Prefer narrowly defined novel-writing tools over generic shell or filesystem
   tools.
 - Do not enable Pi coding tools by default.
-- Keep Electron main and preload on the Forge 7 CommonJS strategy. Do not restore
+- Keep Electron main and preload on the Forge 7 CommonJS strategy and shared
+  `config/vite/electron.config.mts`. Split that config only when the targets
+  genuinely need different build behavior. Do not restore
   the former `import.meta.url` text transform or package the complete production
   `node_modules` tree to make Pi load from main.
 - The ESM worker build defines `require` with Node's
@@ -563,6 +566,9 @@ properties when extending the affected subsystems:
   Forge 7 CommonJS main/preload output strategy.
 - Keep `src/main.ts` and `src/preload.ts` as stable entry filenames unless the
   corresponding output paths and `package.json.main` are changed together.
+- Keep target-specific Vite configs under `config/vite/`; paths derived from a
+  config file location must resolve through the repository root rather than
+  assuming the config itself remains at the root.
 
 The current Forge 7 development toolchain resolves `tar@6.2.1` through
 `@electron/rebuild` and `@electron/node-gyp`. `pnpm audit --prod` reports no known

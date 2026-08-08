@@ -16,24 +16,24 @@ const config = {
       build: [
         {
           entry: 'src/main.ts',
-          config: 'vite.main.config.mts',
+          config: 'config/vite/electron.config.mts',
           target: 'main',
         },
         {
           entry: 'src/preload.ts',
-          config: 'vite.preload.config.mts',
+          config: 'config/vite/electron.config.mts',
           target: 'preload',
         },
         {
           entry: 'src/main/ai/agent-worker.ts',
-          config: 'vite.agent-worker.config.mts',
+          config: 'config/vite/agent-worker.config.mts',
           target: 'main',
         },
       ],
       renderer: [
         {
           name: 'main_window',
-          config: 'vite.renderer.config.mts',
+          config: 'config/vite/renderer.config.mts',
         },
       ],
     }),
