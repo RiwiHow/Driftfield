@@ -1,25 +1,45 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { watch, type FSWatcher } from 'node:fs';
 import { readFile, readdir, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import { IPC_CHANNELS } from '../shared/contracts/ipc-channels';
 import type {
   ProjectDocument,
+  ProjectSnapshot,
   ProjectTreeNode,
   SelectProjectDirectoryResult,
 } from '../shared/contracts/project';
+import {
+  SettingsService,
+  parseSettingsUpdate,
+} from './services/settings-service';
 
 const mainWindows = new Set<BrowserWindow>();
+const projectSessions = new Map<number, ProjectSession>();
 const supportedDocumentExtensions = new Set(['.md', '.markdown', '.mdx']);
 const ignoredDirectoryNames = new Set(['.git', 'node_modules']);
 const MAX_PROJECT_DOCUMENTS = 500;
 const MAX_PROJECT_BYTES = 10 * 1024 * 1024;
 const MAX_SCANNED_ENTRIES = 10_000;
+let isQuitting = false;
+
+const themeBackgroundColors = {
+  'github-light': '#ffffff',
+  'one-dark': '#282c34',
+  'tokyo-night': '#1a1b26',
+} as const;
 
 interface ProjectScanState {
   bytes: number;
   documents: ProjectDocument[];
   entries: number;
+}
+
+interface ProjectSession {
+  directoryPath: string;
+  refreshTimer: ReturnType<typeof setTimeout> | null;
+  watcher: FSWatcher | null;
 }
 
 const scanProjectDirectory = async (
@@ -116,19 +136,132 @@ const scanProjectDirectory = async (
   return nodes;
 };
 
-const registerIpcHandlers = (): void => {
+const createProjectSnapshot = async (
+  directoryPath: string,
+): Promise<ProjectSnapshot> => {
+  const state: ProjectScanState = { bytes: 0, documents: [], entries: 0 };
+  const tree = await scanProjectDirectory(directoryPath, '', state);
+
+  return {
+    directory: {
+      name: path.basename(directoryPath) || directoryPath,
+      path: directoryPath,
+    },
+    documents: state.documents,
+    tree,
+  };
+};
+
+const closeProjectSession = (webContentsId: number): void => {
+  const session = projectSessions.get(webContentsId);
+
+  if (session === undefined) {
+    return;
+  }
+
+  if (session.refreshTimer !== null) {
+    clearTimeout(session.refreshTimer);
+  }
+
+  session.watcher?.close();
+  projectSessions.delete(webContentsId);
+};
+
+const watchProjectDirectory = (
+  window: BrowserWindow,
+  directoryPath: string,
+): void => {
+  const webContentsId = window.webContents.id;
+  closeProjectSession(webContentsId);
+
+  const session: ProjectSession = {
+    directoryPath,
+    refreshTimer: null,
+    watcher: null,
+  };
+
+  projectSessions.set(webContentsId, session);
+
+  let watcher: FSWatcher;
+
+  try {
+    watcher = watch(directoryPath, { recursive: true });
+    session.watcher = watcher;
+  } catch (error) {
+    console.error('Unable to start project directory watcher', error);
+    return;
+  }
+
+  watcher.on('change', () => {
+    if (session.refreshTimer !== null) {
+      clearTimeout(session.refreshTimer);
+    }
+
+    session.refreshTimer = setTimeout(() => {
+      session.refreshTimer = null;
+
+      void createProjectSnapshot(directoryPath).then(
+        (project) => {
+          if (
+            projectSessions.get(webContentsId) === session &&
+            !window.isDestroyed() &&
+            !window.webContents.isDestroyed()
+          ) {
+            window.webContents.send(IPC_CHANNELS.projectChanged, project);
+          }
+        },
+        (error: unknown) => {
+          console.error('Failed to refresh watched project directory', error);
+        },
+      );
+    }, 250);
+  });
+
+  watcher.on('error', (error) => {
+    console.error('Project directory watcher failed', error);
+  });
+};
+
+const registerIpcHandlers = (settingsService: SettingsService): void => {
+  const getTrustedSenderWindow = (event: Electron.IpcMainInvokeEvent) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+
+    if (
+      senderWindow === null ||
+      !mainWindows.has(senderWindow) ||
+      event.senderFrame !== event.sender.mainFrame
+    ) {
+      throw new Error('Unauthorized renderer request');
+    }
+
+    return senderWindow;
+  };
+
+  ipcMain.handle(IPC_CHANNELS.getAppSettings, (event) => {
+    getTrustedSenderWindow(event);
+    return settingsService.get();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.updateAppSettings, async (event, value) => {
+    getTrustedSenderWindow(event);
+    return settingsService.update(parseSettingsUpdate(value));
+  });
+
+  ipcMain.handle(IPC_CHANNELS.refreshProject, async (event) => {
+    const senderWindow = getTrustedSenderWindow(event);
+    const session = projectSessions.get(senderWindow.webContents.id);
+
+    if (session === undefined) {
+      return null;
+    }
+
+    return createProjectSnapshot(session.directoryPath);
+  });
+
   ipcMain.handle(
     IPC_CHANNELS.selectProjectDirectory,
     async (event): Promise<SelectProjectDirectoryResult> => {
-      const senderWindow = BrowserWindow.fromWebContents(event.sender);
-
-      if (
-        senderWindow === null ||
-        !mainWindows.has(senderWindow) ||
-        event.senderFrame !== event.sender.mainFrame
-      ) {
-        throw new Error('Unauthorized project directory request');
-      }
+      const senderWindow = getTrustedSenderWindow(event);
 
       const result = await dialog.showOpenDialog(senderWindow, {
         buttonLabel: '打开项目',
@@ -151,28 +284,22 @@ const registerIpcHandlers = (): void => {
         throw new Error('Selected project path is not a directory');
       }
 
-      const state: ProjectScanState = { bytes: 0, documents: [], entries: 0 };
-      const tree = await scanProjectDirectory(directoryPath, '', state);
-
-      return {
-        directory: {
-          name: path.basename(directoryPath) || directoryPath,
-          path: directoryPath,
-        },
-        documents: state.documents,
-        tree,
-      };
+      const project = await createProjectSnapshot(directoryPath);
+      watchProjectDirectory(senderWindow, directoryPath);
+      return project;
     },
   );
 };
 
-const createMainWindow = (): void => {
+const createMainWindow = (settingsService: SettingsService): void => {
+  const currentSettings = settingsService.get();
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
     minWidth: 900,
     minHeight: 620,
-    backgroundColor: '#f5f2eb',
+    backgroundColor: themeBackgroundColors[currentSettings.theme],
+    show: false,
     titleBarStyle: 'hiddenInset',
     webPreferences: {
       contextIsolation: true,
@@ -182,8 +309,35 @@ const createMainWindow = (): void => {
     },
   });
 
+  const webContentsId = window.webContents.id;
   mainWindows.add(window);
-  window.once('closed', () => mainWindows.delete(window));
+  window.once('closed', () => {
+    closeProjectSession(webContentsId);
+    mainWindows.delete(window);
+  });
+  window.on('close', (event) => {
+    if (isQuitting) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (
+      process.platform !== 'darwin' &&
+      settingsService.get().closeWindowBehavior === 'minimize'
+    ) {
+      window.minimize();
+    } else {
+      isQuitting = true;
+      app.quit();
+    }
+  });
+
+  window.once('ready-to-show', () => {
+    if (!window.isDestroyed()) {
+      window.show();
+    }
+  });
 
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
@@ -203,15 +357,29 @@ const createMainWindow = (): void => {
   }
 };
 
-void app.whenReady().then(() => {
-  registerIpcHandlers();
-  createMainWindow();
+void app.whenReady().then(async () => {
+  try {
+    const settingsService = await SettingsService.create(
+      app.getPath('userData'),
+    );
+    registerIpcHandlers(settingsService);
+    createMainWindow(settingsService);
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
-    }
-  });
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createMainWindow(settingsService);
+      }
+    });
+  } catch (error) {
+    console.error('Failed to initialize application settings', error);
+    app.quit();
+    return;
+  }
+
+});
+
+app.on('before-quit', () => {
+  isQuitting = true;
 });
 
 app.on('window-all-closed', () => {

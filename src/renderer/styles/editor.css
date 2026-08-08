@@ -171,7 +171,7 @@
   color: var(--foreground);
   caret-color: var(--primary);
   font-family: Georgia, "Noto Serif SC", "Songti SC", STSong, serif;
-  font-size: 17px;
+  font-size: var(--df-editor-font-size, 17px);
   line-height: 2;
   outline: none;
 }

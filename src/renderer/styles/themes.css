@@ -18,6 +18,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -51,6 +52,7 @@
   --border: #292e42;
   --input: #343a52;
   --ring: #7aa2f7;
+  --destructive: #f7768e;
   --df-sidebar: #16161e;
   --df-sidebar-muted: #565f89;
   --df-editor: #1a1b26;
@@ -80,6 +82,7 @@
   --border: #3e4451;
   --input: #4b5263;
   --ring: #61afef;
+  --destructive: #e06c75;
   --df-sidebar: #21252b;
   --df-sidebar-muted: #6f7580;
   --df-editor: #282c34;
@@ -110,6 +113,7 @@
   --border: #d1d9e0;
   --input: #818b98;
   --ring: #0969da;
+  --destructive: #cf222e;
   --df-sidebar: #f6f8fa;
   --df-sidebar-muted: #818b98;
   --df-editor: #ffffff;
@@ -121,3 +125,20 @@
   --df-warm: #9a6700;
 }
 
+[data-preview-theme="github-light"] {
+  --preview-editor: #fff;
+  --preview-sidebar: #f6f8fa;
+  --preview-border: #d1d9e0;
+}
+
+[data-preview-theme="tokyo-night"] {
+  --preview-editor: #1a1b26;
+  --preview-sidebar: #16161e;
+  --preview-border: #292e42;
+}
+
+[data-preview-theme="one-dark"] {
+  --preview-editor: #282c34;
+  --preview-sidebar: #21252b;
+  --preview-border: #3e4451;
+}

@@ -1,4 +1,6 @@
-export type ThemeName = 'github-light' | 'one-dark' | 'tokyo-night';
+import type { AppTheme } from '../../shared/contracts/settings';
+
+export type ThemeName = AppTheme;
 
 export interface Chapter {
   id: string;
@@ -8,4 +10,5 @@ export interface Chapter {
   title: string;
   markdown: string;
   previousMarkdown: string;
+  sourceRevision: number;
 }

@@ -191,7 +191,7 @@ function LoadedManuscriptEditor({
           )}
           contentEditableClassName="manuscript-prose"
           iconComponentFor={editorIcon}
-          key={chapter.id}
+          key={`${chapter.id}:${chapter.sourceRevision}`}
           markdown={chapter.markdown}
           onChange={(markdown) => {
             setParseError(null);

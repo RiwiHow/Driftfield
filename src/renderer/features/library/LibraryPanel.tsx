@@ -6,6 +6,7 @@ import {
   LoaderCircle,
   MoreHorizontal,
   Plus,
+  RefreshCw,
   Settings2,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -20,7 +21,10 @@ import type {
 interface LibraryPanelProps {
   activeChapterId: string | null;
   isSelectingProject: boolean;
+  isRefreshingProject: boolean;
   onChapterChange: (chapterId: string) => void;
+  onOpenSettings: () => void;
+  onRefreshProject: () => void;
   onSelectProject: () => void;
   projectDirectory: ProjectDirectory | null;
   projectSelectionError: string | null;
@@ -30,7 +34,10 @@ interface LibraryPanelProps {
 export function LibraryPanel({
   activeChapterId,
   isSelectingProject,
+  isRefreshingProject,
   onChapterChange,
+  onOpenSettings,
+  onRefreshProject,
   onSelectProject,
   projectDirectory,
   projectSelectionError,
@@ -59,6 +66,21 @@ export function LibraryPanel({
             ) : (
               <Plus size={15} />
             )}
+          </Button>
+          <Button
+            aria-label="刷新项目目录"
+            disabled={projectDirectory === null || isRefreshingProject}
+            onClick={onRefreshProject}
+            size="icon"
+            title="刷新项目目录"
+            variant="ghost"
+          >
+            <RefreshCw
+              className={cn(
+                isRefreshingProject && 'project-switcher-spinner',
+              )}
+              size={14}
+            />
           </Button>
           <Button aria-label="更多目录操作" size="icon" variant="ghost">
             <MoreHorizontal size={15} />
@@ -96,9 +118,15 @@ export function LibraryPanel({
       </nav>
 
       <div className="library-footer">
-        <Button className="library-settings" size="sm" variant="ghost">
+        <Button
+          className="library-settings"
+          onClick={onOpenSettings}
+          size="sm"
+          title="应用设置（⌘,）"
+          variant="ghost"
+        >
           <Settings2 size={14} />
-          项目设置
+          应用设置
         </Button>
         <span>{window.driftfield.platform}</span>
       </div>

@@ -1,4 +1,5 @@
 import { BookOpenText, Palette, PanelRight, Search } from 'lucide-react';
+import type { CSSProperties } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 
 import type { Chapter, ThemeName } from '@/app/types';
@@ -19,9 +20,13 @@ import type {
 
 interface WorkspaceShellProps {
   activeChapter: Chapter | null;
+  editorFontSize: number;
   isSelectingProject: boolean;
+  isRefreshingProject: boolean;
   onChapterChange: (chapterId: string) => void;
   onContentChange: (markdown: string) => void;
+  onOpenSettings: () => void;
+  onRefreshProject: () => void;
   onSelectProject: () => void;
   onThemeChange: (theme: ThemeName) => void;
   projectDirectory: ProjectDirectory | null;
@@ -40,9 +45,13 @@ const themes: ThemeName[] = ['github-light', 'tokyo-night', 'one-dark'];
 
 export function WorkspaceShell({
   activeChapter,
+  editorFontSize,
   isSelectingProject,
+  isRefreshingProject,
   onChapterChange,
   onContentChange,
+  onOpenSettings,
+  onRefreshProject,
   onSelectProject,
   onThemeChange,
   projectDirectory,
@@ -55,7 +64,13 @@ export function WorkspaceShell({
 
   return (
     <TooltipProvider>
-      <main className="app-frame" data-theme={theme}>
+      <main
+        className="app-frame"
+        data-theme={theme}
+        style={
+          { '--df-editor-font-size': `${editorFontSize}px` } as CSSProperties
+        }
+      >
         <header className="titlebar">
           <div className="titlebar-brand">
             <BookOpenText aria-hidden="true" size={14} strokeWidth={1.8} />
@@ -115,7 +130,10 @@ export function WorkspaceShell({
             <LibraryPanel
               activeChapterId={activeChapter?.id ?? null}
               isSelectingProject={isSelectingProject}
+              isRefreshingProject={isRefreshingProject}
               onChapterChange={onChapterChange}
+              onOpenSettings={onOpenSettings}
+              onRefreshProject={onRefreshProject}
               onSelectProject={onSelectProject}
               projectDirectory={projectDirectory}
               projectSelectionError={projectSelectionError}
