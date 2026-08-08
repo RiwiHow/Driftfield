@@ -34,14 +34,23 @@ Driftfield/
 └── src/
     ├── main.ts                    # Stable Forge entry; imports main/index.ts
     ├── main/
-    │   └── index.ts               # Electron lifecycle and main window
+    │   ├── index.ts               # Electron lifecycle and dependency composition
+    │   ├── ipc/
+    │   │   └── register-ipc-handlers.ts # Validated privileged IPC handlers
+    │   ├── services/
+    │   │   ├── project-service.ts # Project scan, revisions, and serialized saves
+    │   │   ├── project-session-service.ts # Watcher sessions and recovery
+    │   │   └── settings-service.ts # Versioned settings parsing and persistence
+    │   └── windows/
+    │       ├── main-window.ts     # BrowserWindow creation and navigation hooks
+    │       └── navigation-policy.ts # Exact renderer URL allowlist
     ├── preload.ts                 # Stable Forge entry; imports preload/index.ts
     ├── preload/
     │   └── index.ts               # contextBridge API implementation
     ├── renderer/
     │   ├── index.html             # Renderer HTML and CSP
     │   ├── main.tsx               # React entry
-    │   ├── App.tsx                # Demo state and workspace composition
+    │   ├── App.tsx                # Thin workspace and dialog composition
     │   ├── global.d.ts            # window.driftfield declaration
     │   ├── styles.css             # Renderer CSS entry; imports layers below
     │   ├── app/
@@ -51,18 +60,25 @@ Driftfield/
     │   ├── features/
     │   │   ├── assistant/         # Agent conversation UI
     │   │   ├── editor/            # MDXEditor manuscript workspace
-    │   │   └── library/           # Novel and chapter tree UI
+    │   │   ├── library/           # Novel tree and snapshot merge logic
+    │   │   ├── projects/          # Project/document/save lifecycle hook
+    │   │   └── settings/          # Settings UI and state hook
     │   ├── styles/
     │   │   ├── themes.css         # Tailwind mappings and theme palettes
     │   │   ├── base.css           # Document-level resets and defaults
     │   │   ├── workspace.css      # Window chrome, panes, and resize handles
     │   │   ├── library.css        # Novel library and chapter tree
     │   │   ├── editor.css         # MDXEditor, manuscript, and status bar
-    │   │   └── assistant.css      # Agent conversation and composer
+    │   │   ├── assistant.css      # Agent conversation and composer
+    │   │   └── settings.css       # Settings and conflict dialogs
     │   └── lib/utils.ts           # Shared renderer class-name utility
     └── shared/
-        └── electron-api.ts        # Shared preload API contract
+        ├── electron-api.ts        # Shared preload API contract
+        └── contracts/             # IPC channels, projects, settings, lifecycle
 ```
+
+Focused Vitest files are colocated with the main-process services, window
+policies, and renderer merge/lifecycle helpers they cover.
 
 Generated directories are not source code:
 
@@ -194,89 +210,64 @@ styles. Define application themes through semantic CSS variables in
 window and panel rules in `styles/workspace.css`; place feature-specific rules in
 the matching library, editor, or assistant stylesheet. Do not scatter GitHub
 Light, One Dark, Tokyo Night, or other palette values through feature components.
+Keep shared pane dimensions and divider geometry in semantic variables under
+`styles/workspace.css`. Panel separators render as a one-pixel hairline with a
+wider invisible drag target; do not reintroduce visible spacer gutters or
+feature-local header/footer offsets.
 
 The project tree currently reads Markdown files through narrow main-process IPC,
-and existing project documents can be saved back through a validated save
-handler. Project selection, open-document state, unsaved edits, and Agent
-conversations are still session-only. Do not describe those parts as restored or
-persisted. Keep raw HTML processing disabled in MDXEditor unless the CSP and
+and existing `.md` and `.markdown` documents can be saved back through a
+validated, conflict-aware save handler. General `.mdx`/JSX files are not
+supported. Project selection, open-document state, unsaved edits, and Agent
+conversations are still session-only. Do not describe those parts as restored
+or persisted. Keep raw HTML processing disabled in MDXEditor unless the CSP and
 sanitization strategy are explicitly reviewed.
 
-## Known Technical Debt and Remediation Order
+## Current Reliability Baseline
 
-The local-project and settings flows are functional prototypes, but the items
-below must be treated as known engineering debt. Fix higher-priority items before
-expanding the affected subsystem, and do not describe them as production-ready
-until the corresponding behavior has automated coverage.
+The earlier priority 0–3 prototype debt has been remediated. Preserve these
+properties when extending the affected subsystems:
 
-### Priority 0: Navigation and Privileged Renderer Safety
+- The main window denies new windows, unexpected `will-navigate` events, and
+  redirects away from the exact development or packaged renderer URL. Privileged
+  IPC also verifies the application-owned main frame and its current URL.
+- One dirty-document lifecycle covers tab close, project switch and refresh,
+  external deletion or rename, window close, and application quit. Destructive
+  paths require an explicit save, discard, or cancel decision.
+- Loaded documents carry a SHA-256 disk revision. Main-process saves compare the
+  current disk revision and return typed saved, conflict, or missing results.
+  Conflict UI exposes reload, compare/merge, and reviewed overwrite paths.
+- Dirty documents whose backing file disappears remain recoverable in the
+  renderer instead of being dropped by watcher snapshots.
+- Recursive `fs.watch` remains only a change signal. Watcher sessions debounce
+  and revision-deduplicate scans, report health to the renderer, retain manual
+  refresh, and retry after failures.
+- Main-process saves are serialized per document, use unique temporary files,
+  and validate sender identity, request size, supported extension, canonical
+  containment, and regular-file status.
+- Main-process responsibilities are separated across `windows/`, `ipc/`, and
+  `services/`. Renderer project and settings state live in feature hooks; root
+  `App.tsx` remains a composition layer.
+- Settings use schema version 1 and migrate the earlier unversioned shape.
+- Vitest covers path containment, project scanning, revision conflicts, settings
+  parsing and migration, dirty-action decisions, snapshot merges, navigation
+  policy, and MDXEditor initialization callbacks.
 
-- The main window denies new windows but does not yet reject unexpected
-  `will-navigate` events. Add an explicit navigation allowlist for the exact Vite
-  development origin and packaged local renderer URL before adding more
-  privileged preload methods.
-- Continue validating that privileged IPC originates from an application-owned
-  main frame. A BrowserWindow reference alone is not a substitute for navigation
-  policy because a navigated remote document can reuse the same webContents.
-- Route reviewed external URLs through a narrow main-process handler; never load
-  them into the application window.
+## Remaining Technical Debt
 
-### Priority 1: Unsaved Work and External-Edit Conflicts
-
-- Establish one application-owned dirty-document lifecycle. It must cover file
-  tab close, project switch, project refresh, external deletion, window close,
-  and application quit. No path may silently discard unsaved manuscript text.
-- Project switching currently replaces renderer chapter state. Add a save,
-  discard, or cancel decision before replacing a project that has dirty
-  documents.
-- Watcher snapshots currently contain only files still present on disk. Preserve
-  and surface dirty documents whose backing file is externally renamed or
-  deleted instead of dropping them from renderer state.
-- Record a disk revision, content hash, or equivalent version when loading a
-  document. Compare it again in the main process before saving. If another
-  process changed the file, return a typed conflict instead of overwriting it.
-- Conflict UI must offer explicit reload, compare/merge, and reviewed overwrite
-  paths. Do not silently prefer either the renderer copy or disk copy.
-- Application quit on macOS currently exits from the main-process close handler
-  without consulting renderer dirty state. Add a cancellable close handshake or
-  move authoritative dirty tracking into the main process before relying on this
-  behavior for real manuscripts.
-
-### Priority 2: Project Watcher and File-Save Reliability
-
-- Native recursive `fs.watch` is a convenience signal, not a source of truth.
-  Surface watcher health to the renderer, report failures in the UI, retain
-  manual refresh, and recover or re-establish the watcher when possible.
-- Debounce and deduplicate watcher snapshots by meaningful project revision so
-  repeated filesystem events do not cause unnecessary full-project reads or
-  editor remounts.
-- Serialize saves per document in the main process and use unique temporary file
-  names. Renderer button state is not a concurrency guarantee at the IPC
-  boundary.
-- Keep validating canonical project containment, supported extensions, regular
-  files, request size, and sender identity for every write.
-- The scanner currently accepts `.mdx`, while the editor only has confirmed
-  support for the enabled Markdown constructs. Either restrict support to `.md`
-  and `.markdown`, or define and test a safe MDX/JSX descriptor strategy before
-  promising general `.mdx` compatibility.
-
-### Priority 3: Architecture, Tests, and UI Maintainability
-
-- `src/main/index.ts` has accumulated window creation, project scanning,
-  watching, saving, dialogs, context menus, and IPC registration. Split it into
-  `windows/`, `ipc/`, and `services/` modules before adding more project tools.
-- `src/renderer/App.tsx` has accumulated project, document, save, watcher,
-  settings, and shortcut state. Move these responsibilities into feature hooks
-  or stores before adding more editor workflows.
-- Add automated tests. At minimum cover path containment, settings parsing and
-  migration, project scanning, watcher snapshot merges, save conflicts, dirty
-  close/project-switch/application-quit behavior, and initialization callbacks
-  from MDXEditor. Typechecking and packaging are necessary but not sufficient.
-- Add a version field and migrations when the settings schema next changes in a
-  non-backward-compatible way.
-- Replace hard-coded panel intersection offsets such as `42px` and `24px` with
-  shared semantic CSS size variables so header and status-bar changes cannot
-  break separator continuity.
+- There is no external-link preload method yet. If reviewed external URLs are
+  introduced, route them through a narrow validated main-process handler; never
+  load them into the application window.
+- Project selection, open tabs, unsaved drafts, and Agent conversations are not
+  restored after relaunch. A future persistence layer must keep the main process
+  as the source of truth and introduce migrations from its first schema.
+- Watcher retry and close/quit behavior have focused unit coverage but not full
+  packaged Electron end-to-end coverage. Verify packaged builds on every
+  supported platform before describing manuscript workflows as production-ready.
+- General MDX/JSX support remains intentionally disabled pending an explicit
+  descriptor, CSP, sanitization, and test strategy.
+- Increment the settings schema version and add a migration before making a
+  non-backward-compatible settings change.
 
 ## Package and Build Rules
 
@@ -303,6 +294,7 @@ updates its rebuild dependency.
 
 ```bash
 pnpm run dev        # Start Vite and Electron in development mode
+pnpm test           # Run the Vitest unit suite once
 pnpm run typecheck  # Run TypeScript without emitting files
 pnpm run package    # Build and package the local Electron application
 pnpm run make       # Create configured distributables such as DMG and ZIP
@@ -313,6 +305,7 @@ pnpm audit          # Audit the complete development and build graph
 Before handing off a structural or security-sensitive change, run at minimum:
 
 ```bash
+pnpm test
 pnpm run typecheck
 pnpm run package
 ```
