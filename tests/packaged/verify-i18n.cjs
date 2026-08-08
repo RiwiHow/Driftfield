@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const asar = require('@electron/asar');
 
-const workspaceRoot = path.resolve(__dirname, '..');
+const workspaceRoot = path.resolve(__dirname, '../..');
 
 const findAsarFiles = (directory) => {
   if (!fs.existsSync(directory)) return [];

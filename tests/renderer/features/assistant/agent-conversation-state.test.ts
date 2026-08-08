@@ -4,7 +4,7 @@ import {
   INITIAL_AGENT_RUN_STATE,
   isAgentConversationActive,
   reduceAgentConversationRun,
-} from './agent-conversation-state';
+} from '../../../../src/renderer/features/assistant/agent-conversation-state';
 
 describe('Agent conversation run state', () => {
   it('tracks startup, streaming, cancellation and completion explicitly', () => {

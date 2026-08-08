@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { shouldApplyEditorChange } from './editor-change';
+import { shouldApplyEditorChange } from '../../../../src/renderer/features/editor/editor-change';
 
 describe('MDXEditor change initialization', () => {
   it('ignores the initial Markdown normalization callback', () => {

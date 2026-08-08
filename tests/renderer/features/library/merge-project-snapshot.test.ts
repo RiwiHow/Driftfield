@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Chapter } from '@/app/types';
-import type { ProjectSnapshot } from '../../../shared/contracts/project';
-import { mergeProjectSnapshot } from './merge-project-snapshot';
+import type { Chapter } from '../../../../src/renderer/app/types';
+import { mergeProjectSnapshot } from '../../../../src/renderer/features/library/merge-project-snapshot';
+import type { ProjectSnapshot } from '../../../../src/shared/contracts/project';
 
 const dirtyChapter: Chapter = {
   backingFileStatus: 'available',

@@ -1,7 +1,7 @@
 import type { TFunction } from 'i18next';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createMdxEditorTranslation } from './mdx-editor-translation';
+import { createMdxEditorTranslation } from '../../../../src/renderer/features/editor/mdx-editor-translation';
 
 describe('MDXEditor translation adapter', () => {
   it('maps known MDXEditor keys and forwards interpolation values', () => {

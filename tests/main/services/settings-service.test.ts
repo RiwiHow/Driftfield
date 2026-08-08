@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   parseSettingsUpdate,
   parseStoredSettings,
-} from './settings-service';
+} from '../../../src/main/services/settings-service';
 
 describe('settings parsing and migration', () => {
   it('migrates unversioned settings to version 3 with English as default', () => {

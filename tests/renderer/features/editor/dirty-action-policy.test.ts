@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   dirtyActionFor,
   mayCompleteDestructiveAction,
-} from './dirty-action-policy';
+} from '../../../../src/renderer/features/editor/dirty-action-policy';
 
 describe.each(['tab close', 'project switch', 'application quit'])(
   '%s dirty-document policy',

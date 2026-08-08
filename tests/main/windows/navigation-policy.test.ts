@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createRendererNavigationPolicy } from './navigation-policy';
+import { createRendererNavigationPolicy } from '../../../src/main/windows/navigation-policy';
 
 describe('renderer navigation policy', () => {
   it('allows only the exact renderer document and hash changes', () => {

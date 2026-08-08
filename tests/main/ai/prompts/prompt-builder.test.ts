@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { AGENT_ROLES } from '../../../shared/contracts/agent';
-import { buildAgentSystemPrompt } from './prompt-builder';
+import { AGENT_ROLES } from '../../../../src/shared/contracts/agent';
+import { buildAgentSystemPrompt } from '../../../../src/main/ai/prompts/prompt-builder';
 
 describe('Agent prompt registry', () => {
   it.each(AGENT_ROLES)('applies application boundaries to %s', (role) => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { APP_LANGUAGES } from './languages';
-import { I18N_RESOURCES } from './resources';
+import { APP_LANGUAGES } from '../../../src/shared/i18n/languages';
+import { I18N_RESOURCES } from '../../../src/shared/i18n/resources';
 
 const flattenCatalog = (
   value: Record<string, unknown>,

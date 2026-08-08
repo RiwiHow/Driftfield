@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isAgentWorkerCommand,
   isAgentWorkerMessage,
-} from './agent-worker';
+} from '../../../src/shared/contracts/agent-worker';
 
 describe('Agent utility-process protocol', () => {
   it('accepts application-owned worker commands', () => {

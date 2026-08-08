@@ -4,7 +4,7 @@ import {
   changeRendererLanguage,
   initializeRendererI18n,
   rendererI18n,
-} from './index';
+} from '../../../src/renderer/i18n';
 
 const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
 const documentElement = { dir: '', lang: '' };

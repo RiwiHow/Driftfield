@@ -1,6 +1,9 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { initializeMainI18n, translateMain } from './main-i18n';
+import {
+  initializeMainI18n,
+  translateMain,
+} from '../../../src/main/i18n/main-i18n';
 
 describe('main-process translations', () => {
   beforeAll(async () => initializeMainI18n());

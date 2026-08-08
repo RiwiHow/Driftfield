@@ -9,7 +9,7 @@ import {
   createProjectSnapshot,
   isPathInside,
   saveProjectDocument,
-} from './project-service';
+} from '../../../src/main/services/project-service';
 
 const temporaryDirectories: string[] = [];
 

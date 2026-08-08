@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "electron-forge start",
     "test": "vitest run",
-    "test:packaged-i18n": "node scripts/verify-packaged-i18n.cjs",
+    "test:packaged-i18n": "node tests/packaged/verify-i18n.cjs",
     "typecheck": "tsc --noEmit",
     "package": "electron-forge package",
     "make": "electron-forge make"

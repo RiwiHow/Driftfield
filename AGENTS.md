@@ -32,6 +32,11 @@ Driftfield/
 ├── vite.agent-worker.config.mts  # Native ESM Pi utility-process bundle
 ├── vite.preload.config.mts
 ├── vite.renderer.config.mts
+├── tests/                         # Centralized tests mirroring source areas
+│   ├── main/                      # Main services, policies, prompts, and i18n
+│   ├── renderer/                  # Renderer policies, state, and i18n
+│   ├── shared/                    # Shared contracts and locale parity
+│   └── packaged/                  # Post-package ASAR smoke assertions
 └── src/
     ├── main.ts                    # Stable Forge entry; imports main/index.ts
     ├── main/
@@ -84,8 +89,10 @@ Driftfield/
         └── contracts/             # IPC channels, projects, settings, lifecycle
 ```
 
-Focused Vitest files are colocated with the main-process services, window
-policies, and renderer merge/lifecycle helpers they cover.
+All tests live under the root `tests/` directory and mirror the corresponding
+`src/main/`, `src/renderer/`, and `src/shared/` areas. Do not place `*.test.ts`
+or `*.test.tsx` files under `src/`. Post-package assertions that inspect ASAR or
+installers live under `tests/packaged/` and run through dedicated package scripts.
 
 Generated directories are not source code:
 

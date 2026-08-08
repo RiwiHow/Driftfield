@@ -1,10 +1,10 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { initializeMainI18n } from './main-i18n';
+import { initializeMainI18n } from '../../../src/main/i18n/main-i18n';
 import {
   createCloseUnsavedDialogOptions,
   createOpenProjectDialogOptions,
-} from './native-dialog-options';
+} from '../../../src/main/i18n/native-dialog-options';
 
 describe('localized native dialog options', () => {
   beforeAll(async () => initializeMainI18n());
