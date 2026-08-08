@@ -77,6 +77,25 @@
   transition: background-color 120ms ease;
 }
 
+.panel-separator::before,
+.panel-separator::after {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--border);
+  content: "";
+  pointer-events: none;
+}
+
+.panel-separator::before {
+  top: 42px;
+}
+
+.panel-separator::after {
+  bottom: 24px;
+}
+
 .panel-separator:hover span,
 .panel-separator[data-resize-handle-active] span,
 .panel-separator:focus-visible span {

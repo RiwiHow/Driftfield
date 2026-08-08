@@ -20,13 +20,17 @@ import type {
 
 interface WorkspaceShellProps {
   activeChapter: Chapter | null;
+  documentSaveError: string | null;
   editorFontSize: number;
   isSelectingProject: boolean;
   isRefreshingProject: boolean;
+  isSavingDocument: boolean;
   onChapterChange: (chapterId: string) => void;
+  onCloseChapter: () => void;
   onContentChange: (markdown: string) => void;
   onOpenSettings: () => void;
   onRefreshProject: () => void;
+  onSaveDocument: () => void;
   onSelectProject: () => void;
   onThemeChange: (theme: ThemeName) => void;
   projectDirectory: ProjectDirectory | null;
@@ -45,13 +49,17 @@ const themes: ThemeName[] = ['github-light', 'tokyo-night', 'one-dark'];
 
 export function WorkspaceShell({
   activeChapter,
+  documentSaveError,
   editorFontSize,
   isSelectingProject,
   isRefreshingProject,
+  isSavingDocument,
   onChapterChange,
+  onCloseChapter,
   onContentChange,
   onOpenSettings,
   onRefreshProject,
+  onSaveDocument,
   onSelectProject,
   onThemeChange,
   projectDirectory,
@@ -146,7 +154,11 @@ export function WorkspaceShell({
           <Panel defaultSize="56%" id="editor" minSize={430}>
             <ManuscriptEditor
               chapter={activeChapter}
+              isSaving={isSavingDocument}
+              onClose={onCloseChapter}
               onChange={onContentChange}
+              onSave={onSaveDocument}
+              saveError={documentSaveError}
               theme={theme}
             />
           </Panel>

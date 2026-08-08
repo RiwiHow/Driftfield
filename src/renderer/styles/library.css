@@ -164,23 +164,24 @@
   align-items: center;
   justify-content: space-between;
   margin-top: auto;
-  min-height: 34px;
-  padding: 3px 7px;
+  height: 25px;
+  min-height: 25px;
+  padding: 0 5px;
   color: var(--df-sidebar-muted);
   border-top: 1px solid var(--border);
 }
 
 .library-footer .library-settings {
-  height: 26px;
-  gap: 6px;
-  padding: 0 6px;
+  height: 22px;
+  gap: 5px;
+  padding: 0 5px;
   color: var(--muted-foreground);
   font-size: 10px;
   font-weight: 550;
 }
 
 .library-footer > span {
-  padding-right: 4px;
-  font-size: 9px;
+  padding-right: 3px;
+  font-size: 8px;
   text-transform: uppercase;
 }

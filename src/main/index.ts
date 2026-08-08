@@ -1,12 +1,21 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron';
 import { watch, type FSWatcher } from 'node:fs';
-import { readFile, readdir, realpath, stat } from 'node:fs/promises';
+import {
+  readFile,
+  readdir,
+  realpath,
+  rename,
+  stat,
+  unlink,
+  writeFile,
+} from 'node:fs/promises';
 import path from 'node:path';
 
 import { IPC_CHANNELS } from '../shared/contracts/ipc-channels';
 import type {
   ProjectDocument,
   ProjectSnapshot,
+  SaveProjectDocumentRequest,
   ProjectTreeNode,
   SelectProjectDirectoryResult,
 } from '../shared/contracts/project';
@@ -38,6 +47,7 @@ interface ProjectScanState {
 
 interface ProjectSession {
   directoryPath: string;
+  documentIds: Set<string>;
   refreshTimer: ReturnType<typeof setTimeout> | null;
   watcher: FSWatcher | null;
 }
@@ -170,12 +180,14 @@ const closeProjectSession = (webContentsId: number): void => {
 const watchProjectDirectory = (
   window: BrowserWindow,
   directoryPath: string,
+  project: ProjectSnapshot,
 ): void => {
   const webContentsId = window.webContents.id;
   closeProjectSession(webContentsId);
 
   const session: ProjectSession = {
     directoryPath,
+    documentIds: new Set(project.documents.map((document) => document.id)),
     refreshTimer: null,
     watcher: null,
   };
@@ -207,6 +219,9 @@ const watchProjectDirectory = (
             !window.isDestroyed() &&
             !window.webContents.isDestroyed()
           ) {
+            session.documentIds = new Set(
+              project.documents.map((document) => document.id),
+            );
             window.webContents.send(IPC_CHANNELS.projectChanged, project);
           }
         },
@@ -255,7 +270,117 @@ const registerIpcHandlers = (settingsService: SettingsService): void => {
       return null;
     }
 
-    return createProjectSnapshot(session.directoryPath);
+    const project = await createProjectSnapshot(session.directoryPath);
+    session.documentIds = new Set(
+      project.documents.map((document) => document.id),
+    );
+    return project;
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.saveProjectDocument,
+    async (event, value: unknown) => {
+      const senderWindow = getTrustedSenderWindow(event);
+      const session = projectSessions.get(senderWindow.webContents.id);
+
+      if (
+        session === undefined ||
+        typeof value !== 'object' ||
+        value === null ||
+        Array.isArray(value)
+      ) {
+        throw new Error('Invalid project document save request');
+      }
+
+      const request = value as Partial<SaveProjectDocumentRequest>;
+
+      if (
+        typeof request.documentId !== 'string' ||
+        typeof request.markdown !== 'string' ||
+        !session.documentIds.has(request.documentId) ||
+        Buffer.byteLength(request.markdown, 'utf8') > MAX_PROJECT_BYTES
+      ) {
+        throw new Error('Unknown project document');
+      }
+
+      const documentPath = path.resolve(
+        session.directoryPath,
+        request.documentId,
+      );
+      const relativePath = path.relative(session.directoryPath, documentPath);
+      const extension = path.extname(documentPath).toLowerCase();
+
+      if (
+        relativePath.startsWith('..') ||
+        path.isAbsolute(relativePath) ||
+        !supportedDocumentExtensions.has(extension)
+      ) {
+        throw new Error('Project document path escapes the project');
+      }
+
+      const documentStats = await stat(documentPath);
+
+      if (!documentStats.isFile()) {
+        throw new Error('Project document is not a regular file');
+      }
+
+      const temporaryPath = path.join(
+        path.dirname(documentPath),
+        `.${path.basename(documentPath)}.driftfield-${process.pid}.tmp`,
+      );
+
+      try {
+        await writeFile(temporaryPath, request.markdown, {
+          encoding: 'utf8',
+          mode: documentStats.mode,
+        });
+        await rename(temporaryPath, documentPath);
+      } catch (error) {
+        await unlink(temporaryPath).catch(() => undefined);
+        throw error;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.confirmCloseUnsavedDocument,
+    async (event, documentTitle: unknown) => {
+      const senderWindow = getTrustedSenderWindow(event);
+
+      if (
+        typeof documentTitle !== 'string' ||
+        documentTitle.length === 0 ||
+        documentTitle.length > 255
+      ) {
+        throw new Error('Invalid document title');
+      }
+
+      const result = await dialog.showMessageBox(senderWindow, {
+        buttons: ['取消', '不保存', '保存并关闭'],
+        cancelId: 0,
+        defaultId: 2,
+        detail: '如果不保存，你在当前会话中的修改将会丢失。',
+        message: `要保存对“${documentTitle}”的修改吗？`,
+        noLink: true,
+        title: '未保存的修改',
+        type: 'warning',
+      });
+
+      return ['cancel', 'discard', 'save'][result.response] ?? 'cancel';
+    },
+  );
+
+  ipcMain.handle(IPC_CHANNELS.showEditorContextMenu, (event) => {
+    const senderWindow = getTrustedSenderWindow(event);
+    const menu = Menu.buildFromTemplate([
+      { role: 'cut' },
+      { role: 'copy' },
+      { role: 'paste' },
+      { type: 'separator' },
+      { role: 'selectAll' },
+    ]);
+
+    menu.popup({ window: senderWindow });
   });
 
   ipcMain.handle(
@@ -285,7 +410,7 @@ const registerIpcHandlers = (settingsService: SettingsService): void => {
       }
 
       const project = await createProjectSnapshot(directoryPath);
-      watchProjectDirectory(senderWindow, directoryPath);
+      watchProjectDirectory(senderWindow, directoryPath, project);
       return project;
     },
   );

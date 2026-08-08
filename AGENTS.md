@@ -195,10 +195,88 @@ window and panel rules in `styles/workspace.css`; place feature-specific rules i
 the matching library, editor, or assistant stylesheet. Do not scatter GitHub
 Light, One Dark, Tokyo Night, or other palette values through feature components.
 
-The chapter and conversation data currently shown by the renderer is an
-in-memory prototype. Do not label it as saved or persisted until narrow file or
-database IPC has been implemented. Keep raw HTML processing disabled in
-MDXEditor unless the CSP and sanitization strategy are explicitly reviewed.
+The project tree currently reads Markdown files through narrow main-process IPC,
+and existing project documents can be saved back through a validated save
+handler. Project selection, open-document state, unsaved edits, and Agent
+conversations are still session-only. Do not describe those parts as restored or
+persisted. Keep raw HTML processing disabled in MDXEditor unless the CSP and
+sanitization strategy are explicitly reviewed.
+
+## Known Technical Debt and Remediation Order
+
+The local-project and settings flows are functional prototypes, but the items
+below must be treated as known engineering debt. Fix higher-priority items before
+expanding the affected subsystem, and do not describe them as production-ready
+until the corresponding behavior has automated coverage.
+
+### Priority 0: Navigation and Privileged Renderer Safety
+
+- The main window denies new windows but does not yet reject unexpected
+  `will-navigate` events. Add an explicit navigation allowlist for the exact Vite
+  development origin and packaged local renderer URL before adding more
+  privileged preload methods.
+- Continue validating that privileged IPC originates from an application-owned
+  main frame. A BrowserWindow reference alone is not a substitute for navigation
+  policy because a navigated remote document can reuse the same webContents.
+- Route reviewed external URLs through a narrow main-process handler; never load
+  them into the application window.
+
+### Priority 1: Unsaved Work and External-Edit Conflicts
+
+- Establish one application-owned dirty-document lifecycle. It must cover file
+  tab close, project switch, project refresh, external deletion, window close,
+  and application quit. No path may silently discard unsaved manuscript text.
+- Project switching currently replaces renderer chapter state. Add a save,
+  discard, or cancel decision before replacing a project that has dirty
+  documents.
+- Watcher snapshots currently contain only files still present on disk. Preserve
+  and surface dirty documents whose backing file is externally renamed or
+  deleted instead of dropping them from renderer state.
+- Record a disk revision, content hash, or equivalent version when loading a
+  document. Compare it again in the main process before saving. If another
+  process changed the file, return a typed conflict instead of overwriting it.
+- Conflict UI must offer explicit reload, compare/merge, and reviewed overwrite
+  paths. Do not silently prefer either the renderer copy or disk copy.
+- Application quit on macOS currently exits from the main-process close handler
+  without consulting renderer dirty state. Add a cancellable close handshake or
+  move authoritative dirty tracking into the main process before relying on this
+  behavior for real manuscripts.
+
+### Priority 2: Project Watcher and File-Save Reliability
+
+- Native recursive `fs.watch` is a convenience signal, not a source of truth.
+  Surface watcher health to the renderer, report failures in the UI, retain
+  manual refresh, and recover or re-establish the watcher when possible.
+- Debounce and deduplicate watcher snapshots by meaningful project revision so
+  repeated filesystem events do not cause unnecessary full-project reads or
+  editor remounts.
+- Serialize saves per document in the main process and use unique temporary file
+  names. Renderer button state is not a concurrency guarantee at the IPC
+  boundary.
+- Keep validating canonical project containment, supported extensions, regular
+  files, request size, and sender identity for every write.
+- The scanner currently accepts `.mdx`, while the editor only has confirmed
+  support for the enabled Markdown constructs. Either restrict support to `.md`
+  and `.markdown`, or define and test a safe MDX/JSX descriptor strategy before
+  promising general `.mdx` compatibility.
+
+### Priority 3: Architecture, Tests, and UI Maintainability
+
+- `src/main/index.ts` has accumulated window creation, project scanning,
+  watching, saving, dialogs, context menus, and IPC registration. Split it into
+  `windows/`, `ipc/`, and `services/` modules before adding more project tools.
+- `src/renderer/App.tsx` has accumulated project, document, save, watcher,
+  settings, and shortcut state. Move these responsibilities into feature hooks
+  or stores before adding more editor workflows.
+- Add automated tests. At minimum cover path containment, settings parsing and
+  migration, project scanning, watcher snapshot merges, save conflicts, dirty
+  close/project-switch/application-quit behavior, and initialization callbacks
+  from MDXEditor. Typechecking and packaging are necessary but not sufficient.
+- Add a version field and migrations when the settings schema next changes in a
+  non-backward-compatible way.
+- Replace hard-coded panel intersection offsets such as `42px` and `24px` with
+  shared semantic CSS size variables so header and status-bar changes cannot
+  break separator continuity.
 
 ## Package and Build Rules
 

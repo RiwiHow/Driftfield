@@ -55,6 +55,54 @@
   border-radius: 999px;
 }
 
+.editor-tab-close {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  margin-left: 1px;
+  padding: 0;
+  place-items: center;
+  color: var(--df-sidebar-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.editor-tab-close:hover,
+.editor-tab-close:focus-visible {
+  color: var(--foreground);
+  background: var(--df-hover);
+}
+
+.editor-tab-close:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.editor-tab-actions {
+  display: flex;
+  align-items: center;
+  margin-right: 6px;
+}
+
+.editor-tab-actions button {
+  width: 28px;
+  height: 28px;
+  color: var(--muted-foreground);
+}
+
+.editor-save-spinner {
+  animation: editor-save-spin 900ms linear infinite;
+}
+
+@keyframes editor-save-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .editor-tabs > button {
   margin-right: 6px;
   color: var(--muted-foreground);
@@ -100,7 +148,10 @@
 }
 
 .driftfield-mdx {
+  display: flex;
   height: 100%;
+  min-height: 0;
+  flex-direction: column;
   color: var(--foreground);
   background: var(--df-editor);
   --baseBase: var(--df-editor);
@@ -131,16 +182,28 @@
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
-.driftfield-mdx .mdxeditor-root-contenteditable,
-.driftfield-mdx .mdxeditor-rich-text-editor,
 .driftfield-mdx .mdxeditor-diff-source-wrapper {
-  height: 100%;
+  height: auto;
   min-height: 0;
 }
 
 .driftfield-mdx .mdxeditor-diff-source-wrapper {
   display: flex;
+  flex: 1;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.driftfield-mdx .mdxeditor-rich-text-editor {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.driftfield-mdx .mdxeditor-root-contenteditable {
+  height: auto;
+  min-height: 100%;
 }
 
 .manuscript-toolbar {

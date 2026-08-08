@@ -1,6 +1,8 @@
 import {
   BlockTypeSelect,
   BoldItalicUnderlineToggles,
+  codeBlockPlugin,
+  codeMirrorPlugin,
   CreateLink,
   defaultSvgIcons,
   DiffSourceToggleWrapper,
@@ -14,6 +16,7 @@ import {
   quotePlugin,
   Separator,
   thematicBreakPlugin,
+  tablePlugin,
   toolbarPlugin,
   UndoRedo,
   diffSourcePlugin,
@@ -24,10 +27,13 @@ import {
   FilePenLine,
   FileText,
   GitCompareArrows,
+  LoaderCircle,
   MoreHorizontal,
   Plus,
+  Save,
+  X,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type MouseEvent } from 'react';
 
 import type { Chapter, ThemeName } from '@/app/types';
 import { Button } from '@/components/ui/button';
@@ -37,7 +43,11 @@ import '@mdxeditor/editor/style.css';
 
 interface ManuscriptEditorProps {
   chapter: Chapter | null;
+  isSaving: boolean;
+  onClose: () => void;
   onChange: (markdown: string) => void;
+  onSave: () => void;
+  saveError: string | null;
   theme: ThemeName;
 }
 
@@ -88,7 +98,11 @@ function editorIcon(name: IconKey) {
 
 export function ManuscriptEditor({
   chapter,
+  isSaving,
+  onClose,
   onChange,
+  onSave,
+  saveError,
   theme,
 }: ManuscriptEditorProps) {
   if (chapter === null) {
@@ -98,7 +112,11 @@ export function ManuscriptEditor({
   return (
     <LoadedManuscriptEditor
       chapter={chapter}
+      isSaving={isSaving}
+      onClose={onClose}
       onChange={onChange}
+      onSave={onSave}
+      saveError={saveError}
       theme={theme}
     />
   );
@@ -126,11 +144,19 @@ function EmptyManuscriptEditor() {
 
 function LoadedManuscriptEditor({
   chapter,
+  isSaving,
   onChange,
+  onClose,
+  onSave,
+  saveError,
   theme,
 }: {
   chapter: Chapter;
+  isSaving: boolean;
   onChange: (markdown: string) => void;
+  onClose: () => void;
+  onSave: () => void;
+  saveError: string | null;
   theme: ThemeName;
 }) {
   const [parseError, setParseError] = useState<string | null>(null);
@@ -141,6 +167,18 @@ function LoadedManuscriptEditor({
       quotePlugin(),
       listsPlugin(),
       thematicBreakPlugin(),
+      tablePlugin(),
+      codeBlockPlugin({ defaultCodeBlockLanguage: 'text' }),
+      codeMirrorPlugin({
+        autoLoadLanguageSupport: true,
+        codeBlockLanguages: {
+          javascript: 'JavaScript',
+          json: 'JSON',
+          markdown: 'Markdown',
+          text: '纯文本',
+          typescript: 'TypeScript',
+        },
+      }),
       linkPlugin(),
       linkDialogPlugin(),
       markdownShortcutPlugin(),
@@ -168,6 +206,17 @@ function LoadedManuscriptEditor({
 
   const characterCount = chapter.markdown.replace(/\s|[#>*_`\-[\]()]/g, '').length;
 
+  const showContextMenu = (event: MouseEvent<HTMLDivElement>): void => {
+    const target = event.target as HTMLElement;
+
+    if (target.closest('[contenteditable="true"], .cm-editor') === null) {
+      return;
+    }
+
+    event.preventDefault();
+    void window.driftfield.showEditorContextMenu();
+  };
+
   return (
     <section className="editor-pane">
       <div className="editor-tabs">
@@ -177,13 +226,38 @@ function LoadedManuscriptEditor({
           {chapter.isDirty && (
             <span className="unsaved-dot" title="仅保存在当前内存中" />
           )}
+          <button
+            aria-label={`关闭 ${chapter.title}`}
+            className="editor-tab-close"
+            onClick={onClose}
+            title="关闭文件"
+            type="button"
+          >
+            <X aria-hidden="true" size={12} />
+          </button>
         </div>
-        <Button aria-label="更多编辑器操作" size="icon" variant="ghost">
-          <MoreHorizontal size={15} />
-        </Button>
+        <div className="editor-tab-actions">
+          <Button
+            aria-label="保存文件"
+            disabled={!chapter.isDirty || isSaving}
+            onClick={onSave}
+            size="icon"
+            title="保存（⌘S）"
+            variant="ghost"
+          >
+            {isSaving ? (
+              <LoaderCircle className="editor-save-spinner" size={14} />
+            ) : (
+              <Save size={14} />
+            )}
+          </Button>
+          <Button aria-label="更多编辑器操作" size="icon" variant="ghost">
+            <MoreHorizontal size={15} />
+          </Button>
+        </div>
       </div>
 
-      <div className="editor-surface">
+      <div className="editor-surface" onContextMenu={showContextMenu}>
         <MDXEditor
           className={cn(
             'driftfield-mdx',
@@ -193,13 +267,18 @@ function LoadedManuscriptEditor({
           iconComponentFor={editorIcon}
           key={`${chapter.id}:${chapter.sourceRevision}`}
           markdown={chapter.markdown}
-          onChange={(markdown) => {
+          onChange={(markdown, initialMarkdownNormalize) => {
+            if (initialMarkdownNormalize) {
+              return;
+            }
+
             setParseError(null);
             onChange(markdown);
           }}
           onError={({ error }) => setParseError(error)}
           placeholder="从这里开始写作……"
           plugins={plugins}
+          readOnly={isSaving}
           spellCheck={false}
           suppressHtmlProcessing
           translation={translateEditor}
@@ -211,7 +290,11 @@ function LoadedManuscriptEditor({
         <div>
           <span>Markdown</span>
           <span>
-            {parseError
+            {saveError
+              ? saveError
+              : isSaving
+                ? '正在保存…'
+                : parseError
               ? '格式解析失败'
               : chapter.isDirty
                 ? '当前会话修改'

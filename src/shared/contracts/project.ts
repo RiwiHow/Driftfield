@@ -32,4 +32,11 @@ export interface ProjectSnapshot {
   tree: ProjectTreeNode[];
 }
 
+export interface SaveProjectDocumentRequest {
+  documentId: string;
+  markdown: string;
+}
+
+export type CloseUnsavedDocumentDecision = 'cancel' | 'discard' | 'save';
+
 export type SelectProjectDirectoryResult = ProjectSnapshot | null;

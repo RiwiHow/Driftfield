@@ -26,6 +26,11 @@ export function App() {
   const [projectTree, setProjectTree] = useState<ProjectTreeNode[]>([]);
   const [isSelectingProject, setIsSelectingProject] = useState(false);
   const [isRefreshingProject, setIsRefreshingProject] = useState(false);
+  const [isSavingDocument, setIsSavingDocument] = useState(false);
+  const [isConfirmingClose, setIsConfirmingClose] = useState(false);
+  const [documentSaveError, setDocumentSaveError] = useState<string | null>(
+    null,
+  );
   const projectRevision = useRef(0);
   const [projectSelectionError, setProjectSelectionError] = useState<
     string | null
@@ -66,6 +71,20 @@ export function App() {
             };
           }
 
+          if (
+            preserveDirtyDocuments &&
+            existingChapter !== undefined &&
+            existingChapter.markdown === document.markdown
+          ) {
+            return {
+              ...existingChapter,
+              order: index + 1,
+              previousMarkdown: document.markdown,
+              relativePath: document.relativePath,
+              title: document.name,
+            };
+          }
+
           return {
             id: document.id,
             isDirty: false,
@@ -79,7 +98,9 @@ export function App() {
         });
       });
       setActiveChapterId((current) =>
-        current !== null && documentIds.has(current)
+        preserveDirtyDocuments && current === null
+          ? null
+          : current !== null && documentIds.has(current)
           ? current
           : (project.documents[0]?.id ?? null),
       );
@@ -137,11 +158,108 @@ export function App() {
     setChapters((current) =>
       current.map((chapter) =>
         chapter.id === activeChapterId
-          ? { ...chapter, isDirty: true, markdown }
+          ? chapter.markdown === markdown
+            ? chapter
+            : { ...chapter, isDirty: true, markdown }
           : chapter,
       ),
     );
   };
+
+  const saveActiveDocument = useCallback(async (): Promise<boolean> => {
+    if (
+      activeChapter === null ||
+      !activeChapter.isDirty ||
+      isSavingDocument
+    ) {
+      return activeChapter !== null;
+    }
+
+    const documentId = activeChapter.id;
+    const markdown = activeChapter.markdown;
+    setIsSavingDocument(true);
+    setDocumentSaveError(null);
+
+    try {
+      await window.driftfield.saveProjectDocument({ documentId, markdown });
+      setChapters((current) =>
+        current.map((chapter) =>
+          chapter.id === documentId
+            ? {
+                ...chapter,
+                isDirty: chapter.markdown !== markdown,
+                previousMarkdown: markdown,
+              }
+            : chapter,
+        ),
+      );
+      return true;
+    } catch {
+      setDocumentSaveError('保存失败，请检查文件权限后重试。');
+      return false;
+    } finally {
+      setIsSavingDocument(false);
+    }
+  }, [activeChapter, isSavingDocument]);
+
+  const closeActiveDocument = async (): Promise<void> => {
+    if (activeChapter === null || isConfirmingClose || isSavingDocument) {
+      return;
+    }
+
+    if (!activeChapter.isDirty) {
+      setActiveChapterId(null);
+      return;
+    }
+
+    const closingDocument = activeChapter;
+    setIsConfirmingClose(true);
+
+    try {
+      const decision = await window.driftfield.confirmCloseUnsavedDocument(
+        closingDocument.title,
+      );
+
+      if (decision === 'save') {
+        if (await saveActiveDocument()) {
+          setActiveChapterId(null);
+        }
+      } else if (decision === 'discard') {
+        setChapters((current) =>
+          current.map((chapter) =>
+            chapter.id === closingDocument.id
+              ? {
+                  ...chapter,
+                  isDirty: false,
+                  markdown: chapter.previousMarkdown,
+                }
+              : chapter,
+          ),
+        );
+        setActiveChapterId(null);
+      }
+    } finally {
+      setIsConfirmingClose(false);
+    }
+  };
+
+  useEffect(() => {
+    const saveFromKeyboard = (event: KeyboardEvent): void => {
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.key.toLowerCase() === 's'
+      ) {
+        event.preventDefault();
+        void saveActiveDocument();
+      }
+    };
+
+    window.addEventListener('keydown', saveFromKeyboard, { capture: true });
+    return () =>
+      window.removeEventListener('keydown', saveFromKeyboard, {
+        capture: true,
+      });
+  }, [saveActiveDocument]);
 
   const selectProjectDirectory = async (): Promise<void> => {
     if (isSelectingProject) {
@@ -209,13 +327,17 @@ export function App() {
     <>
       <WorkspaceShell
         activeChapter={activeChapter}
+        documentSaveError={documentSaveError}
         editorFontSize={settings.editorFontSize}
         isSelectingProject={isSelectingProject}
         isRefreshingProject={isRefreshingProject}
+        isSavingDocument={isSavingDocument}
         onChapterChange={setActiveChapterId}
         onContentChange={updateActiveChapter}
+        onCloseChapter={() => void closeActiveDocument()}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onRefreshProject={() => void refreshProject()}
+        onSaveDocument={() => void saveActiveDocument()}
         onSelectProject={() => void selectProjectDirectory()}
         onThemeChange={(theme: ThemeName) => void updateSettings({ theme })}
         projectDirectory={projectDirectory}
