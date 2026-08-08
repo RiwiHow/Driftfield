@@ -161,6 +161,9 @@ preload methods, which call validated main-process handlers and repositories.
 
 - Introduce migrations from the first persisted schema.
 - Keep SQL and driver-specific records behind repositories.
+- Do not expose SQL, database handles, repository instances, or unrestricted
+  query tools to Agents. Expose bounded, project-scoped novel-domain operations
+  through main-process services instead.
 - Keep domain types independent from the chosen database library.
 - Use transactions for multi-record document changes.
 - When adding a native SQLite module, update Electron rebuild and ASAR unpacking
@@ -172,6 +175,11 @@ Pi or another model SDK belongs behind an application-owned interface in
 `src/main/ai/`. SDK-specific types must not leak into renderer features or shared
 domain types.
 
+- Prefer the `@earendil-works/pi-coding-agent` SDK behind a Driftfield-owned
+  adapter instead of depending directly on `pi-agent-core`. Begin with direct SDK
+  integration and narrowly scoped tools; move the runtime to an Electron utility
+  process or child process before enabling broad tools, extensions, or untrusted
+  resource discovery.
 - Keep credentials and provider calls in the main process.
 - Stream typed deltas to the renderer through cancellable IPC operations.
 - Prefer narrowly defined novel-writing tools over generic shell or filesystem
@@ -181,6 +189,69 @@ domain types.
   broad tools, isolate it in an Electron utility process or child process.
 - Persist application-owned generation records independently from SDK session
   formats so the SDK can be upgraded or replaced.
+
+### Agent Coordination
+
+Use one application-owned coordinator Agent to interpret the user's goal,
+decompose work, start and cancel specialist Agent sessions, collect their
+results, and prepare the final proposal. The coordinator is an orchestrator, not
+an authority that can bypass persistence, permission, or review boundaries.
+
+- Give each specialist Agent only the minimum context required for its role.
+  Do not copy the coordinator's complete transcript into every child session.
+- Use specialist roles such as continuity, plot, style, research, and editing
+  when they provide distinct context or output. Do not create multiple Agents
+  merely to duplicate the same reasoning.
+- Return typed, application-owned results from specialist Agents. Include task,
+  parent request, document, and base-revision identifiers where applicable; do
+  not pass Pi session objects or raw SDK events between application layers.
+- Propagate cancellation from renderer to coordinator and child sessions. Bound
+  concurrency, context size, tool-call count, and output size per request.
+- Treat child results as untrusted proposals. The coordinator may reconcile or
+  summarize them but may not represent a proposal as persisted until the main
+  process confirms the write.
+
+### Agent Data Access
+
+Agents read persisted novel data only through bounded custom tools implemented
+by main-process services and repositories. Prefer domain operations such as
+`getChapter`, `getChapterSummary`, `searchNovelContext`, `getCharacter`,
+`getTimeline`, and `getOutline` over generic database access.
+
+- Validate project and document scope on every tool call and limit result size.
+- Keep schema details, SQL, migrations, and driver records behind repositories.
+- Allow the context service to combine canonical records, full-text or vector
+  search, and cached summaries without changing Agent-facing contracts.
+- Keep canonical novel data, derived Agent memory or indexes, and generation
+  audit records logically separate. Generated summaries are not canonical facts
+  unless the application explicitly promotes them.
+
+### Agent Markdown Changes
+
+Agents may generate a complete Markdown document or propose edits at character,
+word, line, paragraph, or section granularity, but they must not write files
+directly. All generated mutations follow a propose, preview, approve, and apply
+flow through the existing project services.
+
+- A create proposal contains the complete Markdown content and a validated
+  application-relative destination. The main process enforces supported
+  extensions, canonical containment, size limits, and non-overwrite behavior.
+- An edit proposal identifies the document and its SHA-256 `baseRevision`, and
+  carries application-owned structured replacements or a patch against that
+  exact revision. Prefer stable exact-text anchors or ranges in the base snapshot
+  over bare line numbers, which drift during editing.
+- Render a diff or equivalent preview before application. The user must be able
+  to accept, reject, or selectively apply generated changes and cancel ongoing
+  generation.
+- Apply accepted edits through `ProjectService` so revision checks, serialized
+  saves, unique temporary files, conflict handling, and recovery remain intact.
+  Never let an Agent call a lower-level filesystem write path.
+- If the disk revision changed, stop the apply operation and enter the existing
+  conflict workflow or ask the Agent to re-read the latest document. Never guess
+  at a merge or silently overwrite novel text.
+- Persist the prompt, relevant model metadata, tool activity, proposal, approval
+  decision, and resulting revision as application-owned generation records so
+  changes remain traceable and recoverable.
 
 ## UI Conventions
 
