@@ -26,6 +26,7 @@ Driftfield/
 ├── pnpm-workspace.yaml
 ├── forge.config.ts
 ├── forge.env.d.ts
+├── components.json              # shadcn/ui source-generation configuration
 ├── tsconfig.json
 ├── vite.main.config.mts
 ├── vite.preload.config.mts
@@ -40,9 +41,18 @@ Driftfield/
     ├── renderer/
     │   ├── index.html             # Renderer HTML and CSP
     │   ├── main.tsx               # React entry
-    │   ├── App.tsx                # Temporary application shell
+    │   ├── App.tsx                # Demo state and workspace composition
     │   ├── global.d.ts            # window.driftfield declaration
-    │   └── styles.css             # Temporary application styles
+    │   ├── styles.css             # Tailwind entry and application themes
+    │   ├── app/
+    │   │   ├── types.ts           # Renderer-only workspace view types
+    │   │   └── WorkspaceShell.tsx # Resizable three-pane application shell
+    │   ├── components/ui/         # shadcn-style shared primitives
+    │   ├── features/
+    │   │   ├── assistant/         # Agent conversation UI
+    │   │   ├── editor/            # MDXEditor manuscript workspace
+    │   │   └── library/           # Novel and chapter tree UI
+    │   └── lib/utils.ts           # Shared renderer class-name utility
     └── shared/
         └── electron-api.ts        # Shared preload API contract
 ```
@@ -159,6 +169,25 @@ Keep application state separate from persisted data:
 
 - Renderer stores manage transient UI state and cached views.
 - The main process and database remain the source of truth for persisted novels.
+
+The current UI foundation is intentionally small:
+
+- Tailwind CSS provides utility styles and semantic design tokens.
+- shadcn/ui source components live under `src/renderer/components/ui/`; add only
+  components that are actually used.
+- Radix UI provides interactive primitives and Lucide provides icons.
+- `react-resizable-panels` owns the fixed library/editor/Agents split layout.
+- MDXEditor owns Markdown rich-text, source, and diff editing modes. Markdown is
+  the intended manuscript interchange format.
+
+Define application themes through semantic CSS variables in `styles.css` and
+map library-specific variables onto them. Do not scatter One Dark, Tokyo Night,
+or other palette values through feature components.
+
+The chapter and conversation data currently shown by the renderer is an
+in-memory prototype. Do not label it as saved or persisted until narrow file or
+database IPC has been implemented. Keep raw HTML processing disabled in
+MDXEditor unless the CSP and sanitization strategy are explicitly reviewed.
 
 ## Package and Build Rules
 

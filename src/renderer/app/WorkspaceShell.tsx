@@ -1,0 +1,136 @@
+import { BookOpenText, Palette, PanelRight, Search } from 'lucide-react';
+import { Group, Panel, Separator } from 'react-resizable-panels';
+
+import type { Chapter, ThemeName } from '@/app/types';
+import { Button } from '@/components/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { AssistantPanel } from '@/features/assistant/AssistantPanel';
+import { ManuscriptEditor } from '@/features/editor/ManuscriptEditor';
+import { LibraryPanel } from '@/features/library/LibraryPanel';
+
+interface WorkspaceShellProps {
+  activeChapter: Chapter;
+  chapters: Chapter[];
+  onChapterChange: (chapterId: string) => void;
+  onContentChange: (markdown: string) => void;
+  onThemeChange: (theme: ThemeName) => void;
+  theme: ThemeName;
+}
+
+const themeLabels: Record<ThemeName, string> = {
+  'one-dark': 'One Dark',
+  'tokyo-night': 'Tokyo Night',
+};
+
+export function WorkspaceShell({
+  activeChapter,
+  chapters,
+  onChapterChange,
+  onContentChange,
+  onThemeChange,
+  theme,
+}: WorkspaceShellProps) {
+  const nextTheme: ThemeName =
+    theme === 'tokyo-night' ? 'one-dark' : 'tokyo-night';
+
+  return (
+    <TooltipProvider>
+      <main className="app-frame" data-theme={theme}>
+        <header className="titlebar">
+          <div className="titlebar-brand">
+            <BookOpenText aria-hidden="true" size={14} strokeWidth={1.8} />
+            <span>Driftfield</span>
+          </div>
+
+          <div className="titlebar-document" title={activeChapter.title}>
+            {activeChapter.title}
+          </div>
+
+          <div className="titlebar-actions">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button aria-label="搜索" size="icon" variant="ghost">
+                  <Search size={15} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>搜索</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  aria-label={`切换为 ${themeLabels[nextTheme]}`}
+                  onClick={() => onThemeChange(nextTheme)}
+                  size="icon"
+                  variant="ghost"
+                >
+                  <Palette size={15} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                当前主题：{themeLabels[theme]}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button aria-label="Agent 面板" size="icon" variant="ghost">
+                  <PanelRight size={15} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Agent 面板</TooltipContent>
+            </Tooltip>
+          </div>
+        </header>
+
+        <Group className="workspace-panels" orientation="horizontal">
+          <Panel
+            defaultSize={260}
+            groupResizeBehavior="preserve-pixel-size"
+            id="library"
+            minSize={220}
+            maxSize={380}
+          >
+            <LibraryPanel
+              activeChapterId={activeChapter.id}
+              chapters={chapters}
+              onChapterChange={onChapterChange}
+            />
+          </Panel>
+
+          <PanelSeparator />
+
+          <Panel defaultSize="56%" id="editor" minSize={430}>
+            <ManuscriptEditor
+              chapter={activeChapter}
+              onChange={onContentChange}
+            />
+          </Panel>
+
+          <PanelSeparator />
+
+          <Panel
+            defaultSize={326}
+            groupResizeBehavior="preserve-pixel-size"
+            id="assistant"
+            minSize={270}
+            maxSize={460}
+          >
+            <AssistantPanel />
+          </Panel>
+        </Group>
+      </main>
+    </TooltipProvider>
+  );
+}
+
+function PanelSeparator() {
+  return (
+    <Separator className="panel-separator">
+      <span />
+    </Separator>
+  );
+}
