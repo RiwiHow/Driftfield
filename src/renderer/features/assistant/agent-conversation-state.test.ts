@@ -50,4 +50,22 @@ describe('Agent conversation run state', () => {
       }),
     ).toBe(current);
   });
+
+  it('stores a semantic error code instead of localized prose', () => {
+    const current = reduceAgentConversationRun(INITIAL_AGENT_RUN_STATE, {
+      requestId: 'current',
+      type: 'start',
+    });
+    expect(
+      reduceAgentConversationRun(current, {
+        errorCode: 'runtime-exited',
+        requestId: 'current',
+        type: 'failed',
+      }),
+    ).toEqual({
+      errorCode: 'runtime-exited',
+      phase: 'failed',
+      requestId: null,
+    });
+  });
 });

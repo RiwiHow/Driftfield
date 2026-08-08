@@ -7,8 +7,17 @@ export type AgentConversationPhase =
   | 'failed'
   | 'completed';
 
+export type AgentConversationErrorCode =
+  | 'cancel-ended'
+  | 'cancel-failed'
+  | 'credential-missing'
+  | 'model-not-configured'
+  | 'request-failed'
+  | 'runtime-exited'
+  | 'start-failed';
+
 export interface AgentConversationRunState {
-  error: string | null;
+  errorCode: AgentConversationErrorCode | null;
   phase: AgentConversationPhase;
   requestId: string | null;
 }
@@ -19,11 +28,11 @@ export type AgentConversationRunAction =
   | { requestId: string; type: 'cancel-requested' }
   | { requestId: string; type: 'completed' }
   | { requestId: string; type: 'cancelled' }
-  | { error: string; requestId: string; type: 'failed' }
+  | { errorCode: AgentConversationErrorCode; requestId: string; type: 'failed' }
   | { type: 'reset' };
 
 export const INITIAL_AGENT_RUN_STATE: AgentConversationRunState = {
-  error: null,
+  errorCode: null,
   phase: 'idle',
   requestId: null,
 };
@@ -39,7 +48,7 @@ export const reduceAgentConversationRun = (
 ): AgentConversationRunState => {
   if (action.type === 'reset') return INITIAL_AGENT_RUN_STATE;
   if (action.type === 'start') {
-    return { error: null, phase: 'starting', requestId: action.requestId };
+    return { errorCode: null, phase: 'starting', requestId: action.requestId };
   }
   if (state.requestId !== action.requestId) return state;
   if (action.type === 'started') {
@@ -50,10 +59,10 @@ export const reduceAgentConversationRun = (
     return { ...state, phase: 'cancelling' };
   }
   if (action.type === 'failed') {
-    return { error: action.error, phase: 'failed', requestId: null };
+    return { errorCode: action.errorCode, phase: 'failed', requestId: null };
   }
   return {
-    error: null,
+    errorCode: null,
     phase: action.type,
     requestId: null,
   };

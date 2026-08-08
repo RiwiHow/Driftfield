@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "electron-forge start",
     "test": "vitest run",
+    "test:packaged-i18n": "node scripts/verify-packaged-i18n.cjs",
     "typecheck": "tsc --noEmit",
     "package": "electron-forge package",
     "make": "electron-forge make"
@@ -42,6 +43,7 @@
     "@electron-forge/maker-dmg": "^7.11.2",
     "@electron-forge/maker-zip": "^7.11.2",
     "@electron-forge/plugin-vite": "^7.11.2",
+    "@electron/asar": "3.4.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.1.2",
     "@types/react": "^19.2.18",

@@ -39,6 +39,7 @@ Driftfield/
     │   ├── ai/
     │   │   ├── ai-agent-service.ts # Main-owned utility-process and tool bridge
     │   │   └── agent-worker.ts    # ESM-only Pi runtime entry
+    │   ├── i18n/                   # Main translator and native dialog copy
     │   ├── ipc/
     │   │   └── register-ipc-handlers.ts # Validated privileged IPC handlers
     │   ├── services/
@@ -53,6 +54,7 @@ Driftfield/
     │   └── index.ts               # contextBridge API implementation
     ├── renderer/
     │   ├── index.html             # Renderer HTML and CSP
+    │   ├── i18n/                  # Renderer i18next initialization
     │   ├── main.tsx               # React entry
     │   ├── App.tsx                # Thin workspace and dialog composition
     │   ├── global.d.ts            # window.driftfield declaration
@@ -78,6 +80,7 @@ Driftfield/
     │   └── lib/utils.ts           # Shared renderer class-name utility
     └── shared/
         ├── electron-api.ts        # Shared preload API contract
+        ├── i18n/                  # Supported languages and bundled catalogs
         └── contracts/             # IPC channels, projects, settings, lifecycle
 ```
 
@@ -486,20 +489,21 @@ properties when extending the affected subsystems:
 - Main-process responsibilities are separated across `windows/`, `ipc/`, and
   `services/`. Renderer project and settings state live in feature hooks; root
   `App.tsx` remains a composition layer.
-- Settings use schema version 1 and migrate the earlier unversioned shape.
+- Settings use schema version 3 and migrate earlier unversioned and versioned
+  shapes, including English-default language and Agent settings.
 - Vitest covers path containment, project scanning, revision conflicts, settings
   parsing and migration, dirty-action decisions, snapshot merges, navigation
-  policy, and MDXEditor initialization callbacks.
+  policy, Agent run/protocol state, locale parity and switching, native dialog
+  options, and MDXEditor initialization and translation adapters.
 
 ## Remaining Technical Debt
 
 - The current Pi integration is a prototype, not a completed Agent subsystem.
   Do not describe it as production-ready until the following issues are
   resolved:
-  - There is no application UI or narrow IPC flow for provider credentials,
-    OAuth, model selection, or thinking level. Packaged applications cannot rely
-    on terminal environment variables, and error messages must not direct users
-    to settings that do not exist.
+  - API-key provider credentials, explicit model selection, and thinking level
+    now have application UI, validated IPC, and main-owned persistence. OAuth
+    provider flows are not implemented yet.
   - The current-document tool scans the whole project and reads the on-disk copy,
     so it is both unnecessarily expensive and stale when the active manuscript
     has unsaved edits. Introduce a validated targeted read service and an
@@ -508,23 +512,21 @@ properties when extending the affected subsystems:
   - Agent requests are not invalidated when their project is switched. Bind each
     request to an application-owned project-session identifier and cancel or
     reject output and tool calls after that session changes.
-  - Model selection currently takes the first available model. Persist and
-    validate an explicit provider, model, and thinking-level selection instead
-    of depending on SDK ordering.
   - Agent output, context size, tool-call count, and cost are not yet bounded as
     application policy. Add limits and typed terminal reasons before enabling
     general use.
-  - Assistant output is rendered as plain paragraph text rather than reviewed
-    Markdown, and cancellation/start failures leave incomplete UI states. Add a
-    safe Markdown presentation path and explicit starting, cancelling, cancelled,
-    failed, and completed states.
+  - Assistant requests now expose explicit starting, streaming, cancelling,
+    cancelled, failed, and completed states, but output is still rendered as
+    plain paragraph text rather than reviewed Markdown. Add a safe Markdown
+    presentation path.
   - Pi now runs in a separately bundled native ESM Electron utility process and
     the Forge CommonJS main no longer rewrites `import.meta.url`. Add packaged
     startup and provider smoke tests before enabling Pi extensions, untrusted
     resource discovery, module-relative assets, or broader tools.
-  - The Agent IPC and utility-process protocol validators, cancellation races,
-    project invalidation, credential failures, worker restart, tool timeouts, and
-    packaged Pi startup do not have focused automated coverage yet.
+  - Agent IPC and utility-process protocol validators have initial unit coverage,
+    but cancellation races, project invalidation, credential failures, worker
+    restart, tool timeouts, and packaged Pi startup still lack focused automated
+    coverage.
   - Review every new `allowBuilds` entry in `pnpm-workspace.yaml`; do not approve
     transitive lifecycle scripts merely because pnpm prompts during installation.
 - There is no external-link preload method yet. If reviewed external URLs are
@@ -567,6 +569,7 @@ updates its rebuild dependency.
 ```bash
 pnpm run dev        # Start Vite and Electron in development mode
 pnpm test           # Run the Vitest unit suite once
+pnpm run test:packaged-i18n # Verify bundled en/zh-CN catalogs after packaging
 pnpm run typecheck  # Run TypeScript without emitting files
 pnpm run package    # Build and package the local Electron application
 pnpm run make       # Create configured distributables such as DMG and ZIP
@@ -580,4 +583,5 @@ Before handing off a structural or security-sensitive change, run at minimum:
 pnpm test
 pnpm run typecheck
 pnpm run package
+pnpm run test:packaged-i18n
 ```

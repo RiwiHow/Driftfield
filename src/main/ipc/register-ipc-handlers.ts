@@ -27,7 +27,10 @@ import {
   parseSettingsUpdate,
 } from '../services/settings-service';
 import type { AiAgentService } from '../ai/ai-agent-service';
-import { translateMain } from '../i18n/main-i18n';
+import {
+  createCloseUnsavedDialogOptions,
+  createOpenProjectDialogOptions,
+} from '../i18n/native-dialog-options';
 import {
   isAgentApiKeyProviderId,
   type AgentCredentialService,
@@ -259,30 +262,10 @@ export const registerIpcHandlers = ({
         throw new Error('Invalid document title');
       }
       const { language } = settingsService.get();
-      const result = await dialog.showMessageBox(window, {
-        buttons: [
-          translateMain(language, 'closeUnsaved.buttons.cancel'),
-          translateMain(language, 'closeUnsaved.buttons.discard'),
-          translateMain(language, 'closeUnsaved.buttons.save'),
-        ],
-        cancelId: 0,
-        defaultId: 2,
-        detail: translateMain(
-          language,
-          'closeUnsaved.detail',
-        ),
-        message: translateMain(
-          language,
-          'closeUnsaved.message',
-          { title: documentTitle },
-        ),
-        noLink: true,
-        title: translateMain(
-          language,
-          'closeUnsaved.title',
-        ),
-        type: 'warning',
-      });
+      const result = await dialog.showMessageBox(
+        window,
+        createCloseUnsavedDialogOptions(language, documentTitle),
+      );
       return ['cancel', 'discard', 'save'][result.response] ?? 'cancel';
     },
   );
@@ -303,19 +286,10 @@ export const registerIpcHandlers = ({
     async (event): Promise<SelectProjectDirectoryResult> => {
       const window = getTrustedSenderWindow(event);
       const { language } = settingsService.get();
-      const result = await dialog.showOpenDialog(window, {
-        buttonLabel: translateMain(language, 'openProject.button'),
-        defaultPath: app.getPath('documents'),
-        message: translateMain(
-          language,
-          'openProject.message',
-        ),
-        properties: ['openDirectory'],
-        title: translateMain(
-          language,
-          'openProject.title',
-        ),
-      });
+      const result = await dialog.showOpenDialog(
+        window,
+        createOpenProjectDialogOptions(language, app.getPath('documents')),
+      );
       const selectedPath = result.filePaths[0];
       if (result.canceled || selectedPath === undefined) return null;
       const directoryPath = await realpath(selectedPath);

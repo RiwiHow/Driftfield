@@ -152,7 +152,9 @@ export function AssistantPanel({
                     : t('author.user')}
                 </div>
                 <p>
-                  {message.content ||
+                  {message.terminal !== undefined
+                    ? t(`terminal.${message.terminal}`)
+                    : message.content ||
                     (message.role === 'assistant' && isActive
                       ? activePhaseLabel(phase)
                       : '')}

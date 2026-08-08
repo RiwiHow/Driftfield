@@ -3,19 +3,30 @@ import { useTranslation } from 'react-i18next';
 
 import type { Chapter } from '@/app/types';
 import {
+  type AgentConversationErrorCode,
   INITIAL_AGENT_RUN_STATE,
   isAgentConversationActive,
   reduceAgentConversationRun,
 } from './agent-conversation-state';
 
+const errorTranslationKeys = {
+  'cancel-ended': 'agent.cancelEnded',
+  'cancel-failed': 'agent.cancelFailed',
+  'credential-missing': 'agent.credentialMissing',
+  'model-not-configured': 'agent.modelNotConfigured',
+  'request-failed': 'agent.requestFailed',
+  'runtime-exited': 'agent.runtimeExited',
+  'start-failed': 'agent.startFailed',
+} as const satisfies Record<AgentConversationErrorCode, string>;
+
 export interface ConversationMessage {
   content: string;
   id: string;
   role: 'assistant' | 'user';
+  terminal?: 'cancelled' | 'empty' | 'failed';
 }
 
 export function useAgentConversation(activeChapter: Chapter | null) {
-  const { t } = useTranslation('assistant');
   const { t: tErrors } = useTranslation('errors');
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [run, dispatchRun] = useReducer(
@@ -44,7 +55,7 @@ export function useAgentConversation(activeChapter: Chapter | null) {
         setMessages((current) =>
           current.map((message) =>
             message.id === event.requestId && message.content.length === 0
-              ? { ...message, content: t('terminal.empty') }
+              ? { ...message, terminal: 'empty' }
               : message,
           ),
         );
@@ -55,7 +66,7 @@ export function useAgentConversation(activeChapter: Chapter | null) {
         setMessages((current) =>
           current.map((message) =>
             message.id === event.requestId && message.content.length === 0
-              ? { ...message, content: t('terminal.cancelled') }
+              ? { ...message, terminal: 'cancelled' }
               : message,
           ),
         );
@@ -66,23 +77,22 @@ export function useAgentConversation(activeChapter: Chapter | null) {
         setMessages((current) =>
           current.map((message) =>
             message.id === event.requestId && message.content.length === 0
-              ? { ...message, content: t('terminal.failed') }
+              ? { ...message, terminal: 'failed' }
               : message,
           ),
         );
         dispatchRun({
-          error: tErrors(
+          errorCode:
             event.code === 'runtime-exited'
-              ? 'agent.runtimeExited'
-              : 'agent.requestFailed',
-          ),
+              ? 'runtime-exited'
+              : 'request-failed',
           requestId: event.requestId,
           type: 'failed',
         });
         requestIdRef.current = null;
       }
     });
-  }, [t, tErrors]);
+  }, []);
 
   const send = useCallback(
     async (prompt: string) => {
@@ -108,24 +118,29 @@ export function useAgentConversation(activeChapter: Chapter | null) {
           requestId: nextRequestId,
         });
         if (started.status === 'error') {
-          const errorKey =
+          const errorCode: AgentConversationErrorCode =
             started.code === 'model-not-configured'
-              ? 'agent.modelNotConfigured'
+              ? 'model-not-configured'
               : started.code === 'credential-missing'
-                ? 'agent.credentialMissing'
-                : 'agent.startFailed';
-          throw new Error(tErrors(errorKey));
+                ? 'credential-missing'
+                : 'start-failed';
+          dispatchRun({ errorCode, requestId: nextRequestId, type: 'failed' });
+          requestIdRef.current = null;
+          setMessages((current) =>
+            current.filter((message) => message.id !== nextRequestId),
+          );
+          return false;
         }
         if (started.requestId !== nextRequestId) {
           throw new Error('Agent request identity mismatch');
         }
         return true;
-      } catch (startError) {
-        const message =
-          startError instanceof Error
-            ? startError.message
-            : tErrors('agent.startFailed');
-        dispatchRun({ error: message, requestId: nextRequestId, type: 'failed' });
+      } catch {
+        dispatchRun({
+          errorCode: 'start-failed',
+          requestId: nextRequestId,
+          type: 'failed',
+        });
         requestIdRef.current = null;
         setMessages((current) =>
           current.filter((message) => message.id !== nextRequestId),
@@ -133,7 +148,7 @@ export function useAgentConversation(activeChapter: Chapter | null) {
         return false;
       }
     },
-    [activeChapter?.id, tErrors],
+    [activeChapter?.id],
   );
 
   const cancel = useCallback(async () => {
@@ -145,7 +160,7 @@ export function useAgentConversation(activeChapter: Chapter | null) {
       if (!result.cancelled && requestIdRef.current === requestId) {
         requestIdRef.current = null;
         dispatchRun({
-          error: tErrors('agent.cancelEnded'),
+          errorCode: 'cancel-ended',
           requestId,
           type: 'failed',
         });
@@ -154,13 +169,13 @@ export function useAgentConversation(activeChapter: Chapter | null) {
       if (requestIdRef.current === requestId) {
         requestIdRef.current = null;
         dispatchRun({
-          error: tErrors('agent.cancelFailed'),
+          errorCode: 'cancel-failed',
           requestId,
           type: 'failed',
         });
       }
     }
-  }, [tErrors]);
+  }, []);
 
   const clear = useCallback(() => {
     if (!isAgentConversationActive(run.phase)) {
@@ -172,7 +187,10 @@ export function useAgentConversation(activeChapter: Chapter | null) {
   return {
     cancel,
     clear,
-    error: run.error,
+    error:
+      run.errorCode === null
+        ? null
+        : tErrors(errorTranslationKeys[run.errorCode]),
     isActive: isAgentConversationActive(run.phase),
     messages,
     phase: run.phase,
