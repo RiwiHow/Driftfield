@@ -1,0 +1,320 @@
+:root {
+  color: #292621;
+  background: #f5f2eb;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 900px;
+  min-height: 100vh;
+  margin: 0;
+  overflow: hidden;
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 272px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.library-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 48px 18px 18px;
+  color: #ece7dc;
+  background: #232822;
+  border-right: 1px solid #3a4038;
+}
+
+.brand {
+  display: flex;
+  gap: 11px;
+  align-items: center;
+  padding: 0 8px 24px;
+}
+
+.brand-mark {
+  display: grid;
+  width: 35px;
+  height: 35px;
+  place-items: center;
+  color: #243027;
+  font-family: Georgia, serif;
+  font-size: 20px;
+  background: #d7c798;
+  border-radius: 9px;
+}
+
+.brand div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brand strong {
+  letter-spacing: 0.02em;
+}
+
+.brand div span {
+  color: #9da599;
+  font-size: 12px;
+}
+
+.new-project,
+.secondary-action,
+.prompt-actions button {
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.new-project {
+  padding: 10px 14px;
+  color: #f7f2e7;
+  text-align: left;
+  background: #343c34;
+  border-color: #495249;
+  border-radius: 9px;
+}
+
+.project-block {
+  padding: 28px 8px 14px;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: #8a8579;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.project-block .eyebrow {
+  color: #8f988c;
+}
+
+.project-block h2 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 19px;
+  font-weight: 500;
+}
+
+.project-meta {
+  margin: 6px 0 0;
+  color: #929a8e;
+  font-size: 12px;
+}
+
+.chapter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chapter {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 7px;
+  width: 100%;
+  padding: 10px;
+  overflow: hidden;
+  color: #b7beb3;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.chapter span {
+  color: #778075;
+  font-size: 11px;
+}
+
+.chapter:hover,
+.chapter.active {
+  color: #fffaf0;
+  background: #343a33;
+}
+
+.chapter.active span {
+  color: #d5c492;
+}
+
+.runtime-badge {
+  margin-top: auto;
+  padding: 12px 8px 2px;
+  color: #6f786d;
+  font-size: 10px;
+}
+
+.workspace {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 48px 34px 30px;
+  background:
+    radial-gradient(circle at 80% 0%, #ebe3d1 0, transparent 32%), #f5f2eb;
+}
+
+.workspace-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 2px 22px;
+}
+
+.workspace-header h1 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 25px;
+  font-weight: 500;
+}
+
+.header-actions {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.saved-state {
+  color: #7e8879;
+  font-size: 12px;
+}
+
+.secondary-action {
+  padding: 8px 14px;
+  background: #fffdf8;
+  border-color: #d7d0c3;
+  border-radius: 8px;
+}
+
+.editor-layout {
+  display: grid;
+  grid-template-columns: minmax(430px, 1fr) 286px;
+  gap: 18px;
+  min-height: 0;
+  flex: 1;
+}
+
+.editor-card,
+.assistant-panel {
+  background: rgb(255 253 248 / 92%);
+  border: 1px solid #ded8cc;
+  border-radius: 14px;
+  box-shadow: 0 16px 42px rgb(58 50 38 / 7%);
+}
+
+.editor-card {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.editor-card textarea {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  padding: 48px clamp(36px, 7vw, 88px);
+  color: #34302b;
+  font-family: Georgia, "Noto Serif SC", "Songti SC", serif;
+  font-size: 17px;
+  line-height: 2;
+  resize: none;
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+.editor-card footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 18px;
+  color: #9a9488;
+  font-size: 11px;
+  border-top: 1px solid #ebe6dd;
+}
+
+.assistant-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+}
+
+.assistant-panel h2 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.assistant-copy {
+  margin: 12px 0 0;
+  color: #777166;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.prompt-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 28px;
+}
+
+.prompt-actions button {
+  padding: 11px 12px;
+  text-align: left;
+  background: #f4f0e7;
+  border-color: #e2dbcf;
+  border-radius: 9px;
+}
+
+.prompt-actions button:hover {
+  background: #ebe5d8;
+}
+
+.primary-action {
+  margin-top: auto;
+  padding: 11px;
+  color: #a8ada5;
+  background: #e2e4df;
+  border: 0;
+  border-radius: 9px;
+}
+
+@media (max-width: 1050px) {
+  .app-shell {
+    grid-template-columns: 230px minmax(0, 1fr);
+  }
+
+  .workspace {
+    padding-right: 22px;
+    padding-left: 22px;
+  }
+
+  .editor-layout {
+    grid-template-columns: minmax(420px, 1fr) 250px;
+  }
+}

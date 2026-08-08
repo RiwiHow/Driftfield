@@ -1,0 +1,7 @@
+minimumReleaseAge: 10080
+minimumReleaseAgeStrict: true
+blockExoticSubdeps: false
+nodeLinker: hoisted
+allowBuilds:
+  fs-xattr: true
+  macos-alias: true
