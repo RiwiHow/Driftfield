@@ -17,9 +17,18 @@ import type {
   CompleteWindowCloseRequest,
   WindowCloseRequest,
 } from '../shared/contracts/window-lifecycle';
+import type {
+  AgentEvent,
+  CancelAgentRequest,
+  CancelAgentResult,
+  StartAgentPromptRequest,
+  StartAgentPromptResult,
+} from '../shared/contracts/agent';
 
 const api: DriftfieldAPI = {
   platform: process.platform,
+  cancelAgent: (request: CancelAgentRequest) =>
+    ipcRenderer.invoke(IPC_CHANNELS.cancelAgent, request) as Promise<CancelAgentResult>,
   confirmCloseUnsavedDocument: (documentTitle) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.confirmCloseUnsavedDocument,
@@ -39,6 +48,14 @@ const api: DriftfieldAPI = {
         IPC_CHANNELS.projectChanged,
         handleProjectChanged,
       );
+  },
+  onAgentEvent: (listener) => {
+    const handleAgentEvent = (
+      _event: Electron.IpcRendererEvent,
+      agentEvent: AgentEvent,
+    ): void => listener(agentEvent);
+    ipcRenderer.on(IPC_CHANNELS.agentEvent, handleAgentEvent);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.agentEvent, handleAgentEvent);
   },
   onProjectWatcherStatusChanged: (listener) => {
     const handleStatus = (
@@ -76,6 +93,11 @@ const api: DriftfieldAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.showEditorContextMenu) as Promise<void>,
   setWindowDirty: (isDirty: boolean) =>
     ipcRenderer.invoke(IPC_CHANNELS.setWindowDirty, isDirty) as Promise<void>,
+  startAgentPrompt: (request: StartAgentPromptRequest) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.startAgentPrompt,
+      request,
+    ) as Promise<StartAgentPromptResult>,
   completeWindowClose: (request: CompleteWindowCloseRequest) =>
     ipcRenderer.invoke(IPC_CHANNELS.completeWindowClose, request) as Promise<void>,
   selectProjectDirectory: () =>

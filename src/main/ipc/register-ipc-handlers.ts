@@ -3,6 +3,10 @@ import { realpath, stat } from 'node:fs/promises';
 
 import { IPC_CHANNELS } from '../../shared/contracts/ipc-channels';
 import type {
+  CancelAgentRequest,
+  StartAgentPromptRequest,
+} from '../../shared/contracts/agent';
+import type {
   SaveProjectDocumentRequest,
   SelectProjectDirectoryResult,
 } from '../../shared/contracts/project';
@@ -17,8 +21,10 @@ import {
   type SettingsService,
   parseSettingsUpdate,
 } from '../services/settings-service';
+import type { AiAgentService } from '../ai/ai-agent-service';
 
 interface RegisterIpcHandlersOptions {
+  aiAgentService: AiAgentService;
   completeWindowClose: (
     window: BrowserWindow,
     request: CompleteWindowCloseRequest,
@@ -32,12 +38,46 @@ interface RegisterIpcHandlersOptions {
 }
 
 export const registerIpcHandlers = ({
+  aiAgentService,
   completeWindowClose,
   getTrustedSenderWindow,
   projectSessions,
   setWindowDirty,
   settingsService,
 }: RegisterIpcHandlersOptions): void => {
+  ipcMain.handle(IPC_CHANNELS.startAgentPrompt, async (event, value: unknown) => {
+    const window = getTrustedSenderWindow(event);
+    if (!isStartAgentPromptRequest(value)) {
+      throw new Error('Invalid Agent prompt request');
+    }
+    const session = projectSessions.get(window.webContents.id);
+    if (
+      value.currentDocumentId !== undefined &&
+      (session === undefined || !session.documentIds.has(value.currentDocumentId))
+    ) {
+      throw new Error('Unknown project document');
+    }
+    const requestId = await aiAgentService.start({
+      ...value,
+      ownerId: window.webContents.id,
+      projectDirectory: session?.directoryPath,
+      sendEvent: (agentEvent) => {
+        if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
+          window.webContents.send(IPC_CHANNELS.agentEvent, agentEvent);
+        }
+      },
+    });
+    return { requestId };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.cancelAgent, async (event, value: unknown) => {
+    const window = getTrustedSenderWindow(event);
+    if (!isCancelAgentRequest(value)) throw new Error('Invalid Agent cancellation');
+    return {
+      cancelled: await aiAgentService.cancel(window.webContents.id, value.requestId),
+    };
+  });
+
   ipcMain.handle(IPC_CHANNELS.getAppSettings, (event) => {
     getTrustedSenderWindow(event);
     return settingsService.get();
@@ -160,3 +200,28 @@ export const registerIpcHandlers = ({
     },
   );
 };
+
+const isStartAgentPromptRequest = (
+  value: unknown,
+): value is StartAgentPromptRequest => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const request = value as Partial<StartAgentPromptRequest>;
+  return (
+    typeof request.prompt === 'string' &&
+    request.prompt.trim().length > 0 &&
+    Buffer.byteLength(request.prompt, 'utf8') <= 32 * 1024 &&
+    (request.currentDocumentId === undefined ||
+      (typeof request.currentDocumentId === 'string' &&
+        request.currentDocumentId.length > 0 &&
+        request.currentDocumentId.length <= 1_024))
+  );
+};
+
+const isCancelAgentRequest = (value: unknown): value is CancelAgentRequest =>
+  typeof value === 'object' &&
+  value !== null &&
+  !Array.isArray(value) &&
+  typeof (value as Partial<CancelAgentRequest>).requestId === 'string' &&
+  (value as Partial<CancelAgentRequest>).requestId!.length <= 128;

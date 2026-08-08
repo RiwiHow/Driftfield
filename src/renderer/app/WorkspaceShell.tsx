@@ -313,7 +313,7 @@ export function WorkspaceShell({
             onResize={(size) => setIsAssistantCollapsed(size.inPixels === 0)}
             panelRef={assistantPanelRef}
           >
-            <AssistantPanel />
+            <AssistantPanel activeChapter={activeChapter} />
           </Panel>
         </Group>
       </main>

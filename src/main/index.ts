@@ -7,6 +7,7 @@ import type {
   WindowCloseRequest,
 } from '../shared/contracts/window-lifecycle';
 import { registerIpcHandlers } from './ipc/register-ipc-handlers';
+import { AiAgentService } from './ai/ai-agent-service';
 import { ProjectSessionService } from './services/project-session-service';
 import { SettingsService } from './services/settings-service';
 import { createMainWindow } from './windows/main-window';
@@ -81,7 +82,10 @@ const getTrustedSenderWindow = (
   return window;
 };
 
-const openMainWindow = (settingsService: SettingsService): void => {
+const openMainWindow = (
+  settingsService: SettingsService,
+  aiAgentService: AiAgentService,
+): void => {
   const registration = createMainWindow({
     onClose: (window, event: Event) => {
       const lifecycle = lifecycleStates.get(window);
@@ -101,6 +105,7 @@ const openMainWindow = (settingsService: SettingsService): void => {
       }
     },
     onClosed: (webContentsId) => {
+      aiAgentService.disposeOwner(webContentsId);
       projectSessions.close(webContentsId);
       mainWindows.delete(registration.window);
     },
@@ -118,17 +123,19 @@ const openMainWindow = (settingsService: SettingsService): void => {
 void app.whenReady().then(async () => {
   try {
     const settingsService = await SettingsService.create(app.getPath('userData'));
+    const aiAgentService = new AiAgentService(app.getPath('userData'));
     registerIpcHandlers({
+      aiAgentService,
       completeWindowClose,
       getTrustedSenderWindow,
       projectSessions,
       setWindowDirty,
       settingsService,
     });
-    openMainWindow(settingsService);
+    openMainWindow(settingsService, aiAgentService);
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
-        openMainWindow(settingsService);
+        openMainWindow(settingsService, aiAgentService);
       }
     });
   } catch (error) {

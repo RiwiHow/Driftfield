@@ -1,4 +1,7 @@
 export const IPC_CHANNELS = {
+  cancelAgent: 'agent:cancel',
+  agentEvent: 'agent:event',
+  startAgentPrompt: 'agent:start-prompt',
   selectProjectDirectory: 'project:select-directory',
   refreshProject: 'project:refresh',
   projectChanged: 'project:changed',

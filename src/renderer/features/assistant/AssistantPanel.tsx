@@ -9,16 +9,30 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
+import type { Chapter } from '@/app/types';
 import { Button } from '@/components/ui/button';
+import { useAgentConversation } from './use-agent-conversation';
 
-export function AssistantPanel() {
+export function AssistantPanel({ activeChapter }: { activeChapter: Chapter | null }) {
   const [prompt, setPrompt] = useState('');
+  const { cancel, clear, error, isRunning, messages, send } =
+    useAgentConversation(activeChapter);
+
+  const submit = async (): Promise<void> => {
+    if (await send(prompt)) setPrompt('');
+  };
 
   return (
     <aside className="assistant-pane">
       <div className="pane-heading assistant-heading">
         <span>Agents</span>
-        <Button aria-label="新建对话" size="icon" variant="ghost">
+        <Button
+          aria-label="新建对话"
+          disabled={isRunning}
+          onClick={clear}
+          size="icon"
+          variant="ghost"
+        >
           <Plus size={15} />
         </Button>
       </div>
@@ -29,13 +43,13 @@ export function AssistantPanel() {
         </span>
         <span>
           <strong>写作伙伴</strong>
-          <small>尚未连接模型</small>
+          <small>{isRunning ? '正在思考' : '受控建议模式'}</small>
         </span>
         <ChevronDown aria-hidden="true" size={14} />
       </button>
 
       <div className="conversation" aria-label="Agent 对话">
-        <div className="message-row assistant-message">
+        {messages.length === 0 ? <div className="message-row assistant-message">
           <span className="message-avatar">
             <Bot aria-hidden="true" size={14} />
           </span>
@@ -45,46 +59,56 @@ export function AssistantPanel() {
               我可以阅读当前章节，协助续写、润色或检查设定一致性。生成内容会先供你审阅。
             </p>
           </div>
-        </div>
-
-        <div className="message-row user-message">
-          <span className="message-avatar">
-            <UserRound aria-hidden="true" size={14} />
-          </span>
-          <div className="message-content">
-            <div className="message-author">你</div>
-            <p>让信标的出现更有悬念，但不要直接解释它的来源。</p>
+        </div> : messages.map((message) => (
+          <div className={`message-row ${message.role}-message`} key={message.id}>
+            <span className="message-avatar">
+              {message.role === 'assistant' ? (
+                <Bot aria-hidden="true" size={14} />
+              ) : (
+                <UserRound aria-hidden="true" size={14} />
+              )}
+            </span>
+            <div className="message-content">
+              <div className="message-author">
+                {message.role === 'assistant' ? '写作伙伴' : '你'}
+              </div>
+              <p>{message.content || (isRunning ? '正在生成…' : '')}</p>
+            </div>
           </div>
-        </div>
+        ))}
 
-        <div className="agent-placeholder">
-          <CircleStop aria-hidden="true" size={15} />
-          <span>配置 Pi SDK 后即可开始对话</span>
-        </div>
+        {error !== null ? <div className="agent-placeholder">{error}</div> : null}
       </div>
 
       <div className="quick-prompts">
-        <button type="button">续写选中内容</button>
-        <button type="button">增强氛围</button>
-        <button type="button">检查一致性</button>
+        <button onClick={() => setPrompt('续写当前章节，保持既有叙事风格。')} type="button">续写当前章节</button>
+        <button onClick={() => setPrompt('增强当前章节的氛围，但不要改变已发生的情节。')} type="button">增强氛围</button>
+        <button onClick={() => setPrompt('检查当前章节与已知设定是否可能存在矛盾。')} type="button">检查一致性</button>
       </div>
 
       <div className="composer">
         <textarea
           aria-label="发送消息给 Agent"
           onChange={(event) => setPrompt(event.target.value)}
+          onKeyDown={(event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+              event.preventDefault();
+              void submit();
+            }
+          }}
           placeholder="询问 Agent，或输入 / 使用工具…"
           rows={3}
           value={prompt}
         />
         <div className="composer-footer">
-          <span>当前章节</span>
+          <span>{activeChapter?.title ?? '无当前章节'}</span>
           <Button
-            aria-label="发送消息"
-            disabled={!prompt.trim()}
+            aria-label={isRunning ? '停止生成' : '发送消息'}
+            disabled={isRunning ? false : !prompt.trim()}
+            onClick={() => void (isRunning ? cancel() : submit())}
             size="icon"
           >
-            <SendHorizontal size={15} />
+            {isRunning ? <CircleStop size={15} /> : <SendHorizontal size={15} />}
           </Button>
         </div>
       </div>
