@@ -4,12 +4,12 @@
 
 .editor-tabs {
   display: flex;
-  height: 43px;
-  min-height: 43px;
+  height: var(--df-pane-header-height);
+  min-height: var(--df-pane-header-height);
   align-items: center;
   justify-content: space-between;
   background: var(--df-sidebar);
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--df-divider-size) solid var(--border);
 }
 
 .editor-tab {
@@ -23,22 +23,12 @@
   padding: 0 13px;
   color: var(--muted-foreground);
   font-size: 11px;
-  border-right: 1px solid var(--border);
+  border-right: var(--df-divider-size) solid var(--border);
 }
 
 .editor-tab.is-active {
   color: var(--foreground);
   background: var(--df-editor);
-}
-
-.editor-tab.is-active::after {
-  position: absolute;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  height: 1px;
-  background: var(--df-editor);
-  content: "";
 }
 
 .editor-tab > span:not(.unsaved-dot) {
@@ -211,7 +201,7 @@
   padding: 4px 10px !important;
   color: var(--muted-foreground);
   background: var(--df-editor-raised) !important;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--df-divider-size) solid var(--border);
   border-radius: 0 !important;
 }
 
@@ -299,7 +289,7 @@
 .driftfield-mdx .cm-gutters {
   color: var(--df-sidebar-muted);
   background: var(--df-sidebar);
-  border-right: 1px solid var(--border);
+  border-right: var(--df-divider-size) solid var(--border);
 }
 
 .driftfield-mdx .cm-activeLine,
@@ -309,15 +299,15 @@
 
 .editor-statusbar {
   display: flex;
-  height: 25px;
-  min-height: 25px;
+  height: var(--df-pane-footer-height);
+  min-height: var(--df-pane-footer-height);
   align-items: center;
   justify-content: space-between;
   padding: 0 10px;
   color: var(--df-sidebar-muted);
   font-size: 9px;
   background: var(--df-sidebar);
-  border-top: 1px solid var(--border);
+  border-top: var(--df-divider-size) solid var(--border);
 }
 
 .editor-statusbar div {

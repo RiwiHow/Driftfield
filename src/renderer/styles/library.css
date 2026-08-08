@@ -4,8 +4,8 @@
 
 .pane-heading {
   display: flex;
-  height: 43px;
-  min-height: 43px;
+  height: var(--df-pane-header-height);
+  min-height: var(--df-pane-header-height);
   align-items: center;
   justify-content: space-between;
   padding: 0 9px 0 14px;
@@ -15,7 +15,7 @@
   letter-spacing: 0.075em;
   text-transform: uppercase;
   user-select: none;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--df-divider-size) solid var(--border);
 }
 
 .pane-heading-actions {
@@ -108,7 +108,7 @@
   top: 0;
   bottom: 0;
   left: 13px;
-  width: 1px;
+  width: var(--df-divider-size);
   background: var(--border);
   content: "";
 }
@@ -164,11 +164,11 @@
   align-items: center;
   justify-content: space-between;
   margin-top: auto;
-  height: 25px;
-  min-height: 25px;
+  height: var(--df-pane-footer-height);
+  min-height: var(--df-pane-footer-height);
   padding: 0 5px;
   color: var(--df-sidebar-muted);
-  border-top: 1px solid var(--border);
+  border-top: var(--df-divider-size) solid var(--border);
 }
 
 .library-footer .library-settings {

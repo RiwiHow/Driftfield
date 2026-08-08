@@ -25,7 +25,7 @@ const isCloseWindowBehavior = (
   value: unknown,
 ): value is CloseWindowBehavior => value === 'quit' || value === 'minimize';
 
-const parseStoredSettings = (value: unknown): AppSettings => {
+export const parseStoredSettings = (value: unknown): AppSettings => {
   if (!isRecord(value)) {
     return { ...DEFAULT_APP_SETTINGS };
   }
@@ -38,6 +38,7 @@ const parseStoredSettings = (value: unknown): AppSettings => {
       ? value.editorFontSize
       : DEFAULT_APP_SETTINGS.editorFontSize,
     theme: isTheme(value.theme) ? value.theme : DEFAULT_APP_SETTINGS.theme,
+    version: 1,
   };
 };
 

@@ -5,6 +5,12 @@
   flex-direction: column;
   color: var(--foreground);
   background: var(--background);
+  --df-pane-header-height: 43px;
+  --df-pane-footer-height: 25px;
+  --df-divider-size: 1px;
+  --df-panel-separator-size: var(--df-divider-size);
+  --df-panel-separator-hit-size: 9px;
+  --df-panel-separator-active-size: 2px;
 }
 
 .titlebar {
@@ -18,7 +24,7 @@
   padding: 0 8px 0 78px;
   color: var(--muted-foreground);
   background: var(--df-sidebar);
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--df-divider-size) solid var(--border);
   -webkit-app-region: drag;
   user-select: none;
 }
@@ -62,44 +68,43 @@
 .panel-separator {
   position: relative;
   z-index: 10;
-  display: flex;
-  width: 5px;
-  align-items: stretch;
-  justify-content: center;
-  background: var(--df-sidebar);
+  width: var(--df-panel-separator-size);
+  flex: 0 0 var(--df-panel-separator-size);
+  background: var(--border);
   cursor: col-resize;
   outline: none;
 }
 
-.panel-separator span {
-  width: 1px;
-  background: var(--border);
-  transition: background-color 120ms ease;
-}
-
-.panel-separator::before,
-.panel-separator::after {
-  position: absolute;
-  right: 0;
-  left: 0;
-  height: 1px;
-  background: var(--border);
-  content: "";
-  pointer-events: none;
-}
-
 .panel-separator::before {
-  top: 42px;
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: var(--df-panel-separator-hit-size);
+  transform: translateX(-50%);
+  content: "";
 }
 
-.panel-separator::after {
-  bottom: 24px;
+.panel-separator span {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: var(--df-divider-size);
+  background: var(--border);
+  transform: translateX(-50%);
+  transition:
+    width 120ms ease,
+    background-color 120ms ease;
+  pointer-events: none;
 }
 
 .panel-separator:hover span,
 .panel-separator[data-resize-handle-active] span,
 .panel-separator:focus-visible span {
-  width: 2px;
+  width: var(--df-panel-separator-active-size);
   background: var(--primary);
 }
 

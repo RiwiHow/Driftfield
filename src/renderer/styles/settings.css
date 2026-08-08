@@ -284,3 +284,10 @@
     transform: translate(-50%, calc(-50% + 6px)) scale(0.99);
   }
 }
+
+.save-conflict-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}

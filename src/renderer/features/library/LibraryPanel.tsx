@@ -12,6 +12,7 @@ import {
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import type { Chapter } from '@/app/types';
 import { cn } from '@/lib/utils';
 import type {
   ProjectDirectory,
@@ -29,6 +30,8 @@ interface LibraryPanelProps {
   projectDirectory: ProjectDirectory | null;
   projectSelectionError: string | null;
   projectTree: ProjectTreeNode[];
+  projectWatcherError: string | null;
+  recoveredChapters: Chapter[];
 }
 
 export function LibraryPanel({
@@ -42,6 +45,8 @@ export function LibraryPanel({
   projectDirectory,
   projectSelectionError,
   projectTree,
+  projectWatcherError,
+  recoveredChapters,
 }: LibraryPanelProps) {
   return (
     <aside className="library-pane">
@@ -93,6 +98,11 @@ export function LibraryPanel({
           {projectSelectionError}
         </p>
       )}
+      {projectWatcherError !== null && (
+        <p className="project-selection-error" role="status">
+          {projectWatcherError}
+        </p>
+      )}
 
       <nav className="manuscript-tree" aria-label="小说目录">
         <div className="tree-section-label">手稿</div>
@@ -105,15 +115,37 @@ export function LibraryPanel({
             <Plus aria-hidden="true" size={12} strokeWidth={2} />
             <span aria-hidden="true">打开本地项目</span>
           </p>
-        ) : projectTree.length === 0 ? (
+        ) : projectTree.length === 0 && recoveredChapters.length === 0 ? (
           <p className="tree-empty-state">此文件夹中没有 Markdown 文件</p>
         ) : (
-          <ProjectTree
-            activeChapterId={activeChapterId}
-            key={projectDirectory.path}
-            nodes={projectTree}
-            onChapterChange={onChapterChange}
-          />
+          <>
+            <ProjectTree
+              activeChapterId={activeChapterId}
+              key={projectDirectory.path}
+              nodes={projectTree}
+              onChapterChange={onChapterChange}
+            />
+            {recoveredChapters.length > 0 && (
+              <div className="recovered-documents">
+                <div className="tree-section-label">待恢复的未保存文档</div>
+                {recoveredChapters.map((chapter) => (
+                  <button
+                    className={cn(
+                      'chapter-row is-missing',
+                      chapter.id === activeChapterId && 'is-active',
+                    )}
+                    key={chapter.id}
+                    onClick={() => onChapterChange(chapter.id)}
+                    title={`${chapter.relativePath}（磁盘文件已移动或删除）`}
+                    type="button"
+                  >
+                    <FileText aria-hidden="true" size={14} />
+                    <span>{chapter.title}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </nav>
 

@@ -36,6 +36,8 @@ interface WorkspaceShellProps {
   projectDirectory: ProjectDirectory | null;
   projectSelectionError: string | null;
   projectTree: ProjectTreeNode[];
+  projectWatcherError: string | null;
+  recoveredChapters: Chapter[];
   theme: ThemeName;
 }
 
@@ -65,6 +67,8 @@ export function WorkspaceShell({
   projectDirectory,
   projectSelectionError,
   projectTree,
+  projectWatcherError,
+  recoveredChapters,
   theme,
 }: WorkspaceShellProps) {
   const currentThemeIndex = themes.indexOf(theme);
@@ -146,6 +150,8 @@ export function WorkspaceShell({
               projectDirectory={projectDirectory}
               projectSelectionError={projectSelectionError}
               projectTree={projectTree}
+              projectWatcherError={projectWatcherError}
+              recoveredChapters={recoveredChapters}
             />
           </Panel>
 

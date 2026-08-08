@@ -8,6 +8,7 @@ export interface ProjectDocument {
   markdown: string;
   name: string;
   relativePath: string;
+  revision: string;
 }
 
 export interface ProjectFileNode {
@@ -29,13 +30,25 @@ export type ProjectTreeNode = ProjectFileNode | ProjectFolderNode;
 export interface ProjectSnapshot {
   directory: ProjectDirectory;
   documents: ProjectDocument[];
+  revision: string;
   tree: ProjectTreeNode[];
 }
 
+export type ProjectWatcherStatus =
+  | { status: 'healthy' }
+  | { message: string; status: 'error' };
+
 export interface SaveProjectDocumentRequest {
   documentId: string;
+  expectedRevision: string;
   markdown: string;
+  overwrite?: boolean;
 }
+
+export type SaveProjectDocumentResult =
+  | { revision: string; status: 'saved' }
+  | { diskDocument: ProjectDocument; status: 'conflict' }
+  | { status: 'missing' };
 
 export type CloseUnsavedDocumentDecision = 'cancel' | 'discard' | 'save';
 

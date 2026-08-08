@@ -38,6 +38,7 @@ import { useMemo, useState, type MouseEvent } from 'react';
 import type { Chapter, ThemeName } from '@/app/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { shouldApplyEditorChange } from './editor-change';
 
 import '@mdxeditor/editor/style.css';
 
@@ -268,7 +269,7 @@ function LoadedManuscriptEditor({
           key={`${chapter.id}:${chapter.sourceRevision}`}
           markdown={chapter.markdown}
           onChange={(markdown, initialMarkdownNormalize) => {
-            if (initialMarkdownNormalize) {
+            if (!shouldApplyEditorChange(initialMarkdownNormalize)) {
               return;
             }
 
@@ -292,6 +293,8 @@ function LoadedManuscriptEditor({
           <span>
             {saveError
               ? saveError
+              : chapter.backingFileStatus === 'missing'
+                ? '磁盘文件已移动或删除；修改已保留'
               : isSaving
                 ? '正在保存…'
                 : parseError
