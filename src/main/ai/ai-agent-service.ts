@@ -1,31 +1,23 @@
-import { randomUUID } from 'node:crypto';
+import { utilityProcess, type UtilityProcess } from 'electron';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
-import type {
-  AgentSession,
-  ModelRuntime,
-  ResourceLoader,
-} from '@earendil-works/pi-coding-agent';
-import {
-  createAgentSession,
-  createExtensionRuntime,
-  defineTool,
-  ModelRuntime as PiModelRuntime,
-  SessionManager,
-  SettingsManager,
-} from '@earendil-works/pi-coding-agent';
-import { Type } from 'typebox';
-
 import type { AgentEvent } from '../../shared/contracts/agent';
+import {
+  isAgentWorkerMessage,
+  type AgentWorkerMessage,
+} from '../../shared/contracts/agent-worker';
 import { createProjectSnapshot } from '../services/project-service';
 
 const MAX_AGENT_DOCUMENT_BYTES = 512 * 1024;
+const WORKER_START_TIMEOUT_MS = 15_000;
 
 interface ActiveAgentRequest {
   cancelled: boolean;
+  currentDocumentId?: string;
   ownerId: number;
-  session: AgentSession;
+  projectDirectory?: string;
+  sendEvent: (event: AgentEvent) => void;
 }
 
 interface StartAgentRequest {
@@ -33,95 +25,64 @@ interface StartAgentRequest {
   ownerId: number;
   projectDirectory?: string;
   prompt: string;
+  requestId: string;
   sendEvent: (event: AgentEvent) => void;
 }
 
 export class AiAgentService {
   private readonly activeRequests = new Map<string, ActiveAgentRequest>();
-  private modelRuntime: ModelRuntime | null = null;
+  private worker: UtilityProcess | null = null;
+  private workerReady: Promise<UtilityProcess> | null = null;
 
   constructor(private readonly userDataPath: string) {}
 
   async start(request: StartAgentRequest): Promise<string> {
-    if ([...this.activeRequests.values()].some((entry) => entry.ownerId === request.ownerId)) {
+    if (
+      this.activeRequests.has(request.requestId) ||
+      [...this.activeRequests.values()].some(
+        (entry) => entry.ownerId === request.ownerId,
+      )
+    ) {
       throw new Error('An Agent request is already running');
     }
 
-    const modelRuntime = await this.getModelRuntime();
-    const availableModels = await modelRuntime.getAvailable();
-    const model = availableModels[0];
-    if (model === undefined) {
-      throw new Error('未找到可用模型。请先在应用设置中配置模型凭证。');
-    }
-
-    const requestId = randomUUID();
-    const { session } = await createAgentSession({
-      cwd: request.projectDirectory ?? this.userDataPath,
-      customTools: [this.createCurrentDocumentTool(request)],
-      model,
-      modelRuntime,
-      resourceLoader: createDriftfieldResourceLoader(),
-      sessionManager: SessionManager.inMemory(request.projectDirectory),
-      settingsManager: SettingsManager.inMemory(),
-      tools: ['get_current_document'],
-    });
     const active: ActiveAgentRequest = {
       cancelled: false,
+      currentDocumentId: request.currentDocumentId,
       ownerId: request.ownerId,
-      session,
+      projectDirectory: request.projectDirectory,
+      sendEvent: request.sendEvent,
     };
-    this.activeRequests.set(requestId, active);
-    request.sendEvent({ requestId, type: 'started' });
+    this.activeRequests.set(request.requestId, active);
 
-    const unsubscribe = session.subscribe((event) => {
-      if (
-        event.type === 'message_update' &&
-        event.assistantMessageEvent.type === 'text_delta'
-      ) {
-        request.sendEvent({
-          delta: event.assistantMessageEvent.delta,
-          requestId,
-          type: 'text-delta',
-        });
-      }
-    });
-
-    void new Promise<void>((resolve) => setImmediate(resolve))
-      .then(() => (active.cancelled ? undefined : session.prompt(request.prompt)))
-      .then(() => {
-        request.sendEvent({
-          requestId,
-          type: active.cancelled ? 'cancelled' : 'completed',
-        });
-      })
-      .catch((error: unknown) => {
-        if (active.cancelled) {
-          request.sendEvent({ requestId, type: 'cancelled' });
-          return;
-        }
-        console.error('Agent request failed', error);
-        request.sendEvent({
-          message: 'Agent 请求未能完成，请检查模型配置后重试。',
-          requestId,
-          type: 'error',
-        });
-      })
-      .finally(() => {
-        unsubscribe();
-        session.dispose();
-        if (this.activeRequests.get(requestId) === active) {
-          this.activeRequests.delete(requestId);
-        }
+    try {
+      const directory = path.join(this.userDataPath, 'ai', 'pi');
+      await mkdir(directory, { recursive: true });
+      const worker = await this.getWorker();
+      if (active.cancelled) throw new Error('Agent request was cancelled');
+      active.sendEvent({ requestId: request.requestId, type: 'started' });
+      worker.postMessage({
+        authPath: path.join(directory, 'auth.json'),
+        cwd: request.projectDirectory ?? this.userDataPath,
+        modelsPath: path.join(directory, 'models.json'),
+        prompt: request.prompt,
+        requestId: request.requestId,
+        type: 'start',
       });
-
-    return requestId;
+      return request.requestId;
+    } catch (error) {
+      if (this.activeRequests.get(request.requestId) === active) {
+        this.activeRequests.delete(request.requestId);
+      }
+      throw error;
+    }
   }
 
   async cancel(ownerId: number, requestId: string): Promise<boolean> {
     const active = this.activeRequests.get(requestId);
     if (active === undefined || active.ownerId !== ownerId) return false;
     active.cancelled = true;
-    await active.session.abort();
+    this.worker?.postMessage({ requestId, type: 'cancel' });
     return true;
   }
 
@@ -131,69 +92,122 @@ export class AiAgentService {
     }
   }
 
-  private createCurrentDocumentTool(request: StartAgentRequest) {
-    return defineTool({
-      description:
-        'Read the current manuscript document selected by the user. Use it only when the request needs its exact text.',
-      label: 'Read current document',
-      name: 'get_current_document',
-      parameters: Type.Object({}),
-      execute: async () => {
-        if (
-          request.projectDirectory === undefined ||
-          request.currentDocumentId === undefined
-        ) {
-          return textToolResult('No current manuscript document is available.');
-        }
-        const project = await createProjectSnapshot(request.projectDirectory);
-        const document = project.documents.find(
-          ({ id }) => id === request.currentDocumentId,
-        );
-        if (document === undefined) {
-          return textToolResult('The selected manuscript document is no longer available.');
-        }
-        if (Buffer.byteLength(document.markdown, 'utf8') > MAX_AGENT_DOCUMENT_BYTES) {
-          return textToolResult('The current document is too large to load into this request.');
-        }
-        return textToolResult(
-          `Document: ${document.relativePath}\nRevision: ${document.revision}\n\n${document.markdown}`,
-        );
-      },
-    });
+  dispose(): void {
+    this.worker?.postMessage({ type: 'shutdown' });
+    this.worker?.kill();
+    this.worker = null;
+    this.workerReady = null;
+    this.activeRequests.clear();
   }
 
-  private async getModelRuntime(): Promise<ModelRuntime> {
-    if (this.modelRuntime !== null) return this.modelRuntime;
-    const directory = path.join(this.userDataPath, 'ai', 'pi');
-    await mkdir(directory, { recursive: true });
-    this.modelRuntime = await PiModelRuntime.create({
-      authPath: path.join(directory, 'auth.json'),
-      modelsPath: path.join(directory, 'models.json'),
+  private getWorker(): Promise<UtilityProcess> {
+    if (this.workerReady !== null) return this.workerReady;
+
+    const worker = utilityProcess.fork(
+      path.join(__dirname, 'agent-worker.mjs'),
+      [],
+      {
+        serviceName: 'Driftfield Agent Runtime',
+        stdio: 'ignore',
+      },
+    );
+    this.worker = worker;
+    this.workerReady = new Promise<UtilityProcess>((resolve, reject) => {
+      let ready = false;
+      const timeout = setTimeout(() => {
+        if (ready) return;
+        reject(new Error('Agent utility process did not become ready'));
+        worker.kill();
+      }, WORKER_START_TIMEOUT_MS);
+
+      worker.on('message', (value: unknown) => {
+        if (!isAgentWorkerMessage(value)) return;
+        if (value.type === 'ready') {
+          if (!ready) {
+            ready = true;
+            clearTimeout(timeout);
+            resolve(worker);
+          }
+          return;
+        }
+        void this.handleWorkerMessage(value);
+      });
+      worker.once('exit', (code) => {
+        clearTimeout(timeout);
+        if (!ready) {
+          reject(new Error(`Agent utility process exited during startup (${code})`));
+        }
+        this.handleWorkerExit(worker);
+      });
+      worker.once('error', () => {
+        if (!ready) reject(new Error('Agent utility process failed to start'));
+      });
     });
-    return this.modelRuntime;
+    return this.workerReady;
+  }
+
+  private async handleWorkerMessage(message: AgentWorkerMessage): Promise<void> {
+    if (message.type === 'ready') return;
+    const active = this.activeRequests.get(message.requestId);
+    if (active === undefined) return;
+
+    if (message.type === 'tool-request') {
+      const content = await this.readCurrentDocument(active).catch(
+        () => 'The selected manuscript document could not be read.',
+      );
+      if (this.activeRequests.get(message.requestId) === active) {
+        this.worker?.postMessage({
+          content,
+          requestId: message.requestId,
+          toolCallId: message.toolCallId,
+          type: 'tool-result',
+        });
+      }
+      return;
+    }
+
+    if (message.type === 'text-delta') {
+      active.sendEvent(message);
+      return;
+    }
+
+    active.sendEvent(message);
+    this.activeRequests.delete(message.requestId);
+  }
+
+  private handleWorkerExit(worker: UtilityProcess): void {
+    if (this.worker !== worker) return;
+    this.worker = null;
+    this.workerReady = null;
+    for (const [requestId, active] of this.activeRequests) {
+      active.sendEvent({
+        message: 'Agent 运行进程意外退出，请重试。',
+        requestId,
+        type: 'error',
+      });
+    }
+    this.activeRequests.clear();
+  }
+
+  private async readCurrentDocument(
+    request: ActiveAgentRequest,
+  ): Promise<string> {
+    if (
+      request.projectDirectory === undefined ||
+      request.currentDocumentId === undefined
+    ) {
+      return 'No current manuscript document is available.';
+    }
+    const project = await createProjectSnapshot(request.projectDirectory);
+    const document = project.documents.find(
+      ({ id }) => id === request.currentDocumentId,
+    );
+    if (document === undefined) {
+      return 'The selected manuscript document is no longer available.';
+    }
+    if (Buffer.byteLength(document.markdown, 'utf8') > MAX_AGENT_DOCUMENT_BYTES) {
+      return 'The current document is too large to load into this request.';
+    }
+    return `Document: ${document.relativePath}\nRevision: ${document.revision}\n\n${document.markdown}`;
   }
 }
-
-const textToolResult = (text: string) => ({
-  content: [{ text, type: 'text' as const }],
-  details: {},
-});
-
-const createDriftfieldResourceLoader = (): ResourceLoader => ({
-  extendResources: () => {},
-  getAgentsFiles: () => ({ agentsFiles: [] }),
-  getAppendSystemPrompt: () => [],
-  getAppendSystemPromptSources: () => [],
-  getExtensions: () => ({
-    errors: [],
-    extensions: [],
-    runtime: createExtensionRuntime(),
-  }),
-  getPrompts: () => ({ diagnostics: [], prompts: [] }),
-  getSkills: () => ({ diagnostics: [], skills: [] }),
-  getSystemPrompt: () =>
-    'You are Driftfield, a careful novel-writing assistant. You may discuss, plan, and draft Markdown, but never claim that text has been saved. You have no shell, filesystem, or database access. When exact selected manuscript text is needed, use get_current_document. Generated text is always a proposal for the user to review.',
-  getSystemPromptSource: () => undefined,
-  getThemes: () => ({ diagnostics: [], themes: [] }),
-  reload: async () => {},
-});

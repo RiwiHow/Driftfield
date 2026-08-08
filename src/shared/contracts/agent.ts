@@ -1,6 +1,7 @@
 export interface StartAgentPromptRequest {
   currentDocumentId?: string;
   prompt: string;
+  requestId: string;
 }
 
 export interface StartAgentPromptResult {

@@ -29,12 +29,16 @@ Driftfield/
 ├── components.json              # shadcn/ui source-generation configuration
 ├── tsconfig.json
 ├── vite.main.config.mts
+├── vite.agent-worker.config.mts  # Native ESM Pi utility-process bundle
 ├── vite.preload.config.mts
 ├── vite.renderer.config.mts
 └── src/
     ├── main.ts                    # Stable Forge entry; imports main/index.ts
     ├── main/
     │   ├── index.ts               # Electron lifecycle and dependency composition
+    │   ├── ai/
+    │   │   ├── ai-agent-service.ts # Main-owned utility-process and tool bridge
+    │   │   └── agent-worker.ts    # ESM-only Pi runtime entry
     │   ├── ipc/
     │   │   └── register-ipc-handlers.ts # Validated privileged IPC handlers
     │   ├── services/
@@ -176,17 +180,41 @@ Pi or another model SDK belongs behind an application-owned interface in
 domain types.
 
 - Prefer the `@earendil-works/pi-coding-agent` SDK behind a Driftfield-owned
-  adapter instead of depending directly on `pi-agent-core`. Begin with direct SDK
-  integration and narrowly scoped tools; move the runtime to an Electron utility
-  process or child process before enabling broad tools, extensions, or untrusted
-  resource discovery.
-- Keep credentials and provider calls in the main process.
+  adapter instead of depending directly on `pi-agent-core`. The Electron main
+  bundle remains CommonJS; load Pi only inside the separately built native ESM
+  `agent-worker.mjs` Electron utility process.
+- Keep credentials and provider calls in the privileged backend. Main owns the
+  application credential paths and process lifecycle; the Pi utility process may
+  read only its application-owned auth/model files and must never expose their
+  paths or contents to preload or renderer.
+- Keep filesystem, project, and future database authority in main-process
+  services. Pi custom tools request bounded domain operations over the internal
+  utility-process protocol; do not give the worker database handles or generic
+  filesystem tools.
 - Stream typed deltas to the renderer through cancellable IPC operations.
 - Prefer narrowly defined novel-writing tools over generic shell or filesystem
   tools.
 - Do not enable Pi coding tools by default.
-- If the full Pi coding-agent runtime needs extensions, resource discovery, or
-  broad tools, isolate it in an Electron utility process or child process.
+- Keep Electron main and preload on the Forge 7 CommonJS strategy. Do not restore
+  the former `import.meta.url` text transform or package the complete production
+  `node_modules` tree to make Pi load from main.
+- The ESM worker build defines `require` with Node's
+  `createRequire(import.meta.url)` for Pi's CommonJS transitive dependencies that
+  still call bare `require()` for Node built-ins. This is Node's supported ESM to
+  CommonJS interoperability mechanism, not an `import.meta.url` text rewrite.
+  Vite/Rolldown currently emits multiple ESM chunks, so the worker-only build
+  banner supplies the same lexical `require` to every output chunk that may
+  contain a CommonJS wrapper. Do not move this banner to the main or preload
+  builds, treat it as a general bundling convention, or use it as permission to
+  import Pi from the CommonJS main bundle.
+- Reassess and remove the worker `createRequire` banner when Pi and its
+  transitive dependencies become fully ESM, or when Vite/Rolldown reliably
+  converts their external Node built-in imports. Re-run the packaged-ASAR worker
+  startup smoke test whenever Pi, Electron, Forge, Vite, or Rolldown is upgraded.
+- An Electron utility process is an isolation and lifecycle boundary, not a
+  security sandbox. The availability of `require` does not permit untrusted Pi
+  extensions, arbitrary resource discovery, generic code execution, shell
+  tools, or unrestricted filesystem/database tools.
 - Persist application-owned generation records independently from SDK session
   formats so the SDK can be upgraded or replaced.
 
@@ -341,10 +369,6 @@ properties when extending the affected subsystems:
     OAuth, model selection, or thinking level. Packaged applications cannot rely
     on terminal environment variables, and error messages must not direct users
     to settings that do not exist.
-  - Agent startup is not reserved atomically. Renderer double submission and
-    concurrent main-process initialization can create multiple paid requests for
-    one window. Track a `starting` state in the renderer and reserve the owner in
-    the main process before awaiting model or session creation.
   - The current-document tool scans the whole project and reads the on-disk copy,
     so it is both unnecessarily expensive and stale when the active manuscript
     has unsaved edits. Introduce a validated targeted read service and an
@@ -353,10 +377,6 @@ properties when extending the affected subsystems:
   - Agent requests are not invalidated when their project is switched. Bind each
     request to an application-owned project-session identifier and cancel or
     reject output and tool calls after that session changes.
-  - The stream protocol sends `started` before the renderer knows the request
-    identifier and uses event-loop timing to avoid losing early deltas. Replace
-    this with an explicit start acknowledgement, renderer-created identifier, or
-    per-request message channel.
   - Model selection currently takes the first available model. Persist and
     validate an explicit provider, model, and thinking-level selection instead
     of depending on SDK ordering.
@@ -367,17 +387,13 @@ properties when extending the affected subsystems:
     Markdown, and cancellation/start failures leave incomplete UI states. Add a
     safe Markdown presentation path and explicit starting, cancelling, cancelled,
     failed, and completed states.
-  - Pi is currently bundled into the Forge 7 CommonJS main output with a targeted
-    `import.meta.url` compatibility transform. This is acceptable only for the
-    current controlled resource loader and narrow text-only tool set; Pi features
-    that resolve module-relative workers, native assets, extensions, TUI helpers,
-    or OAuth loaders may break under that transform. Add a packaged smoke test
-    and move Pi to an ESM Electron utility process or child process before
-    enabling those capabilities. Do not package the complete production
-    `node_modules` tree as a workaround.
-  - The Agent IPC validators, startup reservation, cancellation races, project
-    invalidation, stream ordering, credential failures, and packaged Pi startup
-    do not have focused automated coverage yet.
+  - Pi now runs in a separately bundled native ESM Electron utility process and
+    the Forge CommonJS main no longer rewrites `import.meta.url`. Add packaged
+    startup and provider smoke tests before enabling Pi extensions, untrusted
+    resource discovery, module-relative assets, or broader tools.
+  - The Agent IPC and utility-process protocol validators, cancellation races,
+    project invalidation, credential failures, worker restart, tool timeouts, and
+    packaged Pi startup do not have focused automated coverage yet.
   - Review every new `allowBuilds` entry in `pnpm-workspace.yaml`; do not approve
     transitive lifecycle scripts merely because pnpm prompts during installation.
 - There is no external-link preload method yet. If reviewed external URLs are

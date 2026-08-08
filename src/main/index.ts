@@ -19,6 +19,7 @@ const projectSessions = new ProjectSessionService();
 const lifecycleStates = new WeakMap<BrowserWindow, WindowLifecycleState>();
 let isQuitting = false;
 let pendingQuit = false;
+let activeAiAgentService: AiAgentService | null = null;
 
 interface WindowLifecycleState {
   allowClose: boolean;
@@ -124,6 +125,7 @@ void app.whenReady().then(async () => {
   try {
     const settingsService = await SettingsService.create(app.getPath('userData'));
     const aiAgentService = new AiAgentService(app.getPath('userData'));
+    activeAiAgentService = aiAgentService;
     registerIpcHandlers({
       aiAgentService,
       completeWindowClose,
@@ -162,4 +164,9 @@ app.on('before-quit', (event) => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('will-quit', () => {
+  activeAiAgentService?.dispose();
+  activeAiAgentService = null;
 });

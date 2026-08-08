@@ -41,25 +41,30 @@ export function useAgentConversation(activeChapter: Chapter | null) {
   const send = useCallback(
     async (prompt: string) => {
       const trimmedPrompt = prompt.trim();
-      if (!trimmedPrompt || requestId !== null) return false;
+      if (!trimmedPrompt || requestIdRef.current !== null) return false;
       setError(null);
       const userMessage: ConversationMessage = {
         content: trimmedPrompt,
         id: crypto.randomUUID(),
         role: 'user',
       };
-      setMessages((current) => [...current, userMessage]);
+      const nextRequestId = crypto.randomUUID();
+      requestIdRef.current = nextRequestId;
+      setRequestId(nextRequestId);
+      setMessages((current) => [
+        ...current,
+        userMessage,
+        { content: '', id: nextRequestId, role: 'assistant' },
+      ]);
       try {
         const started = await window.driftfield.startAgentPrompt({
           currentDocumentId: activeChapter?.id,
           prompt: trimmedPrompt,
+          requestId: nextRequestId,
         });
-        requestIdRef.current = started.requestId;
-        setRequestId(started.requestId);
-        setMessages((current) => [
-          ...current,
-          { content: '', id: started.requestId, role: 'assistant' },
-        ]);
+        if (started.requestId !== nextRequestId) {
+          throw new Error('Agent request identity mismatch');
+        }
         return true;
       } catch (startError) {
         const message =
@@ -67,10 +72,15 @@ export function useAgentConversation(activeChapter: Chapter | null) {
             ? startError.message
             : '无法启动 Agent 请求。';
         setError(message);
+        requestIdRef.current = null;
+        setRequestId(null);
+        setMessages((current) =>
+          current.filter((message) => message.id !== nextRequestId),
+        );
         return false;
       }
     },
-    [activeChapter?.id, requestId],
+    [activeChapter?.id],
   );
 
   const cancel = useCallback(async () => {

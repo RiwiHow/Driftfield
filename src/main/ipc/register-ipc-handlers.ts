@@ -212,6 +212,9 @@ const isStartAgentPromptRequest = (
     typeof request.prompt === 'string' &&
     request.prompt.trim().length > 0 &&
     Buffer.byteLength(request.prompt, 'utf8') <= 32 * 1024 &&
+    typeof request.requestId === 'string' &&
+    request.requestId.length > 0 &&
+    request.requestId.length <= 128 &&
     (request.currentDocumentId === undefined ||
       (typeof request.currentDocumentId === 'string' &&
         request.currentDocumentId.length > 0 &&
