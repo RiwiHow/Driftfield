@@ -1,8 +1,14 @@
 import { utilityProcess, type UtilityProcess } from 'electron';
+import { randomUUID } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { AgentEvent } from '../../shared/contracts/agent';
+import type { AgentModelOption } from '../../shared/contracts/agent-configuration';
+import type {
+  AgentModelSelection,
+  AgentThinkingLevel,
+} from '../../shared/contracts/settings';
 import {
   isAgentWorkerMessage,
   type AgentWorkerMessage,
@@ -25,12 +31,21 @@ interface StartAgentRequest {
   ownerId: number;
   projectDirectory?: string;
   prompt: string;
+  model: AgentModelSelection;
   requestId: string;
   sendEvent: (event: AgentEvent) => void;
+  thinkingLevel: AgentThinkingLevel;
+}
+
+interface PendingModelList {
+  reject: (error: Error) => void;
+  resolve: (models: AgentModelOption[]) => void;
+  timeout: ReturnType<typeof setTimeout>;
 }
 
 export class AiAgentService {
   private readonly activeRequests = new Map<string, ActiveAgentRequest>();
+  private readonly pendingModelLists = new Map<string, PendingModelList>();
   private worker: UtilityProcess | null = null;
   private workerReady: Promise<UtilityProcess> | null = null;
 
@@ -65,8 +80,11 @@ export class AiAgentService {
         authPath: path.join(directory, 'auth.json'),
         cwd: request.projectDirectory ?? this.userDataPath,
         modelsPath: path.join(directory, 'models.json'),
+        modelId: request.model.modelId,
         prompt: request.prompt,
+        providerId: request.model.providerId,
         requestId: request.requestId,
+        thinkingLevel: request.thinkingLevel,
         type: 'start',
       });
       return request.requestId;
@@ -76,6 +94,33 @@ export class AiAgentService {
       }
       throw error;
     }
+  }
+
+  async listModels(): Promise<AgentModelOption[]> {
+    const directory = path.join(this.userDataPath, 'ai', 'pi');
+    await mkdir(directory, { recursive: true });
+    const worker = await this.getWorker();
+    const requestId = randomUUID();
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pendingModelLists.delete(requestId);
+        reject(new Error('Timed out while loading Agent models'));
+      }, WORKER_START_TIMEOUT_MS);
+      this.pendingModelLists.set(requestId, { reject, resolve, timeout });
+      worker.postMessage({
+        authPath: path.join(directory, 'auth.json'),
+        modelsPath: path.join(directory, 'models.json'),
+        requestId,
+        type: 'list-models',
+      });
+    });
+  }
+
+  reloadConfiguration(): void {
+    if (this.activeRequests.size > 0) {
+      throw new Error('Cannot change credentials while an Agent is running');
+    }
+    this.stopWorker();
   }
 
   async cancel(ownerId: number, requestId: string): Promise<boolean> {
@@ -88,15 +133,16 @@ export class AiAgentService {
 
   disposeOwner(ownerId: number): void {
     for (const [requestId, active] of this.activeRequests) {
-      if (active.ownerId === ownerId) void this.cancel(ownerId, requestId);
+      if (active.ownerId !== ownerId) continue;
+      active.cancelled = true;
+      this.worker?.postMessage({ requestId, type: 'cancel' });
+      active.sendEvent({ requestId, type: 'cancelled' });
+      this.activeRequests.delete(requestId);
     }
   }
 
   dispose(): void {
-    this.worker?.postMessage({ type: 'shutdown' });
-    this.worker?.kill();
-    this.worker = null;
-    this.workerReady = null;
+    this.stopWorker();
     this.activeRequests.clear();
   }
 
@@ -148,6 +194,24 @@ export class AiAgentService {
 
   private async handleWorkerMessage(message: AgentWorkerMessage): Promise<void> {
     if (message.type === 'ready') return;
+    if (message.type === 'models') {
+      const pending = this.pendingModelLists.get(message.requestId);
+      if (pending !== undefined) {
+        clearTimeout(pending.timeout);
+        this.pendingModelLists.delete(message.requestId);
+        pending.resolve(message.models);
+      }
+      return;
+    }
+    if (message.type === 'models-error') {
+      const pending = this.pendingModelLists.get(message.requestId);
+      if (pending !== undefined) {
+        clearTimeout(pending.timeout);
+        this.pendingModelLists.delete(message.requestId);
+        pending.reject(new Error(message.message));
+      }
+      return;
+    }
     const active = this.activeRequests.get(message.requestId);
     if (active === undefined) return;
 
@@ -179,6 +243,11 @@ export class AiAgentService {
     if (this.worker !== worker) return;
     this.worker = null;
     this.workerReady = null;
+    for (const pending of this.pendingModelLists.values()) {
+      clearTimeout(pending.timeout);
+      pending.reject(new Error('Agent runtime exited while loading models'));
+    }
+    this.pendingModelLists.clear();
     for (const [requestId, active] of this.activeRequests) {
       active.sendEvent({
         message: 'Agent 运行进程意外退出，请重试。',
@@ -187,6 +256,18 @@ export class AiAgentService {
       });
     }
     this.activeRequests.clear();
+  }
+
+  private stopWorker(): void {
+    this.worker?.postMessage({ type: 'shutdown' });
+    this.worker?.kill();
+    this.worker = null;
+    this.workerReady = null;
+    for (const pending of this.pendingModelLists.values()) {
+      clearTimeout(pending.timeout);
+      pending.reject(new Error('Agent runtime configuration changed'));
+    }
+    this.pendingModelLists.clear();
   }
 
   private async readCurrentDocument(

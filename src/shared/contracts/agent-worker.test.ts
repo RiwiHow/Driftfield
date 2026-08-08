@@ -11,10 +11,21 @@ describe('Agent utility-process protocol', () => {
       isAgentWorkerCommand({
         authPath: '/app-data/auth.json',
         cwd: '/project',
+        modelId: 'claude-sonnet',
         modelsPath: '/app-data/models.json',
         prompt: 'Review this chapter',
+        providerId: 'anthropic',
         requestId: 'request-1',
+        thinkingLevel: 'medium',
         type: 'start',
+      }),
+    ).toBe(true);
+    expect(
+      isAgentWorkerCommand({
+        authPath: '/app-data/auth.json',
+        modelsPath: '/app-data/models.json',
+        requestId: 'models-1',
+        type: 'list-models',
       }),
     ).toBe(true);
     expect(
@@ -43,6 +54,22 @@ describe('Agent utility-process protocol', () => {
         delta: 'text',
         requestId: 'request-1',
         type: 'text-delta',
+      }),
+    ).toBe(true);
+    expect(
+      isAgentWorkerMessage({
+        models: [
+          {
+            contextWindow: 100_000,
+            id: 'claude-sonnet',
+            maxOutputTokens: 8_192,
+            name: 'Claude Sonnet',
+            providerId: 'anthropic',
+            reasoning: true,
+          },
+        ],
+        requestId: 'models-1',
+        type: 'models',
       }),
     ).toBe(true);
     expect(

@@ -1,4 +1,9 @@
 import type {
+  AgentConfiguration,
+  RemoveAgentCredentialRequest,
+  SetAgentApiKeyRequest,
+} from './contracts/agent-configuration';
+import type {
   ProjectSnapshot,
   ProjectWatcherStatus,
   SaveProjectDocumentRequest,
@@ -25,6 +30,7 @@ import type {
 export interface DriftfieldAPI {
   platform: string;
   cancelAgent: (request: CancelAgentRequest) => Promise<CancelAgentResult>;
+  getAgentConfiguration: () => Promise<AgentConfiguration>;
   getAppSettings: () => Promise<AppSettings>;
   confirmCloseUnsavedDocument: (
     documentTitle: string,
@@ -38,12 +44,18 @@ export interface DriftfieldAPI {
   ) => () => void;
   onAgentEvent: (listener: (event: AgentEvent) => void) => () => void;
   refreshProject: () => Promise<ProjectSnapshot | null>;
+  removeAgentCredential: (
+    request: RemoveAgentCredentialRequest,
+  ) => Promise<AgentConfiguration>;
   saveProjectDocument: (
     request: SaveProjectDocumentRequest,
   ) => Promise<SaveProjectDocumentResult>;
   selectProjectDirectory: () => Promise<SelectProjectDirectoryResult>;
   showEditorContextMenu: () => Promise<void>;
   setWindowDirty: (isDirty: boolean) => Promise<void>;
+  setAgentApiKey: (
+    request: SetAgentApiKeyRequest,
+  ) => Promise<AgentConfiguration>;
   startAgentPrompt: (
     request: StartAgentPromptRequest,
   ) => Promise<StartAgentPromptResult>;

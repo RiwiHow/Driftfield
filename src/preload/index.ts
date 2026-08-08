@@ -2,6 +2,11 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { DriftfieldAPI } from '../shared/electron-api';
 import { IPC_CHANNELS } from '../shared/contracts/ipc-channels';
 import type {
+  AgentConfiguration,
+  RemoveAgentCredentialRequest,
+  SetAgentApiKeyRequest,
+} from '../shared/contracts/agent-configuration';
+import type {
   ProjectSnapshot,
   ProjectWatcherStatus,
   SaveProjectDocumentRequest,
@@ -36,6 +41,10 @@ const api: DriftfieldAPI = {
     ) as Promise<CloseUnsavedDocumentDecision>,
   getAppSettings: () =>
     ipcRenderer.invoke(IPC_CHANNELS.getAppSettings) as Promise<AppSettings>,
+  getAgentConfiguration: () =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.getAgentConfiguration,
+    ) as Promise<AgentConfiguration>,
   onProjectChanged: (listener) => {
     const handleProjectChanged = (
       _event: Electron.IpcRendererEvent,
@@ -85,6 +94,11 @@ const api: DriftfieldAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.refreshProject) as Promise<
       ProjectSnapshot | null
     >,
+  removeAgentCredential: (request: RemoveAgentCredentialRequest) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.removeAgentCredential,
+      request,
+    ) as Promise<AgentConfiguration>,
   saveProjectDocument: (request: SaveProjectDocumentRequest) =>
     ipcRenderer.invoke(IPC_CHANNELS.saveProjectDocument, request) as Promise<
       SaveProjectDocumentResult
@@ -93,6 +107,11 @@ const api: DriftfieldAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.showEditorContextMenu) as Promise<void>,
   setWindowDirty: (isDirty: boolean) =>
     ipcRenderer.invoke(IPC_CHANNELS.setWindowDirty, isDirty) as Promise<void>,
+  setAgentApiKey: (request: SetAgentApiKeyRequest) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.setAgentApiKey,
+      request,
+    ) as Promise<AgentConfiguration>,
   startAgentPrompt: (request: StartAgentPromptRequest) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.startAgentPrompt,

@@ -32,6 +32,8 @@ import {
 import { AssistantPanel } from '@/features/assistant/AssistantPanel';
 import { ManuscriptEditor } from '@/features/editor/ManuscriptEditor';
 import { LibraryPanel } from '@/features/library/LibraryPanel';
+import type { AgentConfiguration } from '../../shared/contracts/agent-configuration';
+import type { AgentSettings } from '../../shared/contracts/settings';
 import type {
   ProjectDirectory,
   ProjectTreeNode,
@@ -39,6 +41,10 @@ import type {
 
 interface WorkspaceShellProps {
   activeChapter: Chapter | null;
+  agentConfiguration: AgentConfiguration;
+  agentConfigurationError: string | null;
+  agentConfigurationLoading: boolean;
+  agentSettings: AgentSettings;
   documentSaveError: string | null;
   editorFontSize: number;
   isSelectingProject: boolean;
@@ -61,6 +67,10 @@ interface WorkspaceShellProps {
 
 export function WorkspaceShell({
   activeChapter,
+  agentConfiguration,
+  agentConfigurationError,
+  agentConfigurationLoading,
+  agentSettings,
   documentSaveError,
   editorFontSize,
   isSelectingProject,
@@ -313,7 +323,14 @@ export function WorkspaceShell({
             onResize={(size) => setIsAssistantCollapsed(size.inPixels === 0)}
             panelRef={assistantPanelRef}
           >
-            <AssistantPanel activeChapter={activeChapter} />
+            <AssistantPanel
+              activeChapter={activeChapter}
+              configuration={agentConfiguration}
+              configurationError={agentConfigurationError}
+              configurationLoading={agentConfigurationLoading}
+              onOpenSettings={onOpenSettings}
+              settings={agentSettings}
+            />
           </Panel>
         </Group>
       </main>

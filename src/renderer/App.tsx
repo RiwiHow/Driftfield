@@ -11,11 +11,13 @@ import {
 import { useProjectWorkspace } from '@/features/projects/use-project-workspace';
 import { SettingsDialog } from '@/features/settings/SettingsDialog';
 import { useAppSettings } from '@/features/settings/use-app-settings';
+import { useAgentConfiguration } from '@/features/settings/use-agent-configuration';
 
 export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { isSavingSettings, settings, settingsError, updateSettings } =
     useAppSettings();
+  const agentConfiguration = useAgentConfiguration();
   const project = useProjectWorkspace();
 
   useEffect(() => {
@@ -33,6 +35,10 @@ export function App() {
     <>
       <WorkspaceShell
         activeChapter={project.activeChapter}
+        agentConfiguration={agentConfiguration.configuration}
+        agentConfigurationError={agentConfiguration.error}
+        agentConfigurationLoading={agentConfiguration.isLoading}
+        agentSettings={settings.agent}
         documentSaveError={project.documentSaveError}
         editorFontSize={settings.editorFontSize}
         isSelectingProject={project.isSelectingProject}
@@ -55,9 +61,25 @@ export function App() {
         theme={settings.theme}
       />
       <SettingsDialog
-        error={settingsError}
-        isSaving={isSavingSettings}
+        agentConfiguration={agentConfiguration.configuration}
+        error={settingsError ?? agentConfiguration.error}
+        isSaving={isSavingSettings || agentConfiguration.isUpdating}
         onOpenChange={setIsSettingsOpen}
+        onRemoveCredential={(providerId) => {
+          void (async () => {
+            const removed =
+              await agentConfiguration.removeCredential(providerId);
+            if (
+              removed &&
+              settings.agent.defaultModel?.providerId === providerId
+            ) {
+              await updateSettings({
+                agent: { ...settings.agent, defaultModel: null },
+              });
+            }
+          })();
+        }}
+        onSetApiKey={agentConfiguration.setApiKey}
         onUpdate={(update) => void updateSettings(update)}
         open={isSettingsOpen}
         settings={settings}

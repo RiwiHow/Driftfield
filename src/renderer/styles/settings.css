@@ -71,6 +71,10 @@
   border-bottom: 1px solid var(--border);
 }
 
+.settings-dialog {
+  width: min(660px, calc(100vw - 48px));
+}
+
 .settings-sections {
   display: flex;
   flex-direction: column;
@@ -203,6 +207,93 @@
   border-radius: 6px;
   font-size: 11px;
   outline: none;
+}
+
+.agent-credential-form {
+  display: grid;
+  grid-template-columns: 140px minmax(180px, 1fr) auto;
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.agent-credential-form select,
+.agent-credential-form input,
+.agent-setting-field select {
+  min-width: 0;
+  height: 29px;
+  padding: 0 9px;
+  color: var(--foreground);
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+  outline: none;
+}
+
+.agent-credential-form > button {
+  height: 29px;
+  padding: 0 11px;
+  color: var(--foreground);
+  background: var(--popover);
+  border-color: var(--border);
+  font-size: 10px;
+  font-weight: 550;
+  box-shadow: none;
+}
+
+.agent-credential-form > button:hover:not(:disabled) {
+  color: var(--foreground);
+  background: var(--df-hover);
+}
+
+.agent-credential-form input::placeholder {
+  color: var(--muted-foreground);
+}
+
+.agent-credential-form select:focus-visible,
+.agent-credential-form input:focus-visible,
+.agent-setting-field select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 25%, transparent);
+}
+
+.agent-provider-statuses {
+  display: flex;
+  min-height: 22px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.agent-provider-statuses span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  color: var(--muted-foreground);
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 9px;
+}
+
+.agent-provider-statuses button {
+  padding: 0;
+  color: var(--destructive);
+  background: transparent;
+  border: 0;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.agent-provider-statuses small {
+  color: var(--muted-foreground);
+  font-size: 9px;
+}
+
+.agent-setting-field select {
+  width: 230px;
 }
 
 .close-behavior-options {

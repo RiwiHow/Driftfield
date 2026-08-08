@@ -10,6 +10,7 @@ import { registerIpcHandlers } from './ipc/register-ipc-handlers';
 import { AiAgentService } from './ai/ai-agent-service';
 import { ProjectSessionService } from './services/project-session-service';
 import { SettingsService } from './services/settings-service';
+import { AgentCredentialService } from './services/agent-credential-service';
 import { createMainWindow } from './windows/main-window';
 import type { RendererNavigationPolicy } from './windows/navigation-policy';
 
@@ -124,10 +125,14 @@ const openMainWindow = (
 void app.whenReady().then(async () => {
   try {
     const settingsService = await SettingsService.create(app.getPath('userData'));
+    const agentCredentialService = new AgentCredentialService(
+      app.getPath('userData'),
+    );
     const aiAgentService = new AiAgentService(app.getPath('userData'));
     activeAiAgentService = aiAgentService;
     registerIpcHandlers({
       aiAgentService,
+      agentCredentialService,
       completeWindowClose,
       getTrustedSenderWindow,
       projectSessions,

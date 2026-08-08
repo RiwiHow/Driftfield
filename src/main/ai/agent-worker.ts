@@ -51,6 +51,31 @@ process.parentPort.on('message', (event) => {
 send({ type: 'ready' });
 
 async function handleCommand(command: AgentWorkerCommand): Promise<void> {
+  if (command.type === 'list-models') {
+    try {
+      const runtime = await getModelRuntime(command.authPath, command.modelsPath);
+      const models = await runtime.getAvailable();
+      send({
+        models: models.map((model) => ({
+          contextWindow: model.contextWindow,
+          id: model.id,
+          maxOutputTokens: model.maxTokens,
+          name: model.name,
+          providerId: model.provider,
+          reasoning: model.reasoning,
+        })),
+        requestId: command.requestId,
+        type: 'models',
+      });
+    } catch {
+      send({
+        message: '无法读取可用模型，请检查服务商凭据。',
+        requestId: command.requestId,
+        type: 'models-error',
+      });
+    }
+    return;
+  }
   if (command.type === 'start') {
     await startRequest(command);
     return;
@@ -89,10 +114,13 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
   let session: AgentSession | null = null;
   try {
     const runtime = await getModelRuntime(command.authPath, command.modelsPath);
-    const availableModels = await runtime.getAvailable();
-    const model = availableModels[0];
+    const availableModels = await runtime.getAvailable(command.providerId);
+    const model = availableModels.find(
+      ({ id, provider }) =>
+        id === command.modelId && provider === command.providerId,
+    );
     if (model === undefined) {
-      throw new Error('No configured model is available');
+      throw new Error('The configured model is not available');
     }
     ({ session } = await createAgentSession({
       cwd: command.cwd,
@@ -102,6 +130,7 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
       resourceLoader: createDriftfieldResourceLoader(),
       sessionManager: SessionManager.inMemory(command.cwd),
       settingsManager: SettingsManager.inMemory(),
+      thinkingLevel: command.thinkingLevel,
       tools: ['get_current_document'],
     }));
     active.session = session;

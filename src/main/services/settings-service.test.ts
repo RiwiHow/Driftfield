@@ -6,7 +6,7 @@ import {
 } from './settings-service';
 
 describe('settings parsing and migration', () => {
-  it('migrates unversioned settings to version 1', () => {
+  it('migrates unversioned settings to version 2', () => {
     expect(
       parseStoredSettings({
         closeWindowBehavior: 'minimize',
@@ -14,10 +14,14 @@ describe('settings parsing and migration', () => {
         theme: 'tokyo-night',
       }),
     ).toEqual({
+      agent: {
+        defaultModel: null,
+        thinkingLevel: 'medium',
+      },
       closeWindowBehavior: 'minimize',
       editorFontSize: 20,
       theme: 'tokyo-night',
-      version: 1,
+      version: 2,
     });
   });
 
@@ -25,7 +29,21 @@ describe('settings parsing and migration', () => {
     expect(parseStoredSettings({ editorFontSize: 100 })).toMatchObject({
       editorFontSize: 17,
       theme: 'github-light',
-      version: 1,
+      version: 2,
+    });
+  });
+
+  it('preserves valid version 2 Agent settings', () => {
+    expect(
+      parseStoredSettings({
+        agent: {
+          defaultModel: { providerId: 'anthropic', modelId: 'claude' },
+          thinkingLevel: 'high',
+        },
+      }).agent,
+    ).toEqual({
+      defaultModel: { providerId: 'anthropic', modelId: 'claude' },
+      thinkingLevel: 'high',
     });
   });
 

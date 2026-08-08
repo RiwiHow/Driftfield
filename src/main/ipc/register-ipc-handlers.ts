@@ -3,6 +3,11 @@ import { realpath, stat } from 'node:fs/promises';
 
 import { IPC_CHANNELS } from '../../shared/contracts/ipc-channels';
 import type {
+  AgentConfiguration,
+  RemoveAgentCredentialRequest,
+  SetAgentApiKeyRequest,
+} from '../../shared/contracts/agent-configuration';
+import type {
   CancelAgentRequest,
   StartAgentPromptRequest,
 } from '../../shared/contracts/agent';
@@ -22,9 +27,14 @@ import {
   parseSettingsUpdate,
 } from '../services/settings-service';
 import type { AiAgentService } from '../ai/ai-agent-service';
+import {
+  isAgentApiKeyProviderId,
+  type AgentCredentialService,
+} from '../services/agent-credential-service';
 
 interface RegisterIpcHandlersOptions {
   aiAgentService: AiAgentService;
+  agentCredentialService: AgentCredentialService;
   completeWindowClose: (
     window: BrowserWindow,
     request: CompleteWindowCloseRequest,
@@ -39,12 +49,77 @@ interface RegisterIpcHandlersOptions {
 
 export const registerIpcHandlers = ({
   aiAgentService,
+  agentCredentialService,
   completeWindowClose,
   getTrustedSenderWindow,
   projectSessions,
   setWindowDirty,
   settingsService,
 }: RegisterIpcHandlersOptions): void => {
+  const getAgentConfiguration = async (): Promise<AgentConfiguration> => {
+    const providers = await agentCredentialService.getProviderStatuses();
+    const configuredProviders = new Set<string>(
+      providers
+        .filter(({ configured }) => configured)
+        .map(({ providerId }) => providerId),
+    );
+    return {
+      models:
+        configuredProviders.size === 0
+          ? []
+          : (await aiAgentService.listModels()).filter(({ providerId }) =>
+              configuredProviders.has(providerId),
+            ),
+      providers,
+    };
+  };
+
+  ipcMain.handle(IPC_CHANNELS.getAgentConfiguration, async (event) => {
+    getTrustedSenderWindow(event);
+    return getAgentConfiguration();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.setAgentApiKey, async (event, value: unknown) => {
+    getTrustedSenderWindow(event);
+    if (
+      typeof value !== 'object' ||
+      value === null ||
+      Array.isArray(value) ||
+      !isAgentApiKeyProviderId(
+        (value as Partial<SetAgentApiKeyRequest>).providerId,
+      ) ||
+      typeof (value as Partial<SetAgentApiKeyRequest>).apiKey !== 'string'
+    ) {
+      throw new Error('Invalid Agent API key request');
+    }
+    const request = value as SetAgentApiKeyRequest;
+    aiAgentService.reloadConfiguration();
+    await agentCredentialService.setApiKey(request.providerId, request.apiKey);
+    return getAgentConfiguration();
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.removeAgentCredential,
+    async (event, value: unknown) => {
+      getTrustedSenderWindow(event);
+      if (
+        typeof value !== 'object' ||
+        value === null ||
+        Array.isArray(value) ||
+        !isAgentApiKeyProviderId(
+          (value as Partial<RemoveAgentCredentialRequest>).providerId,
+        )
+      ) {
+        throw new Error('Invalid Agent credential request');
+      }
+      aiAgentService.reloadConfiguration();
+      await agentCredentialService.remove(
+        (value as RemoveAgentCredentialRequest).providerId,
+      );
+      return getAgentConfiguration();
+    },
+  );
+
   ipcMain.handle(IPC_CHANNELS.startAgentPrompt, async (event, value: unknown) => {
     const window = getTrustedSenderWindow(event);
     if (!isStartAgentPromptRequest(value)) {
@@ -57,8 +132,20 @@ export const registerIpcHandlers = ({
     ) {
       throw new Error('Unknown project document');
     }
+    const agentSettings = settingsService.get().agent;
+    if (agentSettings.defaultModel === null) {
+      throw new Error('请先在设置中连接模型服务并选择默认模型。');
+    }
+    const providerStatus = (await agentCredentialService.getProviderStatuses())
+      .find(({ providerId }) =>
+        providerId === agentSettings.defaultModel?.providerId,
+      );
+    if (providerStatus?.configured !== true) {
+      throw new Error('默认模型的服务商凭据已被移除，请重新连接。');
+    }
     const requestId = await aiAgentService.start({
       ...value,
+      model: agentSettings.defaultModel,
       ownerId: window.webContents.id,
       projectDirectory: session?.directoryPath,
       sendEvent: (agentEvent) => {
@@ -66,6 +153,7 @@ export const registerIpcHandlers = ({
           window.webContents.send(IPC_CHANNELS.agentEvent, agentEvent);
         }
       },
+      thinkingLevel: agentSettings.thinkingLevel,
     });
     return { requestId };
   });
@@ -105,7 +193,20 @@ export const registerIpcHandlers = ({
 
   ipcMain.handle(IPC_CHANNELS.updateAppSettings, async (event, value) => {
     getTrustedSenderWindow(event);
-    return settingsService.update(parseSettingsUpdate(value));
+    const update = parseSettingsUpdate(value);
+    if (update.agent !== undefined && update.agent.defaultModel !== null) {
+      const { models } = await getAgentConfiguration();
+      const selection = update.agent.defaultModel;
+      if (
+        !models.some(
+          ({ id, providerId }) =>
+            id === selection.modelId && providerId === selection.providerId,
+        )
+      ) {
+        throw new Error('Selected Agent model is not available');
+      }
+    }
+    return settingsService.update(update);
   });
 
   ipcMain.handle(IPC_CHANNELS.refreshProject, async (event) => {
@@ -195,6 +296,7 @@ export const registerIpcHandlers = ({
         throw new Error('Selected project path is not a directory');
       }
       const project = await createProjectSnapshot(directoryPath);
+      aiAgentService.disposeOwner(window.webContents.id);
       projectSessions.watch(window, directoryPath, project);
       return project;
     },
