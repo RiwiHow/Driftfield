@@ -298,6 +298,131 @@ Keep application state separate from persisted data:
 - Renderer stores manage transient UI state and cached views.
 - The main process and database remain the source of truth for persisted novels.
 
+## Internationalization (i18n)
+
+Driftfield is an English-default application. Users may change the application
+language in Settings without restarting. The initial supported languages are
+`en` and `zh-CN`; add a language only when its complete catalog and tests land
+together.
+
+Use `i18next` as the shared translation engine and `react-i18next` in the
+renderer. Add both as direct pnpm dependencies. Do not add a browser language
+detector, HTTP translation backend, translation CDN, or `localStorage` locale.
+Driftfield is local-first and the versioned main-process settings file is the
+only source of truth for the selected language.
+
+### Locale Contract and Persistence
+
+- Add `APP_LANGUAGES = ['en', 'zh-CN'] as const`, an `AppLanguage` type, and
+  `language: AppLanguage` to `AppSettings`.
+- Increment the settings schema version and add a migration. New and existing
+  settings without a valid language migrate to `en`.
+- Validate language updates in main like every other setting. Never accept an
+  arbitrary locale identifier from renderer IPC.
+- The language selector uses self-names that remain recognizable in every UI
+  language: `English` and `简体中文`.
+- Changing language must immediately update the renderer, `documentElement.lang`,
+  and `documentElement.dir`. Derive direction from i18next even though the first
+  two languages are LTR, so future RTL support does not require a redesign.
+- Application language controls application chrome only. It must not translate
+  manuscript content, project filenames, provider/model names, user prompts, or
+  model output. Agent replies continue to follow the user's request language.
+
+### Resource Ownership and Structure
+
+Keep locale resources as statically imported TypeScript data so they are
+available offline, included in the packaged ASAR, covered by TypeScript, and do
+not require CSP or network changes:
+
+```text
+src/
+├── shared/i18n/
+│   ├── languages.ts             # supported IDs, labels, validation
+│   ├── resources.ts             # bundled resources and resource types
+│   └── locales/
+│       ├── en.ts                # canonical/source catalog
+│       └── zh-CN.ts             # complete Simplified Chinese catalog
+├── main/i18n/
+│   └── main-i18n.ts             # non-React translator for native main UI
+└── renderer/i18n/
+    └── index.ts                 # renderer i18next + initReactI18next instance
+```
+
+Organize each locale by feature namespaces such as `common`, `settings`,
+`library`, `editor`, `assistant`, `projects`, and `errors`. Use stable semantic
+keys such as `assistant.status.starting`, not English source text as the key.
+English is the canonical catalog shape; make every other locale satisfy a
+deeply widened TypeScript shape derived from English so missing or structurally
+incorrect keys fail typecheck. Keep interpolation placeholders identical across
+locales.
+
+Configure both i18next instances with bundled resources, `fallbackLng: 'en'`,
+the explicit `supportedLngs`, and no missing-key network writes. Use proper
+i18next interpolation and pluralization rather than concatenating translated
+fragments. Use `Intl` with the resolved application language for future date,
+number, and list formatting.
+
+### Renderer Initialization and Usage
+
+- Bootstrap settings before the first React render, initialize renderer i18next
+  with the stored language, then mount the app. Do not render Chinese or English
+  first and switch after mount; that creates a visible locale flash.
+- If settings bootstrap fails, initialize with `DEFAULT_APP_SETTINGS.language`
+  (`en`) and surface the existing settings error after mount.
+- Feature components use `useTranslation(<namespace>)`. Non-component renderer
+  helpers receive translated text, a `TFunction`, or return stable application
+  codes; they must not import a mutable global translator casually.
+- After a successful language settings update, await `i18n.changeLanguage()`
+  and update the document language/direction. Failed persistence must leave the
+  active language unchanged.
+- Translate all visible copy plus `aria-label`, `title`, placeholder, tooltip,
+  empty-state, status, error, and confirmation text. Brand names, provider/model
+  names, keyboard shortcut glyphs, and user/project data remain unchanged.
+- Feed MDXEditor's `translation` prop from the active editor namespace instead
+  of keeping a Chinese translation object inside `ManuscriptEditor.tsx`.
+- Do not use `<Trans>` for plain text. Reserve it for messages that genuinely
+  contain React elements; keep ordinary strings in `t()` calls.
+
+### Main Process and IPC Boundary
+
+Create a separate non-React i18next instance for main-owned native UI. Main
+dialogs, file pickers, notifications, and custom menu labels translate using
+the current `settingsService.get().language` at the moment they are shown, so a
+language change does not require restarting or synchronizing mutable renderer
+state back into main.
+
+Do not send already-localized error prose across IPC. Evolve renderer-visible
+errors and statuses toward small typed application error/status codes plus
+serializable interpolation parameters; renderer maps those codes to its locale
+keys. SDK, filesystem, and internal exception strings are for logs and must not
+be displayed directly. Main may translate text that it owns and displays itself
+in a native Electron dialog. Electron menu items based solely on built-in
+`role` values should retain Electron/OS localization; translate only custom menu
+labels.
+
+Preload exposes no translator, locale resource, generic i18n IPC method, or
+language mutation separate from the existing validated settings API.
+
+### Catalog and Migration Rules
+
+- Move existing user-visible Chinese literals into `zh-CN`; write reviewed
+  English equivalents in `en`. Do not use machine-generated placeholder English
+  or leave a mixed-language screen.
+- Keep developer logs and internal invariant/error messages in English unless
+  they are intentionally mapped to a user-visible application code.
+- Do not localize Agent system prompts through the UI catalog. Prompt profiles
+  remain versioned application behavior under `src/main/ai/prompts/`; UI locale
+  and model-response language are separate concerns.
+- A pull request adding or changing user-visible behavior updates every locale
+  in the same change. Do not rely on English fallback as a substitute for a
+  completed supported-language catalog.
+
+Add focused tests for settings migration and validation, locale key parity,
+interpolation placeholder parity, renderer language switching, document
+`lang`/`dir`, main native-dialog translation, and the MDXEditor translation
+adapter. Keep at least one packaged smoke assertion proving both catalogs are in
+the ASAR and no runtime network fetch is required.
+
 The current UI foundation is intentionally small:
 
 - Tailwind CSS provides utility styles and semantic design tokens.

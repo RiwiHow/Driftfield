@@ -1,5 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { isAppLanguage } from '../../shared/i18n/languages';
 
 import {
   AGENT_THINKING_LEVELS,
@@ -74,8 +75,11 @@ export const parseStoredSettings = (value: unknown): AppSettings => {
     editorFontSize: isEditorFontSize(value.editorFontSize)
       ? value.editorFontSize
       : DEFAULT_APP_SETTINGS.editorFontSize,
+    language: isAppLanguage(value.language)
+      ? value.language
+      : DEFAULT_APP_SETTINGS.language,
     theme: isTheme(value.theme) ? value.theme : DEFAULT_APP_SETTINGS.theme,
-    version: 2,
+    version: 3,
   };
 };
 
@@ -90,6 +94,7 @@ export const parseSettingsUpdate = (
     'agent',
     'closeWindowBehavior',
     'editorFontSize',
+    'language',
     'theme',
   ]);
 
@@ -138,6 +143,13 @@ export const parseSettingsUpdate = (
     }
 
     update.editorFontSize = value.editorFontSize;
+  }
+
+  if ('language' in value) {
+    if (!isAppLanguage(value.language)) {
+      throw new Error('Unknown application language');
+    }
+    update.language = value.language;
   }
 
   if ('theme' in value) {

@@ -70,7 +70,7 @@ async function handleCommand(command: AgentWorkerCommand): Promise<void> {
       });
     } catch {
       send({
-        message: '无法读取可用模型，请检查服务商凭据。',
+        code: 'model-list-failed',
         requestId: command.requestId,
         type: 'models-error',
       });
@@ -170,7 +170,7 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
       ...(active.cancelled
         ? { requestId: command.requestId, type: 'cancelled' as const }
         : {
-            message: 'Agent 请求未能完成，请检查模型配置后重试。',
+            code: 'request-failed',
             requestId: command.requestId,
             type: 'error' as const,
           }),

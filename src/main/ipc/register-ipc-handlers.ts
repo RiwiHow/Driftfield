@@ -27,6 +27,7 @@ import {
   parseSettingsUpdate,
 } from '../services/settings-service';
 import type { AiAgentService } from '../ai/ai-agent-service';
+import { translateMain } from '../i18n/main-i18n';
 import {
   isAgentApiKeyProviderId,
   type AgentCredentialService,
@@ -134,28 +135,32 @@ export const registerIpcHandlers = ({
     }
     const agentSettings = settingsService.get().agent;
     if (agentSettings.defaultModel === null) {
-      throw new Error('请先在设置中连接模型服务并选择默认模型。');
+      return { code: 'model-not-configured', status: 'error' };
     }
     const providerStatus = (await agentCredentialService.getProviderStatuses())
       .find(({ providerId }) =>
         providerId === agentSettings.defaultModel?.providerId,
       );
     if (providerStatus?.configured !== true) {
-      throw new Error('默认模型的服务商凭据已被移除，请重新连接。');
+      return { code: 'credential-missing', status: 'error' };
     }
-    const requestId = await aiAgentService.start({
-      ...value,
-      model: agentSettings.defaultModel,
-      ownerId: window.webContents.id,
-      projectDirectory: session?.directoryPath,
-      sendEvent: (agentEvent) => {
-        if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
-          window.webContents.send(IPC_CHANNELS.agentEvent, agentEvent);
-        }
-      },
-      thinkingLevel: agentSettings.thinkingLevel,
-    });
-    return { requestId };
+    try {
+      const requestId = await aiAgentService.start({
+        ...value,
+        model: agentSettings.defaultModel,
+        ownerId: window.webContents.id,
+        projectDirectory: session?.directoryPath,
+        sendEvent: (agentEvent) => {
+          if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
+            window.webContents.send(IPC_CHANNELS.agentEvent, agentEvent);
+          }
+        },
+        thinkingLevel: agentSettings.thinkingLevel,
+      });
+      return { requestId, status: 'started' };
+    } catch {
+      return { code: 'runtime-unavailable', status: 'error' };
+    }
   });
 
   ipcMain.handle(IPC_CHANNELS.cancelAgent, async (event, value: unknown) => {
@@ -253,14 +258,29 @@ export const registerIpcHandlers = ({
       ) {
         throw new Error('Invalid document title');
       }
+      const { language } = settingsService.get();
       const result = await dialog.showMessageBox(window, {
-        buttons: ['取消', '不保存', '保存并关闭'],
+        buttons: [
+          translateMain(language, 'closeUnsaved.buttons.cancel'),
+          translateMain(language, 'closeUnsaved.buttons.discard'),
+          translateMain(language, 'closeUnsaved.buttons.save'),
+        ],
         cancelId: 0,
         defaultId: 2,
-        detail: '如果不保存，你在当前会话中的修改将会丢失。',
-        message: `要保存对“${documentTitle}”的修改吗？`,
+        detail: translateMain(
+          language,
+          'closeUnsaved.detail',
+        ),
+        message: translateMain(
+          language,
+          'closeUnsaved.message',
+          { title: documentTitle },
+        ),
         noLink: true,
-        title: '未保存的修改',
+        title: translateMain(
+          language,
+          'closeUnsaved.title',
+        ),
         type: 'warning',
       });
       return ['cancel', 'discard', 'save'][result.response] ?? 'cancel';
@@ -282,12 +302,19 @@ export const registerIpcHandlers = ({
     IPC_CHANNELS.selectProjectDirectory,
     async (event): Promise<SelectProjectDirectoryResult> => {
       const window = getTrustedSenderWindow(event);
+      const { language } = settingsService.get();
       const result = await dialog.showOpenDialog(window, {
-        buttonLabel: '打开项目',
+        buttonLabel: translateMain(language, 'openProject.button'),
         defaultPath: app.getPath('documents'),
-        message: '选择一个文件夹作为 Driftfield 项目目录',
+        message: translateMain(
+          language,
+          'openProject.message',
+        ),
         properties: ['openDirectory'],
-        title: '打开本地项目',
+        title: translateMain(
+          language,
+          'openProject.title',
+        ),
       });
       const selectedPath = result.filePaths[0];
       if (result.canceled || selectedPath === undefined) return null;

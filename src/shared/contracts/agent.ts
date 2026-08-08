@@ -7,6 +7,11 @@ export const AGENT_ROLES = [
 ] as const;
 
 export type AgentRole = (typeof AGENT_ROLES)[number];
+export type AgentErrorCode = 'request-failed' | 'runtime-exited';
+export type StartAgentErrorCode =
+  | 'credential-missing'
+  | 'model-not-configured'
+  | 'runtime-unavailable';
 
 export interface StartAgentPromptRequest {
   currentDocumentId?: string;
@@ -14,9 +19,9 @@ export interface StartAgentPromptRequest {
   requestId: string;
 }
 
-export interface StartAgentPromptResult {
-  requestId: string;
-}
+export type StartAgentPromptResult =
+  | { requestId: string; status: 'started' }
+  | { code: StartAgentErrorCode; status: 'error' };
 
 export interface CancelAgentRequest {
   requestId: string;
@@ -31,4 +36,4 @@ export type AgentEvent =
   | { delta: string; requestId: string; type: 'text-delta' }
   | { requestId: string; type: 'completed' }
   | { requestId: string; type: 'cancelled' }
-  | { message: string; requestId: string; type: 'error' };
+  | { code: AgentErrorCode; requestId: string; type: 'error' };

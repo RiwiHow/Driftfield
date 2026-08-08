@@ -10,6 +10,7 @@ import {
   Settings2,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/ui/button';
 import type { Chapter } from '@/app/types';
@@ -48,22 +49,24 @@ export function LibraryPanel({
   projectWatcherError,
   recoveredChapters,
 }: LibraryPanelProps) {
+  const { t } = useTranslation('library');
+  const { t: tSettings } = useTranslation('settings');
   return (
     <aside className="library-pane">
       <div className="pane-heading">
         <span
           className="pane-heading-title"
-          title={projectDirectory?.path ?? '小说目录'}
+          title={projectDirectory?.path ?? t('title')}
         >
-          {projectDirectory?.name ?? '小说目录'}
+          {projectDirectory?.name ?? t('title')}
         </span>
         <div className="pane-heading-actions">
           <Button
-            aria-label="打开本地项目"
+            aria-label={t('actions.open')}
             disabled={isSelectingProject}
             onClick={onSelectProject}
             size="icon"
-            title="打开本地项目"
+            title={t('actions.open')}
             variant="ghost"
           >
             {isSelectingProject ? (
@@ -73,11 +76,11 @@ export function LibraryPanel({
             )}
           </Button>
           <Button
-            aria-label="刷新项目目录"
+            aria-label={t('actions.refresh')}
             disabled={projectDirectory === null || isRefreshingProject}
             onClick={onRefreshProject}
             size="icon"
-            title="刷新项目目录"
+            title={t('actions.refresh')}
             variant="ghost"
           >
             <RefreshCw
@@ -87,7 +90,7 @@ export function LibraryPanel({
               size={14}
             />
           </Button>
-          <Button aria-label="更多目录操作" size="icon" variant="ghost">
+          <Button aria-label={t('actions.more')} size="icon" variant="ghost">
             <MoreHorizontal size={15} />
           </Button>
         </div>
@@ -104,19 +107,19 @@ export function LibraryPanel({
         </p>
       )}
 
-      <nav className="manuscript-tree" aria-label="小说目录">
-        <div className="tree-section-label">手稿</div>
+      <nav className="manuscript-tree" aria-label={t('title')}>
+        <div className="tree-section-label">{t('labels.manuscript')}</div>
         {projectDirectory === null ? (
           <p
-            aria-label="点击右上角的加号按钮打开本地项目"
+            aria-label={`${t('empty.hint')} ${t('empty.action')}`}
             className="tree-empty-state"
           >
-            <span aria-hidden="true">点击右上角</span>
+            <span aria-hidden="true">{t('empty.hint')}</span>
             <Plus aria-hidden="true" size={12} strokeWidth={2} />
-            <span aria-hidden="true">打开本地项目</span>
+            <span aria-hidden="true">{t('empty.action')}</span>
           </p>
         ) : projectTree.length === 0 && recoveredChapters.length === 0 ? (
-          <p className="tree-empty-state">此文件夹中没有 Markdown 文件</p>
+          <p className="tree-empty-state">{t('empty.noMarkdown')}</p>
         ) : (
           <>
             <ProjectTree
@@ -127,7 +130,9 @@ export function LibraryPanel({
             />
             {recoveredChapters.length > 0 && (
               <div className="recovered-documents">
-                <div className="tree-section-label">待恢复的未保存文档</div>
+                <div className="tree-section-label">
+                  {t('labels.recovery')}
+                </div>
                 {recoveredChapters.map((chapter) => (
                   <button
                     className={cn(
@@ -136,7 +141,9 @@ export function LibraryPanel({
                     )}
                     key={chapter.id}
                     onClick={() => onChapterChange(chapter.id)}
-                    title={`${chapter.relativePath}（磁盘文件已移动或删除）`}
+                    title={t('missingTitle', {
+                      path: chapter.relativePath,
+                    })}
                     type="button"
                   >
                     <FileText aria-hidden="true" size={14} />
@@ -154,11 +161,11 @@ export function LibraryPanel({
           className="library-settings"
           onClick={onOpenSettings}
           size="sm"
-          title="应用设置（⌘,）"
+          title={t('actions.settings')}
           variant="ghost"
         >
           <Settings2 size={14} />
-          应用设置
+          {tSettings('title')}
         </Button>
         <span>{window.driftfield.platform}</span>
       </div>

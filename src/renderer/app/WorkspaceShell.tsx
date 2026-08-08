@@ -14,6 +14,7 @@ import {
   type RefObject,
 } from 'react';
 import { flushSync } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Group,
   Panel,
@@ -90,6 +91,8 @@ export function WorkspaceShell({
   recoveredChapters,
   theme,
 }: WorkspaceShellProps) {
+  const { t } = useTranslation('workspace');
+  const { t: tCommon } = useTranslation('common');
   const libraryPanelRef = usePanelRef();
   const assistantPanelRef = usePanelRef();
   const libraryElementRef = useRef<HTMLDivElement | null>(null);
@@ -214,7 +217,11 @@ export function WorkspaceShell({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  aria-label={isLibraryCollapsed ? '展开小说目录' : '收起小说目录'}
+                  aria-label={
+                    isLibraryCollapsed
+                      ? t('expandLibrary')
+                      : t('collapseLibrary')
+                  }
                   onClick={toggleLibraryPanel}
                   size="icon"
                   variant="ghost"
@@ -227,21 +234,27 @@ export function WorkspaceShell({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {isLibraryCollapsed ? '展开小说目录' : '收起小说目录'}
+                {isLibraryCollapsed
+                  ? t('expandLibrary')
+                  : t('collapseLibrary')}
               </TooltipContent>
             </Tooltip>
           </div>
 
           <div className="titlebar-brand">
             <BookOpenText aria-hidden="true" size={14} strokeWidth={1.8} />
-            <span>Driftfield</span>
+            <span>{tCommon('appName')}</span>
           </div>
 
           <div className="titlebar-actions">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  aria-label={isAssistantCollapsed ? '展开 Agents' : '收起 Agents'}
+                  aria-label={
+                    isAssistantCollapsed
+                      ? t('expandAgents')
+                      : t('collapseAgents')
+                  }
                   onClick={toggleAssistantPanel}
                   size="icon"
                   variant="ghost"
@@ -254,7 +267,9 @@ export function WorkspaceShell({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {isAssistantCollapsed ? '展开 Agents' : '收起 Agents'}
+                {isAssistantCollapsed
+                  ? t('expandAgents')
+                  : t('collapseAgents')}
               </TooltipContent>
             </Tooltip>
           </div>

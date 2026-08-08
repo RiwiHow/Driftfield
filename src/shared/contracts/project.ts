@@ -36,7 +36,10 @@ export interface ProjectSnapshot {
 
 export type ProjectWatcherStatus =
   | { status: 'healthy' }
-  | { message: string; status: 'error' };
+  | {
+      code: 'refresh-failed' | 'start-failed' | 'stopped';
+      status: 'error';
+    };
 
 export interface SaveProjectDocumentRequest {
   documentId: string;

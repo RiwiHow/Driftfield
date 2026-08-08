@@ -1,5 +1,9 @@
 import type { AgentModelOption } from './agent-configuration';
-import { AGENT_ROLES, type AgentRole } from './agent';
+import {
+  AGENT_ROLES,
+  type AgentErrorCode,
+  type AgentRole,
+} from './agent';
 import {
   AGENT_THINKING_LEVELS,
   type AgentThinkingLevel,
@@ -38,12 +42,12 @@ export type AgentWorkerCommand =
 export type AgentWorkerMessage =
   | { type: 'ready' }
   | { models: AgentModelOption[]; requestId: string; type: 'models' }
-  | { message: string; requestId: string; type: 'models-error' }
+  | { code: 'model-list-failed'; requestId: string; type: 'models-error' }
   | { requestId: string; toolCallId: string; type: 'tool-request' }
   | { delta: string; requestId: string; type: 'text-delta' }
   | { requestId: string; type: 'completed' }
   | { requestId: string; type: 'cancelled' }
-  | { message: string; requestId: string; type: 'error' };
+  | { code: AgentErrorCode; requestId: string; type: 'error' };
 
 export const isAgentWorkerMessage = (
   value: unknown,
@@ -58,7 +62,7 @@ export const isAgentWorkerMessage = (
     return Array.isArray(message.models) && message.models.every(isModelOption);
   }
   if (message.type === 'models-error') {
-    return typeof message.message === 'string';
+    return message.code === 'model-list-failed';
   }
   if (
     message.type === 'completed' ||
@@ -67,7 +71,9 @@ export const isAgentWorkerMessage = (
     return true;
   }
   if (message.type === 'text-delta') return typeof message.delta === 'string';
-  if (message.type === 'error') return typeof message.message === 'string';
+  if (message.type === 'error') {
+    return message.code === 'request-failed' || message.code === 'runtime-exited';
+  }
   return (
     message.type === 'tool-request' && typeof message.toolCallId === 'string'
   );

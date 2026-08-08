@@ -11,6 +11,7 @@ import { AiAgentService } from './ai/ai-agent-service';
 import { ProjectSessionService } from './services/project-session-service';
 import { SettingsService } from './services/settings-service';
 import { AgentCredentialService } from './services/agent-credential-service';
+import { initializeMainI18n } from './i18n/main-i18n';
 import { createMainWindow } from './windows/main-window';
 import type { RendererNavigationPolicy } from './windows/navigation-policy';
 
@@ -124,6 +125,7 @@ const openMainWindow = (
 
 void app.whenReady().then(async () => {
   try {
+    await initializeMainI18n();
     const settingsService = await SettingsService.create(app.getPath('userData'));
     const agentCredentialService = new AgentCredentialService(
       app.getPath('userData'),

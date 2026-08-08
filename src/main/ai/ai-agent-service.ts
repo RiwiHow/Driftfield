@@ -209,7 +209,7 @@ export class AiAgentService {
       if (pending !== undefined) {
         clearTimeout(pending.timeout);
         this.pendingModelLists.delete(message.requestId);
-        pending.reject(new Error(message.message));
+        pending.reject(new Error(message.code));
       }
       return;
     }
@@ -251,7 +251,7 @@ export class AiAgentService {
     this.pendingModelLists.clear();
     for (const [requestId, active] of this.activeRequests) {
       active.sendEvent({
-        message: 'Agent 运行进程意外退出，请重试。',
+        code: 'runtime-exited',
         requestId,
         type: 'error',
       });

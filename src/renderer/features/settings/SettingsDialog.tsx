@@ -3,6 +3,7 @@ import {
   Check,
   Cpu,
   KeyRound,
+  Languages,
   Minimize2,
   MonitorCog,
   Power,
@@ -10,6 +11,7 @@ import {
   Type,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -29,6 +31,7 @@ import type {
   AppTheme,
   UpdateAppSettingsRequest,
 } from '../../../shared/contracts/settings';
+import { APP_LANGUAGE_OPTIONS } from '../../../shared/i18n/languages';
 
 interface SettingsDialogProps {
   agentConfiguration: AgentConfiguration;
@@ -46,22 +49,22 @@ interface SettingsDialogProps {
 }
 
 const themeOptions: Array<{
-  description: string;
+  descriptionKey: 'githubLight' | 'oneDark' | 'tokyoNight';
   label: string;
   theme: AppTheme;
 }> = [
   {
-    description: '明亮、清晰的编辑环境',
+    descriptionKey: 'githubLight',
     label: 'GitHub Light',
     theme: 'github-light',
   },
   {
-    description: '低对比度的深蓝夜间主题',
+    descriptionKey: 'tokyoNight',
     label: 'Tokyo Night',
     theme: 'tokyo-night',
   },
   {
-    description: '经典的深灰代码编辑主题',
+    descriptionKey: 'oneDark',
     label: 'One Dark',
     theme: 'one-dark',
   },
@@ -80,6 +83,9 @@ export function SettingsDialog({
   open,
   settings,
 }: SettingsDialogProps) {
+  const { t } = useTranslation('settings');
+  const { t: tAssistant } = useTranslation('assistant');
+  const { t: tCommon } = useTranslation('common');
   const canChooseCloseBehavior = window.driftfield.platform !== 'darwin';
   const apiKeyRef = useRef<HTMLInputElement>(null);
   const [credentialProvider, setCredentialProvider] =
@@ -100,19 +106,45 @@ export function SettingsDialog({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="settings-dialog">
         <header className="settings-header">
-          <DialogTitle>应用设置</DialogTitle>
-          <DialogDescription>
-            调整 Driftfield 的外观和写作体验。更改会自动保存。
-          </DialogDescription>
+          <DialogTitle>{t('title')}</DialogTitle>
+          <DialogDescription>{t('description')}</DialogDescription>
         </header>
 
         <div className="settings-sections">
+          <section className="settings-section settings-row-section">
+            <div className="settings-section-heading">
+              <Languages aria-hidden="true" size={17} />
+              <div>
+                <h3>{t('language.title')}</h3>
+                <p>{t('language.description')}</p>
+              </div>
+            </div>
+            <label className="agent-setting-field">
+              <span className="sr-only">{t('language.label')}</span>
+              <select
+                disabled={isSaving}
+                onChange={(event) =>
+                  onUpdate({
+                    language: event.target.value as AppSettings['language'],
+                  })
+                }
+                value={settings.language}
+              >
+                {APP_LANGUAGE_OPTIONS.map((language) => (
+                  <option key={language.id} value={language.id}>
+                    {language.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </section>
+
           <section className="settings-section">
             <div className="settings-section-heading">
               <KeyRound aria-hidden="true" size={17} />
               <div>
-                <h3>模型服务</h3>
-                <p>凭据仅保存在本机主进程中，应用不会显示已保存的 Key。</p>
+                <h3>{t('agent.providerTitle')}</h3>
+                <p>{t('agent.credentialDescription')}</p>
               </div>
             </div>
 
@@ -135,7 +167,7 @@ export function SettingsDialog({
               <input
                 autoComplete="off"
                 disabled={isSaving}
-                placeholder="输入 API Key"
+                placeholder={t('agent.keyPlaceholder')}
                 ref={apiKeyRef}
                 type="password"
               />
@@ -146,7 +178,7 @@ export function SettingsDialog({
                 type="button"
                 variant="outline"
               >
-                保存
+                {tCommon('actions.save')}
               </Button>
             </div>
 
@@ -162,12 +194,12 @@ export function SettingsDialog({
                       onClick={() => onRemoveCredential(providerId)}
                       type="button"
                     >
-                      移除
+                      {tCommon('actions.remove')}
                     </button>
                   </span>
                 ))}
               {!agentConfiguration.providers.some(({ configured }) => configured) && (
-                <small>尚未连接模型服务</small>
+                <small>{t('agent.noProvider')}</small>
               )}
             </div>
           </section>
@@ -176,12 +208,12 @@ export function SettingsDialog({
             <div className="settings-section-heading">
               <Cpu aria-hidden="true" size={17} />
               <div>
-                <h3>默认模型</h3>
-                <p>Agent 请求始终使用这里明确选择的模型。</p>
+                <h3>{t('agent.modelTitle')}</h3>
+                <p>{t('agent.modelDescription')}</p>
               </div>
             </div>
             <label className="agent-setting-field">
-              <span className="sr-only">默认 Agent 模型</span>
+              <span className="sr-only">{t('agent.modelLabel')}</span>
               <select
                 disabled={isSaving || agentConfiguration.models.length === 0}
                 onChange={(event) => {
@@ -203,7 +235,7 @@ export function SettingsDialog({
                 }}
                 value={selectedModelKey}
               >
-                <option value="">请选择模型</option>
+                <option value="">{t('agent.selectModel')}</option>
                 {agentConfiguration.models.map((model) => (
                   <option
                     key={`${model.providerId}/${model.id}`}
@@ -220,12 +252,12 @@ export function SettingsDialog({
             <div className="settings-section-heading">
               <BrainCircuit aria-hidden="true" size={17} />
               <div>
-                <h3>思考深度</h3>
-                <p>更高等级通常更慢，并可能产生更多费用。</p>
+                <h3>{t('agent.thinkingTitle')}</h3>
+                <p>{t('agent.thinkingDescription')}</p>
               </div>
             </div>
             <label className="agent-setting-field">
-              <span className="sr-only">Agent 思考深度</span>
+              <span className="sr-only">{t('agent.thinkingLabel')}</span>
               <select
                 disabled={
                   isSaving ||
@@ -246,13 +278,13 @@ export function SettingsDialog({
                 }
                 value={settings.agent.thinkingLevel}
               >
-                <option value="off">关闭</option>
-                <option value="minimal">最低</option>
-                <option value="low">快速</option>
-                <option value="medium">均衡</option>
-                <option value="high">深度</option>
-                <option value="xhigh">极高（高级）</option>
-                <option value="max">最大（高级）</option>
+                <option value="off">{tAssistant('thinking.off')}</option>
+                <option value="minimal">{tAssistant('thinking.minimal')}</option>
+                <option value="low">{tAssistant('thinking.low')}</option>
+                <option value="medium">{tAssistant('thinking.medium')}</option>
+                <option value="high">{tAssistant('thinking.high')}</option>
+                <option value="xhigh">{tAssistant('thinking.xhigh')}</option>
+                <option value="max">{tAssistant('thinking.max')}</option>
               </select>
             </label>
           </section>
@@ -261,8 +293,8 @@ export function SettingsDialog({
             <div className="settings-section-heading">
               <MonitorCog aria-hidden="true" size={17} />
               <div>
-                <h3>外观主题</h3>
-                <p>应用到窗口、目录、编辑器和 Agent 面板。</p>
+                <h3>{t('appearance.title')}</h3>
+                <p>{t('appearance.description')}</p>
               </div>
             </div>
 
@@ -293,7 +325,9 @@ export function SettingsDialog({
                     </span>
                     <span className="theme-option-copy">
                       <strong>{option.label}</strong>
-                      <small>{option.description}</small>
+                      <small>
+                        {t(`appearance.themes.${option.descriptionKey}`)}
+                      </small>
                     </span>
                     {isSelected && <Check aria-hidden="true" size={15} />}
                   </button>
@@ -306,13 +340,13 @@ export function SettingsDialog({
             <div className="settings-section-heading">
               <Type aria-hidden="true" size={17} />
               <div>
-                <h3>正文大小</h3>
-                <p>调整 Markdown 富文本编辑器中的正文字号。</p>
+                <h3>{t('fontSize.title')}</h3>
+                <p>{t('fontSize.description')}</p>
               </div>
             </div>
 
             <label className="font-size-field">
-              <span className="sr-only">编辑器正文字号</span>
+              <span className="sr-only">{t('fontSize.label')}</span>
               <select
                 disabled={isSaving}
                 onChange={(event) =>
@@ -334,13 +368,13 @@ export function SettingsDialog({
               <div className="settings-section-heading">
                 <SquareMousePointer aria-hidden="true" size={16} />
                 <div>
-                  <h3>关闭主窗口时</h3>
-                  <p>明确退出操作始终会完全退出 Driftfield。</p>
+                  <h3>{t('closeBehavior.title')}</h3>
+                  <p>{t('closeBehavior.description')}</p>
                 </div>
               </div>
 
               <div
-                aria-label="关闭主窗口时的行为"
+                aria-label={t('closeBehavior.label')}
                 className="close-behavior-options"
                 role="group"
               >
@@ -354,7 +388,7 @@ export function SettingsDialog({
                   type="button"
                 >
                   <Power aria-hidden="true" size={13} />
-                  退出应用
+                  {t('closeBehavior.quit')}
                 </button>
                 <button
                   aria-pressed={settings.closeWindowBehavior === 'minimize'}
@@ -367,7 +401,7 @@ export function SettingsDialog({
                   type="button"
                 >
                   <Minimize2 aria-hidden="true" size={13} />
-                  最小化
+                  {t('closeBehavior.minimize')}
                 </button>
               </div>
             </section>
@@ -376,14 +410,15 @@ export function SettingsDialog({
 
         <footer className="settings-footer">
           <span aria-live="polite" className={cn(error && 'is-error')}>
-            {error ?? (isSaving ? '正在保存…' : '设置已自动保存')}
+            {error ??
+              (isSaving ? t('saveStatus.saving') : t('saveStatus.saved'))}
           </span>
           <Button
             onClick={() => onOpenChange(false)}
             size="sm"
             variant="secondary"
           >
-            完成
+            {tCommon('actions.done')}
           </Button>
         </footer>
       </DialogContent>

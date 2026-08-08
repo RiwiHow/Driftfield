@@ -6,7 +6,7 @@ import {
 } from './settings-service';
 
 describe('settings parsing and migration', () => {
-  it('migrates unversioned settings to version 2', () => {
+  it('migrates unversioned settings to version 3 with English as default', () => {
     expect(
       parseStoredSettings({
         closeWindowBehavior: 'minimize',
@@ -20,20 +20,30 @@ describe('settings parsing and migration', () => {
       },
       closeWindowBehavior: 'minimize',
       editorFontSize: 20,
+      language: 'en',
       theme: 'tokyo-night',
-      version: 2,
+      version: 3,
     });
   });
 
   it('uses defaults for invalid stored fields', () => {
     expect(parseStoredSettings({ editorFontSize: 100 })).toMatchObject({
       editorFontSize: 17,
+      language: 'en',
       theme: 'github-light',
-      version: 2,
+      version: 3,
     });
   });
 
-  it('preserves valid version 2 Agent settings', () => {
+  it('preserves a supported stored language and rejects unknown languages', () => {
+    expect(parseStoredSettings({ language: 'zh-CN' }).language).toBe('zh-CN');
+    expect(parseStoredSettings({ language: 'fr' }).language).toBe('en');
+    expect(() => parseSettingsUpdate({ language: 'fr' })).toThrow(
+      'Unknown application language',
+    );
+  });
+
+  it('migrates valid version 2 Agent settings to version 3', () => {
     expect(
       parseStoredSettings({
         agent: {

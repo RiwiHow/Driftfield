@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type {
   AgentApiKeyProviderId,
@@ -6,20 +7,23 @@ import type {
 } from '../../../shared/contracts/agent-configuration';
 
 const EMPTY_CONFIGURATION: AgentConfiguration = { models: [], providers: [] };
+type AgentConfigurationErrorCode = 'load' | 'remove' | 'save';
 
 export const useAgentConfiguration = () => {
+  const { t } = useTranslation('errors');
   const [configuration, setConfiguration] =
     useState<AgentConfiguration>(EMPTY_CONFIGURATION);
-  const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] =
+    useState<AgentConfigurationErrorCode | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
 
   const refresh = useCallback(async () => {
-    setError(null);
+    setErrorCode(null);
     try {
       setConfiguration(await window.driftfield.getAgentConfiguration());
     } catch {
-      setError('无法读取 Agent 模型配置。');
+      setErrorCode('load');
     } finally {
       setIsLoading(false);
     }
@@ -33,14 +37,14 @@ export const useAgentConfiguration = () => {
     async (providerId: AgentApiKeyProviderId, apiKey: string) => {
       if (isUpdating) return false;
       setIsUpdating(true);
-      setError(null);
+      setErrorCode(null);
       try {
         setConfiguration(
           await window.driftfield.setAgentApiKey({ apiKey, providerId }),
         );
         return true;
       } catch {
-        setError('无法保存凭据或读取模型，请检查 API Key。');
+        setErrorCode('save');
         return false;
       } finally {
         setIsUpdating(false);
@@ -53,14 +57,14 @@ export const useAgentConfiguration = () => {
     async (providerId: AgentApiKeyProviderId) => {
       if (isUpdating) return false;
       setIsUpdating(true);
-      setError(null);
+      setErrorCode(null);
       try {
         setConfiguration(
           await window.driftfield.removeAgentCredential({ providerId }),
         );
         return true;
       } catch {
-        setError('无法移除 Agent 凭据。');
+        setErrorCode('remove');
         return false;
       } finally {
         setIsUpdating(false);
@@ -71,7 +75,16 @@ export const useAgentConfiguration = () => {
 
   return {
     configuration,
-    error,
+    error:
+      errorCode === null
+        ? null
+        : t(
+            errorCode === 'load'
+              ? 'agent.configurationLoad'
+              : errorCode === 'save'
+                ? 'agent.credentialSave'
+                : 'agent.credentialRemove',
+          ),
     isUpdating,
     isLoading,
     removeCredential,

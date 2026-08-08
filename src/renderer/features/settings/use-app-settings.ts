@@ -1,28 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import {
-  DEFAULT_APP_SETTINGS,
   type AppSettings,
   type UpdateAppSettingsRequest,
 } from '../../../shared/contracts/settings';
+import { changeRendererLanguage } from '../../i18n';
 
-export const useAppSettings = () => {
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
+type SettingsErrorCode = 'load' | 'save';
+
+export const useAppSettings = (
+  initialSettings: AppSettings,
+  settingsLoadFailed: boolean,
+) => {
+  const { t } = useTranslation('errors');
+  const [settings, setSettings] = useState<AppSettings>(initialSettings);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [settingsError, setSettingsError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let isCurrent = true;
-    void window.driftfield.getAppSettings().then(
-      (storedSettings) => isCurrent && setSettings(storedSettings),
-      () =>
-        isCurrent &&
-        setSettingsError('无法读取应用设置，当前使用默认值。'),
-    );
-    return () => {
-      isCurrent = false;
-    };
-  }, []);
+  const [settingsErrorCode, setSettingsErrorCode] =
+    useState<SettingsErrorCode | null>(settingsLoadFailed ? 'load' : null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = settings.theme;
@@ -32,22 +27,29 @@ export const useAppSettings = () => {
     async (update: UpdateAppSettingsRequest): Promise<void> => {
       if (isSavingSettings) return;
       setIsSavingSettings(true);
-      setSettingsError(null);
+      setSettingsErrorCode(null);
       try {
-        setSettings(await window.driftfield.updateAppSettings(update));
+        const storedSettings = await window.driftfield.updateAppSettings(update);
+        if (storedSettings.language !== settings.language) {
+          await changeRendererLanguage(storedSettings.language);
+        }
+        setSettings(storedSettings);
       } catch {
-        setSettingsError('设置保存失败，请重试。');
+        setSettingsErrorCode('save');
       } finally {
         setIsSavingSettings(false);
       }
     },
-    [isSavingSettings],
+    [isSavingSettings, settings.language],
   );
 
   return {
     isSavingSettings,
     settings,
-    settingsError,
+    settingsError:
+      settingsErrorCode === null
+        ? null
+        : t(`settings.${settingsErrorCode}`),
     updateSettings,
   };
 };

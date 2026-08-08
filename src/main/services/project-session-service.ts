@@ -100,7 +100,7 @@ export class ProjectSessionService {
     } catch (error) {
       console.error('Unable to start project directory watcher', error);
       this.sendStatus(window, {
-        message: '项目文件监视启动失败；可手动刷新，应用会自动重试。',
+        code: 'start-failed',
         status: 'error',
       });
       scheduleRestart();
@@ -128,7 +128,7 @@ export class ProjectSessionService {
           (error: unknown) => {
             console.error('Failed to refresh watched project directory', error);
             this.sendStatus(window, {
-              message: '项目刷新失败；当前内容已保留，请尝试手动刷新。',
+              code: 'refresh-failed',
               status: 'error',
             });
           },
@@ -141,7 +141,7 @@ export class ProjectSessionService {
       session.watcher?.close();
       session.watcher = null;
       this.sendStatus(window, {
-        message: '项目文件监视已中断；可手动刷新，应用会自动重连。',
+        code: 'stopped',
         status: 'error',
       });
       scheduleRestart();

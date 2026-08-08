@@ -1,3 +1,5 @@
+import type { AppLanguage } from '../i18n/languages';
+
 export const APP_THEMES = [
   'github-light',
   'tokyo-night',
@@ -33,8 +35,9 @@ export interface AppSettings {
   agent: AgentSettings;
   closeWindowBehavior: CloseWindowBehavior;
   editorFontSize: number;
+  language: AppLanguage;
   theme: AppTheme;
-  version: 2;
+  version: 3;
 }
 
 export type UpdateAppSettingsRequest = Partial<Omit<AppSettings, 'version'>>;
@@ -46,6 +49,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   },
   closeWindowBehavior: 'quit',
   editorFontSize: 17,
+  language: 'en',
   theme: 'github-light',
-  version: 2,
+  version: 3,
 };

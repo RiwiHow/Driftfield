@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { Chapter } from '@/app/types';
 import {
@@ -14,6 +15,8 @@ export interface ConversationMessage {
 }
 
 export function useAgentConversation(activeChapter: Chapter | null) {
+  const { t } = useTranslation('assistant');
+  const { t: tErrors } = useTranslation('errors');
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [run, dispatchRun] = useReducer(
     reduceAgentConversationRun,
@@ -41,7 +44,7 @@ export function useAgentConversation(activeChapter: Chapter | null) {
         setMessages((current) =>
           current.map((message) =>
             message.id === event.requestId && message.content.length === 0
-              ? { ...message, content: '（模型未返回文本）' }
+              ? { ...message, content: t('terminal.empty') }
               : message,
           ),
         );
@@ -52,7 +55,7 @@ export function useAgentConversation(activeChapter: Chapter | null) {
         setMessages((current) =>
           current.map((message) =>
             message.id === event.requestId && message.content.length === 0
-              ? { ...message, content: '（已取消）' }
+              ? { ...message, content: t('terminal.cancelled') }
               : message,
           ),
         );
@@ -63,19 +66,23 @@ export function useAgentConversation(activeChapter: Chapter | null) {
         setMessages((current) =>
           current.map((message) =>
             message.id === event.requestId && message.content.length === 0
-              ? { ...message, content: '（请求失败）' }
+              ? { ...message, content: t('terminal.failed') }
               : message,
           ),
         );
         dispatchRun({
-          error: event.message,
+          error: tErrors(
+            event.code === 'runtime-exited'
+              ? 'agent.runtimeExited'
+              : 'agent.requestFailed',
+          ),
           requestId: event.requestId,
           type: 'failed',
         });
         requestIdRef.current = null;
       }
     });
-  }, []);
+  }, [t, tErrors]);
 
   const send = useCallback(
     async (prompt: string) => {
@@ -100,6 +107,15 @@ export function useAgentConversation(activeChapter: Chapter | null) {
           prompt: trimmedPrompt,
           requestId: nextRequestId,
         });
+        if (started.status === 'error') {
+          const errorKey =
+            started.code === 'model-not-configured'
+              ? 'agent.modelNotConfigured'
+              : started.code === 'credential-missing'
+                ? 'agent.credentialMissing'
+                : 'agent.startFailed';
+          throw new Error(tErrors(errorKey));
+        }
         if (started.requestId !== nextRequestId) {
           throw new Error('Agent request identity mismatch');
         }
@@ -108,7 +124,7 @@ export function useAgentConversation(activeChapter: Chapter | null) {
         const message =
           startError instanceof Error
             ? startError.message
-            : '无法启动 Agent 请求。';
+            : tErrors('agent.startFailed');
         dispatchRun({ error: message, requestId: nextRequestId, type: 'failed' });
         requestIdRef.current = null;
         setMessages((current) =>
@@ -117,7 +133,7 @@ export function useAgentConversation(activeChapter: Chapter | null) {
         return false;
       }
     },
-    [activeChapter?.id],
+    [activeChapter?.id, tErrors],
   );
 
   const cancel = useCallback(async () => {
@@ -129,7 +145,7 @@ export function useAgentConversation(activeChapter: Chapter | null) {
       if (!result.cancelled && requestIdRef.current === requestId) {
         requestIdRef.current = null;
         dispatchRun({
-          error: 'Agent 请求已经结束，无法取消。',
+          error: tErrors('agent.cancelEnded'),
           requestId,
           type: 'failed',
         });
@@ -138,13 +154,13 @@ export function useAgentConversation(activeChapter: Chapter | null) {
       if (requestIdRef.current === requestId) {
         requestIdRef.current = null;
         dispatchRun({
-          error: '取消 Agent 请求失败。',
+          error: tErrors('agent.cancelFailed'),
           requestId,
           type: 'failed',
         });
       }
     }
-  }, []);
+  }, [tErrors]);
 
   const clear = useCallback(() => {
     if (!isAgentConversationActive(run.phase)) {

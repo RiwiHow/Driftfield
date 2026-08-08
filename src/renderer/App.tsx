@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { WorkspaceShell } from '@/app/WorkspaceShell';
 import { Button } from '@/components/ui/button';
@@ -12,11 +13,18 @@ import { useProjectWorkspace } from '@/features/projects/use-project-workspace';
 import { SettingsDialog } from '@/features/settings/SettingsDialog';
 import { useAppSettings } from '@/features/settings/use-app-settings';
 import { useAgentConfiguration } from '@/features/settings/use-agent-configuration';
+import type { AppSettings } from '../shared/contracts/settings';
 
-export function App() {
+interface AppProps {
+  initialSettings: AppSettings;
+  settingsLoadFailed: boolean;
+}
+
+export function App({ initialSettings, settingsLoadFailed }: AppProps) {
+  const { t } = useTranslation('projects');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { isSavingSettings, settings, settingsError, updateSettings } =
-    useAppSettings();
+    useAppSettings(initialSettings, settingsLoadFailed);
   const agentConfiguration = useAgentConfiguration();
   const project = useProjectWorkspace();
 
@@ -89,25 +97,23 @@ export function App() {
         open={project.saveConflict !== null}
       >
         <DialogContent>
-          <DialogTitle>文件在磁盘上已更改</DialogTitle>
-          <DialogDescription>
-            请选择重新载入磁盘版本、进入对比合并，或确认用当前编辑内容覆盖磁盘版本。
-          </DialogDescription>
+          <DialogTitle>{t('conflict.title')}</DialogTitle>
+          <DialogDescription>{t('conflict.body')}</DialogDescription>
           <div className="save-conflict-actions">
             <Button
               onClick={project.reloadConflictedDocument}
               variant="outline"
             >
-              重新载入
+              {t('conflict.reload')}
             </Button>
             <Button
               onClick={project.compareConflictedDocument}
               variant="outline"
             >
-              对比并合并
+              {t('conflict.compare')}
             </Button>
             <Button onClick={() => void project.saveActiveDocument(true)}>
-              确认覆盖
+              {t('conflict.overwrite')}
             </Button>
           </div>
         </DialogContent>

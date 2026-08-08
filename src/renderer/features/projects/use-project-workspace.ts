@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { Chapter } from '@/app/types';
 import { mergeProjectSnapshot } from '@/features/library/merge-project-snapshot';
@@ -14,13 +15,36 @@ export interface SaveConflict {
   documentId: string;
 }
 
+type ProjectMessageKey =
+  | 'errors.conflictBeforeQuit'
+  | 'errors.conflictBeforeSwitch'
+  | 'errors.failedBeforeQuit'
+  | 'errors.failedBeforeSwitch'
+  | 'errors.missingBeforeQuit'
+  | 'errors.missingBeforeSwitch'
+  | 'errors.saveConflict'
+  | 'errors.saveMissing'
+  | 'messages.comparisonReady';
+
+type ErrorMessageKey =
+  | 'projects.dirtySync'
+  | 'projects.open'
+  | 'projects.refresh'
+  | 'projects.save';
+
+type LocalizedWorkspaceMessage =
+  | { catalog: 'projects'; key: ProjectMessageKey }
+  | { catalog: 'errors'; key: ErrorMessageKey };
+
 interface SaveDocumentsMessages {
-  conflict: string;
-  failed: string;
-  missing: string;
+  conflict: LocalizedWorkspaceMessage;
+  failed: LocalizedWorkspaceMessage;
+  missing: LocalizedWorkspaceMessage;
 }
 
 export const useProjectWorkspace = () => {
+  const { t } = useTranslation('projects');
+  const { t: tErrors } = useTranslation('errors');
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
   const [projectDirectory, setProjectDirectory] =
@@ -30,16 +54,27 @@ export const useProjectWorkspace = () => {
   const [isRefreshingProject, setIsRefreshingProject] = useState(false);
   const [isSavingDocument, setIsSavingDocument] = useState(false);
   const [isConfirmingClose, setIsConfirmingClose] = useState(false);
-  const [documentSaveError, setDocumentSaveError] = useState<string | null>(null);
+  const [documentSaveMessage, setDocumentSaveMessage] =
+    useState<LocalizedWorkspaceMessage | null>(null);
   const [saveConflict, setSaveConflict] = useState<SaveConflict | null>(null);
-  const [projectSelectionError, setProjectSelectionError] =
-    useState<string | null>(null);
-  const [projectWatcherError, setProjectWatcherError] = useState<string | null>(
-    null,
-  );
+  const [projectSelectionMessage, setProjectSelectionMessage] =
+    useState<LocalizedWorkspaceMessage | null>(null);
+  const [projectWatcherCode, setProjectWatcherCode] = useState<
+    'refresh-failed' | 'start-failed' | 'stopped' | null
+  >(null);
   const projectRevision = useRef(0);
   const chaptersRef = useRef<Chapter[]>([]);
   chaptersRef.current = chapters;
+
+  const localizeMessage = useCallback(
+    (message: LocalizedWorkspaceMessage | null): string | null => {
+      if (message === null) return null;
+      return message.catalog === 'projects'
+        ? t(message.key)
+        : tErrors(message.key);
+    },
+    [t, tErrors],
+  );
 
   const activeChapter = useMemo(
     () => chapters.find((chapter) => chapter.id === activeChapterId) ?? null,
@@ -70,12 +105,12 @@ export const useProjectWorkspace = () => {
       messages: SaveDocumentsMessages,
     ): Promise<boolean> => {
       setIsSavingDocument(true);
-      setDocumentSaveError(null);
+      setDocumentSaveMessage(null);
       try {
         for (const chapter of documents) {
           if (chapter.backingFileStatus === 'missing') {
             setActiveChapterId(chapter.id);
-            setDocumentSaveError(messages.missing);
+            setDocumentSaveMessage(messages.missing);
             return false;
           }
           const result = await window.driftfield.saveProjectDocument({
@@ -89,19 +124,19 @@ export const useProjectWorkspace = () => {
               diskDocument: result.diskDocument,
               documentId: chapter.id,
             });
-            setDocumentSaveError(messages.conflict);
+            setDocumentSaveMessage(messages.conflict);
             return false;
           }
           if (result.status === 'missing') {
             setActiveChapterId(chapter.id);
-            setDocumentSaveError(messages.missing);
+            setDocumentSaveMessage(messages.missing);
             return false;
           }
           commitSavedChapter(chapter, result.revision);
         }
         return true;
       } catch {
-        setDocumentSaveError(messages.failed);
+        setDocumentSaveMessage(messages.failed);
         return false;
       } finally {
         setIsSavingDocument(false);
@@ -136,14 +171,17 @@ export const useProjectWorkspace = () => {
     void window.driftfield
       .setWindowDirty(chapters.some((chapter) => chapter.isDirty))
       .catch(() => {
-        setDocumentSaveError('无法同步未保存状态；请先手动保存文档。');
+        setDocumentSaveMessage({
+          catalog: 'errors',
+          key: 'projects.dirtySync',
+        });
       });
   }, [chapters]);
 
   useEffect(
     () =>
       window.driftfield.onProjectChanged((project) => {
-        setProjectSelectionError(null);
+        setProjectSelectionMessage(null);
         applyProjectSnapshot(project, true);
       }),
     [applyProjectSnapshot],
@@ -152,7 +190,7 @@ export const useProjectWorkspace = () => {
   useEffect(
     () =>
       window.driftfield.onProjectWatcherStatusChanged((status) => {
-        setProjectWatcherError(status.status === 'error' ? status.message : null);
+        setProjectWatcherCode(status.status === 'error' ? status.code : null);
       }),
     [],
   );
@@ -173,14 +211,14 @@ export const useProjectWorkspace = () => {
           }
           setIsConfirmingClose(true);
           const decision = await window.driftfield.confirmCloseUnsavedDocument(
-            `${dirtyChapters.length} 个未保存文档`,
+            t('unsavedDocuments', { count: dirtyChapters.length }),
           );
           let proceed = decision === 'discard';
           if (decision === 'save') {
             proceed = await saveDocuments(dirtyChapters, {
-              conflict: '退出已取消，请先处理磁盘文件冲突。',
-              failed: '保存未完成，退出已取消。',
-              missing: '磁盘文件已移动或删除，退出已取消；请先恢复内容。',
+              conflict: { catalog: 'projects', key: 'errors.conflictBeforeQuit' },
+              failed: { catalog: 'projects', key: 'errors.failedBeforeQuit' },
+              missing: { catalog: 'projects', key: 'errors.missingBeforeQuit' },
             });
           }
           setIsConfirmingClose(false);
@@ -190,7 +228,7 @@ export const useProjectWorkspace = () => {
           });
         })();
       }),
-    [saveDocuments],
+    [saveDocuments, t],
   );
 
   const updateActiveChapter = useCallback(
@@ -213,7 +251,7 @@ export const useProjectWorkspace = () => {
       }
       const { id: documentId, markdown } = activeChapter;
       setIsSavingDocument(true);
-      setDocumentSaveError(null);
+      setDocumentSaveMessage(null);
       try {
         const result = await window.driftfield.saveProjectDocument({
           documentId,
@@ -226,24 +264,35 @@ export const useProjectWorkspace = () => {
         });
         if (result.status === 'conflict') {
           setSaveConflict({ diskDocument: result.diskDocument, documentId });
-          setDocumentSaveError('磁盘文件已被其他程序修改，请选择处理方式。');
+          setDocumentSaveMessage({
+            catalog: 'projects',
+            key: 'errors.saveConflict',
+          });
           return false;
         }
         if (result.status === 'missing') {
-          setDocumentSaveError('磁盘文件已被移动或删除；当前修改仍保留在内存中。');
+          setDocumentSaveMessage({
+            catalog: 'projects',
+            key: 'errors.saveMissing',
+          });
           return false;
         }
         commitSavedChapter(activeChapter, result.revision);
         setSaveConflict(null);
         return true;
       } catch {
-        setDocumentSaveError('保存失败，请检查文件权限后重试。');
+        setDocumentSaveMessage({ catalog: 'errors', key: 'projects.save' });
         return false;
       } finally {
         setIsSavingDocument(false);
       }
     },
-    [activeChapter, commitSavedChapter, isSavingDocument, saveConflict],
+    [
+      activeChapter,
+      commitSavedChapter,
+      isSavingDocument,
+      saveConflict,
+    ],
   );
 
   useEffect(() => {
@@ -295,27 +344,36 @@ export const useProjectWorkspace = () => {
     const dirtyChapters = chaptersRef.current.filter((chapter) => chapter.isDirty);
     if (dirtyChapters.length > 0) {
       const decision = await window.driftfield.confirmCloseUnsavedDocument(
-        `${dirtyChapters.length} 个未保存文档`,
+        t('unsavedDocuments', { count: dirtyChapters.length }),
       );
       if (decision === 'cancel') return;
       if (
         decision === 'save' &&
         !(await saveDocuments(dirtyChapters, {
-          conflict: '磁盘文件已被其他程序修改，请先处理冲突。',
-          failed: '保存未完成，项目未切换。',
-          missing: '有文档的磁盘文件已移动或删除，无法切换项目。请先恢复内容。',
+          conflict: {
+            catalog: 'projects',
+            key: 'errors.conflictBeforeSwitch',
+          },
+          failed: {
+            catalog: 'projects',
+            key: 'errors.failedBeforeSwitch',
+          },
+          missing: {
+            catalog: 'projects',
+            key: 'errors.missingBeforeSwitch',
+          },
         }))
       ) {
         return;
       }
     }
     setIsSelectingProject(true);
-    setProjectSelectionError(null);
+    setProjectSelectionMessage(null);
     try {
       const project = await window.driftfield.selectProjectDirectory();
       if (project !== null) applyProjectSnapshot(project, false);
     } catch {
-      setProjectSelectionError('无法打开这个文件夹，请重试。');
+      setProjectSelectionMessage({ catalog: 'errors', key: 'projects.open' });
     } finally {
       setIsSelectingProject(false);
     }
@@ -324,17 +382,21 @@ export const useProjectWorkspace = () => {
     isSavingDocument,
     isSelectingProject,
     saveDocuments,
+    t,
   ]);
 
   const refreshProject = useCallback(async (): Promise<void> => {
     if (projectDirectory === null || isRefreshingProject) return;
     setIsRefreshingProject(true);
-    setProjectSelectionError(null);
+    setProjectSelectionMessage(null);
     try {
       const project = await window.driftfield.refreshProject();
       if (project !== null) applyProjectSnapshot(project, true);
     } catch {
-      setProjectSelectionError('项目刷新失败，请检查文件夹后重试。');
+      setProjectSelectionMessage({
+        catalog: 'errors',
+        key: 'projects.refresh',
+      });
     } finally {
       setIsRefreshingProject(false);
     }
@@ -358,7 +420,7 @@ export const useProjectWorkspace = () => {
       ),
     );
     setSaveConflict(null);
-    setDocumentSaveError(null);
+    setDocumentSaveMessage(null);
   }, [saveConflict]);
 
   const compareConflictedDocument = useCallback((): void => {
@@ -377,8 +439,22 @@ export const useProjectWorkspace = () => {
       ),
     );
     setSaveConflict(null);
-    setDocumentSaveError('已载入磁盘版本作为对比基线，请在编辑器中审阅并合并。');
+    setDocumentSaveMessage({
+      catalog: 'projects',
+      key: 'messages.comparisonReady',
+    });
   }, [saveConflict]);
+
+  const projectWatcherError =
+    projectWatcherCode === null
+      ? null
+      : t(
+          projectWatcherCode === 'refresh-failed'
+            ? 'watcher.refreshFailed'
+            : projectWatcherCode === 'start-failed'
+              ? 'watcher.startFailed'
+              : 'watcher.stopped',
+        );
 
   return {
     activeChapter,
@@ -386,12 +462,12 @@ export const useProjectWorkspace = () => {
     closeActiveDocument,
     compareConflictedDocument,
     dismissSaveConflict: () => setSaveConflict(null),
-    documentSaveError,
+    documentSaveError: localizeMessage(documentSaveMessage),
     isRefreshingProject,
     isSavingDocument,
     isSelectingProject,
     projectDirectory,
-    projectSelectionError,
+    projectSelectionError: localizeMessage(projectSelectionMessage),
     projectTree,
     projectWatcherError,
     refreshProject,

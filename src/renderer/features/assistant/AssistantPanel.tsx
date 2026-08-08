@@ -9,6 +9,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { Chapter } from '@/app/types';
 import { Button } from '@/components/ui/button';
@@ -26,22 +27,6 @@ interface AssistantPanelProps {
   settings: AgentSettings;
 }
 
-const thinkingLabels: Record<AgentSettings['thinkingLevel'], string> = {
-  high: '深度',
-  low: '快速',
-  max: '最大',
-  medium: '均衡',
-  minimal: '最低',
-  off: '关闭推理',
-  xhigh: '极高',
-};
-
-const activePhaseLabels: Partial<Record<AgentConversationPhase, string>> = {
-  cancelling: '正在取消…',
-  starting: '正在启动…',
-  streaming: '正在生成…',
-};
-
 export function AssistantPanel({
   activeChapter,
   configuration,
@@ -50,6 +35,7 @@ export function AssistantPanel({
   onOpenSettings,
   settings,
 }: AssistantPanelProps) {
+  const { t } = useTranslation('assistant');
   const [prompt, setPrompt] = useState('');
   const { cancel, clear, error, isActive, messages, phase, send } =
     useAgentConversation(activeChapter);
@@ -59,6 +45,14 @@ export function AssistantPanel({
       providerId === settings.defaultModel?.providerId,
   );
   const isConfigured = selectedModel !== undefined;
+  const activePhaseLabel = (
+    currentPhase: AgentConversationPhase,
+  ): string | undefined => {
+    if (currentPhase === 'cancelling') return t('status.cancelling');
+    if (currentPhase === 'starting') return t('status.starting');
+    if (currentPhase === 'streaming') return t('status.streaming');
+    return undefined;
+  };
 
   const submit = async (): Promise<void> => {
     if (!isConfigured) return;
@@ -66,21 +60,21 @@ export function AssistantPanel({
   };
 
   const modelStatus = configurationLoading
-    ? '正在读取模型配置…'
+    ? t('status.loadingConfiguration')
     : configurationError !== null
-      ? '模型配置读取失败'
+      ? t('status.configurationFailed')
     : isConfigured
-      ? `${selectedModel.providerId} · ${thinkingLabels[settings.thinkingLevel]}`
+      ? `${selectedModel.providerId} · ${t(`thinking.${settings.thinkingLevel}`)}`
       : settings.defaultModel === null
-        ? '尚未配置模型'
-        : '所选模型当前不可用';
+        ? t('status.notConfigured')
+        : t('status.modelUnavailable');
 
   return (
     <aside className="assistant-pane">
       <div className="pane-heading assistant-heading">
-        <span>Agents</span>
+        <span>{t('title')}</span>
         <Button
-          aria-label="新建对话"
+          aria-label={t('actions.newConversation')}
           disabled={isActive}
           onClick={clear}
           size="icon"
@@ -91,7 +85,7 @@ export function AssistantPanel({
       </div>
 
       <button
-        aria-label="打开 Agent 设置"
+        aria-label={t('actions.openSettings')}
         className="agent-selector"
         onClick={onOpenSettings}
         type="button"
@@ -100,13 +94,13 @@ export function AssistantPanel({
           <Sparkles aria-hidden="true" size={14} />
         </span>
         <span>
-          <strong>{selectedModel?.name ?? '写作伙伴'}</strong>
-          <small>{activePhaseLabels[phase] ?? modelStatus}</small>
+          <strong>{selectedModel?.name ?? t('author.assistant')}</strong>
+          <small>{activePhaseLabel(phase) ?? modelStatus}</small>
         </span>
         <Settings2 aria-hidden="true" size={14} />
       </button>
 
-      <div aria-label="Agent 对话" className="conversation">
+      <div aria-label={t('title')} className="conversation">
         {messages.length === 0 ? (
           isConfigured ? (
             <div className="message-row assistant-message">
@@ -114,10 +108,8 @@ export function AssistantPanel({
                 <Bot aria-hidden="true" size={14} />
               </span>
               <div className="message-content">
-                <div className="message-author">写作伙伴</div>
-                <p>
-                  我可以阅读当前章节，协助续写、润色或检查设定一致性。生成内容会先供你审阅。
-                </p>
+                <div className="message-author">{t('author.assistant')}</div>
+                <p>{t('empty.welcome')}</p>
               </div>
             </div>
           ) : (
@@ -125,17 +117,17 @@ export function AssistantPanel({
               <Cpu aria-hidden="true" size={18} />
               <strong>
                 {configurationLoading
-                  ? '正在读取模型配置'
-                  : configurationError ?? '连接一个模型后开始写作'}
+                  ? t('empty.loading')
+                  : configurationError ?? t('empty.setup')}
               </strong>
               <p>
                 {configurationLoading
-                  ? '请稍候。'
-                  : '添加服务商凭据并选择默认模型，Agent 才能处理请求。'}
+                  ? t('empty.loadingBody')
+                  : t('empty.body')}
               </p>
               {!configurationLoading && (
                 <Button onClick={onOpenSettings} size="sm" variant="outline">
-                  打开模型设置
+                  {t('empty.setupAction')}
                 </Button>
               )}
             </div>
@@ -155,12 +147,14 @@ export function AssistantPanel({
               </span>
               <div className="message-content">
                 <div className="message-author">
-                  {message.role === 'assistant' ? '写作伙伴' : '你'}
+                  {message.role === 'assistant'
+                    ? t('author.assistant')
+                    : t('author.user')}
                 </div>
                 <p>
                   {message.content ||
                     (message.role === 'assistant' && isActive
-                      ? activePhaseLabels[phase]
+                      ? activePhaseLabel(phase)
                       : '')}
                 </p>
               </div>
@@ -172,7 +166,7 @@ export function AssistantPanel({
           <div className="agent-placeholder agent-error">
             <span>{error}</span>
             <button onClick={onOpenSettings} type="button">
-              检查设置
+              {t('actions.checkSettings')}
             </button>
           </div>
         ) : null}
@@ -181,34 +175,34 @@ export function AssistantPanel({
       <div className="quick-prompts">
         <button
           disabled={!isConfigured || isActive}
-          onClick={() => setPrompt('续写当前章节，保持既有叙事风格。')}
+          onClick={() => setPrompt(t('quick.continuePrompt'))}
           type="button"
         >
-          续写当前章节
+          {t('quick.continue')}
         </button>
         <button
           disabled={!isConfigured || isActive}
           onClick={() =>
-            setPrompt('增强当前章节的氛围，但不要改变已发生的情节。')
+            setPrompt(t('quick.atmospherePrompt'))
           }
           type="button"
         >
-          增强氛围
+          {t('quick.atmosphere')}
         </button>
         <button
           disabled={!isConfigured || isActive}
           onClick={() =>
-            setPrompt('检查当前章节与已知设定是否可能存在矛盾。')
+            setPrompt(t('quick.continuityPrompt'))
           }
           type="button"
         >
-          检查一致性
+          {t('quick.continuity')}
         </button>
       </div>
 
       <div className="composer" data-disabled={!isConfigured || undefined}>
         <textarea
-          aria-label="发送消息给 Agent"
+          aria-label={t('actions.send')}
           disabled={!isConfigured || isActive}
           onChange={(event) => setPrompt(event.target.value)}
           onKeyDown={(event) => {
@@ -219,18 +213,20 @@ export function AssistantPanel({
           }}
           placeholder={
             isConfigured
-              ? '询问 Agent…'
+              ? t('composer.placeholder')
               : configurationLoading
-                ? '正在读取模型配置…'
-                : '请先配置默认模型'
+                ? t('status.loadingConfiguration')
+                : t('composer.setupPlaceholder')
           }
           rows={3}
           value={prompt}
         />
         <div className="composer-footer">
-          <span>{activeChapter?.title ?? '无当前章节'}</span>
+          <span>{activeChapter?.title ?? t('composer.noChapter')}</span>
           <Button
-            aria-label={isActive ? '停止生成' : '发送消息'}
+            aria-label={
+              isActive ? t('actions.stop') : t('actions.send')
+            }
             disabled={isActive ? phase === 'cancelling' : !isConfigured || !prompt.trim()}
             onClick={() => void (isActive ? cancel() : submit())}
             size="icon"
