@@ -19,7 +19,7 @@ const errorTranslationKeys = {
   'start-failed': 'agent.startFailed',
 } as const satisfies Record<AgentConversationErrorCode, string>;
 
-export interface ConversationMessage {
+interface ConversationMessage {
   content: string;
   id: string;
   role: 'assistant' | 'user';

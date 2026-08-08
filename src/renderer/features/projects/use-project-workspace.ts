@@ -10,7 +10,7 @@ import type {
   ProjectTreeNode,
 } from '../../../shared/contracts/project';
 
-export interface SaveConflict {
+interface SaveConflict {
   diskDocument: ProjectDocument;
   documentId: string;
 }

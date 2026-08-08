@@ -36,9 +36,10 @@ import {
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { Chapter, ThemeName } from '@/app/types';
+import type { Chapter } from '@/app/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import type { AppTheme } from '../../../shared/contracts/settings';
 import { shouldApplyEditorChange } from './editor-change';
 import { EditorContextMenu } from './EditorContextMenu';
 import { createMdxEditorTranslation } from './mdx-editor-translation';
@@ -52,7 +53,7 @@ interface ManuscriptEditorProps {
   onChange: (markdown: string) => void;
   onSave: () => void;
   saveError: string | null;
-  theme: ThemeName;
+  theme: AppTheme;
 }
 
 function editorIcon(name: IconKey) {
@@ -132,7 +133,7 @@ function LoadedManuscriptEditor({
   onClose: () => void;
   onSave: () => void;
   saveError: string | null;
-  theme: ThemeName;
+  theme: AppTheme;
 }) {
   const { t } = useTranslation('editor');
   const [parseError, setParseError] = useState<string | null>(null);

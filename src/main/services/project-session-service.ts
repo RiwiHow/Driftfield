@@ -8,7 +8,7 @@ import type {
 } from '../../shared/contracts/project';
 import { createProjectSnapshot } from './project-service';
 
-export interface ProjectSession {
+interface ProjectSession {
   directoryPath: string;
   documentIds: Set<string>;
   lastRevision: string;

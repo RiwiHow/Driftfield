@@ -67,10 +67,6 @@
   text-transform: uppercase;
 }
 
-.tree-section-spaced {
-  margin-top: 16px;
-}
-
 .tree-parent-row,
 .chapter-row {
   display: flex;

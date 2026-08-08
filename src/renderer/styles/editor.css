@@ -215,9 +215,6 @@ html[data-panel-transition] .editor-statusbar {
 .driftfield-mdx .mdxeditor-diff-source-wrapper {
   height: auto;
   min-height: 0;
-}
-
-.driftfield-mdx .mdxeditor-diff-source-wrapper {
   display: flex;
   flex: 1;
   flex-direction: column;

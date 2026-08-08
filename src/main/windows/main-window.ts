@@ -20,7 +20,7 @@ interface CreateMainWindowOptions {
   settingsService: SettingsService;
 }
 
-export interface MainWindowRegistration {
+interface MainWindowRegistration {
   navigationPolicy: RendererNavigationPolicy;
   window: BrowserWindow;
 }

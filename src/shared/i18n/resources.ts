@@ -6,4 +6,4 @@ export const I18N_RESOURCES = {
   'zh-CN': zhCN,
 } as const;
 
-export type { AppNamespaces, LocaleShape } from './types';
+export type { LocaleShape } from './types';

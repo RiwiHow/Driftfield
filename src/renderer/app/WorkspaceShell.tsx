@@ -22,7 +22,7 @@ import {
   usePanelRef,
 } from 'react-resizable-panels';
 
-import type { Chapter, ThemeName } from '@/app/types';
+import type { Chapter } from '@/app/types';
 import { Button } from '@/components/ui/button';
 import {
   Tooltip,
@@ -34,7 +34,7 @@ import { AssistantPanel } from '@/features/assistant/AssistantPanel';
 import { ManuscriptEditor } from '@/features/editor/ManuscriptEditor';
 import { LibraryPanel } from '@/features/library/LibraryPanel';
 import type { AgentConfiguration } from '../../shared/contracts/agent-configuration';
-import type { AgentSettings } from '../../shared/contracts/settings';
+import type { AgentSettings, AppTheme } from '../../shared/contracts/settings';
 import type {
   ProjectDirectory,
   ProjectTreeNode,
@@ -63,7 +63,7 @@ interface WorkspaceShellProps {
   projectTree: ProjectTreeNode[];
   projectWatcherError: string | null;
   recoveredChapters: Chapter[];
-  theme: ThemeName;
+  theme: AppTheme;
 }
 
 export function WorkspaceShell({

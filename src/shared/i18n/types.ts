@@ -5,4 +5,3 @@ type DeepWidenStrings<T> = {
 };
 
 export type LocaleShape = DeepWidenStrings<typeof en>;
-export type AppNamespaces = keyof typeof en;

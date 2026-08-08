@@ -508,6 +508,20 @@ properties when extending the affected subsystems:
 
 ## Remaining Technical Debt
 
+- MDXEditor's current CodeMirror configuration enables
+  `autoLoadLanguageSupport`, which causes the packaged renderer to include the
+  complete `@codemirror/language-data` dynamic language catalog even though the
+  UI exposes only JavaScript, JSON, Markdown, plain text, and TypeScript. Replace
+  this with explicitly preloaded support for the exposed languages when doing so
+  can preserve code-block highlighting and source/diff editing. Do not merely
+  disable auto-loading and silently remove syntax highlighting; verify the
+  renderer asset list and all three editor modes after the change.
+- The Pi utility-process bundle currently includes provider adapters beyond the
+  API-key providers exposed by Driftfield because the SDK public entry imports
+  the broader runtime. Treat this as a bundle-optimization issue, not permission
+  to edit or remove SDK internals. Reduce it only through a supported narrower
+  Pi entry point or reliable bundler tree-shaking, while preserving all exposed
+  providers and re-running packaged worker startup and provider smoke tests.
 - The current Pi integration is a prototype, not a completed Agent subsystem.
   Do not describe it as production-ready until the following issues are
   resolved:
@@ -555,6 +569,10 @@ properties when extending the affected subsystems:
 
 ## Package and Build Rules
 
+- Forge currently produces both macOS DMG and ZIP artifacts. Remove
+  `@electron-forge/maker-zip` and its maker configuration only after the release
+  policy explicitly drops ZIP distribution; package size alone is not enough to
+  infer that product decision.
 - Use `pnpm add` and `pnpm remove`; do not mix npm, Deno, Bun, or another package
   manager into this repository.
 - Commit `pnpm-lock.yaml` and keep `minimumReleaseAge` enabled.
