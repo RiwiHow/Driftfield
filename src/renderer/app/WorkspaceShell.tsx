@@ -23,9 +23,12 @@ interface WorkspaceShellProps {
 }
 
 const themeLabels: Record<ThemeName, string> = {
+  'github-light': 'GitHub Light',
   'one-dark': 'One Dark',
   'tokyo-night': 'Tokyo Night',
 };
+
+const themes: ThemeName[] = ['github-light', 'tokyo-night', 'one-dark'];
 
 export function WorkspaceShell({
   activeChapter,
@@ -35,8 +38,8 @@ export function WorkspaceShell({
   onThemeChange,
   theme,
 }: WorkspaceShellProps) {
-  const nextTheme: ThemeName =
-    theme === 'tokyo-night' ? 'one-dark' : 'tokyo-night';
+  const currentThemeIndex = themes.indexOf(theme);
+  const nextTheme = themes[(currentThemeIndex + 1) % themes.length];
 
   return (
     <TooltipProvider>
@@ -107,6 +110,7 @@ export function WorkspaceShell({
             <ManuscriptEditor
               chapter={activeChapter}
               onChange={onContentChange}
+              theme={theme}
             />
           </Panel>
 

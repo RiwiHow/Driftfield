@@ -95,6 +95,36 @@
   --df-warm: #e5c07b;
 }
 
+[data-theme="github-light"] {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #1f2328;
+  --card: #ffffff;
+  --card-foreground: #1f2328;
+  --popover: #ffffff;
+  --popover-foreground: #1f2328;
+  --primary: #0969da;
+  --primary-foreground: #ffffff;
+  --secondary: #f6f8fa;
+  --secondary-foreground: #25292e;
+  --muted: #f6f8fa;
+  --muted-foreground: #59636e;
+  --accent: #eff2f5;
+  --accent-foreground: #1f2328;
+  --border: #d1d9e0;
+  --input: #818b98;
+  --ring: #0969da;
+  --df-sidebar: #f6f8fa;
+  --df-sidebar-muted: #818b98;
+  --df-editor: #ffffff;
+  --df-editor-raised: #f6f8fa;
+  --df-hover: #eff2f5;
+  --df-active: #e6eaef;
+  --df-selection: #b6d7fe;
+  --df-positive: #1a7f37;
+  --df-warm: #9a6700;
+}
+
 * {
   box-sizing: border-box;
 }

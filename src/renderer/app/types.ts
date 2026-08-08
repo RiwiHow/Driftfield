@@ -1,4 +1,4 @@
-export type ThemeName = 'one-dark' | 'tokyo-night';
+export type ThemeName = 'github-light' | 'one-dark' | 'tokyo-night';
 
 export interface Chapter {
   id: string;

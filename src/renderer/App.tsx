@@ -58,7 +58,7 @@ export function App() {
   const [activeChapterId, setActiveChapterId] = useState(
     initialChapters[0].id,
   );
-  const [theme, setTheme] = useState<ThemeName>('tokyo-night');
+  const [theme, setTheme] = useState<ThemeName>('github-light');
 
   const activeChapter = useMemo(
     () =>

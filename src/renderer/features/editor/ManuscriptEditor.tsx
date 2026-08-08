@@ -28,14 +28,16 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import type { Chapter } from '@/app/types';
+import type { Chapter, ThemeName } from '@/app/types';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 import '@mdxeditor/editor/style.css';
 
 interface ManuscriptEditorProps {
   chapter: Chapter;
   onChange: (markdown: string) => void;
+  theme: ThemeName;
 }
 
 const editorTranslations: Record<string, string> = {
@@ -86,6 +88,7 @@ function editorIcon(name: IconKey) {
 export function ManuscriptEditor({
   chapter,
   onChange,
+  theme,
 }: ManuscriptEditorProps) {
   const [parseError, setParseError] = useState<string | null>(null);
 
@@ -137,7 +140,10 @@ export function ManuscriptEditor({
 
       <div className="editor-surface">
         <MDXEditor
-          className="driftfield-mdx dark-theme"
+          className={cn(
+            'driftfield-mdx',
+            theme !== 'github-light' && 'dark-theme',
+          )}
           contentEditableClassName="manuscript-prose"
           iconComponentFor={editorIcon}
           key={chapter.id}
