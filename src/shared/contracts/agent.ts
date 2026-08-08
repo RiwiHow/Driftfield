@@ -1,3 +1,13 @@
+export const AGENT_ROLES = [
+  'coordinator',
+  'writing',
+  'continuity',
+  'editing',
+  'research',
+] as const;
+
+export type AgentRole = (typeof AGENT_ROLES)[number];
+
 export interface StartAgentPromptRequest {
   currentDocumentId?: string;
   prompt: string;

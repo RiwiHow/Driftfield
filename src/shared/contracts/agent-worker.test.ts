@@ -16,6 +16,7 @@ describe('Agent utility-process protocol', () => {
         prompt: 'Review this chapter',
         providerId: 'anthropic',
         requestId: 'request-1',
+        role: 'coordinator',
         thinkingLevel: 'medium',
         type: 'start',
       }),
@@ -44,6 +45,20 @@ describe('Agent utility-process protocol', () => {
     ).toBe(false);
     expect(
       isAgentWorkerCommand({ requestId: 'request-1', type: 'tool-result' }),
+    ).toBe(false);
+    expect(
+      isAgentWorkerCommand({
+        authPath: '/app-data/auth.json',
+        cwd: '/project',
+        modelId: 'claude-sonnet',
+        modelsPath: '/app-data/models.json',
+        prompt: 'Review this chapter',
+        providerId: 'anthropic',
+        requestId: 'request-1',
+        role: 'arbitrary-system-prompt',
+        thinkingLevel: 'medium',
+        type: 'start',
+      }),
     ).toBe(false);
   });
 

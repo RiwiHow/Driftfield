@@ -19,6 +19,7 @@ import {
   type AgentWorkerMessage,
   type AgentWorkerStartCommand,
 } from '../../shared/contracts/agent-worker';
+import { buildAgentSystemPrompt } from './prompts/prompt-builder';
 
 const TOOL_RESULT_TIMEOUT_MS = 30_000;
 
@@ -122,12 +123,16 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
     if (model === undefined) {
       throw new Error('The configured model is not available');
     }
+    const systemPrompt = buildAgentSystemPrompt({
+      availableTools: ['get_current_document'],
+      role: command.role,
+    });
     ({ session } = await createAgentSession({
       cwd: command.cwd,
       customTools: [createCurrentDocumentTool(command.requestId)],
       model,
       modelRuntime: runtime,
-      resourceLoader: createDriftfieldResourceLoader(),
+      resourceLoader: createDriftfieldResourceLoader(systemPrompt.prompt),
       sessionManager: SessionManager.inMemory(command.cwd),
       settingsManager: SettingsManager.inMemory(),
       thinkingLevel: command.thinkingLevel,
@@ -238,7 +243,9 @@ const textToolResult = (text: string) => ({
   details: {},
 });
 
-const createDriftfieldResourceLoader = (): ResourceLoader => ({
+const createDriftfieldResourceLoader = (
+  systemPrompt: string,
+): ResourceLoader => ({
   extendResources: () => {},
   getAgentsFiles: () => ({ agentsFiles: [] }),
   getAppendSystemPrompt: () => [],
@@ -250,8 +257,7 @@ const createDriftfieldResourceLoader = (): ResourceLoader => ({
   }),
   getPrompts: () => ({ diagnostics: [], prompts: [] }),
   getSkills: () => ({ diagnostics: [], skills: [] }),
-  getSystemPrompt: () =>
-    'You are Driftfield, a careful novel-writing assistant. You may discuss, plan, and draft Markdown, but never claim that text has been saved. You have no shell, filesystem, or database access. When exact selected manuscript text is needed, use get_current_document. Generated text is always a proposal for the user to review.',
+  getSystemPrompt: () => systemPrompt,
   getSystemPromptSource: () => undefined,
   getThemes: () => ({ diagnostics: [], themes: [] }),
   reload: async () => {},

@@ -217,6 +217,12 @@ domain types.
   tools, or unrestricted filesystem/database tools.
 - Persist application-owned generation records independently from SDK session
   formats so the SDK can be upgraded or replaced.
+- Keep application system prompts under `src/main/ai/prompts/` as versioned,
+  application-owned role profiles. Compose immutable application boundaries,
+  role instructions, and the exact enabled tool descriptions through the
+  prompt registry; do not embed complete prompts in the worker entry or allow
+  renderer-supplied arbitrary system prompts. Future user writing instructions
+  may be size-bounded additions but must not replace application boundaries.
 
 ### Agent Coordination
 

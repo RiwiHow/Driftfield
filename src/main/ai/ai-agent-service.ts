@@ -84,6 +84,7 @@ export class AiAgentService {
         prompt: request.prompt,
         providerId: request.model.providerId,
         requestId: request.requestId,
+        role: 'coordinator',
         thinkingLevel: request.thinkingLevel,
         type: 'start',
       });

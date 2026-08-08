@@ -1,4 +1,5 @@
 import type { AgentModelOption } from './agent-configuration';
+import { AGENT_ROLES, type AgentRole } from './agent';
 import {
   AGENT_THINKING_LEVELS,
   type AgentThinkingLevel,
@@ -12,6 +13,7 @@ export interface AgentWorkerStartCommand {
   prompt: string;
   providerId: string;
   requestId: string;
+  role: AgentRole;
   thinkingLevel: AgentThinkingLevel;
   type: 'start';
 }
@@ -101,6 +103,8 @@ export const isAgentWorkerCommand = (
     typeof command.modelId === 'string' &&
     typeof command.prompt === 'string' &&
     typeof command.providerId === 'string' &&
+    typeof command.role === 'string' &&
+    AGENT_ROLES.includes(command.role as AgentRole) &&
     typeof command.thinkingLevel === 'string' &&
     AGENT_THINKING_LEVELS.includes(
       command.thinkingLevel as AgentThinkingLevel,
