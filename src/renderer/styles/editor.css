@@ -121,8 +121,39 @@
   gap: 8px;
 }
 
+html[data-panel-transition] .editor-tabs {
+  view-transition-name: df-editor-tabs;
+  view-transition-class: df-editor-resize df-editor-crop;
+}
+
+html[data-panel-transition] .editor-tab-actions {
+  view-transition-name: df-editor-tab-actions;
+  view-transition-class: df-editor-resize;
+}
+
 html[data-panel-transition] .editor-empty-content {
   view-transition-name: df-editor-empty-content;
+  view-transition-class: df-editor-resize;
+}
+
+html[data-panel-transition] .manuscript-toolbar {
+  view-transition-name: df-editor-toolbar;
+  view-transition-class: df-editor-resize df-editor-crop;
+}
+
+html[data-panel-transition] .manuscript-toolbar > :last-child {
+  view-transition-name: df-editor-toolbar-mode;
+  view-transition-class: df-editor-resize;
+}
+
+html[data-panel-transition] .editor-surface {
+  view-transition-name: df-editor-surface;
+  view-transition-class: df-editor-resize df-editor-crop;
+}
+
+html[data-panel-transition] .editor-statusbar {
+  view-transition-name: df-editor-statusbar;
+  view-transition-class: df-editor-resize df-editor-crop;
 }
 
 .editor-empty-state strong {

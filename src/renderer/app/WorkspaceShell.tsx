@@ -83,7 +83,6 @@ export function WorkspaceShell({
   const libraryPanelRef = usePanelRef();
   const assistantPanelRef = usePanelRef();
   const libraryElementRef = useRef<HTMLDivElement | null>(null);
-  const editorElementRef = useRef<HTMLDivElement | null>(null);
   const assistantElementRef = useRef<HTMLDivElement | null>(null);
   const librarySeparatorRef = useRef<HTMLDivElement | null>(null);
   const assistantSeparatorRef = useRef<HTMLDivElement | null>(null);
@@ -94,7 +93,6 @@ export function WorkspaceShell({
   const clearViewTransitionStyles = useCallback((): void => {
     for (const panelElement of [
       libraryElementRef.current,
-      editorElementRef.current,
       assistantElementRef.current,
     ]) {
       panelElement?.style.removeProperty('view-transition-name');
@@ -130,7 +128,6 @@ export function WorkspaceShell({
 
     if (
       panelElement === null ||
-      editorElementRef.current === null ||
       !document.startViewTransition ||
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
     ) {
@@ -138,13 +135,11 @@ export function WorkspaceShell({
       return;
     }
 
-    const editorElement = editorElementRef.current;
     const transitionKind = `${side}-${isCollapsed ? 'open' : 'close'}`;
     document.documentElement.dataset.panelTransition = transitionKind;
     panelElement.style.viewTransitionName = isCollapsed
       ? 'none'
       : 'df-side-panel';
-    editorElement.style.viewTransitionName = 'df-editor-panel';
     if (separatorElement !== null) separatorElement.style.visibility = 'hidden';
 
     const transition = document.startViewTransition(() => {
@@ -289,12 +284,7 @@ export function WorkspaceShell({
             isCollapsed={isLibraryCollapsed}
           />
 
-          <Panel
-            defaultSize="56%"
-            elementRef={editorElementRef}
-            id="editor"
-            minSize={430}
-          >
+          <Panel defaultSize="56%" id="editor" minSize={430}>
             <ManuscriptEditor
               chapter={activeChapter}
               isSaving={isSavingDocument}

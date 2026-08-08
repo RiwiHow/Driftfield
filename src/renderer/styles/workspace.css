@@ -126,59 +126,55 @@ html[data-panel-transition]::view-transition-old(root) {
 
 html[data-panel-transition]::view-transition-new(root),
 html[data-panel-transition]::view-transition-old(df-side-panel),
-html[data-panel-transition]::view-transition-new(df-side-panel),
-html[data-panel-transition]::view-transition-old(df-editor-panel),
-html[data-panel-transition]::view-transition-new(df-editor-panel) {
+html[data-panel-transition]::view-transition-new(df-side-panel) {
   opacity: 1;
   animation: none;
   mix-blend-mode: normal;
 }
 
-html[data-panel-transition]::view-transition-group(df-editor-panel) {
-  overflow: hidden;
-}
-
-html[data-panel-transition]::view-transition-group(df-editor-panel),
-html[data-panel-transition]::view-transition-group(df-editor-empty-content) {
+html[data-panel-transition]::view-transition-group(.df-editor-resize) {
   animation-duration: 220ms;
   animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
 }
 
-html[data-panel-transition$="close"]::view-transition-group(df-editor-panel),
 html[data-panel-transition$="close"]::view-transition-group(
-    df-editor-empty-content
+    .df-editor-resize
   ) {
   animation-duration: 200ms;
   animation-timing-function: cubic-bezier(0.4, 0, 1, 1);
 }
 
-html[data-panel-transition]::view-transition-new(df-editor-panel) {
-  opacity: 0;
-}
-
-html[data-panel-transition$="close"]::view-transition-old(df-editor-panel) {
-  opacity: 0;
-}
-
-html[data-panel-transition$="close"]::view-transition-new(df-editor-panel) {
-  opacity: 1;
-}
-
-html[data-panel-transition]::view-transition-old(df-editor-panel),
-html[data-panel-transition]::view-transition-new(df-editor-panel) {
-  object-fit: none;
-  object-position: left top;
-}
-
-html[data-panel-transition]::view-transition-old(df-editor-empty-content),
-html[data-panel-transition]::view-transition-new(df-editor-empty-content) {
+html[data-panel-transition]::view-transition-old(.df-editor-resize),
+html[data-panel-transition]::view-transition-new(.df-editor-resize) {
   opacity: 1;
   animation: none;
   mix-blend-mode: normal;
 }
 
-html[data-panel-transition]::view-transition-new(df-editor-empty-content) {
+html[data-panel-transition]::view-transition-new(.df-editor-resize) {
   opacity: 0;
+}
+
+html[data-panel-transition$="close"]::view-transition-old(
+    .df-editor-resize
+  ) {
+  opacity: 0;
+}
+
+html[data-panel-transition$="close"]::view-transition-new(
+    .df-editor-resize
+  ) {
+  opacity: 1;
+}
+
+html[data-panel-transition]::view-transition-group(.df-editor-crop) {
+  overflow: hidden;
+}
+
+html[data-panel-transition]::view-transition-old(.df-editor-crop),
+html[data-panel-transition]::view-transition-new(.df-editor-crop) {
+  object-fit: none;
+  object-position: left top;
 }
 
 html[data-panel-transition^="left"]::view-transition-old(df-side-panel),

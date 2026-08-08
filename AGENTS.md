@@ -203,9 +203,11 @@ The current UI foundation is intentionally small:
 - Library and Agents collapse controls use the native same-document View
   Transitions API for synchronized, compositor-backed sliding, with an immediate
   fallback for reduced motion or unsupported runtimes. Do not reintroduce
-  hand-built DOM snapshot overlays for these transitions. Keep independently
-  centered content, such as the editor empty state, in its own named transition
-  snapshot so panel resizing cannot scale it or make it jump at handoff.
+  hand-built DOM snapshot overlays for these transitions. Do not capture the
+  loaded MDXEditor or its tall `contenteditable` manuscript node as one large
+  snapshot: capture the clipped editor surface viewport, stable editor chrome,
+  and independently centered content such as the empty state separately so
+  resizing cannot scale, flash, escape its scroll viewport, or jump at handoff.
 - MDXEditor owns Markdown rich-text, source, and diff editing modes. Markdown is
   the intended manuscript interchange format.
 
