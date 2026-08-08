@@ -35,7 +35,7 @@ import { cn } from '@/lib/utils';
 import '@mdxeditor/editor/style.css';
 
 interface ManuscriptEditorProps {
-  chapter: Chapter;
+  chapter: Chapter | null;
   onChange: (markdown: string) => void;
   theme: ThemeName;
 }
@@ -90,6 +90,41 @@ export function ManuscriptEditor({
   onChange,
   theme,
 }: ManuscriptEditorProps) {
+  if (chapter === null) {
+    return <EmptyManuscriptEditor />;
+  }
+
+  return (
+    <LoadedManuscriptEditor
+      chapter={chapter}
+      onChange={onChange}
+      theme={theme}
+    />
+  );
+}
+
+function EmptyManuscriptEditor() {
+  return (
+    <section className="editor-pane">
+      <div className="editor-tabs" />
+      <div className="editor-empty-state">
+        <FileText aria-hidden="true" size={28} strokeWidth={1.4} />
+        <strong>没有打开的 Markdown 文档</strong>
+        <span>点击小说目录顶部的“＋”打开本地项目</span>
+      </div>
+    </section>
+  );
+}
+
+function LoadedManuscriptEditor({
+  chapter,
+  onChange,
+  theme,
+}: {
+  chapter: Chapter;
+  onChange: (markdown: string) => void;
+  theme: ThemeName;
+}) {
   const [parseError, setParseError] = useState<string | null>(null);
 
   const plugins = useMemo(
@@ -131,7 +166,9 @@ export function ManuscriptEditor({
         <div className="editor-tab is-active">
           <FileText aria-hidden="true" size={13} />
           <span>{chapter.title}</span>
-          <span className="unsaved-dot" title="仅保存在当前内存中" />
+          {chapter.isDirty && (
+            <span className="unsaved-dot" title="仅保存在当前内存中" />
+          )}
         </div>
         <Button aria-label="更多编辑器操作" size="icon" variant="ghost">
           <MoreHorizontal size={15} />
@@ -165,7 +202,13 @@ export function ManuscriptEditor({
       <footer className="editor-statusbar">
         <div>
           <span>Markdown</span>
-          <span>{parseError ? '格式解析失败' : '当前会话草稿'}</span>
+          <span>
+            {parseError
+              ? '格式解析失败'
+              : chapter.isDirty
+                ? '当前会话修改'
+                : chapter.relativePath}
+          </span>
         </div>
         <div>
           <span>{characterCount} 字</span>

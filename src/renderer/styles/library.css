@@ -19,6 +19,14 @@
 
 .pane-heading-actions {
   display: flex;
+  flex: none;
+}
+
+.pane-heading-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pane-heading button {
@@ -26,51 +34,21 @@
   height: 27px;
 }
 
-.project-switcher {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) 16px;
-  gap: 9px;
-  align-items: center;
-  margin: 12px 10px 14px;
-  padding: 9px;
-  background: var(--secondary);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  cursor: default;
+.project-switcher-spinner {
+  animation: project-switcher-spin 900ms linear infinite;
 }
 
-.project-icon {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  color: var(--df-warm);
-  background: color-mix(in srgb, var(--df-warm) 12%, transparent);
-  border-radius: 6px;
-}
-
-.project-copy {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.project-copy strong {
-  overflow: hidden;
-  color: var(--foreground);
-  font-size: 12px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.project-copy span {
-  overflow: hidden;
-  color: var(--df-sidebar-muted);
+.project-selection-error {
+  margin: 8px 14px 0;
+  color: var(--destructive);
   font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
+}
+
+@keyframes project-switcher-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .manuscript-tree {
@@ -93,8 +71,7 @@
 }
 
 .tree-parent-row,
-.chapter-row,
-.tree-simple-row {
+.chapter-row {
   display: flex;
   width: 100%;
   align-items: center;
@@ -108,22 +85,24 @@
   padding: 0 7px;
   color: var(--foreground);
   font-size: 11px;
+  text-align: left;
+  background: transparent;
+  border-radius: 5px;
 }
 
 .tree-parent-row span,
-.chapter-row span,
-.tree-simple-row span {
+.chapter-row span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.chapter-tree-list {
+.project-tree-level.is-nested {
   position: relative;
   padding-left: 19px;
 }
 
-.chapter-tree-list::before {
+.project-tree-level.is-nested::before {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -133,8 +112,7 @@
   content: "";
 }
 
-.chapter-row,
-.tree-simple-row {
+.chapter-row {
   gap: 7px;
   height: 30px;
   padding: 0 8px;
@@ -146,7 +124,7 @@
 }
 
 .chapter-row:hover,
-.tree-simple-row:hover {
+.tree-parent-row:hover {
   color: var(--foreground);
   background: var(--df-hover);
 }
@@ -160,10 +138,15 @@
   color: var(--primary);
 }
 
-.tree-count {
-  margin-left: auto;
+.tree-empty-state {
+  margin: 4px 8px;
+  padding: 16px 10px;
   color: var(--df-sidebar-muted);
-  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  line-height: 1.6;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
 }
 
 .library-footer {
@@ -185,4 +168,3 @@
   font-size: 9px;
   text-transform: uppercase;
 }
-

@@ -66,6 +66,28 @@
   overflow: hidden;
 }
 
+.editor-empty-state {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--df-sidebar-muted);
+}
+
+.editor-empty-state strong {
+  margin-top: 4px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.editor-empty-state span {
+  font-size: 11px;
+}
+
 .driftfield-mdx {
   height: 100%;
   color: var(--foreground);

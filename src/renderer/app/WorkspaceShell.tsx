@@ -12,13 +12,21 @@ import {
 import { AssistantPanel } from '@/features/assistant/AssistantPanel';
 import { ManuscriptEditor } from '@/features/editor/ManuscriptEditor';
 import { LibraryPanel } from '@/features/library/LibraryPanel';
+import type {
+  ProjectDirectory,
+  ProjectTreeNode,
+} from '../../shared/contracts/project';
 
 interface WorkspaceShellProps {
-  activeChapter: Chapter;
-  chapters: Chapter[];
+  activeChapter: Chapter | null;
+  isSelectingProject: boolean;
   onChapterChange: (chapterId: string) => void;
   onContentChange: (markdown: string) => void;
+  onSelectProject: () => void;
   onThemeChange: (theme: ThemeName) => void;
+  projectDirectory: ProjectDirectory | null;
+  projectSelectionError: string | null;
+  projectTree: ProjectTreeNode[];
   theme: ThemeName;
 }
 
@@ -32,10 +40,14 @@ const themes: ThemeName[] = ['github-light', 'tokyo-night', 'one-dark'];
 
 export function WorkspaceShell({
   activeChapter,
-  chapters,
+  isSelectingProject,
   onChapterChange,
   onContentChange,
+  onSelectProject,
   onThemeChange,
+  projectDirectory,
+  projectSelectionError,
+  projectTree,
   theme,
 }: WorkspaceShellProps) {
   const currentThemeIndex = themes.indexOf(theme);
@@ -50,8 +62,11 @@ export function WorkspaceShell({
             <span>Driftfield</span>
           </div>
 
-          <div className="titlebar-document" title={activeChapter.title}>
-            {activeChapter.title}
+          <div
+            className="titlebar-document"
+            title={activeChapter?.title ?? projectDirectory?.path}
+          >
+            {activeChapter?.title ?? projectDirectory?.name ?? '未打开项目'}
           </div>
 
           <div className="titlebar-actions">
@@ -98,9 +113,13 @@ export function WorkspaceShell({
             maxSize={380}
           >
             <LibraryPanel
-              activeChapterId={activeChapter.id}
-              chapters={chapters}
+              activeChapterId={activeChapter?.id ?? null}
+              isSelectingProject={isSelectingProject}
               onChapterChange={onChapterChange}
+              onSelectProject={onSelectProject}
+              projectDirectory={projectDirectory}
+              projectSelectionError={projectSelectionError}
+              projectTree={projectTree}
             />
           </Panel>
 
