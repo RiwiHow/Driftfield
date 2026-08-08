@@ -75,7 +75,14 @@ export function LibraryPanel({
       <nav className="manuscript-tree" aria-label="小说目录">
         <div className="tree-section-label">手稿</div>
         {projectDirectory === null ? (
-          <p className="tree-empty-state">点击上方“＋”打开本地项目</p>
+          <p
+            aria-label="点击右上角的加号按钮打开本地项目"
+            className="tree-empty-state"
+          >
+            <span aria-hidden="true">点击右上角</span>
+            <Plus aria-hidden="true" size={12} strokeWidth={2} />
+            <span aria-hidden="true">打开本地项目</span>
+          </p>
         ) : projectTree.length === 0 ? (
           <p className="tree-empty-state">此文件夹中没有 Markdown 文件</p>
         ) : (

@@ -132,6 +132,7 @@ const registerIpcHandlers = (): void => {
 
       const result = await dialog.showOpenDialog(senderWindow, {
         buttonLabel: '打开项目',
+        defaultPath: app.getPath('documents'),
         message: '选择一个文件夹作为 Driftfield 项目目录',
         properties: ['openDirectory'],
         title: '打开本地项目',

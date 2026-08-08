@@ -75,6 +75,7 @@
   flex-direction: column;
   gap: 8px;
   color: var(--df-sidebar-muted);
+  user-select: none;
 }
 
 .editor-empty-state strong {
@@ -86,6 +87,16 @@
 
 .editor-empty-state span {
   font-size: 11px;
+}
+
+.editor-empty-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.editor-empty-hint svg {
+  flex: none;
 }
 
 .driftfield-mdx {
