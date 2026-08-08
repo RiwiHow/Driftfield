@@ -128,16 +128,18 @@ function EmptyManuscriptEditor() {
     <section className="editor-pane">
       <div className="editor-tabs" />
       <div className="editor-empty-state">
-        <FileText aria-hidden="true" size={28} strokeWidth={1.4} />
-        <strong>没有打开的 Markdown 文档</strong>
-        <span
-          aria-label="点击小说目录右上角的加号按钮打开本地项目"
-          className="editor-empty-hint"
-        >
-          <span aria-hidden="true">点击小说目录右上角的</span>
-          <Plus aria-hidden="true" size={13} strokeWidth={2} />
-          <span aria-hidden="true">打开本地项目</span>
-        </span>
+        <div className="editor-empty-content">
+          <FileText aria-hidden="true" size={28} strokeWidth={1.4} />
+          <strong>没有打开的 Markdown 文档</strong>
+          <span
+            aria-label="点击小说目录右上角的加号按钮打开本地项目"
+            className="editor-empty-hint"
+          >
+            <span aria-hidden="true">点击小说目录右上角的</span>
+            <Plus aria-hidden="true" size={13} strokeWidth={2} />
+            <span aria-hidden="true">打开本地项目</span>
+          </span>
+        </div>
       </div>
     </section>
   );

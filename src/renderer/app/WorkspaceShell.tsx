@@ -5,7 +5,15 @@ import {
   PanelRightClose,
   PanelRightOpen,
 } from 'lucide-react';
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type RefObject,
+} from 'react';
+import { flushSync } from 'react-dom';
 import {
   Group,
   Panel,
@@ -75,131 +83,91 @@ export function WorkspaceShell({
   const libraryPanelRef = usePanelRef();
   const assistantPanelRef = usePanelRef();
   const libraryElementRef = useRef<HTMLDivElement | null>(null);
+  const editorElementRef = useRef<HTMLDivElement | null>(null);
   const assistantElementRef = useRef<HTMLDivElement | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
-  const activeAnimationsRef = useRef<Animation[]>([]);
-  const transitionOverlaysRef = useRef<HTMLElement[]>([]);
+  const librarySeparatorRef = useRef<HTMLDivElement | null>(null);
+  const assistantSeparatorRef = useRef<HTMLDivElement | null>(null);
+  const activeViewTransitionRef = useRef<ViewTransition | null>(null);
   const [isLibraryCollapsed, setIsLibraryCollapsed] = useState(false);
   const [isAssistantCollapsed, setIsAssistantCollapsed] = useState(false);
+
+  const clearViewTransitionStyles = useCallback((): void => {
+    for (const panelElement of [
+      libraryElementRef.current,
+      editorElementRef.current,
+      assistantElementRef.current,
+    ]) {
+      panelElement?.style.removeProperty('view-transition-name');
+    }
+    for (const separatorElement of [
+      librarySeparatorRef.current,
+      assistantSeparatorRef.current,
+    ]) {
+      separatorElement?.style.removeProperty('visibility');
+    }
+    document.documentElement.removeAttribute('data-panel-transition');
+  }, []);
+
   useEffect(
     () => () => {
-      if (animationFrameRef.current !== null) {
-        window.cancelAnimationFrame(animationFrameRef.current);
-      }
-      for (const animation of activeAnimationsRef.current) animation.cancel();
-      for (const overlay of transitionOverlaysRef.current) overlay.remove();
+      activeViewTransitionRef.current?.skipTransition();
+      activeViewTransitionRef.current = null;
+      clearViewTransitionStyles();
     },
-    [],
+    [clearViewTransitionStyles],
   );
-
-  const clearPanelAnimations = (): void => {
-    if (animationFrameRef.current !== null) {
-      window.cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    for (const animation of activeAnimationsRef.current) animation.cancel();
-    for (const overlay of transitionOverlaysRef.current) overlay.remove();
-    if (libraryElementRef.current) {
-      libraryElementRef.current.style.visibility = '';
-    }
-    if (assistantElementRef.current) {
-      assistantElementRef.current.style.visibility = '';
-    }
-    activeAnimationsRef.current = [];
-    transitionOverlaysRef.current = [];
-  };
 
   const animatePanelToggle = (
     side: 'left' | 'right',
     panelElement: HTMLDivElement | null,
+    separatorElement: HTMLDivElement | null,
     isCollapsed: boolean,
     toggle: () => void,
   ): void => {
-    clearPanelAnimations();
+    activeViewTransitionRef.current?.skipTransition();
+    activeViewTransitionRef.current = null;
+    clearViewTransitionStyles();
 
     if (
       panelElement === null ||
+      editorElementRef.current === null ||
+      !document.startViewTransition ||
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
     ) {
       toggle();
       return;
     }
 
-    const appFrame = panelElement.closest('.app-frame');
-    const panelRect = panelElement.getBoundingClientRect();
-    const direction = side === 'left' ? -1 : 1;
+    const editorElement = editorElementRef.current;
+    const transitionKind = `${side}-${isCollapsed ? 'open' : 'close'}`;
+    document.documentElement.dataset.panelTransition = transitionKind;
+    panelElement.style.viewTransitionName = isCollapsed
+      ? 'none'
+      : 'df-side-panel';
+    editorElement.style.viewTransitionName = 'df-editor-panel';
+    if (separatorElement !== null) separatorElement.style.visibility = 'hidden';
 
-    if (!isCollapsed && appFrame !== null && panelElement.firstElementChild) {
-      const overlay = document.createElement('div');
-      overlay.className = 'panel-transition-overlay';
-      overlay.setAttribute('aria-hidden', 'true');
-      overlay.style.left = `${panelRect.left}px`;
-      overlay.style.top = `${panelRect.top}px`;
-      overlay.style.width = `${panelRect.width}px`;
-      overlay.style.height = `${panelRect.height}px`;
-      overlay.append(panelElement.firstElementChild.cloneNode(true));
-      appFrame.append(overlay);
-      transitionOverlaysRef.current.push(overlay);
-
-      toggle();
-      const animation = overlay.animate(
-        [
-          { transform: 'translate3d(0, 0, 0)' },
-          {
-            transform: `translate3d(${direction * 100}%, 0, 0)`,
-          },
-        ],
-        {
-          duration: 200,
-          easing: 'cubic-bezier(0.4, 0, 1, 1)',
-          fill: 'forwards',
-        },
-      );
-      activeAnimationsRef.current.push(animation);
-      const cleanUpOverlay = (): void => {
-        overlay.remove();
-        transitionOverlaysRef.current = transitionOverlaysRef.current.filter(
-          (item) => item !== overlay,
-        );
-        activeAnimationsRef.current = activeAnimationsRef.current.filter(
-          (item) => item !== animation,
-        );
-      };
-      void animation.finished.then(cleanUpOverlay, cleanUpOverlay);
-      return;
-    }
-
-    panelElement.style.visibility = 'hidden';
-    toggle();
-    animationFrameRef.current = window.requestAnimationFrame(() => {
-      animationFrameRef.current = null;
-      panelElement.style.visibility = '';
-      const animation = panelElement.animate(
-        [
-          {
-            transform: `translate3d(${direction * 100}%, 0, 0)`,
-          },
-          { transform: 'translate3d(0, 0, 0)' },
-        ],
-        {
-          duration: 220,
-          easing: 'cubic-bezier(0, 0, 0.2, 1)',
-        },
-      );
-      activeAnimationsRef.current.push(animation);
-      const cleanUpAnimation = (): void => {
-        activeAnimationsRef.current = activeAnimationsRef.current.filter(
-          (item) => item !== animation,
-        );
-      };
-      void animation.finished.then(cleanUpAnimation, cleanUpAnimation);
+    const transition = document.startViewTransition(() => {
+      flushSync(toggle);
+      panelElement.style.viewTransitionName = isCollapsed
+        ? 'df-side-panel'
+        : 'none';
     });
+    activeViewTransitionRef.current = transition;
+
+    const cleanUp = (): void => {
+      if (activeViewTransitionRef.current !== transition) return;
+      activeViewTransitionRef.current = null;
+      clearViewTransitionStyles();
+    };
+    void transition.finished.then(cleanUp, cleanUp);
   };
 
   const toggleLibraryPanel = (): void => {
     animatePanelToggle(
       'left',
       libraryElementRef.current,
+      librarySeparatorRef.current,
       libraryPanelRef.current?.isCollapsed() ?? false,
       () => {
         if (libraryPanelRef.current?.isCollapsed()) {
@@ -215,6 +183,7 @@ export function WorkspaceShell({
     animatePanelToggle(
       'right',
       assistantElementRef.current,
+      assistantSeparatorRef.current,
       assistantPanelRef.current?.isCollapsed() ?? false,
       () => {
         if (assistantPanelRef.current?.isCollapsed()) {
@@ -315,9 +284,17 @@ export function WorkspaceShell({
             />
           </Panel>
 
-          <PanelSeparator />
+          <PanelSeparator
+            elementRef={librarySeparatorRef}
+            isCollapsed={isLibraryCollapsed}
+          />
 
-          <Panel defaultSize="56%" id="editor" minSize={430}>
+          <Panel
+            defaultSize="56%"
+            elementRef={editorElementRef}
+            id="editor"
+            minSize={430}
+          >
             <ManuscriptEditor
               chapter={activeChapter}
               isSaving={isSavingDocument}
@@ -329,7 +306,10 @@ export function WorkspaceShell({
             />
           </Panel>
 
-          <PanelSeparator />
+          <PanelSeparator
+            elementRef={assistantSeparatorRef}
+            isCollapsed={isAssistantCollapsed}
+          />
 
           <Panel
             collapsedSize={0}
@@ -351,9 +331,21 @@ export function WorkspaceShell({
   );
 }
 
-function PanelSeparator() {
+function PanelSeparator({
+  elementRef,
+  isCollapsed,
+}: {
+  elementRef: RefObject<HTMLDivElement | null>;
+  isCollapsed: boolean;
+}) {
   return (
-    <Separator className="panel-separator">
+    <Separator
+      className={
+        isCollapsed ? 'panel-separator is-collapsed' : 'panel-separator'
+      }
+      disabled={isCollapsed}
+      elementRef={elementRef}
+    >
       <span />
     </Separator>
   );

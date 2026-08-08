@@ -110,10 +110,19 @@
   flex: 1;
   align-items: center;
   justify-content: center;
-  flex-direction: column;
-  gap: 8px;
   color: var(--df-sidebar-muted);
   user-select: none;
+}
+
+.editor-empty-content {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 8px;
+}
+
+html[data-panel-transition] .editor-empty-content {
+  view-transition-name: df-editor-empty-content;
 }
 
 .editor-empty-state strong {

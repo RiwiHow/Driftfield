@@ -200,6 +200,12 @@ The current UI foundation is intentionally small:
   components that are actually used.
 - Radix UI provides interactive primitives and Lucide provides icons.
 - `react-resizable-panels` owns the fixed library/editor/Agents split layout.
+- Library and Agents collapse controls use the native same-document View
+  Transitions API for synchronized, compositor-backed sliding, with an immediate
+  fallback for reduced motion or unsupported runtimes. Do not reintroduce
+  hand-built DOM snapshot overlays for these transitions. Keep independently
+  centered content, such as the editor empty state, in its own named transition
+  snapshot so panel resizing cannot scale it or make it jump at handoff.
 - MDXEditor owns Markdown rich-text, source, and diff editing modes. Markdown is
   the intended manuscript interchange format.
 
