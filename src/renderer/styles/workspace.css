@@ -29,31 +29,34 @@
   user-select: none;
 }
 
+.titlebar-leading,
 .titlebar-brand,
 .titlebar-actions {
   display: flex;
   align-items: center;
 }
 
+.titlebar-leading {
+  min-width: 0;
+  grid-column: 1;
+}
+
 .titlebar-brand {
+  position: absolute;
+  left: 50%;
   gap: 7px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.035em;
-}
-
-.titlebar-document {
-  overflow: hidden;
-  font-size: 11px;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  transform: translateX(-50%);
 }
 
 .titlebar-actions {
+  grid-column: 3;
   justify-content: flex-end;
 }
 
+.titlebar-leading button,
 .titlebar-actions button {
   width: 30px;
   height: 28px;
@@ -63,6 +66,21 @@
 .workspace-panels {
   min-height: 0;
   flex: 1;
+}
+
+.panel-transition-overlay {
+  position: fixed;
+  z-index: 30;
+  overflow: hidden;
+  background: var(--df-sidebar);
+  contain: strict;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.panel-transition-overlay > * {
+  width: 100%;
+  height: 100%;
 }
 
 .panel-separator {

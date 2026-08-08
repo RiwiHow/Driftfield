@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 
 import { WorkspaceShell } from '@/app/WorkspaceShell';
-import type { ThemeName } from '@/app/types';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -46,7 +45,6 @@ export function App() {
         onRefreshProject={() => void project.refreshProject()}
         onSaveDocument={() => void project.saveActiveDocument()}
         onSelectProject={() => void project.selectProjectDirectory()}
-        onThemeChange={(theme: ThemeName) => void updateSettings({ theme })}
         projectDirectory={project.projectDirectory}
         projectSelectionError={project.projectSelectionError}
         projectTree={project.projectTree}
