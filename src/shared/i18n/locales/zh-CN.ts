@@ -14,7 +14,7 @@ export const zhCN = {
   },
   common: { actions: { cancel: '取消', close: '关闭', done: '完成', remove: '移除', save: '保存' }, appName: 'Driftfield' },
   editor: {
-    actions: { closeFile: '关闭文件', closeNamed: '关闭 {{title}}', more: '更多编辑器操作', save: '保存文件', saveShortcut: '保存（⌘S）' },
+    actions: { closeFile: '关闭文件', closeNamed: '关闭 {{title}}', copy: '复制', cut: '剪切', more: '更多编辑器操作', paste: '粘贴', save: '保存文件', saveShortcut: '保存（⌘S）', selectAll: '全选' },
     empty: { action: '打开本地项目', hint: '点击小说目录右上角的加号按钮打开本地项目', hintPrefix: '点击小说目录右上角的', title: '没有打开的 Markdown 文档' },
     mdx: { blockType: '段落样式', blockTypeTooltip: '选择段落样式', bold: '粗体', bulletedList: '无序列表', diff: '对比修改', heading: '标题 {{level}}', italic: '斜体', link: '插入链接', numberedList: '有序列表', paragraph: '正文', quote: '引用', redo: '重做 {{shortcut}}', removeBold: '取消粗体', removeItalic: '取消斜体', richText: '所见即所得', source: 'Markdown 源码', undo: '撤销 {{shortcut}}' },
     placeholder: '从这里开始写作……',

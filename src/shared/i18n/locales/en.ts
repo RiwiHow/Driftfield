@@ -15,7 +15,7 @@ export const en = {
     appName: 'Driftfield',
   },
   editor: {
-    actions: { closeFile: 'Close file', closeNamed: 'Close {{title}}', more: 'More editor actions', save: 'Save file', saveShortcut: 'Save (⌘S)' },
+    actions: { closeFile: 'Close file', closeNamed: 'Close {{title}}', copy: 'Copy', cut: 'Cut', more: 'More editor actions', paste: 'Paste', save: 'Save file', saveShortcut: 'Save (⌘S)', selectAll: 'Select all' },
     empty: { action: 'Open a local project', hint: 'Use the plus button in the novel library to open a local project', hintPrefix: 'Use the plus button in the novel library to', title: 'No Markdown document is open' },
     mdx: { blockType: 'Paragraph style', blockTypeTooltip: 'Select paragraph style', bold: 'Bold', bulletedList: 'Bulleted list', diff: 'Compare changes', heading: 'Heading {{level}}', italic: 'Italic', link: 'Insert link', numberedList: 'Numbered list', paragraph: 'Body', quote: 'Quote', redo: 'Redo {{shortcut}}', removeBold: 'Remove bold', removeItalic: 'Remove italic', richText: 'Rich text', source: 'Markdown source', undo: 'Undo {{shortcut}}' },
     placeholder: 'Start writing here…',

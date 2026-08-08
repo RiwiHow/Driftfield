@@ -14,12 +14,22 @@ import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
   AGENT_API_KEY_PROVIDERS,
@@ -104,7 +114,7 @@ export function SettingsDialog({
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="settings-dialog">
+      <DialogContent className="settings-dialog gap-0 p-0 sm:max-w-[660px]">
         <header className="settings-header">
           <DialogTitle>{t('title')}</DialogTitle>
           <DialogDescription>{t('description')}</DialogDescription>
@@ -119,24 +129,35 @@ export function SettingsDialog({
                 <p>{t('language.description')}</p>
               </div>
             </div>
-            <label className="agent-setting-field">
-              <span className="sr-only">{t('language.label')}</span>
-              <select
+            <div className="shrink-0">
+              <Label className="sr-only" htmlFor="application-language">
+                {t('language.label')}
+              </Label>
+              <Select
                 disabled={isSaving}
-                onChange={(event) =>
+                onValueChange={(language) =>
                   onUpdate({
-                    language: event.target.value as AppSettings['language'],
+                    language: language as AppSettings['language'],
                   })
                 }
                 value={settings.language}
               >
-                {APP_LANGUAGE_OPTIONS.map((language) => (
-                  <option key={language.id} value={language.id}>
-                    {language.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <SelectTrigger
+                  className="w-[230px]"
+                  id="application-language"
+                  size="sm"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {APP_LANGUAGE_OPTIONS.map((language) => (
+                    <SelectItem key={language.id} value={language.id}>
+                      {language.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </section>
 
           <section className="settings-section">
@@ -149,29 +170,45 @@ export function SettingsDialog({
             </div>
 
             <div className="agent-credential-form">
-              <select
+              <Label className="sr-only" htmlFor="credential-provider">
+                {t('agent.providerTitle')}
+              </Label>
+              <Select
                 disabled={isSaving}
-                onChange={(event) =>
-                  setCredentialProvider(
-                    event.target.value as AgentApiKeyProviderId,
-                  )
+                onValueChange={(provider) =>
+                  setCredentialProvider(provider as AgentApiKeyProviderId)
                 }
                 value={credentialProvider}
               >
-                {AGENT_API_KEY_PROVIDERS.map((provider) => (
-                  <option key={provider.id} value={provider.id}>
-                    {provider.label}
-                  </option>
-                ))}
-              </select>
-              <input
+                <SelectTrigger
+                  className="w-full"
+                  id="credential-provider"
+                  size="sm"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {AGENT_API_KEY_PROVIDERS.map((provider) => (
+                    <SelectItem key={provider.id} value={provider.id}>
+                      {provider.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Label className="sr-only" htmlFor="agent-api-key">
+                {t('agent.keyPlaceholder')}
+              </Label>
+              <Input
                 autoComplete="off"
+                className="h-8 text-xs"
                 disabled={isSaving}
+                id="agent-api-key"
                 placeholder={t('agent.keyPlaceholder')}
                 ref={apiKeyRef}
                 type="password"
               />
               <Button
+                className="h-8 px-3 text-xs"
                 disabled={isSaving}
                 onClick={() => void saveApiKey()}
                 size="sm"
@@ -189,13 +226,15 @@ export function SettingsDialog({
                   <span key={providerId}>
                     {AGENT_API_KEY_PROVIDERS.find(({ id }) => id === providerId)
                       ?.label ?? providerId}
-                    <button
+                    <Button
+                      className="h-auto p-0 text-[9px] text-destructive hover:bg-transparent hover:text-destructive/80"
                       disabled={isSaving}
                       onClick={() => onRemoveCredential(providerId)}
-                      type="button"
+                      size="sm"
+                      variant="ghost"
                     >
                       {tCommon('actions.remove')}
-                    </button>
+                    </Button>
                   </span>
                 ))}
               {!agentConfiguration.providers.some(({ configured }) => configured) && (
@@ -212,14 +251,16 @@ export function SettingsDialog({
                 <p>{t('agent.modelDescription')}</p>
               </div>
             </div>
-            <label className="agent-setting-field">
-              <span className="sr-only">{t('agent.modelLabel')}</span>
-              <select
+            <div className="shrink-0">
+              <Label className="sr-only" htmlFor="default-agent-model">
+                {t('agent.modelLabel')}
+              </Label>
+              <Select
                 disabled={isSaving || agentConfiguration.models.length === 0}
-                onChange={(event) => {
+                onValueChange={(modelKey) => {
                   const model = agentConfiguration.models.find(
                     ({ id, providerId }) =>
-                      `${providerId}\u0000${id}` === event.target.value,
+                      `${providerId}\u0000${id}` === modelKey,
                   );
                   onUpdate({
                     agent: {
@@ -235,17 +276,25 @@ export function SettingsDialog({
                 }}
                 value={selectedModelKey}
               >
-                <option value="">{t('agent.selectModel')}</option>
-                {agentConfiguration.models.map((model) => (
-                  <option
-                    key={`${model.providerId}/${model.id}`}
-                    value={`${model.providerId}\u0000${model.id}`}
-                  >
-                    {model.name} · {model.providerId}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <SelectTrigger
+                  className="w-[230px]"
+                  id="default-agent-model"
+                  size="sm"
+                >
+                  <SelectValue placeholder={t('agent.selectModel')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {agentConfiguration.models.map((model) => (
+                    <SelectItem
+                      key={`${model.providerId}/${model.id}`}
+                      value={`${model.providerId}\u0000${model.id}`}
+                    >
+                      {model.name} · {model.providerId}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </section>
 
           <section className="settings-section settings-row-section">
@@ -256,9 +305,11 @@ export function SettingsDialog({
                 <p>{t('agent.thinkingDescription')}</p>
               </div>
             </div>
-            <label className="agent-setting-field">
-              <span className="sr-only">{t('agent.thinkingLabel')}</span>
-              <select
+            <div className="shrink-0">
+              <Label className="sr-only" htmlFor="agent-thinking-level">
+                {t('agent.thinkingLabel')}
+              </Label>
+              <Select
                 disabled={
                   isSaving ||
                   settings.agent.defaultModel === null ||
@@ -268,25 +319,35 @@ export function SettingsDialog({
                       providerId === settings.agent.defaultModel?.providerId,
                   )?.reasoning === false
                 }
-                onChange={(event) =>
+                onValueChange={(thinkingLevel) =>
                   onUpdate({
                     agent: {
                       ...settings.agent,
-                      thinkingLevel: event.target.value as AppSettings['agent']['thinkingLevel'],
+                      thinkingLevel:
+                        thinkingLevel as AppSettings['agent']['thinkingLevel'],
                     },
                   })
                 }
                 value={settings.agent.thinkingLevel}
               >
-                <option value="off">{tAssistant('thinking.off')}</option>
-                <option value="minimal">{tAssistant('thinking.minimal')}</option>
-                <option value="low">{tAssistant('thinking.low')}</option>
-                <option value="medium">{tAssistant('thinking.medium')}</option>
-                <option value="high">{tAssistant('thinking.high')}</option>
-                <option value="xhigh">{tAssistant('thinking.xhigh')}</option>
-                <option value="max">{tAssistant('thinking.max')}</option>
-              </select>
-            </label>
+                <SelectTrigger
+                  className="w-[230px]"
+                  id="agent-thinking-level"
+                  size="sm"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const).map(
+                    (level) => (
+                      <SelectItem key={level} value={level}>
+                        {tAssistant(`thinking.${level}`)}
+                      </SelectItem>
+                    ),
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
           </section>
 
           <section className="settings-section">
@@ -303,34 +364,53 @@ export function SettingsDialog({
                 const isSelected = settings.theme === option.theme;
 
                 return (
-                  <button
-                    aria-pressed={isSelected}
+                  <Label
                     className={cn(
-                      'theme-option',
-                      isSelected && 'is-selected',
+                      'relative block min-w-0 cursor-pointer rounded-lg',
+                      isSaving && 'pointer-events-none opacity-50',
                     )}
-                    disabled={isSaving}
                     key={option.theme}
-                    onClick={() => onUpdate({ theme: option.theme })}
-                    type="button"
                   >
-                    <span
-                      aria-hidden="true"
-                      className="theme-swatch"
-                      data-preview-theme={option.theme}
+                    <input
+                      checked={isSelected}
+                      className="peer sr-only"
+                      disabled={isSaving}
+                      name="application-theme"
+                      onChange={() => onUpdate({ theme: option.theme })}
+                      type="radio"
+                      value={option.theme}
+                    />
+                    <Card
+                      className="gap-2 rounded-lg py-2 shadow-none transition-[border-color,box-shadow,background-color] hover:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-ring/50 peer-checked:border-primary/70 peer-checked:ring-1 peer-checked:ring-primary/25"
                     >
-                      <i />
-                      <i />
-                      <i />
-                    </span>
-                    <span className="theme-option-copy">
-                      <strong>{option.label}</strong>
-                      <small>
-                        {t(`appearance.themes.${option.descriptionKey}`)}
-                      </small>
-                    </span>
-                    {isSelected && <Check aria-hidden="true" size={15} />}
-                  </button>
+                      <CardContent className="relative space-y-2 px-2">
+                        <span
+                          aria-hidden="true"
+                          className="theme-swatch"
+                          data-preview-theme={option.theme}
+                        >
+                          <i />
+                          <i />
+                          <i />
+                        </span>
+                        <span className="flex min-w-0 flex-col gap-0.5 pr-5">
+                          <strong className="text-[10px] font-semibold">
+                            {option.label}
+                          </strong>
+                          <small className="truncate text-[9px] font-normal text-muted-foreground">
+                            {t(`appearance.themes.${option.descriptionKey}`)}
+                          </small>
+                        </span>
+                        {isSelected && (
+                          <Check
+                            aria-hidden="true"
+                            className="absolute right-2 bottom-0.5 text-primary"
+                            size={15}
+                          />
+                        )}
+                      </CardContent>
+                    </Card>
+                  </Label>
                 );
               })}
             </div>
@@ -345,22 +425,33 @@ export function SettingsDialog({
               </div>
             </div>
 
-            <label className="font-size-field">
-              <span className="sr-only">{t('fontSize.label')}</span>
-              <select
+            <div className="shrink-0">
+              <Label className="sr-only" htmlFor="editor-font-size">
+                {t('fontSize.label')}
+              </Label>
+              <Select
                 disabled={isSaving}
-                onChange={(event) =>
-                  onUpdate({ editorFontSize: Number(event.target.value) })
+                onValueChange={(fontSize) =>
+                  onUpdate({ editorFontSize: Number(fontSize) })
                 }
-                value={settings.editorFontSize}
+                value={String(settings.editorFontSize)}
               >
-                {editorFontSizes.map((size) => (
-                  <option key={size} value={size}>
-                    {size} px
-                  </option>
-                ))}
-              </select>
-            </label>
+                <SelectTrigger
+                  className="w-24"
+                  id="editor-font-size"
+                  size="sm"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {editorFontSizes.map((size) => (
+                    <SelectItem key={size} value={String(size)}>
+                      {size} px
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </section>
 
           {canChooseCloseBehavior && (
@@ -375,34 +466,37 @@ export function SettingsDialog({
 
               <div
                 aria-label={t('closeBehavior.label')}
-                className="close-behavior-options"
+                className="close-behavior-options inline-flex shrink-0 rounded-lg border bg-secondary p-0.5"
                 role="group"
               >
-                <button
+                <Button
                   aria-pressed={settings.closeWindowBehavior === 'quit'}
-                  className={cn(
-                    settings.closeWindowBehavior === 'quit' && 'is-selected',
-                  )}
                   disabled={isSaving}
                   onClick={() => onUpdate({ closeWindowBehavior: 'quit' })}
-                  type="button"
+                  size="sm"
+                  variant={
+                    settings.closeWindowBehavior === 'quit'
+                      ? 'secondary'
+                      : 'ghost'
+                  }
                 >
                   <Power aria-hidden="true" size={13} />
                   {t('closeBehavior.quit')}
-                </button>
-                <button
+                </Button>
+                <Button
                   aria-pressed={settings.closeWindowBehavior === 'minimize'}
-                  className={cn(
-                    settings.closeWindowBehavior === 'minimize' &&
-                      'is-selected',
-                  )}
                   disabled={isSaving}
                   onClick={() => onUpdate({ closeWindowBehavior: 'minimize' })}
-                  type="button"
+                  size="sm"
+                  variant={
+                    settings.closeWindowBehavior === 'minimize'
+                      ? 'secondary'
+                      : 'ghost'
+                  }
                 >
                   <Minimize2 aria-hidden="true" size={13} />
                   {t('closeBehavior.minimize')}
-                </button>
+                </Button>
               </div>
             </section>
           )}
@@ -414,6 +508,7 @@ export function SettingsDialog({
               (isSaving ? t('saveStatus.saving') : t('saveStatus.saved'))}
           </span>
           <Button
+            className="h-8 px-3 text-xs"
             onClick={() => onOpenChange(false)}
             size="sm"
             variant="secondary"

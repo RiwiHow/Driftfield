@@ -30,6 +30,8 @@ import type {
 export interface DriftfieldAPI {
   platform: string;
   cancelAgent: (request: CancelAgentRequest) => Promise<CancelAgentResult>;
+  copyEditorSelection: () => Promise<void>;
+  cutEditorSelection: () => Promise<void>;
   getAgentConfiguration: () => Promise<AgentConfiguration>;
   getAppSettings: () => Promise<AppSettings>;
   confirmCloseUnsavedDocument: (
@@ -43,6 +45,7 @@ export interface DriftfieldAPI {
     listener: (request: WindowCloseRequest) => void,
   ) => () => void;
   onAgentEvent: (listener: (event: AgentEvent) => void) => () => void;
+  pasteIntoEditor: () => Promise<void>;
   refreshProject: () => Promise<ProjectSnapshot | null>;
   removeAgentCredential: (
     request: RemoveAgentCredentialRequest,
@@ -51,7 +54,7 @@ export interface DriftfieldAPI {
     request: SaveProjectDocumentRequest,
   ) => Promise<SaveProjectDocumentResult>;
   selectProjectDirectory: () => Promise<SelectProjectDirectoryResult>;
-  showEditorContextMenu: () => Promise<void>;
+  selectAllEditorText: () => Promise<void>;
   setWindowDirty: (isDirty: boolean) => Promise<void>;
   setAgentApiKey: (
     request: SetAgentApiKeyRequest,

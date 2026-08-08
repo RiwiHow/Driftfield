@@ -34,6 +34,10 @@ const api: DriftfieldAPI = {
   platform: process.platform,
   cancelAgent: (request: CancelAgentRequest) =>
     ipcRenderer.invoke(IPC_CHANNELS.cancelAgent, request) as Promise<CancelAgentResult>,
+  copyEditorSelection: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.copyEditorSelection) as Promise<void>,
+  cutEditorSelection: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.cutEditorSelection) as Promise<void>,
   confirmCloseUnsavedDocument: (documentTitle) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.confirmCloseUnsavedDocument,
@@ -90,6 +94,8 @@ const api: DriftfieldAPI = {
         handleCloseRequested,
       );
   },
+  pasteIntoEditor: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.pasteIntoEditor) as Promise<void>,
   refreshProject: () =>
     ipcRenderer.invoke(IPC_CHANNELS.refreshProject) as Promise<
       ProjectSnapshot | null
@@ -103,8 +109,8 @@ const api: DriftfieldAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.saveProjectDocument, request) as Promise<
       SaveProjectDocumentResult
     >,
-  showEditorContextMenu: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.showEditorContextMenu) as Promise<void>,
+  selectAllEditorText: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.selectAllEditorText) as Promise<void>,
   setWindowDirty: (isDirty: boolean) =>
     ipcRenderer.invoke(IPC_CHANNELS.setWindowDirty, isDirty) as Promise<void>,
   setAgentApiKey: (request: SetAgentApiKeyRequest) =>

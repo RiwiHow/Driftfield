@@ -1,5 +1,6 @@
 * {
   box-sizing: border-box;
+  border-color: var(--border);
 }
 
 html,
@@ -30,4 +31,3 @@ button,
 [role="button"] {
   -webkit-app-region: no-drag;
 }
-

@@ -6,6 +6,7 @@ import {
   type UpdateAppSettingsRequest,
 } from '../../../shared/contracts/settings';
 import { changeRendererLanguage } from '../../i18n';
+import { applyDocumentTheme } from '../../app/apply-document-theme';
 
 type SettingsErrorCode = 'load' | 'save';
 
@@ -20,7 +21,7 @@ export const useAppSettings = (
     useState<SettingsErrorCode | null>(settingsLoadFailed ? 'load' : null);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = settings.theme;
+    applyDocumentTheme(settings.theme);
   }, [settings.theme]);
 
   const updateSettings = useCallback(

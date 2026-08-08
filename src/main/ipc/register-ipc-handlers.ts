@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, Menu, type BrowserWindow } from 'electron';
+import { app, dialog, ipcMain, type BrowserWindow } from 'electron';
 import { realpath, stat } from 'node:fs/promises';
 
 import { IPC_CHANNELS } from '../../shared/contracts/ipc-channels';
@@ -270,15 +270,24 @@ export const registerIpcHandlers = ({
     },
   );
 
-  ipcMain.handle(IPC_CHANNELS.showEditorContextMenu, (event) => {
+  ipcMain.handle(IPC_CHANNELS.copyEditorSelection, (event) => {
     const window = getTrustedSenderWindow(event);
-    Menu.buildFromTemplate([
-      { role: 'cut' },
-      { role: 'copy' },
-      { role: 'paste' },
-      { type: 'separator' },
-      { role: 'selectAll' },
-    ]).popup({ window });
+    window.webContents.copy();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.cutEditorSelection, (event) => {
+    const window = getTrustedSenderWindow(event);
+    window.webContents.cut();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.pasteIntoEditor, (event) => {
+    const window = getTrustedSenderWindow(event);
+    window.webContents.paste();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.selectAllEditorText, (event) => {
+    const window = getTrustedSenderWindow(event);
+    window.webContents.selectAll();
   });
 
   ipcMain.handle(

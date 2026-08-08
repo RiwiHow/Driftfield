@@ -33,13 +33,14 @@ import {
   Save,
   X,
 } from 'lucide-react';
-import { useMemo, useState, type MouseEvent } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { Chapter, ThemeName } from '@/app/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { shouldApplyEditorChange } from './editor-change';
+import { EditorContextMenu } from './EditorContextMenu';
 import { createMdxEditorTranslation } from './mdx-editor-translation';
 
 import '@mdxeditor/editor/style.css';
@@ -182,17 +183,6 @@ function LoadedManuscriptEditor({
 
   const characterCount = chapter.markdown.replace(/\s|[#>*_`\-[\]()]/g, '').length;
 
-  const showContextMenu = (event: MouseEvent<HTMLDivElement>): void => {
-    const target = event.target as HTMLElement;
-
-    if (target.closest('[contenteditable="true"], .cm-editor') === null) {
-      return;
-    }
-
-    event.preventDefault();
-    void window.driftfield.showEditorContextMenu();
-  };
-
   return (
     <section className="editor-pane">
       <div className="editor-tabs">
@@ -233,34 +223,36 @@ function LoadedManuscriptEditor({
         </div>
       </div>
 
-      <div className="editor-surface" onContextMenu={showContextMenu}>
-        <MDXEditor
-          className={cn(
-            'driftfield-mdx',
-            theme !== 'github-light' && 'dark-theme',
-          )}
-          contentEditableClassName="manuscript-prose"
-          iconComponentFor={editorIcon}
-          key={`${chapter.id}:${chapter.sourceRevision}`}
-          markdown={chapter.markdown}
-          onChange={(markdown, initialMarkdownNormalize) => {
-            if (!shouldApplyEditorChange(initialMarkdownNormalize)) {
-              return;
-            }
+      <EditorContextMenu readOnly={isSaving}>
+        <div className="editor-surface">
+          <MDXEditor
+            className={cn(
+              'driftfield-mdx',
+              theme !== 'github-light' && 'dark-theme',
+            )}
+            contentEditableClassName="manuscript-prose"
+            iconComponentFor={editorIcon}
+            key={`${chapter.id}:${chapter.sourceRevision}`}
+            markdown={chapter.markdown}
+            onChange={(markdown, initialMarkdownNormalize) => {
+              if (!shouldApplyEditorChange(initialMarkdownNormalize)) {
+                return;
+              }
 
-            setParseError(null);
-            onChange(markdown);
-          }}
-          onError={({ error }) => setParseError(error)}
-          placeholder={t('placeholder')}
-          plugins={plugins}
-          readOnly={isSaving}
-          spellCheck={false}
-          suppressHtmlProcessing
-          translation={translateEditor}
-          trim={false}
-        />
-      </div>
+              setParseError(null);
+              onChange(markdown);
+            }}
+            onError={({ error }) => setParseError(error)}
+            placeholder={t('placeholder')}
+            plugins={plugins}
+            readOnly={isSaving}
+            spellCheck={false}
+            suppressHtmlProcessing
+            translation={translateEditor}
+            trim={false}
+          />
+        </div>
+      </EditorContextMenu>
 
       <footer className="editor-statusbar">
         <div>
