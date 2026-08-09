@@ -49,7 +49,7 @@ export const en = {
   },
   settings: {
     agent: { credentialDescription: 'Credentials stay in the local main process. Saved keys are never displayed.', keyPlaceholder: 'Enter API key', modelDescription: 'Agent requests always use the explicitly selected model.', modelLabel: 'Default Agent model', modelTitle: 'Default model', noProvider: 'No model provider configured', providerTitle: 'Model providers', selectModel: 'Select a model', thinkingDescription: 'Higher levels are usually slower and may cost more.', thinkingLabel: 'Agent reasoning level', thinkingTitle: 'Reasoning level' },
-    appearance: { description: 'Applied to the window, library, editor, and Agent panel.', title: 'Appearance', themes: { githubLight: 'Bright, clear editing environment', oneDark: 'Classic dark-gray editor theme', tokyoNight: 'Low-contrast deep-blue night theme' } },
+    appearance: { description: 'Applied to the window, library, editor, and Agent panel.', title: 'Appearance', themes: { githubDark: 'Primer dark interface for focused writing', githubLight: 'Primer light interface with crisp contrast' } },
     closeBehavior: { description: 'Explicit quit commands always quit Driftfield.', label: 'Behavior when closing the main window', minimize: 'Minimize', quit: 'Quit application', title: 'When closing the main window' },
     description: 'Adjust Driftfield’s language, appearance, and writing experience. Changes save automatically.',
     fontSize: { description: 'Adjust body text size in the Markdown rich-text editor.', label: 'Editor body text size', title: 'Body text size' },

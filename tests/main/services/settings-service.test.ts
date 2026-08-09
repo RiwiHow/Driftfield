@@ -6,7 +6,7 @@ import {
 } from '../../../src/main/services/settings-service';
 
 describe('settings parsing and migration', () => {
-  it('migrates unversioned settings to version 3 with English as default', () => {
+  it('migrates a legacy dark theme to GitHub Dark', () => {
     expect(
       parseStoredSettings({
         closeWindowBehavior: 'minimize',
@@ -21,9 +21,19 @@ describe('settings parsing and migration', () => {
       closeWindowBehavior: 'minimize',
       editorFontSize: 20,
       language: 'en',
-      theme: 'tokyo-night',
+      theme: 'github-dark',
       version: 3,
     });
+
+    expect(parseStoredSettings({ theme: 'one-dark' }).theme).toBe(
+      'github-dark',
+    );
+  });
+
+  it('rejects removed themes in settings updates', () => {
+    expect(() => parseSettingsUpdate({ theme: 'one-dark' })).toThrow(
+      'Unknown application theme',
+    );
   });
 
   it('uses defaults for invalid stored fields', () => {

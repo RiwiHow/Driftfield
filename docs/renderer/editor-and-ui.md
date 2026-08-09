@@ -35,7 +35,7 @@ import order:
 
 Define themes through semantic variables in `styles/themes.css` and map
 library-specific variables onto them. Do not scatter named palette values such
-as GitHub Light, One Dark, or Tokyo Night through feature components.
+as GitHub Light or GitHub Dark through feature components.
 
 `src/shared/theme-contract.ts` is the theme registry and declares the complete
 set of required semantic CSS variables. Every registered theme must implement
@@ -45,6 +45,12 @@ theme-specific selector branches. Window startup colors and light/dark behavior
 are derived from the same registry. Contract tests enforce variable
 completeness, startup-background agreement, critical text contrast, and the
 absence of palette literals outside the theme stylesheet.
+
+The built-in GitHub Light and GitHub Dark palettes map Driftfield roles from the
+official `@primer/primitives` functional light and dark themes. Preserve
+Primer's separation between accent interactions and success, attention, and
+danger states when changing those mappings. Agent send is an accent interaction,
+not a success action.
 
 When adding a theme, register its ID, color scheme, and startup background in
 the shared contract, add its complete palette block, and add its settings-card

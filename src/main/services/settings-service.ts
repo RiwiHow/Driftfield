@@ -19,6 +19,16 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isTheme = (value: unknown): value is AppSettings['theme'] =>
   typeof value === 'string' && APP_THEMES.includes(value as AppSettings['theme']);
 
+const LEGACY_DARK_THEMES = new Set(['one-dark', 'tokyo-night']);
+
+const parseStoredTheme = (value: unknown): AppSettings['theme'] => {
+  if (isTheme(value)) return value;
+  if (typeof value === 'string' && LEGACY_DARK_THEMES.has(value)) {
+    return 'github-dark';
+  }
+  return DEFAULT_APP_SETTINGS.theme;
+};
+
 const isEditorFontSize = (value: unknown): value is number =>
   typeof value === 'number' &&
   Number.isInteger(value) &&
@@ -78,7 +88,7 @@ export const parseStoredSettings = (value: unknown): AppSettings => {
     language: isAppLanguage(value.language)
       ? value.language
       : DEFAULT_APP_SETTINGS.language,
-    theme: isTheme(value.theme) ? value.theme : DEFAULT_APP_SETTINGS.theme,
+    theme: parseStoredTheme(value.theme),
     version: 3,
   };
 };

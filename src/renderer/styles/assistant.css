@@ -411,12 +411,12 @@
 }
 
 .composer-send:not(:disabled) {
-  color: var(--primary-foreground);
-  background: var(--primary);
+  color: var(--df-action-primary-foreground);
+  background: var(--df-action-primary-background);
 }
 
 .composer-send:not(:disabled):hover {
-  background: var(--df-primary-hover);
+  background: var(--df-action-primary-hover);
 }
 
 .composer-send > svg {

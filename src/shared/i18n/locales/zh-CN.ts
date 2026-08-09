@@ -48,7 +48,7 @@ export const zhCN = {
   },
   settings: {
     agent: { credentialDescription: '凭据仅保存在本机主进程中，应用不会显示已保存的 Key。', keyPlaceholder: '输入 API Key', modelDescription: 'Agent 请求始终使用这里明确选择的模型。', modelLabel: '默认 Agent 模型', modelTitle: '默认模型', noProvider: '尚未连接模型服务', providerTitle: '模型服务', selectModel: '请选择模型', thinkingDescription: '更高等级通常更慢，并可能产生更多费用。', thinkingLabel: 'Agent 思考深度', thinkingTitle: '思考深度' },
-    appearance: { description: '应用到窗口、目录、编辑器和 Agent 面板。', title: '外观主题', themes: { githubLight: '明亮、清晰的编辑环境', oneDark: '经典的深灰代码编辑主题', tokyoNight: '低对比度的深蓝夜间主题' } },
+    appearance: { description: '应用到窗口、目录、编辑器和 Agent 面板。', title: '外观主题', themes: { githubDark: '适合专注写作的 Primer 深色界面', githubLight: '清晰高对比度的 Primer 浅色界面' } },
     closeBehavior: { description: '明确退出操作始终会完全退出 Driftfield。', label: '关闭主窗口时的行为', minimize: '最小化', quit: '退出应用', title: '关闭主窗口时' },
     description: '调整 Driftfield 的语言、外观和写作体验。更改会自动保存。',
     fontSize: { description: '调整 Markdown 富文本编辑器中的正文字号。', label: '编辑器正文字号', title: '正文大小' },

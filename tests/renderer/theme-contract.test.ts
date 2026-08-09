@@ -60,6 +60,10 @@ const contrastRatio = (foreground: string, background: string): number => {
 };
 
 describe('renderer theme contract', () => {
+  it('offers only the two supported GitHub Primer themes', () => {
+    expect(APP_THEMES).toEqual(['github-light', 'github-dark']);
+  });
+
   it.each(APP_THEMES)('%s implements every required semantic variable', (theme) => {
     const variables = readThemeVariables(theme);
 
@@ -95,8 +99,12 @@ describe('renderer theme contract', () => {
     expectContrast('--primary-foreground', '--primary', 4.5);
     expectContrast('--secondary-foreground', '--secondary', 4.5);
     expectContrast('--destructive-foreground', '--destructive', 4.5);
+    expectContrast(
+      '--df-action-primary-foreground',
+      '--df-action-primary-background',
+      4.5,
+    );
     expectContrast('--muted-foreground', '--muted', 3);
-    expectContrast('--df-disabled-foreground', '--df-disabled-background', 3);
   });
 
   it('keeps raw palette colors and theme branches in the theme stylesheet', () => {

@@ -60,20 +60,16 @@ interface SettingsDialogProps {
 }
 
 const themeOptionMetadata = {
+  'github-dark': {
+    descriptionKey: 'githubDark',
+    label: 'GitHub Dark',
+  },
   'github-light': {
     descriptionKey: 'githubLight',
     label: 'GitHub Light',
   },
-  'one-dark': {
-    descriptionKey: 'oneDark',
-    label: 'One Dark',
-  },
-  'tokyo-night': {
-    descriptionKey: 'tokyoNight',
-    label: 'Tokyo Night',
-  },
 } as const satisfies Record<AppTheme, {
-  descriptionKey: 'githubLight' | 'oneDark' | 'tokyoNight';
+  descriptionKey: 'githubDark' | 'githubLight';
   label: string;
 }>;
 
