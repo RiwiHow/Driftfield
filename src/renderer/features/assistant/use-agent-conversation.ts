@@ -24,7 +24,7 @@ const errorTranslationKeys = {
   'start-failed': 'agent.startFailed',
 } as const satisfies Record<AgentConversationErrorCode, string>;
 
-interface ConversationMessage {
+export interface ConversationMessage {
   content: string;
   id: string;
   parts?: AgentConversationPart[];
@@ -54,6 +54,11 @@ export interface AgentToolActivity {
 export type AgentConversationPart =
   | { content: string; type: 'text' }
   | { activity: AgentToolActivity; type: 'tool' };
+
+type ConversationUpdate = (
+  messages: ConversationMessage[],
+  requestId: string,
+) => ConversationMessage[];
 
 export function useAgentConversation(
   activeChapter: Chapter | null,
@@ -189,23 +194,14 @@ export function useAgentConversation(
     });
   }, []);
 
-  const send = useCallback(
-    async (prompt: string) => {
+  const startRequest = useCallback(
+    async (prompt: string, updateConversation: ConversationUpdate) => {
       const trimmedPrompt = prompt.trim();
       if (!trimmedPrompt || requestIdRef.current !== null) return false;
-      const userMessage: ConversationMessage = {
-        content: trimmedPrompt,
-        id: crypto.randomUUID(),
-        role: 'user',
-      };
       const nextRequestId = crypto.randomUUID();
       requestIdRef.current = nextRequestId;
       dispatchRun({ requestId: nextRequestId, type: 'start' });
-      setMessages((current) => [
-        ...current,
-        userMessage,
-        { content: '', id: nextRequestId, role: 'assistant' },
-      ]);
+      setMessages((current) => updateConversation(current, nextRequestId));
       try {
         const started = await window.driftfield.startAgentPrompt({
           currentDocumentId: activeChapter?.id,
@@ -253,6 +249,58 @@ export function useAgentConversation(
       }
     },
     [activeChapter],
+  );
+
+  const send = useCallback(
+    async (prompt: string) => {
+      const trimmedPrompt = prompt.trim();
+      if (!trimmedPrompt) return false;
+      const userMessageId = crypto.randomUUID();
+      return startRequest(
+        trimmedPrompt,
+        (current, nextRequestId) => [
+          ...current,
+          { content: trimmedPrompt, id: userMessageId, role: 'user' },
+          { content: '', id: nextRequestId, role: 'assistant' },
+        ],
+      );
+    },
+    [startRequest],
+  );
+
+  const resend = useCallback(
+    async (messageId: string, prompt: string) => {
+      const trimmedPrompt = prompt.trim();
+      if (!trimmedPrompt || requestIdRef.current !== null) return false;
+      const messageIndex = messages.findIndex(
+        (message) => message.id === messageId && message.role === 'user',
+      );
+      if (messageIndex === -1) return false;
+      rejectPendingProposals(messages.slice(messageIndex + 1));
+      return startRequest(
+        trimmedPrompt,
+        (current, nextRequestId) =>
+          branchConversationFromUserEdit(
+            current,
+            messageId,
+            trimmedPrompt,
+            nextRequestId,
+          ),
+      );
+    },
+    [messages, startRequest],
+  );
+
+  const editAssistantMessage = useCallback(
+    (messageId: string, content: string) => {
+      const trimmedContent = content.trim();
+      if (!trimmedContent || requestIdRef.current !== null) return false;
+      setMessages((current) =>
+        replaceAssistantMessage(current, messageId, trimmedContent),
+      );
+      return true;
+    },
+    [],
   );
 
   const cancel = useCallback(async () => {
@@ -328,13 +376,7 @@ export function useAgentConversation(
 
   const clear = useCallback(() => {
     if (!isAgentConversationActive(run.phase)) {
-      for (const message of messages) {
-        if (message.proposalStatus === 'pending' && message.proposal !== undefined) {
-          void window.driftfield.rejectAgentProposal({
-            proposalId: message.proposal.proposalId,
-          });
-        }
-      }
+      rejectPendingProposals(messages);
       setMessages([]);
       dispatchRun({ type: 'reset' });
     }
@@ -344,6 +386,7 @@ export function useAgentConversation(
     cancel,
     applyProposal,
     clear,
+    editAssistantMessage,
     error:
       run.errorCode === null
         ? null
@@ -352,8 +395,56 @@ export function useAgentConversation(
     messages,
     phase: run.phase,
     rejectProposal,
+    resend,
     send,
   };
+}
+
+export function branchConversationFromUserEdit(
+  messages: ConversationMessage[],
+  messageId: string,
+  content: string,
+  requestId: string,
+): ConversationMessage[] {
+  const messageIndex = messages.findIndex(
+    (message) => message.id === messageId && message.role === 'user',
+  );
+  if (messageIndex === -1) return messages;
+  return [
+    ...messages.slice(0, messageIndex),
+    { ...messages[messageIndex], content },
+    { content: '', id: requestId, role: 'assistant' },
+  ];
+}
+
+export function replaceAssistantMessage(
+  messages: ConversationMessage[],
+  messageId: string,
+  content: string,
+): ConversationMessage[] {
+  return messages.map((message) =>
+    message.id === messageId && message.role === 'assistant'
+      ? {
+          ...message,
+          content,
+          parts: [
+            ...(message.parts?.filter((part) => part.type === 'tool') ?? []),
+            { content, type: 'text' },
+          ],
+          terminal: undefined,
+        }
+      : message,
+  );
+}
+
+function rejectPendingProposals(messages: ConversationMessage[]): void {
+  for (const message of messages) {
+    if (message.proposalStatus === 'pending' && message.proposal !== undefined) {
+      void window.driftfield.rejectAgentProposal({
+        proposalId: message.proposal.proposalId,
+      });
+    }
+  }
 }
 
 export function canApplyAgentProposal(

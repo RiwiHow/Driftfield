@@ -1,6 +1,6 @@
 export const en = {
   assistant: {
-    actions: { checkSettings: 'Check settings', newConversation: 'New conversation', openSettings: 'Open Agent settings', send: 'Send message', stop: 'Stop generating' },
+    actions: { cancelEdit: 'Cancel', checkSettings: 'Check settings', editMessage: 'Edit message', newConversation: 'New conversation', openSettings: 'Open Agent settings', resendEditedMessage: 'Resend', saveEdit: 'Save', send: 'Send message', stop: 'Stop generating' },
     author: { assistant: 'Writing partner', user: 'You' },
     composer: { noChapter: 'No current chapter', placeholder: 'Ask the Agent…', setupPlaceholder: 'Configure a default model first' },
     empty: { body: 'Add provider credentials and select a default model before the Agent can handle requests.', loading: 'Loading model configuration', loadingBody: 'Please wait.', setup: 'Connect a model to start writing', setupAction: 'Open model settings', welcome: 'I can read the current chapter and help continue, polish, or check continuity. Generated content remains a proposal for your review.' },

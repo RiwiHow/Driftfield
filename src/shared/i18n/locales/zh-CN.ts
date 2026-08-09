@@ -2,7 +2,7 @@ import type { LocaleShape } from '../types';
 
 export const zhCN = {
   assistant: {
-    actions: { checkSettings: '检查设置', newConversation: '新建对话', openSettings: '打开 Agent 设置', send: '发送消息', stop: '停止生成' },
+    actions: { cancelEdit: '取消', checkSettings: '检查设置', editMessage: '编辑消息', newConversation: '新建对话', openSettings: '打开 Agent 设置', resendEditedMessage: '重新发送', saveEdit: '保存', send: '发送消息', stop: '停止生成' },
     author: { assistant: '写作伙伴', user: '你' },
     composer: { noChapter: '无当前章节', placeholder: '询问 Agent…', setupPlaceholder: '请先配置默认模型' },
     empty: { body: '添加服务商凭据并选择默认模型，Agent 才能处理请求。', loading: '正在读取模型配置', loadingBody: '请稍候。', setup: '连接一个模型后开始写作', setupAction: '打开模型设置', welcome: '我可以阅读当前章节，协助续写、润色或检查设定一致性。生成内容会先供你审阅。' },

@@ -6,13 +6,14 @@ import {
   CircleStop,
   Cpu,
   LoaderCircle,
+  Pencil,
   Settings2,
   Sparkles,
   SquarePen,
   TriangleAlert,
   UserRound,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { Chapter } from '@/app/types';
@@ -28,6 +29,7 @@ import { SafeMarkdown } from './SafeMarkdown';
 import {
   type AgentConversationPart,
   type AgentToolActivity,
+  type ConversationMessage,
   useAgentConversation,
 } from './use-agent-conversation';
 
@@ -54,15 +56,21 @@ export function AssistantPanel({
 }: AssistantPanelProps) {
   const { t } = useTranslation('assistant');
   const [prompt, setPrompt] = useState('');
+  const [editingMessage, setEditingMessage] = useState<Pick<
+    ConversationMessage,
+    'content' | 'id' | 'role'
+  > | null>(null);
   const {
     applyProposal,
     cancel,
     clear,
+    editAssistantMessage,
     error,
     isActive,
     messages,
     phase,
     rejectProposal,
+    resend,
     send,
   } = useAgentConversation(activeChapter, onProposalApplied);
   const selectedModel = configuration.models.find(
@@ -85,6 +93,16 @@ export function AssistantPanel({
     if (await send(prompt)) setPrompt('');
   };
 
+  const saveMessageEdit = async (): Promise<void> => {
+    if (editingMessage === null) return;
+    const saved =
+      editingMessage.role === 'user'
+        ? isConfigured &&
+          (await resend(editingMessage.id, editingMessage.content))
+        : editAssistantMessage(editingMessage.id, editingMessage.content);
+    if (saved) setEditingMessage(null);
+  };
+
   const modelStatus = configurationLoading
     ? t('status.loadingConfiguration')
     : configurationError !== null
@@ -102,7 +120,10 @@ export function AssistantPanel({
         <Button
           aria-label={t('actions.newConversation')}
           disabled={isActive || messages.length === 0}
-          onClick={clear}
+          onClick={() => {
+            setEditingMessage(null);
+            clear();
+          }}
           size="icon"
           variant="ghost"
         >
@@ -156,12 +177,50 @@ export function AssistantPanel({
                 )}
               </span>
               <div className="message-content">
-                <div className="message-author">
-                  {message.role === 'assistant'
-                    ? t('author.assistant')
-                    : t('author.user')}
+                <div className="message-meta">
+                  <div className="message-author">
+                    {message.role === 'assistant'
+                      ? t('author.assistant')
+                      : t('author.user')}
+                  </div>
+                  {!isActive &&
+                  message.terminal === undefined &&
+                  message.content.trim().length > 0 ? (
+                    <button
+                      aria-label={t('actions.editMessage')}
+                      className="message-edit-button"
+                      onClick={() =>
+                        setEditingMessage({
+                          content: message.content,
+                          id: message.id,
+                          role: message.role,
+                        })
+                      }
+                      title={t('actions.editMessage')}
+                      type="button"
+                    >
+                      <Pencil aria-hidden="true" size={11} />
+                    </button>
+                  ) : null}
                 </div>
-                {message.role === 'assistant' && message.terminal === undefined ? (
+                {editingMessage?.id === message.id ? (
+                  <MessageEditor
+                    disabled={
+                      !editingMessage.content.trim() ||
+                      (editingMessage.role === 'user' && !isConfigured)
+                    }
+                    onCancel={() => setEditingMessage(null)}
+                    onChange={(content) =>
+                      setEditingMessage((current) =>
+                        current === null ? null : { ...current, content },
+                      )
+                    }
+                    onSave={() => void saveMessageEdit()}
+                    role={editingMessage.role}
+                    value={editingMessage.content}
+                  />
+                ) : message.role === 'assistant' &&
+                  message.terminal === undefined ? (
                   <>
                     {(message.parts?.length ?? 0) > 0 ? (
                       <AgentResponseTimeline parts={message.parts!} />
@@ -270,6 +329,81 @@ export function AssistantPanel({
         </span>
       </footer>
     </aside>
+  );
+}
+
+function MessageEditor({
+  disabled,
+  onCancel,
+  onChange,
+  onSave,
+  role,
+  value,
+}: {
+  disabled: boolean;
+  onCancel: () => void;
+  onChange: (value: string) => void;
+  onSave: () => void;
+  role: ConversationMessage['role'];
+  value: string;
+}) {
+  const { t } = useTranslation('assistant');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea === null) return;
+    const minimumHeight = role === 'user' ? 110 : 180;
+    const maximumHeight = Math.max(
+      minimumHeight,
+      Math.min(window.innerHeight * 0.5, 360),
+    );
+    textarea.style.height = '0px';
+    const nextHeight = Math.min(
+      Math.max(textarea.scrollHeight, minimumHeight),
+      maximumHeight,
+    );
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY =
+      textarea.scrollHeight > maximumHeight ? 'auto' : 'hidden';
+  }, [role, value]);
+
+  return (
+    <div className="message-editor" data-role={role}>
+      <textarea
+        aria-label={t('actions.editMessage')}
+        autoFocus
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            onCancel();
+          }
+          if (
+            event.key === 'Enter' &&
+            (event.metaKey || event.ctrlKey) &&
+            !event.nativeEvent.isComposing &&
+            !disabled
+          ) {
+            event.preventDefault();
+            onSave();
+          }
+        }}
+        ref={textareaRef}
+        rows={1}
+        value={value}
+      />
+      <div className="message-editor-actions">
+        <Button onClick={onCancel} size="sm" variant="ghost">
+          {t('actions.cancelEdit')}
+        </Button>
+        <Button disabled={disabled} onClick={onSave} size="sm" variant="outline">
+          {t(
+            role === 'user' ? 'actions.resendEditedMessage' : 'actions.saveEdit',
+          )}
+        </Button>
+      </div>
+    </div>
   );
 }
 

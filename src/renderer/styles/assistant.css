@@ -45,11 +45,92 @@
   min-width: 0;
 }
 
-.message-author {
+.message-meta {
+  display: flex;
+  min-height: 17px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
   margin: 1px 0 5px;
+}
+
+.message-author {
   color: var(--muted-foreground);
   font-size: 9px;
   font-weight: 650;
+}
+
+.message-content > .message-author {
+  margin: 1px 0 5px;
+}
+
+.message-edit-button {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  padding: 0;
+  color: var(--muted-foreground);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.message-row:hover .message-edit-button,
+.message-row:focus-within .message-edit-button {
+  opacity: 1;
+}
+
+.message-edit-button:hover {
+  color: var(--foreground);
+  background: var(--df-hover);
+}
+
+.message-edit-button:focus-visible {
+  outline: 2px solid var(--df-focus-ring);
+  outline-offset: 1px;
+}
+
+.message-editor textarea {
+  display: block;
+  width: 100%;
+  max-height: min(50vh, 360px);
+  resize: none;
+  padding: 7px 8px;
+  color: var(--foreground);
+  font: 10px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--background);
+  border: 1px solid var(--input);
+  border-radius: 5px;
+  outline: none;
+}
+
+.message-editor[data-role='user'] textarea {
+  min-height: 110px;
+}
+
+.message-editor[data-role='assistant'] textarea {
+  min-height: 180px;
+}
+
+.message-editor textarea:focus {
+  border-color: var(--df-focus-ring);
+  box-shadow: 0 0 0 1px var(--df-focus-ring);
+}
+
+.message-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 5px;
+}
+
+.message-editor-actions button {
+  height: 25px;
+  padding-inline: 8px;
+  font-size: 9px;
 }
 
 .message-content p {
@@ -488,6 +569,22 @@
 .agent-markdown ol {
   margin: 5px 0 8px;
   padding-inline-start: 18px;
+}
+
+.agent-markdown ul {
+  list-style-type: disc;
+}
+
+.agent-markdown ol {
+  list-style-type: decimal;
+}
+
+.agent-markdown ul ul {
+  list-style-type: circle;
+}
+
+.agent-markdown ol ol {
+  list-style-type: lower-alpha;
 }
 
 .agent-markdown li {
