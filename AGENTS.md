@@ -501,10 +501,22 @@ properties when extending the affected subsystems:
   `App.tsx` remains a composition layer.
 - Settings use schema version 3 and migrate earlier unversioned and versioned
   shapes, including English-default language and Agent settings.
+- Agent requests are bound to application-owned project-session identifiers.
+  Project switches cancel the owning request, and late worker output or tool
+  calls from an obsolete session are rejected. Cancellation remains terminal
+  when completion or streamed output races with the cancel request.
+- Assistant replies render through a dedicated read-only Markdown path. Raw
+  HTML is not interpreted, remote images are not loaded, and links remain
+  non-navigable until a reviewed external-link IPC operation exists.
+- The packaged Pi smoke test starts `agent-worker.mjs` directly from the
+  packaged ASAR and verifies local model discovery for every API-key provider
+  exposed by Driftfield without making billable provider requests.
 - Vitest covers path containment, project scanning, revision conflicts, settings
   parsing and migration, dirty-action decisions, snapshot merges, navigation
-  policy, Agent run/protocol state, locale parity and switching, native dialog
-  options, and MDXEditor initialization and translation adapters.
+  policy, Agent run/protocol state, cancellation races, project invalidation,
+  credential-state failures, worker restart, tool timeouts, safe Agent Markdown,
+  locale parity and switching, native dialog options, and MDXEditor
+  initialization and translation adapters.
 
 ## Remaining Technical Debt
 
@@ -533,24 +545,17 @@ properties when extending the affected subsystems:
     has unsaved edits. Introduce a validated targeted read service and an
     explicit, size-bounded draft snapshot contract carrying document and revision
     identity.
-  - Agent requests are not invalidated when their project is switched. Bind each
-    request to an application-owned project-session identifier and cancel or
-    reject output and tool calls after that session changes.
   - Agent output, context size, tool-call count, and cost are not yet bounded as
     application policy. Add limits and typed terminal reasons before enabling
     general use.
-  - Assistant requests now expose explicit starting, streaming, cancelling,
-    cancelled, failed, and completed states, but output is still rendered as
-    plain paragraph text rather than reviewed Markdown. Add a safe Markdown
-    presentation path.
   - Pi now runs in a separately bundled native ESM Electron utility process and
-    the Forge CommonJS main no longer rewrites `import.meta.url`. Add packaged
-    startup and provider smoke tests before enabling Pi extensions, untrusted
-    resource discovery, module-relative assets, or broader tools.
-  - Agent IPC and utility-process protocol validators have initial unit coverage,
-    but cancellation races, project invalidation, credential failures, worker
-    restart, tool timeouts, and packaged Pi startup still lack focused automated
-    coverage.
+    the Forge CommonJS main no longer rewrites `import.meta.url`. Packaged startup
+    and local provider-discovery smoke coverage exists, but real upstream
+    credential rejection, rate limits, network failures, full packaged request
+    and cancellation lifecycles, and provider API smoke tests still lack focused
+    automated coverage. Do not enable Pi extensions, untrusted resource
+    discovery, module-relative assets, or broader tools until the corresponding
+    packaged and security coverage exists.
   - Review every new `allowBuilds` entry in `pnpm-workspace.yaml`; do not approve
     transitive lifecycle scripts merely because pnpm prompts during installation.
 - There is no external-link preload method yet. If reviewed external URLs are
