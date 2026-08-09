@@ -68,6 +68,20 @@ export function LibraryPanel({
         </span>
         <div className="pane-heading-actions">
           <Button
+            aria-label={t('actions.create')}
+            disabled={isSelectingProject}
+            onClick={onCreateProject}
+            size="icon"
+            title={t('actions.create')}
+            variant="ghost"
+          >
+            {isCreatingProject ? (
+              <LoaderCircle className="project-switcher-spinner" size={15} />
+            ) : (
+              <FolderPlus size={15} />
+            )}
+          </Button>
+          <Button
             aria-label={t('actions.open')}
             disabled={isSelectingProject}
             onClick={onSelectProject}
@@ -78,7 +92,7 @@ export function LibraryPanel({
             {isSelectingProject && !isCreatingProject ? (
               <LoaderCircle className="project-switcher-spinner" size={15} />
             ) : (
-              <Plus size={15} />
+              <FolderOpen size={15} />
             )}
           </Button>
           <Button
@@ -95,20 +109,6 @@ export function LibraryPanel({
               )}
               size={14}
             />
-          </Button>
-          <Button
-            aria-label={t('actions.create')}
-            disabled={isSelectingProject}
-            onClick={onCreateProject}
-            size="icon"
-            title={t('actions.create')}
-            variant="ghost"
-          >
-            {isCreatingProject ? (
-              <LoaderCircle className="project-switcher-spinner" size={15} />
-            ) : (
-              <FolderPlus size={15} />
-            )}
           </Button>
         </div>
       </div>
