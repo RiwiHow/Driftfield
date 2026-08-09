@@ -8,7 +8,7 @@
   min-height: var(--df-pane-header-height);
   align-items: center;
   justify-content: space-between;
-  background: var(--df-sidebar);
+  background: var(--df-pane-header-background);
   border-bottom: var(--df-divider-size) solid var(--border);
 }
 
@@ -343,7 +343,7 @@ html[data-panel-transition] .editor-statusbar {
   padding: 0 10px;
   color: var(--df-sidebar-muted);
   font-size: 9px;
-  background: var(--df-sidebar);
+  background: var(--df-pane-footer-background);
   border-top: var(--df-divider-size) solid var(--border);
 }
 

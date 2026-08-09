@@ -164,6 +164,7 @@
   min-height: var(--df-pane-footer-height);
   padding: 0 5px;
   color: var(--df-sidebar-muted);
+  background: var(--df-pane-footer-background);
   border-top: var(--df-divider-size) solid var(--border);
 }
 

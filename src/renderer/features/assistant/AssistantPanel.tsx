@@ -1,11 +1,15 @@
 import {
+  ArrowUp,
   Bot,
+  Check,
+  ChevronRight,
   CircleStop,
   Cpu,
-  Plus,
-  SendHorizontal,
+  LoaderCircle,
   Settings2,
   Sparkles,
+  SquarePen,
+  TriangleAlert,
   UserRound,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -15,10 +19,17 @@ import type { Chapter } from '@/app/types';
 import { Button } from '@/components/ui/button';
 import type { AgentConfiguration } from '../../../shared/contracts/agent-configuration';
 import type { AgentSettings } from '../../../shared/contracts/settings';
-import type { AgentEditProposal, ApplyAgentProposalResult } from '../../../shared/contracts/agent-proposals';
+import type {
+  AgentEditProposal,
+  ApplyAgentProposalResult,
+} from '../../../shared/contracts/agent-proposals';
 import type { AgentConversationPhase } from './agent-conversation-state';
 import { SafeMarkdown } from './SafeMarkdown';
-import { useAgentConversation } from './use-agent-conversation';
+import {
+  type AgentConversationPart,
+  type AgentToolActivity,
+  useAgentConversation,
+} from './use-agent-conversation';
 
 interface AssistantPanelProps {
   activeChapter: Chapter | null;
@@ -90,30 +101,14 @@ export function AssistantPanel({
         <span>{t('title')}</span>
         <Button
           aria-label={t('actions.newConversation')}
-          disabled={isActive}
+          disabled={isActive || messages.length === 0}
           onClick={clear}
           size="icon"
           variant="ghost"
         >
-          <Plus size={15} />
+          <SquarePen size={14} />
         </Button>
       </div>
-
-      <button
-        aria-label={t('actions.openSettings')}
-        className="agent-selector"
-        onClick={onOpenSettings}
-        type="button"
-      >
-        <span className="agent-avatar">
-          <Sparkles aria-hidden="true" size={14} />
-        </span>
-        <span>
-          <strong>{selectedModel?.name ?? t('author.assistant')}</strong>
-          <small>{activePhaseLabel(phase) ?? modelStatus}</small>
-        </span>
-        <Settings2 aria-hidden="true" size={14} />
-      </button>
 
       <div aria-label={t('title')} className="conversation">
         {messages.length === 0 ? (
@@ -168,12 +163,15 @@ export function AssistantPanel({
                 </div>
                 {message.role === 'assistant' && message.terminal === undefined ? (
                   <>
-                    <div className="agent-markdown">
-                      <SafeMarkdown>
-                        {message.content ||
-                          (isActive ? activePhaseLabel(phase) ?? '' : '')}
-                      </SafeMarkdown>
-                    </div>
+                    {(message.parts?.length ?? 0) > 0 ? (
+                      <AgentResponseTimeline parts={message.parts!} />
+                    ) : (
+                      <div className="agent-markdown">
+                        <SafeMarkdown>
+                          {isActive ? activePhaseLabel(phase) ?? '' : ''}
+                        </SafeMarkdown>
+                      </div>
+                    )}
                     {message.proposal !== undefined ? (
                       <ProposalCard
                         onApply={() => void applyProposal(message.proposal!)}
@@ -205,41 +203,17 @@ export function AssistantPanel({
         ) : null}
       </div>
 
-      <div className="quick-prompts">
-        <button
-          disabled={!isConfigured || isActive}
-          onClick={() => setPrompt(t('quick.continuePrompt'))}
-          type="button"
-        >
-          {t('quick.continue')}
-        </button>
-        <button
-          disabled={!isConfigured || isActive}
-          onClick={() =>
-            setPrompt(t('quick.atmospherePrompt'))
-          }
-          type="button"
-        >
-          {t('quick.atmosphere')}
-        </button>
-        <button
-          disabled={!isConfigured || isActive}
-          onClick={() =>
-            setPrompt(t('quick.continuityPrompt'))
-          }
-          type="button"
-        >
-          {t('quick.continuity')}
-        </button>
-      </div>
-
       <div className="composer" data-disabled={!isConfigured || undefined}>
         <textarea
           aria-label={t('actions.send')}
           disabled={!isConfigured || isActive}
           onChange={(event) => setPrompt(event.target.value)}
           onKeyDown={(event) => {
-            if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+            if (
+              event.key === 'Enter' &&
+              !event.shiftKey &&
+              !event.nativeEvent.isComposing
+            ) {
               event.preventDefault();
               void submit();
             }
@@ -255,22 +229,135 @@ export function AssistantPanel({
           value={prompt}
         />
         <div className="composer-footer">
-          <span>{activeChapter?.title ?? t('composer.noChapter')}</span>
+          <span className="composer-document" title={activeChapter?.title}>
+            {activeChapter?.title ?? t('composer.noChapter')}
+          </span>
           <Button
-            aria-label={
-              isActive ? t('actions.stop') : t('actions.send')
+            aria-label={isActive ? t('actions.stop') : t('actions.send')}
+            className="composer-send"
+            disabled={
+              isActive
+                ? phase === 'cancelling'
+                : !isConfigured || !prompt.trim()
             }
-            disabled={isActive ? phase === 'cancelling' : !isConfigured || !prompt.trim()}
             onClick={() => void (isActive ? cancel() : submit())}
             size="icon"
           >
-            {isActive ? <CircleStop size={15} /> : <SendHorizontal size={15} />}
+            {isActive ? (
+              <CircleStop size={15} />
+            ) : (
+              <ArrowUp size={16} strokeWidth={2.2} />
+            )}
           </Button>
         </div>
       </div>
+
+      <footer className="assistant-statusbar">
+        <button
+          aria-label={t('actions.openSettings')}
+          className="assistant-model"
+          disabled={configurationLoading}
+          onClick={onOpenSettings}
+          title={`${selectedModel?.name ?? modelStatus} · ${modelStatus}`}
+          type="button"
+        >
+          <Sparkles aria-hidden="true" size={12} />
+          <span>{selectedModel?.name ?? modelStatus}</span>
+          <Settings2 aria-hidden="true" size={11} />
+        </button>
+        <span className="assistant-model-status">
+          {activePhaseLabel(phase) ?? modelStatus}
+        </span>
+      </footer>
     </aside>
   );
 }
+
+function AgentResponseTimeline({ parts }: { parts: AgentConversationPart[] }) {
+  return (
+    <div className="agent-response-timeline">
+      {parts.map((part, index) =>
+        part.type === 'text' ? (
+          <div className="agent-markdown" key={`text-${index}`}>
+            <SafeMarkdown>{part.content}</SafeMarkdown>
+          </div>
+        ) : (
+          <ToolActivityRow
+            activity={part.activity}
+            key={part.activity.toolCallId}
+          />
+        ),
+      )}
+    </div>
+  );
+}
+
+function ToolActivityRow({ activity }: { activity: AgentToolActivity }) {
+  const { t } = useTranslation('assistant');
+  return (
+    <details className="agent-tool-activity">
+      <summary>
+        <ChevronRight
+          aria-hidden="true"
+          className="agent-tool-disclosure"
+          size={11}
+        />
+        {activity.status === 'running' ? (
+          <LoaderCircle
+            aria-hidden="true"
+            className="agent-tool-spinner"
+            size={12}
+          />
+        ) : activity.status === 'cancelled' ? (
+          <CircleStop aria-hidden="true" size={12} />
+        ) : activity.failed ? (
+          <TriangleAlert aria-hidden="true" size={12} />
+        ) : (
+          <Check aria-hidden="true" size={12} />
+        )}
+        <span>{t(`tools.names.${activity.toolName}`)}</span>
+        <small>
+          <span>
+            {t(
+              activity.status === 'running'
+                ? 'tools.status.running'
+                : activity.status === 'cancelled'
+                  ? 'tools.status.cancelled'
+                  : activity.failed
+                    ? 'tools.status.failed'
+                    : 'tools.status.completed',
+            )}
+          </span>
+          <span aria-hidden="true"> · </span>
+          <span className="agent-tool-show-details">
+            {t('tools.showDetails')}
+          </span>
+          <span className="agent-tool-hide-details">
+            {t('tools.hideDetails')}
+          </span>
+        </small>
+      </summary>
+      <div className="agent-tool-details">
+        <span>{t('tools.input')}</span>
+        <pre>{formatToolPayload(activity.input)}</pre>
+        {activity.output !== undefined ? (
+          <>
+            <span>{t('tools.output')}</span>
+            <pre>{formatToolPayload(activity.output)}</pre>
+          </>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
+const formatToolPayload = (payload: string): string => {
+  try {
+    return JSON.stringify(JSON.parse(payload), null, 2);
+  } catch {
+    return payload;
+  }
+};
 
 function ProposalCard({
   onApply,

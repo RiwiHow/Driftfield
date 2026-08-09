@@ -23,6 +23,12 @@ session, rechecks document containment and regular-file status, and enforces
 per-request call, timeout, individual-result, and cumulative-result budgets.
 Results do not expose physical project paths or raw YAML.
 
+The worker emits bounded Tool activity events around the Driftfield-owned tool
+bridge. Renderer shows the current call and its completion result in collapsible
+rows. Serialized activity is capped at 8 KiB per payload, and Markdown bodies
+are represented by byte counts instead of being duplicated into the activity
+log.
+
 `AgentToolContractMap` is the shared compile-time mapping from each tool name to
 its arguments and result. Request and result unions are derived from that map so
 a tool cannot be paired with another tool's payload. Runtime validators enforce

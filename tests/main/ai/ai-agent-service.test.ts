@@ -178,4 +178,49 @@ describe('AiAgentService', () => {
       }),
     );
   });
+
+  it('forwards tool activity without ending the active request', async () => {
+    const events: AgentEvent[] = [];
+    const service = new AiAgentService(userDataPath);
+    const started = start(service, 'request-1', (event) => events.push(event));
+    await waitFor(() => workers.length === 1);
+    workers[0].emit('message', { type: 'ready' });
+    await started;
+
+    workers[0].emit('message', {
+      input: '{}',
+      requestId: 'request-1',
+      toolCallId: 'tool-1',
+      toolName: 'get_current_document',
+      type: 'tool-started',
+    });
+    workers[0].emit('message', {
+      failed: false,
+      output: '{"ok":true}',
+      requestId: 'request-1',
+      toolCallId: 'tool-1',
+      toolName: 'get_current_document',
+      type: 'tool-completed',
+    });
+    workers[0].emit('message', {
+      delta: 'after tool',
+      requestId: 'request-1',
+      type: 'text-delta',
+    });
+    await waitFor(() => events.some((event) => event.type === 'text-delta'));
+
+    expect(events).toContainEqual(expect.objectContaining({
+      toolCallId: 'tool-1',
+      type: 'tool-started',
+    }));
+    expect(events).toContainEqual(expect.objectContaining({
+      toolCallId: 'tool-1',
+      type: 'tool-completed',
+    }));
+    expect(events.at(-1)).toEqual({
+      delta: 'after tool',
+      requestId: 'request-1',
+      type: 'text-delta',
+    });
+  });
 });

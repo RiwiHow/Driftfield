@@ -296,6 +296,11 @@ export class AiAgentService {
       return;
     }
 
+    if (message.type === 'tool-started' || message.type === 'tool-completed') {
+      active.sendEvent(message);
+      return;
+    }
+
     active.sendEvent(message);
     this.activeRequests.delete(message.requestId);
     this.toolDispatcher?.release(message.requestId);

@@ -1,12 +1,7 @@
 import type { AppLanguage } from '../i18n/languages';
+import { APP_THEMES, type AppTheme } from '../theme-contract';
 
-export const APP_THEMES = [
-  'github-light',
-  'tokyo-night',
-  'one-dark',
-] as const;
-
-export type AppTheme = (typeof APP_THEMES)[number];
+export { APP_THEMES, type AppTheme } from '../theme-contract';
 export type CloseWindowBehavior = 'minimize' | 'quit';
 
 export const AGENT_THINKING_LEVELS = [

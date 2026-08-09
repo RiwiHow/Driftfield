@@ -3,17 +3,12 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { WORKSPACE_MIN_CONTENT_WIDTH } from '../../shared/workspace-layout';
+import { APP_THEME_WINDOW_BACKGROUNDS } from '../../shared/theme-contract';
 import type { SettingsService } from '../services/settings-service';
 import {
   createRendererNavigationPolicy,
   type RendererNavigationPolicy,
 } from './navigation-policy';
-
-const themeBackgroundColors = {
-  'github-light': '#ffffff',
-  'one-dark': '#282c34',
-  'tokyo-night': '#1a1b26',
-} as const;
 
 interface CreateMainWindowOptions {
   onClose: (window: BrowserWindow, event: Event) => void;
@@ -46,7 +41,7 @@ export const createMainWindow = ({
     minWidth: WORKSPACE_MIN_CONTENT_WIDTH,
     minHeight: 620,
     useContentSize: true,
-    backgroundColor: themeBackgroundColors[settingsService.get().theme],
+    backgroundColor: APP_THEME_WINDOW_BACKGROUNDS[settingsService.get().theme],
     show: false,
     titleBarStyle: 'hiddenInset',
     webPreferences: {

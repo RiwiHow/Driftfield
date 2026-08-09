@@ -19,6 +19,7 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -32,6 +33,10 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   --radius: 0.5rem;
+  --df-pane-header-background: var(--df-sidebar);
+  --df-pane-footer-background: var(--df-sidebar);
+  --df-composer-background: var(--df-editor-raised);
+  --df-tool-row-hover: var(--df-hover);
 }
 
 [data-theme="tokyo-night"] {
@@ -53,6 +58,7 @@
   --input: #30364c;
   --ring: #7aa2f7;
   --destructive: #f7768e;
+  --destructive-foreground: #16161e;
   --df-sidebar: #16161e;
   --df-sidebar-muted: #565f89;
   --df-editor: #1a1b26;
@@ -61,7 +67,14 @@
   --df-active: #292e42;
   --df-selection: #33467c;
   --df-positive: #9ece6a;
+  --df-warning: #e0af68;
   --df-warm: #e0af68;
+  --df-primary-hover: #89b4fa;
+  --df-disabled-background: #202437;
+  --df-disabled-foreground: #737da3;
+  --df-disabled-border: #30364c;
+  --df-focus-ring: #7aa2f7;
+  --df-shadow-color: #0000004d;
 }
 
 [data-theme="one-dark"] {
@@ -83,6 +96,7 @@
   --input: #3e4451;
   --ring: #61afef;
   --destructive: #e06c75;
+  --destructive-foreground: #20242b;
   --df-sidebar: #21252b;
   --df-sidebar-muted: #6f7580;
   --df-editor: #282c34;
@@ -91,7 +105,14 @@
   --df-active: #353b45;
   --df-selection: #3e4451;
   --df-positive: #98c379;
+  --df-warning: #e5c07b;
   --df-warm: #e5c07b;
+  --df-primary-hover: #75bdf2;
+  --df-disabled-background: #2c313a;
+  --df-disabled-foreground: #7f848e;
+  --df-disabled-border: #3e4451;
+  --df-focus-ring: #61afef;
+  --df-shadow-color: #0000004d;
 }
 
 [data-theme="github-light"] {
@@ -114,6 +135,7 @@
   --input: #d0d7de;
   --ring: #0969da;
   --destructive: #cf222e;
+  --destructive-foreground: #ffffff;
   --df-sidebar: #f6f8fa;
   --df-sidebar-muted: #818b98;
   --df-editor: #ffffff;
@@ -122,23 +144,12 @@
   --df-active: #e6eaef;
   --df-selection: #b6d7fe;
   --df-positive: #1a7f37;
+  --df-warning: #9a6700;
   --df-warm: #9a6700;
-}
-
-[data-preview-theme="github-light"] {
-  --preview-editor: #fff;
-  --preview-sidebar: #f6f8fa;
-  --preview-border: #d1d9e0;
-}
-
-[data-preview-theme="tokyo-night"] {
-  --preview-editor: #1a1b26;
-  --preview-sidebar: #16161e;
-  --preview-border: #292e42;
-}
-
-[data-preview-theme="one-dark"] {
-  --preview-editor: #282c34;
-  --preview-sidebar: #21252b;
-  --preview-border: #3e4451;
+  --df-primary-hover: #0860ca;
+  --df-disabled-background: #eff2f5;
+  --df-disabled-foreground: #818b98;
+  --df-disabled-border: #d1d9e0;
+  --df-focus-ring: #0969da;
+  --df-shadow-color: #1f23281f;
 }

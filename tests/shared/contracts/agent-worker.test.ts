@@ -6,6 +6,31 @@ import {
 } from '../../../src/shared/contracts/agent-worker';
 
 describe('Agent utility-process protocol', () => {
+  it('accepts bounded correlated tool activity events', () => {
+    expect(isAgentWorkerMessage({
+      input: '{"documentId":"chapter-1"}',
+      requestId: 'request-1',
+      toolCallId: 'tool-1',
+      toolName: 'get_document',
+      type: 'tool-started',
+    })).toBe(true);
+    expect(isAgentWorkerMessage({
+      failed: false,
+      output: '{"ok":true}',
+      requestId: 'request-1',
+      toolCallId: 'tool-1',
+      toolName: 'get_document',
+      type: 'tool-completed',
+    })).toBe(true);
+    expect(isAgentWorkerMessage({
+      input: 'x'.repeat(8_193),
+      requestId: 'request-1',
+      toolCallId: 'tool-1',
+      toolName: 'get_document',
+      type: 'tool-started',
+    })).toBe(false);
+  });
+
   it('accepts application-owned worker commands', () => {
     expect(
       isAgentWorkerCommand({

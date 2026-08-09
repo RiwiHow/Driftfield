@@ -6,6 +6,7 @@ import type {
   AgentEditProposal,
   ApplyAgentProposalResult,
 } from '../../../shared/contracts/agent-proposals';
+import type { AgentToolName } from '../../../shared/contracts/agent-tools';
 import {
   type AgentConversationErrorCode,
   INITIAL_AGENT_RUN_STATE,
@@ -26,6 +27,7 @@ const errorTranslationKeys = {
 interface ConversationMessage {
   content: string;
   id: string;
+  parts?: AgentConversationPart[];
   role: 'assistant' | 'user';
   proposal?: AgentEditProposal;
   proposalStatus?:
@@ -39,6 +41,19 @@ interface ConversationMessage {
     | 'failed';
   terminal?: 'cancelled' | 'empty' | 'failed';
 }
+
+export interface AgentToolActivity {
+  failed?: boolean;
+  input: string;
+  output?: string;
+  status: 'running' | 'completed' | 'cancelled';
+  toolCallId: string;
+  toolName: AgentToolName;
+}
+
+export type AgentConversationPart =
+  | { content: string; type: 'text' }
+  | { activity: AgentToolActivity; type: 'tool' };
 
 export function useAgentConversation(
   activeChapter: Chapter | null,
@@ -65,7 +80,11 @@ export function useAgentConversation(
         setMessages((current) =>
           current.map((message) =>
             message.id === event.requestId
-              ? { ...message, content: message.content + event.delta }
+              ? {
+                  ...message,
+                  content: message.content + event.delta,
+                  parts: appendConversationText(message.parts ?? [], event.delta),
+                }
               : message,
           ),
         );
@@ -79,12 +98,47 @@ export function useAgentConversation(
           ),
         );
       }
+      if (event.type === 'tool-started') {
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === event.requestId
+              ? {
+                  ...message,
+                  parts: startToolActivity(message.parts ?? [], {
+                    input: event.input,
+                    status: 'running',
+                    toolCallId: event.toolCallId,
+                    toolName: event.toolName,
+                  }),
+                }
+              : message,
+          ),
+        );
+      }
+      if (event.type === 'tool-completed') {
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === event.requestId
+              ? {
+                  ...message,
+                  parts: completeToolActivity(
+                    message.parts ?? [],
+                    event.toolCallId,
+                    event.failed,
+                    event.output,
+                  ),
+                }
+              : message,
+          ),
+        );
+      }
       if (event.type === 'completed') {
         setMessages((current) =>
           current.map((message) =>
             message.id === event.requestId &&
               message.content.length === 0 &&
-              message.proposal === undefined
+              message.proposal === undefined &&
+              (message.parts?.length ?? 0) === 0
               ? { ...message, terminal: 'empty' }
               : message,
           ),
@@ -95,10 +149,16 @@ export function useAgentConversation(
       if (event.type === 'cancelled') {
         setMessages((current) =>
           current.map((message) =>
-            message.id === event.requestId &&
-              message.content.length === 0 &&
-              message.proposal === undefined
-              ? { ...message, terminal: 'cancelled' }
+            message.id === event.requestId
+              ? {
+                  ...message,
+                  parts: cancelRunningTools(message.parts ?? []),
+                  ...(message.content.length === 0 &&
+                  message.proposal === undefined &&
+                  (message.parts?.length ?? 0) === 0
+                    ? { terminal: 'cancelled' as const }
+                    : {}),
+                }
               : message,
           ),
         );
@@ -110,7 +170,8 @@ export function useAgentConversation(
           current.map((message) =>
             message.id === event.requestId &&
               message.content.length === 0 &&
-              message.proposal === undefined
+              message.proposal === undefined &&
+              (message.parts?.length ?? 0) === 0
               ? { ...message, terminal: 'failed' }
               : message,
           ),
@@ -318,3 +379,61 @@ function setProposalStatusInMessages(
       : message,
   );
 }
+
+export function appendConversationText(
+  parts: AgentConversationPart[],
+  delta: string,
+): AgentConversationPart[] {
+  const last = parts.at(-1);
+  return last?.type === 'text'
+    ? [...parts.slice(0, -1), { ...last, content: last.content + delta }]
+    : [...parts, { content: delta, type: 'text' }];
+}
+
+export function startToolActivity(
+  parts: AgentConversationPart[],
+  activity: AgentToolActivity,
+): AgentConversationPart[] {
+  const existingIndex = parts.findIndex(
+    (part) =>
+      part.type === 'tool' &&
+      part.activity.toolCallId === activity.toolCallId,
+  );
+  if (existingIndex === -1) return [...parts, { activity, type: 'tool' }];
+  return parts.map((part, index) =>
+    index === existingIndex ? { activity, type: 'tool' } : part,
+  );
+}
+
+export function completeToolActivity(
+  parts: AgentConversationPart[],
+  toolCallId: string,
+  failed: boolean,
+  output: string,
+): AgentConversationPart[] {
+  return parts.map((part) =>
+    part.type === 'tool' && part.activity.toolCallId === toolCallId
+      ? {
+          ...part,
+          activity: {
+            ...part.activity,
+            failed,
+            output,
+            status: 'completed',
+          },
+        }
+      : part,
+  );
+}
+
+const cancelRunningTools = (
+  parts: AgentConversationPart[],
+): AgentConversationPart[] =>
+  parts.map((part) =>
+    part.type === 'tool' && part.activity.status === 'running'
+      ? {
+          ...part,
+          activity: { ...part.activity, status: 'cancelled' },
+        }
+      : part,
+  );

@@ -9,6 +9,7 @@ import {
   type AgentThinkingLevel,
 } from './settings';
 import {
+  isAgentToolName,
   isAgentToolExecutionResult,
   isAgentToolRequest,
   type AgentToolExecutionResult,
@@ -55,6 +56,21 @@ export type AgentWorkerMessage =
       type: 'tool-request';
     })
   | { delta: string; requestId: string; type: 'text-delta' }
+  | {
+      input: string;
+      requestId: string;
+      toolCallId: string;
+      toolName: import('./agent-tools').AgentToolName;
+      type: 'tool-started';
+    }
+  | {
+      failed: boolean;
+      output: string;
+      requestId: string;
+      toolCallId: string;
+      toolName: import('./agent-tools').AgentToolName;
+      type: 'tool-completed';
+    }
   | { requestId: string; type: 'completed' }
   | { requestId: string; type: 'cancelled' }
   | { code: AgentErrorCode; requestId: string; type: 'error' };
@@ -81,6 +97,23 @@ export const isAgentWorkerMessage = (
     return true;
   }
   if (message.type === 'text-delta') return typeof message.delta === 'string';
+  if (message.type === 'tool-started') {
+    return (
+      isToolCallId(message.toolCallId) &&
+      isAgentToolName(message.toolName) &&
+      typeof message.input === 'string' &&
+      message.input.length <= 8_192
+    );
+  }
+  if (message.type === 'tool-completed') {
+    return (
+      isToolCallId(message.toolCallId) &&
+      isAgentToolName(message.toolName) &&
+      typeof message.failed === 'boolean' &&
+      typeof message.output === 'string' &&
+      message.output.length <= 8_192
+    );
+  }
   if (message.type === 'error') {
     return message.code === 'request-failed' || message.code === 'runtime-exited';
   }
@@ -146,3 +179,6 @@ const isModelOption = (value: unknown): value is AgentModelOption => {
     typeof model.reasoning === 'boolean'
   );
 };
+
+const isToolCallId = (value: unknown): value is string =>
+  typeof value === 'string' && value.length > 0 && value.length <= 128;

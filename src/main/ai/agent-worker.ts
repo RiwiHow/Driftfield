@@ -254,8 +254,57 @@ async function requestTool<Name extends AgentToolName>(
   toolName: Name,
   args: AgentToolContractMap[Name]['arguments'],
 ): Promise<string> {
-  return JSON.stringify(await toolResults.request(requestId, toolCallId, toolName, args));
+  send({
+    input: serializeToolPayload(args),
+    requestId,
+    toolCallId,
+    toolName,
+    type: 'tool-started',
+  });
+  try {
+    const result = await toolResults.request(
+      requestId,
+      toolCallId,
+      toolName,
+      args,
+    );
+    send({
+      failed: !result.ok,
+      output: serializeToolPayload(result),
+      requestId,
+      toolCallId,
+      toolName,
+      type: 'tool-completed',
+    });
+    return JSON.stringify(result);
+  } catch (error) {
+    send({
+      failed: true,
+      output: serializeToolPayload({ error: 'tool-result-unavailable' }),
+      requestId,
+      toolCallId,
+      toolName,
+      type: 'tool-completed',
+    });
+    throw error;
+  }
 }
+
+const serializeToolPayload = (value: unknown): string => {
+  let serialized: string;
+  try {
+    serialized = JSON.stringify(value, (key, entry: unknown) =>
+      key === 'markdown' && typeof entry === 'string'
+        ? `[Markdown omitted: ${new TextEncoder().encode(entry).byteLength} bytes]`
+        : entry,
+    );
+  } catch {
+    serialized = JSON.stringify({ error: 'unserializable-tool-payload' });
+  }
+  return serialized.length <= 8_192
+    ? serialized
+    : `${serialized.slice(0, 8_191)}…`;
+};
 
 async function getModelRuntime(
   authPath: string,

@@ -36,6 +36,21 @@ export type AgentEvent =
   | { requestId: string; type: 'started' }
   | { delta: string; requestId: string; type: 'text-delta' }
   | {
+      input: string;
+      requestId: string;
+      toolCallId: string;
+      toolName: import('./agent-tools').AgentToolName;
+      type: 'tool-started';
+    }
+  | {
+      failed: boolean;
+      output: string;
+      requestId: string;
+      toolCallId: string;
+      toolName: import('./agent-tools').AgentToolName;
+      type: 'tool-completed';
+    }
+  | {
       proposal: import('./agent-proposals').AgentEditProposal;
       requestId: string;
       type: 'edit-proposal';

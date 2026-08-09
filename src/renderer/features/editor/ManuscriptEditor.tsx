@@ -40,6 +40,7 @@ import type { Chapter } from '@/app/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { AppTheme } from '../../../shared/contracts/settings';
+import { isDarkAppTheme } from '../../../shared/theme-contract';
 import { shouldApplyEditorChange } from './editor-change';
 import { EditorContextMenu } from './EditorContextMenu';
 import { createMdxEditorTranslation } from './mdx-editor-translation';
@@ -229,7 +230,7 @@ function LoadedManuscriptEditor({
           <MDXEditor
             className={cn(
               'driftfield-mdx',
-              theme !== 'github-light' && 'dark-theme',
+              isDarkAppTheme(theme) && 'dark-theme',
             )}
             contentEditableClassName="manuscript-prose"
             iconComponentFor={editorIcon}

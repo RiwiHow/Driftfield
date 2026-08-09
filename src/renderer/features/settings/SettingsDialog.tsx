@@ -41,6 +41,7 @@ import type {
   AppTheme,
   UpdateAppSettingsRequest,
 } from '../../../shared/contracts/settings';
+import { APP_THEMES } from '../../../shared/contracts/settings';
 import { APP_LANGUAGE_OPTIONS } from '../../../shared/i18n/languages';
 
 interface SettingsDialogProps {
@@ -58,27 +59,28 @@ interface SettingsDialogProps {
   settings: AppSettings;
 }
 
-const themeOptions: Array<{
-  descriptionKey: 'githubLight' | 'oneDark' | 'tokyoNight';
-  label: string;
-  theme: AppTheme;
-}> = [
-  {
+const themeOptionMetadata = {
+  'github-light': {
     descriptionKey: 'githubLight',
     label: 'GitHub Light',
-    theme: 'github-light',
   },
-  {
-    descriptionKey: 'tokyoNight',
-    label: 'Tokyo Night',
-    theme: 'tokyo-night',
-  },
-  {
+  'one-dark': {
     descriptionKey: 'oneDark',
     label: 'One Dark',
-    theme: 'one-dark',
   },
-];
+  'tokyo-night': {
+    descriptionKey: 'tokyoNight',
+    label: 'Tokyo Night',
+  },
+} as const satisfies Record<AppTheme, {
+  descriptionKey: 'githubLight' | 'oneDark' | 'tokyoNight';
+  label: string;
+}>;
+
+const themeOptions = APP_THEMES.map((theme) => ({
+  ...themeOptionMetadata[theme],
+  theme,
+}));
 
 const editorFontSizes = [14, 15, 16, 17, 18, 20, 22, 24];
 
@@ -387,7 +389,7 @@ export function SettingsDialog({
                         <span
                           aria-hidden="true"
                           className="theme-swatch"
-                          data-preview-theme={option.theme}
+                          data-theme={option.theme}
                         >
                           <i />
                           <i />

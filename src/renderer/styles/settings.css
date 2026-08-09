@@ -53,18 +53,18 @@
   height: 34px;
   grid-template-columns: 28% 1fr 24%;
   overflow: hidden;
-  background: var(--preview-editor);
-  border: 1px solid var(--preview-border);
+  background: var(--df-editor);
+  border: 1px solid var(--border);
   border-radius: 5px;
 }
 
 .theme-swatch i:first-child,
 .theme-swatch i:last-child {
-  background: var(--preview-sidebar);
+  background: var(--df-sidebar);
 }
 
 .theme-swatch i + i {
-  border-left: 1px solid var(--preview-border);
+  border-left: 1px solid var(--border);
 }
 
 .settings-row-section {

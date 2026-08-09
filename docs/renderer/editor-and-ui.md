@@ -37,6 +37,20 @@ Define themes through semantic variables in `styles/themes.css` and map
 library-specific variables onto them. Do not scatter named palette values such
 as GitHub Light, One Dark, or Tokyo Night through feature components.
 
+`src/shared/theme-contract.ts` is the theme registry and declares the complete
+set of required semantic CSS variables. Every registered theme must implement
+that contract in `styles/themes.css`; feature styles consume semantic variables
+or stable component aliases and must not contain raw palette colors or
+theme-specific selector branches. Window startup colors and light/dark behavior
+are derived from the same registry. Contract tests enforce variable
+completeness, startup-background agreement, critical text contrast, and the
+absence of palette literals outside the theme stylesheet.
+
+When adding a theme, register its ID, color scheme, and startup background in
+the shared contract, add its complete palette block, and add its settings-card
+metadata and localized description. Do not copy an existing theme into feature
+CSS to handle exceptions; add or refine a semantic role instead.
+
 Keep shared window, pane, and divider geometry in `styles/workspace.css`.
 Feature-specific rules belong in the corresponding library, editor, assistant,
 or settings stylesheet. Separators are a one-pixel hairline with a wider
@@ -60,3 +74,10 @@ resize.
 Assistant replies use a dedicated read-only Markdown path. Raw HTML is not
 interpreted, remote images are not loaded, and links remain non-navigable until
 a reviewed external-link IPC operation exists.
+
+The Agent panel exposes only implemented actions. Its model selector lives in a
+footer aligned with the library and editor status bars. Tool activity is
+interleaved with streamed assistant text at the point each call occurs, with
+calls and results collapsed by default. Activity payloads come from the typed
+worker protocol and remain bounded; the Renderer does not infer Tool state from
+model prose.

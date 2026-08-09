@@ -168,6 +168,17 @@ See [Agent Tools and Prompts](docs/ai/tools-and-prompts.md) and
   framework, themes, base, workspace, feature styles.
 - Define palettes through semantic theme variables; do not scatter palette
   values through feature components.
+- Treat `src/shared/theme-contract.ts` as the theme registry and semantic-token
+  contract. Do not maintain parallel theme lists.
+- Every registered theme must implement the complete contract in
+  `src/renderer/styles/themes.css`.
+- Feature styles consume semantic variables only. Do not add raw palette colors,
+  theme-specific selectors, or duplicated preview palettes outside
+  `themes.css`.
+- When adding a theme, update its registry metadata, complete palette, settings
+  metadata, and localized descriptions together.
+- Preserve theme contract tests for token completeness, native-window background
+  agreement, critical contrast, and raw-color leakage.
 - Preserve native same-document View Transitions for library/Agent pane collapse
   with reduced-motion and unsupported-runtime fallback.
 
