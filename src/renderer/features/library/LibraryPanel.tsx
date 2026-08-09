@@ -13,6 +13,11 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import type { Chapter } from '@/app/types';
 import { cn } from '@/lib/utils';
 import type {
@@ -74,49 +79,70 @@ export function LibraryPanel({
           {projectDirectory?.name ?? t('title')}
         </span>
         <div className="pane-heading-actions">
-          <Button
-            aria-label={t('actions.create')}
-            disabled={isSelectingProject}
-            onClick={onCreateProject}
-            size="icon"
-            title={t('actions.create')}
-            variant="ghost"
-          >
-            {isCreatingProject ? (
-              <LoaderCircle className="project-switcher-spinner" size={15} />
-            ) : (
-              <FolderPlus size={15} />
-            )}
-          </Button>
-          <Button
-            aria-label={t('actions.open')}
-            disabled={isSelectingProject}
-            onClick={onSelectProject}
-            size="icon"
-            title={t('actions.open')}
-            variant="ghost"
-          >
-            {isSelectingProject && !isCreatingProject ? (
-              <LoaderCircle className="project-switcher-spinner" size={15} />
-            ) : (
-              <FolderOpen size={15} />
-            )}
-          </Button>
-          <Button
-            aria-label={t('actions.refresh')}
-            disabled={projectDirectory === null || isRefreshingProject}
-            onClick={onRefreshProject}
-            size="icon"
-            title={t('actions.refresh')}
-            variant="ghost"
-          >
-            <RefreshCw
-              className={cn(
-                isRefreshingProject && 'project-switcher-spinner',
-              )}
-              size={14}
-            />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                aria-label={t('actions.create')}
+                disabled={isSelectingProject}
+                onClick={onCreateProject}
+                size="icon"
+                variant="ghost"
+              >
+                {isCreatingProject ? (
+                  <LoaderCircle
+                    aria-hidden="true"
+                    className="project-switcher-spinner"
+                    size={15}
+                  />
+                ) : (
+                  <FolderPlus aria-hidden="true" size={15} />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('actions.create')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                aria-label={t('actions.open')}
+                disabled={isSelectingProject}
+                onClick={onSelectProject}
+                size="icon"
+                variant="ghost"
+              >
+                {isSelectingProject && !isCreatingProject ? (
+                  <LoaderCircle
+                    aria-hidden="true"
+                    className="project-switcher-spinner"
+                    size={15}
+                  />
+                ) : (
+                  <FolderOpen aria-hidden="true" size={15} />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('actions.open')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                aria-label={t('actions.refresh')}
+                disabled={projectDirectory === null || isRefreshingProject}
+                onClick={onRefreshProject}
+                size="icon"
+                variant="ghost"
+              >
+                <RefreshCw
+                  aria-hidden="true"
+                  className={cn(
+                    isRefreshingProject && 'project-switcher-spinner',
+                  )}
+                  size={14}
+                />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('actions.refresh')}</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 

@@ -4,11 +4,16 @@ import { Tooltip as TooltipPrimitive } from 'radix-ui';
 import { cn } from '@/lib/utils';
 
 export function TooltipProvider({
-  delayDuration = 350,
+  delayDuration = 700,
+  skipDelayDuration = 0,
   ...props
 }: ComponentProps<typeof TooltipPrimitive.Provider>) {
   return (
-    <TooltipPrimitive.Provider delayDuration={delayDuration} {...props} />
+    <TooltipPrimitive.Provider
+      delayDuration={delayDuration}
+      skipDelayDuration={skipDelayDuration}
+      {...props}
+    />
   );
 }
 
@@ -32,7 +37,6 @@ export function TooltipContent({
         {...props}
       >
         {children}
-        <TooltipPrimitive.Arrow className="fill-popover" />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   );

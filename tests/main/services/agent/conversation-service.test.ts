@@ -36,6 +36,26 @@ afterEach(async () => {
 });
 
 describe('Agent conversation persistence', () => {
+  it('renames a conversation and restores the persisted title', async () => {
+    const session = await createSession();
+    const service = new AgentConversationService();
+    const initial = service.getState(session);
+
+    const renamed = service.rename(
+      session,
+      initial.activeConversation.id,
+      'Revised opening',
+    );
+    expect(renamed.activeConversation.title).toBe('Revised opening');
+    service.dispose();
+
+    const restoredService = new AgentConversationService();
+    expect(restoredService.getState(session).activeConversation.title).toBe(
+      'Revised opening',
+    );
+    restoredService.dispose();
+  });
+
   it('creates the project-owned database and restores completed messages', async () => {
     const session = await createSession();
     const service = new AgentConversationService();

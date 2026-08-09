@@ -19,6 +19,19 @@ import { useTranslation } from 'react-i18next';
 
 import type { Chapter } from '@/app/types';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import type { AgentConfiguration } from '../../../shared/contracts/agent-configuration';
 import type { AgentSettings } from '../../../shared/contracts/settings';
 import type {
@@ -58,7 +71,12 @@ export function AssistantPanel({
   settings,
 }: AssistantPanelProps) {
   const { t } = useTranslation('assistant');
+  const { t: tCommon } = useTranslation('common');
   const [prompt, setPrompt] = useState('');
+  const [renameDraft, setRenameDraft] = useState('');
+  const [renameError, setRenameError] = useState(false);
+  const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
+  const [isRenaming, setIsRenaming] = useState(false);
   const [editingMessage, setEditingMessage] = useState<Pick<
     ConversationMessage,
     'content' | 'id' | 'role'
@@ -118,13 +136,25 @@ export function AssistantPanel({
     ({ id }) => id === activeConversationId,
   );
 
-  const renameSelectedConversation = async (): Promise<void> => {
+  const openRenameConversation = (): void => {
     if (activeConversation === undefined) return;
-    const title = window.prompt(
-      t('history.renamePrompt'),
-      activeConversation.title || t('history.untitled'),
-    );
-    if (title?.trim()) await renameConversation(activeConversation.id, title);
+    setRenameDraft(activeConversation.title || t('history.untitled'));
+    setRenameError(false);
+    setRenameTargetId(activeConversation.id);
+  };
+
+  const submitConversationRename = async (): Promise<void> => {
+    const title = renameDraft.trim();
+    if (renameTargetId === null || title.length === 0 || isRenaming) return;
+    setIsRenaming(true);
+    setRenameError(false);
+    const renamed = await renameConversation(renameTargetId, title);
+    setIsRenaming(false);
+    if (renamed) {
+      setRenameTargetId(null);
+    } else {
+      setRenameError(true);
+    }
   };
 
   const deleteSelectedConversation = async (): Promise<void> => {
@@ -151,55 +181,137 @@ export function AssistantPanel({
   return (
     <aside className="assistant-pane">
       <div className="pane-heading assistant-heading">
-        <select
-          aria-label={t('history.select')}
-          className="conversation-select"
-          disabled={isActive || historyLoading || activeConversationId === null}
-          onChange={(event) => {
-            setEditingMessage(null);
-            void selectConversation(event.target.value);
-          }}
-          value={activeConversationId ?? ''}
-        >
-          {conversations.map((conversation) => (
-            <option key={conversation.id} value={conversation.id}>
-              {conversation.title || t('history.untitled')}
-            </option>
-          ))}
-        </select>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <select
+              aria-label={t('history.select')}
+              className="conversation-select"
+              disabled={
+                isActive || historyLoading || activeConversationId === null
+              }
+              onChange={(event) => {
+                setEditingMessage(null);
+                void selectConversation(event.target.value);
+              }}
+              value={activeConversationId ?? ''}
+            >
+              {conversations.map((conversation) => (
+                <option key={conversation.id} value={conversation.id}>
+                  {conversation.title || t('history.untitled')}
+                </option>
+              ))}
+            </select>
+          </TooltipTrigger>
+          <TooltipContent>{t('history.select')}</TooltipContent>
+        </Tooltip>
         <div className="conversation-actions">
-          <Button
-            aria-label={t('history.rename')}
-            disabled={isActive || activeConversationId === null}
-            onClick={() => void renameSelectedConversation()}
-            size="icon"
-            variant="ghost"
-          >
-            <Pencil size={13} />
-          </Button>
-          <Button
-            aria-label={t('history.delete')}
-            disabled={isActive || activeConversationId === null}
-            onClick={() => void deleteSelectedConversation()}
-            size="icon"
-            variant="ghost"
-          >
-            <Trash2 size={13} />
-          </Button>
-          <Button
-            aria-label={t('actions.newConversation')}
-            disabled={isActive || historyLoading || projectId === null}
-            onClick={() => {
-              setEditingMessage(null);
-              clear();
-            }}
-            size="icon"
-            variant="ghost"
-          >
-            <SquarePen size={14} />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                aria-label={t('history.rename')}
+                disabled={isActive || activeConversationId === null}
+                onClick={openRenameConversation}
+                size="icon"
+                variant="ghost"
+              >
+                <Pencil aria-hidden="true" size={13} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('history.rename')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                aria-label={t('history.delete')}
+                disabled={isActive || activeConversationId === null}
+                onClick={() => void deleteSelectedConversation()}
+                size="icon"
+                variant="ghost"
+              >
+                <Trash2 aria-hidden="true" size={13} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('history.delete')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                aria-label={t('actions.newConversation')}
+                disabled={isActive || historyLoading || projectId === null}
+                onClick={() => {
+                  setEditingMessage(null);
+                  clear();
+                }}
+                size="icon"
+                variant="ghost"
+              >
+                <SquarePen aria-hidden="true" size={14} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('actions.newConversation')}</TooltipContent>
+          </Tooltip>
         </div>
       </div>
+
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open && !isRenaming) {
+            setRenameError(false);
+            setRenameTargetId(null);
+          }
+        }}
+        open={renameTargetId !== null}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogTitle>{t('history.rename')}</DialogTitle>
+          <DialogDescription>
+            {t('history.renameDescription')}
+          </DialogDescription>
+          <form
+            className="grid gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submitConversationRename();
+            }}
+          >
+            <div className="grid gap-2">
+              <Label htmlFor="conversation-rename-title">
+                {t('history.renamePrompt')}
+              </Label>
+              <Input
+                autoFocus
+                disabled={isRenaming}
+                id="conversation-rename-title"
+                maxLength={200}
+                onChange={(event) => setRenameDraft(event.target.value)}
+                value={renameDraft}
+              />
+            </div>
+            {renameError && (
+              <p className="text-sm text-destructive" role="alert">
+                {t('history.renameError')}
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                disabled={isRenaming}
+                onClick={() => setRenameTargetId(null)}
+                variant="ghost"
+              >
+                {tCommon('actions.cancel')}
+              </Button>
+              <Button
+                disabled={isRenaming || renameDraft.trim().length === 0}
+                type="submit"
+              >
+                {isRenaming
+                  ? t('history.renaming')
+                  : tCommon('actions.save')}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <div aria-label={t('title')} className="conversation">
         {messages.length === 0 ? (
