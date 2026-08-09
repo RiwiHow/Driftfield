@@ -585,6 +585,10 @@ export const initializeProjectLayout = async (
     stagingPath,
     PROJECT_ROOT_DIRECTORIES.manuscript,
   );
+  const lorebookPath = path.join(
+    stagingPath,
+    PROJECT_ROOT_DIRECTORIES.lorebook,
+  );
   const manifest: ProjectManifest = {
     formatVersion: DRIFTFIELD_PROJECT_FORMAT_VERSION,
     id: randomUUID(),
@@ -598,8 +602,17 @@ export const initializeProjectLayout = async (
     kind: 'manuscript',
     title: 'Manuscript',
   };
+  const lorebook: LorebookIndex = {
+    children: [],
+    id: randomUUID(),
+    kind: 'lorebook',
+    title: 'Lorebook',
+  };
 
-  await mkdir(manuscriptPath, { recursive: true });
+  await Promise.all([
+    mkdir(manuscriptPath, { recursive: true }),
+    mkdir(lorebookPath, { recursive: true }),
+  ]);
   try {
     await Promise.all([
       writeFile(
@@ -612,10 +625,19 @@ export const initializeProjectLayout = async (
         stringify(manuscript),
         { encoding: 'utf8', mode: 0o600 },
       ),
+      writeFile(
+        path.join(lorebookPath, PROJECT_INDEX_NAME),
+        stringify(lorebook),
+        { encoding: 'utf8', mode: 0o600 },
+      ),
     ]);
     await rename(
       path.join(stagingPath, PROJECT_ROOT_DIRECTORIES.manuscript),
       path.join(projectPath, PROJECT_ROOT_DIRECTORIES.manuscript),
+    );
+    await rename(
+      path.join(stagingPath, PROJECT_ROOT_DIRECTORIES.lorebook),
+      path.join(projectPath, PROJECT_ROOT_DIRECTORIES.lorebook),
     );
     await rename(
       path.join(stagingPath, PROJECT_MANIFEST_NAME),

@@ -28,6 +28,7 @@ const invocationChannels = [
   IPC_CHANNELS.getAgentConfiguration,
   IPC_CHANNELS.removeAgentCredential,
   IPC_CHANNELS.setAgentApiKey,
+  IPC_CHANNELS.createProjectDirectory,
   IPC_CHANNELS.selectProjectDirectory,
   IPC_CHANNELS.refreshProject,
   IPC_CHANNELS.copyEditorSelection,

@@ -53,12 +53,14 @@ interface WorkspaceShellProps {
   agentSettings: AgentSettings;
   documentSaveError: string | null;
   editorFontSize: number;
+  isCreatingProject: boolean;
   isSelectingProject: boolean;
   isRefreshingProject: boolean;
   isSavingDocument: boolean;
   onChapterChange: (chapterId: string) => void;
   onCloseChapter: () => void;
   onContentChange: (markdown: string) => void;
+  onCreateProject: () => void;
   onOpenSettings: () => void;
   onRefreshProject: () => void;
   onSaveDocument: () => void;
@@ -80,12 +82,14 @@ export function WorkspaceShell({
   agentSettings,
   documentSaveError,
   editorFontSize,
+  isCreatingProject,
   isSelectingProject,
   isRefreshingProject,
   isSavingDocument,
   onChapterChange,
   onCloseChapter,
   onContentChange,
+  onCreateProject,
   onOpenSettings,
   onRefreshProject,
   onSaveDocument,
@@ -300,9 +304,11 @@ export function WorkspaceShell({
           >
             <LibraryPanel
               activeChapterId={activeChapter?.id ?? null}
+              isCreatingProject={isCreatingProject}
               isSelectingProject={isSelectingProject}
               isRefreshingProject={isRefreshingProject}
               onChapterChange={onChapterChange}
+              onCreateProject={onCreateProject}
               onOpenSettings={onOpenSettings}
               onRefreshProject={onRefreshProject}
               onSelectProject={onSelectProject}

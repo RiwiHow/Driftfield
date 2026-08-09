@@ -30,6 +30,7 @@ import type {
 export interface DriftfieldAPI {
   platform: string;
   cancelAgent: (request: CancelAgentRequest) => Promise<CancelAgentResult>;
+  createProjectDirectory: () => Promise<SelectProjectDirectoryResult>;
   copyEditorSelection: () => Promise<void>;
   cutEditorSelection: () => Promise<void>;
   getAgentConfiguration: () => Promise<AgentConfiguration>;

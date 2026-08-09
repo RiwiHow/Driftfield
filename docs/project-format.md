@@ -1,27 +1,28 @@
 # Project Format
 
-A Driftfield project is a portable, versioned directory. A new-format project
-has one root manifest, one required lowercase manuscript root, and an optional
-lowercase lorebook root:
+A Driftfield project is a portable, versioned directory. A newly initialized
+project has one root manifest and lowercase manuscript and lorebook roots:
 
 ```text
 novel/
 ├── driftfield.yaml
 ├── manuscript/
 │   └── _index.yaml
-└── lorebook/                    # Optional
+└── lorebook/
     └── _index.yaml
 ```
 
-Selecting an empty folder initializes `driftfield.yaml` and `manuscript/`
-without creating an unused lorebook. A missing `lorebook/` never prevents the
-manuscript from opening. Nonempty directories without a manifest remain
-available through temporary legacy scanning and are not rewritten implicitly.
+Selecting an empty folder initializes `driftfield.yaml`, `manuscript/`, and
+`lorebook/`, including an `_index.yaml` for each semantic root. A missing
+`lorebook/` in an existing project never prevents the manuscript from opening.
+Nonempty directories without a manifest remain available through temporary
+legacy scanning and are not rewritten implicitly.
 
 ## Physical names and metadata ownership
 
-- Keep the required physical root exactly `manuscript` and the optional root
-  exactly `lorebook`. Lowercase spelling is part of the format.
+- Keep the physical roots exactly `manuscript` and `lorebook`. New projects
+  create both; existing projects may omit `lorebook`. Lowercase spelling is part
+  of the format.
 - UI labels are user-authored metadata and may be renamed or localized without
   changing physical paths.
 - Use `driftfield.yaml` only at the project root for stable project identity and

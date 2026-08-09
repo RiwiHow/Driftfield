@@ -49,11 +49,13 @@ export function App({ initialSettings, settingsLoadFailed }: AppProps) {
         agentSettings={settings.agent}
         documentSaveError={project.documentSaveError}
         editorFontSize={settings.editorFontSize}
+        isCreatingProject={project.isCreatingProject}
         isSelectingProject={project.isSelectingProject}
         isRefreshingProject={project.isRefreshingProject}
         isSavingDocument={project.isSavingDocument}
         onChapterChange={project.selectChapter}
         onContentChange={project.updateActiveChapter}
+        onCreateProject={() => void project.createProjectDirectory()}
         onCloseChapter={() => void project.closeActiveDocument()}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onRefreshProject={() => void project.refreshProject()}

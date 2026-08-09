@@ -22,11 +22,11 @@ export const zhCN = {
   },
   errors: {
     agent: { cancelEnded: 'Agent 请求已经结束，无法取消。', cancelFailed: '取消 Agent 请求失败。', configurationLoad: '无法读取 Agent 模型配置。', credentialMissing: '默认模型的服务商凭据已被移除，请重新连接。', credentialRemove: '无法移除 Agent 凭据。', credentialSave: '无法保存凭据或读取模型，请检查 API Key。', modelNotConfigured: '请先连接模型服务并选择默认模型。', requestFailed: 'Agent 请求未能完成，请检查模型配置后重试。', runtimeExited: 'Agent 运行进程意外退出，请重试。', startFailed: '无法启动 Agent 请求。' },
-    projects: { dirtySync: '无法同步未保存状态；请先手动保存文档。', open: '无法打开这个文件夹，请重试。', refresh: '项目刷新失败，请检查文件夹后重试。', save: '保存失败，请检查文件权限后重试。' },
+    projects: { create: '无法在这里新建项目，请选择一个空文件夹后重试。', dirtySync: '无法同步未保存状态；请先手动保存文档。', open: '无法打开这个文件夹，请重试。', refresh: '项目刷新失败，请检查文件夹后重试。', save: '保存失败，请检查文件权限后重试。' },
     settings: { load: '无法读取应用设置，当前使用默认值。', save: '设置保存失败，请重试。' },
   },
   library: {
-    actions: { more: '更多目录操作', open: '打开本地项目', refresh: '刷新项目目录', settings: '应用设置（⌘,）' },
+    actions: { create: '新建项目', open: '打开本地项目', refresh: '刷新项目目录', settings: '应用设置（⌘,）' },
     empty: { action: '打开本地项目', hint: '点击右上角', noMarkdown: '此文件夹中没有 Markdown 文件' },
     labels: { manuscript: '手稿', recovery: '待恢复的未保存文档' },
     missingTitle: '{{path}}（磁盘文件已移动或删除）',
@@ -34,6 +34,7 @@ export const zhCN = {
   },
   main: {
     closeUnsaved: { buttons: { cancel: '取消', discard: '不保存', save: '保存并关闭' }, detail: '如果不保存，你在当前会话中的修改将会丢失。', message: '要保存对“{{title}}”的修改吗？', title: '未保存的修改' },
+    createProject: { button: '新建项目', message: '选择一个空文件夹，Driftfield 将在其中创建项目结构', title: '新建本地项目' },
     openProject: { button: '打开项目', message: '选择一个文件夹作为 Driftfield 项目目录', title: '打开本地项目' },
   },
   projects: {

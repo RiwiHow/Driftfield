@@ -33,3 +33,14 @@ export const createOpenProjectDialogOptions = (
   properties: ['openDirectory'],
   title: translateMain(language, 'openProject.title'),
 });
+
+export const createNewProjectDialogOptions = (
+  language: AppLanguage,
+  defaultPath: string,
+): OpenDialogOptions => ({
+  buttonLabel: translateMain(language, 'createProject.button'),
+  defaultPath,
+  message: translateMain(language, 'createProject.message'),
+  properties: ['openDirectory', 'createDirectory'],
+  title: translateMain(language, 'createProject.title'),
+});

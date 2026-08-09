@@ -23,11 +23,11 @@ export const en = {
   },
   errors: {
     agent: { cancelEnded: 'The Agent request has already ended and cannot be cancelled.', cancelFailed: 'Could not cancel the Agent request.', configurationLoad: 'Could not load Agent model configuration.', credentialMissing: 'The selected model provider credentials are missing. Reconnect the provider.', credentialRemove: 'Could not remove Agent credentials.', credentialSave: 'Could not save credentials or load models. Check the API key.', modelNotConfigured: 'Connect a model provider and select a default model first.', requestFailed: 'The Agent request could not be completed. Check the model configuration and try again.', runtimeExited: 'The Agent runtime exited unexpectedly. Try again.', startFailed: 'Could not start the Agent request.' },
-    projects: { dirtySync: 'Could not synchronize unsaved state. Save the document manually before continuing.', open: 'Could not open this folder. Try again.', refresh: 'Could not refresh the project. Check the folder and try again.', save: 'Save failed. Check file permissions and try again.' },
+    projects: { create: 'Could not create a project here. Choose an empty folder and try again.', dirtySync: 'Could not synchronize unsaved state. Save the document manually before continuing.', open: 'Could not open this folder. Try again.', refresh: 'Could not refresh the project. Check the folder and try again.', save: 'Save failed. Check file permissions and try again.' },
     settings: { load: 'Could not load application settings. Defaults are being used.', save: 'Could not save settings. Try again.' },
   },
   library: {
-    actions: { more: 'More library actions', open: 'Open local project', refresh: 'Refresh project library', settings: 'Application settings (⌘,)' },
+    actions: { create: 'Create new project', open: 'Open local project', refresh: 'Refresh project library', settings: 'Application settings (⌘,)' },
     empty: { action: 'Open a local project', hint: 'Use the plus button above', noMarkdown: 'This folder contains no Markdown files' },
     labels: { manuscript: 'Manuscript', recovery: 'Unsaved documents to recover' },
     missingTitle: '{{path}} (file moved or deleted)',
@@ -35,6 +35,7 @@ export const en = {
   },
   main: {
     closeUnsaved: { buttons: { cancel: 'Cancel', discard: 'Discard', save: 'Save and close' }, detail: 'If you do not save, changes from this session will be lost.', message: 'Do you want to save changes to “{{title}}”?', title: 'Unsaved changes' },
+    createProject: { button: 'Create project', message: 'Choose an empty folder where Driftfield will create the project structure', title: 'Create local project' },
     openProject: { button: 'Open project', message: 'Choose a folder to use as a Driftfield project', title: 'Open local project' },
   },
   projects: {

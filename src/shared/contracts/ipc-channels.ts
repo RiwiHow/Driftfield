@@ -5,6 +5,7 @@ export const IPC_CHANNELS = {
   getAgentConfiguration: 'agent:get-configuration',
   removeAgentCredential: 'agent:remove-credential',
   setAgentApiKey: 'agent:set-api-key',
+  createProjectDirectory: 'project:create-directory',
   selectProjectDirectory: 'project:select-directory',
   refreshProject: 'project:refresh',
   projectChanged: 'project:changed',

@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { initializeMainI18n } from '../../../src/main/i18n/main-i18n';
 import {
   createCloseUnsavedDialogOptions,
+  createNewProjectDialogOptions,
   createOpenProjectDialogOptions,
 } from '../../../src/main/i18n/native-dialog-options';
 
@@ -25,6 +26,16 @@ describe('localized native dialog options', () => {
       message: 'Choose a folder to use as a Driftfield project',
       properties: ['openDirectory'],
       title: 'Open local project',
+    });
+  });
+
+  it('builds a project creation picker that can make a folder', () => {
+    expect(createNewProjectDialogOptions('zh-CN', '/books')).toEqual({
+      buttonLabel: '新建项目',
+      defaultPath: '/books',
+      message: '选择一个空文件夹，Driftfield 将在其中创建项目结构',
+      properties: ['openDirectory', 'createDirectory'],
+      title: '新建本地项目',
     });
   });
 });

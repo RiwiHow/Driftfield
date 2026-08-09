@@ -1,5 +1,4 @@
 import {
-  mkdir,
   mkdtemp,
   readFile,
   readdir,
@@ -39,7 +38,7 @@ afterEach(async () => {
 });
 
 describe('Driftfield project layout', () => {
-  it('initializes an empty folder without creating an unused lorebook', async () => {
+  it('initializes an empty folder with manuscript and lorebook roots', async () => {
     const directory = await createTemporaryDirectory();
 
     const layout = await openProjectLayout(directory);
@@ -50,13 +49,19 @@ describe('Driftfield project layout', () => {
       title: path.basename(directory),
     });
     expect(await readdir(directory)).toEqual(
-      expect.arrayContaining(['driftfield.yaml', 'manuscript']),
+      expect.arrayContaining(['driftfield.yaml', 'lorebook', 'manuscript']),
     );
-    expect(await readdir(directory)).not.toContain('lorebook');
     expect(await readdir(path.join(directory, 'manuscript'))).toContain(
       PROJECT_INDEX_NAME,
     );
-    expect(layout?.lorebook).toBeNull();
+    expect(await readdir(path.join(directory, 'lorebook'))).toContain(
+      PROJECT_INDEX_NAME,
+    );
+    expect(layout?.lorebook?.index).toMatchObject({
+      children: [],
+      kind: 'lorebook',
+      title: 'Lorebook',
+    });
   });
 
   it('does not initialize or mutate a nonempty legacy folder', async () => {
@@ -168,7 +173,6 @@ describe('Driftfield project layout', () => {
   it('rejects duplicate stable IDs across manuscript and lorebook', async () => {
     const directory = await createTemporaryDirectory();
     await initializeProjectLayout(directory);
-    await mkdir(path.join(directory, 'lorebook'));
     await Promise.all([
       writeFile(
         path.join(directory, 'manuscript', PROJECT_INDEX_NAME),

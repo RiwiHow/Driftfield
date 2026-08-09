@@ -34,6 +34,10 @@ const api: DriftfieldAPI = {
   platform: process.platform,
   cancelAgent: (request: CancelAgentRequest) =>
     ipcRenderer.invoke(IPC_CHANNELS.cancelAgent, request) as Promise<CancelAgentResult>,
+  createProjectDirectory: () =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.createProjectDirectory,
+    ) as Promise<SelectProjectDirectoryResult>,
   copyEditorSelection: () =>
     ipcRenderer.invoke(IPC_CHANNELS.copyEditorSelection) as Promise<void>,
   cutEditorSelection: () =>

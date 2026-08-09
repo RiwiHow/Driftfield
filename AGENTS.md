@@ -86,13 +86,15 @@ novel/
 ├── driftfield.yaml
 ├── manuscript/
 │   └── _index.yaml
-└── lorebook/                    # Optional
+└── lorebook/
     └── _index.yaml
 ```
 
-- Physical `manuscript` is required and lowercase. Physical `lorebook` is
-  optional and lowercase; its absence must never block opening a manuscript.
-- Selecting an empty directory initializes the manifest and manuscript only.
+- New projects create lowercase physical `manuscript` and `lorebook` roots.
+  Existing projects may omit `lorebook`; its absence must never block opening a
+  manuscript.
+- Selecting an empty directory initializes the manifest, manuscript, and
+  lorebook indexes.
 - Never implicitly rewrite or move a nonempty legacy directory.
 - `driftfield.yaml` owns stable project identity and format version.
 - Each semantic directory `_index.yaml` owns its stable ID, kind, display title,

@@ -27,6 +27,7 @@ type ProjectMessageKey =
   | 'messages.comparisonReady';
 
 type ErrorMessageKey =
+  | 'projects.create'
   | 'projects.dirtySync'
   | 'projects.open'
   | 'projects.refresh'
@@ -53,7 +54,9 @@ export const useProjectWorkspace = () => {
   const [projectRootTitles, setProjectRootTitles] = useState<
     ProjectSnapshot['rootTitles'] | null
   >(null);
-  const [isSelectingProject, setIsSelectingProject] = useState(false);
+  const [projectPickerAction, setProjectPickerAction] = useState<
+    'create' | 'open' | null
+  >(null);
   const [isRefreshingProject, setIsRefreshingProject] = useState(false);
   const [isSavingDocument, setIsSavingDocument] = useState(false);
   const [isConfirmingClose, setIsConfirmingClose] = useState(false);
@@ -68,6 +71,7 @@ export const useProjectWorkspace = () => {
   const projectRevision = useRef(0);
   const chaptersRef = useRef<Chapter[]>([]);
   chaptersRef.current = chapters;
+  const isSelectingProject = projectPickerAction !== null;
 
   const localizeMessage = useCallback(
     (message: LocalizedWorkspaceMessage | null): string | null => {
@@ -343,51 +347,80 @@ export const useProjectWorkspace = () => {
     }
   }, [activeChapter, isConfirmingClose, isSavingDocument, saveActiveDocument]);
 
-  const selectProjectDirectory = useCallback(async (): Promise<void> => {
-    if (isSelectingProject || isSavingDocument) return;
-    const dirtyChapters = chaptersRef.current.filter((chapter) => chapter.isDirty);
-    if (dirtyChapters.length > 0) {
-      const decision = await window.driftfield.confirmCloseUnsavedDocument(
-        t('unsavedDocuments', { count: dirtyChapters.length }),
+  const chooseProjectDirectory = useCallback(
+    async (
+      choose: () => Promise<ProjectSnapshot | null>,
+      errorKey: 'projects.create' | 'projects.open',
+      pickerAction: 'create' | 'open',
+    ): Promise<void> => {
+      if (isSelectingProject || isSavingDocument) return;
+      const dirtyChapters = chaptersRef.current.filter(
+        (chapter) => chapter.isDirty,
       );
-      if (decision === 'cancel') return;
-      if (
-        decision === 'save' &&
-        !(await saveDocuments(dirtyChapters, {
-          conflict: {
-            catalog: 'projects',
-            key: 'errors.conflictBeforeSwitch',
-          },
-          failed: {
-            catalog: 'projects',
-            key: 'errors.failedBeforeSwitch',
-          },
-          missing: {
-            catalog: 'projects',
-            key: 'errors.missingBeforeSwitch',
-          },
-        }))
-      ) {
-        return;
+      if (dirtyChapters.length > 0) {
+        const decision = await window.driftfield.confirmCloseUnsavedDocument(
+          t('unsavedDocuments', { count: dirtyChapters.length }),
+        );
+        if (decision === 'cancel') return;
+        if (
+          decision === 'save' &&
+          !(await saveDocuments(dirtyChapters, {
+            conflict: {
+              catalog: 'projects',
+              key: 'errors.conflictBeforeSwitch',
+            },
+            failed: {
+              catalog: 'projects',
+              key: 'errors.failedBeforeSwitch',
+            },
+            missing: {
+              catalog: 'projects',
+              key: 'errors.missingBeforeSwitch',
+            },
+          }))
+        ) {
+          return;
+        }
       }
-    }
-    setIsSelectingProject(true);
-    setProjectSelectionMessage(null);
-    try {
-      const project = await window.driftfield.selectProjectDirectory();
-      if (project !== null) applyProjectSnapshot(project, false);
-    } catch {
-      setProjectSelectionMessage({ catalog: 'errors', key: 'projects.open' });
-    } finally {
-      setIsSelectingProject(false);
-    }
-  }, [
-    applyProjectSnapshot,
-    isSavingDocument,
-    isSelectingProject,
-    saveDocuments,
-    t,
-  ]);
+      setProjectPickerAction(pickerAction);
+      setProjectSelectionMessage(null);
+      try {
+        const project = await choose();
+        if (project !== null) applyProjectSnapshot(project, false);
+      } catch {
+        setProjectSelectionMessage({ catalog: 'errors', key: errorKey });
+      } finally {
+        setProjectPickerAction(null);
+      }
+    },
+    [
+      applyProjectSnapshot,
+      isSavingDocument,
+      isSelectingProject,
+      saveDocuments,
+      t,
+    ],
+  );
+
+  const createProjectDirectory = useCallback(
+    () =>
+      chooseProjectDirectory(
+        window.driftfield.createProjectDirectory,
+        'projects.create',
+        'create',
+      ),
+    [chooseProjectDirectory],
+  );
+
+  const selectProjectDirectory = useCallback(
+    () =>
+      chooseProjectDirectory(
+        window.driftfield.selectProjectDirectory,
+        'projects.open',
+        'open',
+      ),
+    [chooseProjectDirectory],
+  );
 
   const refreshProject = useCallback(async (): Promise<void> => {
     if (projectDirectory === null || isRefreshingProject) return;
@@ -465,8 +498,10 @@ export const useProjectWorkspace = () => {
     chapters,
     closeActiveDocument,
     compareConflictedDocument,
+    createProjectDirectory,
     dismissSaveConflict: () => setSaveConflict(null),
     documentSaveError: localizeMessage(documentSaveMessage),
+    isCreatingProject: projectPickerAction === 'create',
     isRefreshingProject,
     isSavingDocument,
     isSelectingProject,

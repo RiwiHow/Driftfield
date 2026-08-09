@@ -6,8 +6,14 @@ import type {
   SaveProjectDocumentRequest,
   SelectProjectDirectoryResult,
 } from '../../shared/contracts/project';
-import { createOpenProjectDialogOptions } from '../i18n/native-dialog-options';
-import { openProjectLayout } from '../services/project-layout-service';
+import {
+  createNewProjectDialogOptions,
+  createOpenProjectDialogOptions,
+} from '../i18n/native-dialog-options';
+import {
+  initializeProjectLayout,
+  openProjectLayout,
+} from '../services/project-layout-service';
 import {
   MAX_PROJECT_BYTES,
   createProjectSnapshot,
@@ -21,6 +27,26 @@ export const registerProjectIpcHandlers = ({
   projectSessions,
   settingsService,
 }: IpcHandlerContext): void => {
+  ipcMain.handle(
+    IPC_CHANNELS.createProjectDirectory,
+    async (event): Promise<SelectProjectDirectoryResult> => {
+      const window = getTrustedSenderWindow(event);
+      const { language } = settingsService.get();
+      const result = await dialog.showOpenDialog(
+        window,
+        createNewProjectDialogOptions(language, app.getPath('documents')),
+      );
+      const selectedPath = result.filePaths[0];
+      if (result.canceled || selectedPath === undefined) return null;
+      const directoryPath = await resolveSelectedDirectory(selectedPath);
+      const layout = await initializeProjectLayout(directoryPath);
+      const project = await createProjectSnapshot(directoryPath, layout);
+      aiAgentService.disposeOwner(window.webContents.id);
+      projectSessions.watch(window, directoryPath, project);
+      return project;
+    },
+  );
+
   ipcMain.handle(IPC_CHANNELS.refreshProject, async (event) => {
     const window = getTrustedSenderWindow(event);
     return projectSessions.refresh(window.webContents.id);
@@ -69,10 +95,7 @@ export const registerProjectIpcHandlers = ({
       );
       const selectedPath = result.filePaths[0];
       if (result.canceled || selectedPath === undefined) return null;
-      const directoryPath = await realpath(selectedPath);
-      if (!(await stat(directoryPath)).isDirectory()) {
-        throw new Error('Selected project path is not a directory');
-      }
+      const directoryPath = await resolveSelectedDirectory(selectedPath);
       const layout = await openProjectLayout(directoryPath);
       const project = await createProjectSnapshot(directoryPath, layout);
       aiAgentService.disposeOwner(window.webContents.id);
@@ -80,6 +103,14 @@ export const registerProjectIpcHandlers = ({
       return project;
     },
   );
+};
+
+const resolveSelectedDirectory = async (selectedPath: string): Promise<string> => {
+  const directoryPath = await realpath(selectedPath);
+  if (!(await stat(directoryPath)).isDirectory()) {
+    throw new Error('Selected project path is not a directory');
+  }
+  return directoryPath;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

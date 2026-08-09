@@ -2,9 +2,9 @@ import {
   ChevronRight,
   ChevronDown,
   FileText,
+  FolderPlus,
   FolderOpen,
   LoaderCircle,
-  MoreHorizontal,
   Plus,
   RefreshCw,
   Settings2,
@@ -22,10 +22,12 @@ import type {
 
 interface LibraryPanelProps {
   activeChapterId: string | null;
+  isCreatingProject: boolean;
   isSelectingProject: boolean;
   isRefreshingProject: boolean;
   manuscriptTitle: string | null;
   onChapterChange: (chapterId: string) => void;
+  onCreateProject: () => void;
   onOpenSettings: () => void;
   onRefreshProject: () => void;
   onSelectProject: () => void;
@@ -38,10 +40,12 @@ interface LibraryPanelProps {
 
 export function LibraryPanel({
   activeChapterId,
+  isCreatingProject,
   isSelectingProject,
   isRefreshingProject,
   manuscriptTitle,
   onChapterChange,
+  onCreateProject,
   onOpenSettings,
   onRefreshProject,
   onSelectProject,
@@ -71,7 +75,7 @@ export function LibraryPanel({
             title={t('actions.open')}
             variant="ghost"
           >
-            {isSelectingProject ? (
+            {isSelectingProject && !isCreatingProject ? (
               <LoaderCircle className="project-switcher-spinner" size={15} />
             ) : (
               <Plus size={15} />
@@ -92,8 +96,19 @@ export function LibraryPanel({
               size={14}
             />
           </Button>
-          <Button aria-label={t('actions.more')} size="icon" variant="ghost">
-            <MoreHorizontal size={15} />
+          <Button
+            aria-label={t('actions.create')}
+            disabled={isSelectingProject}
+            onClick={onCreateProject}
+            size="icon"
+            title={t('actions.create')}
+            variant="ghost"
+          >
+            {isCreatingProject ? (
+              <LoaderCircle className="project-switcher-spinner" size={15} />
+            ) : (
+              <FolderPlus size={15} />
+            )}
           </Button>
         </div>
       </div>
