@@ -27,7 +27,7 @@ export const registerAgentIpcHandlers = ({
   aiAgentService,
   getTrustedSenderWindow,
   projectSessions,
-  settingsService,
+  projectSettingsService,
 }: IpcHandlerContext): void => {
   const getProjectSession = (event: Electron.IpcMainInvokeEvent) => {
     const window = getTrustedSenderWindow(event);
@@ -101,16 +101,17 @@ export const registerAgentIpcHandlers = ({
   );
 
   ipcMain.handle(IPC_CHANNELS.getAgentConfiguration, async (event) => {
-    getTrustedSenderWindow(event);
+    const window = getTrustedSenderWindow(event);
     return getAgentConfiguration(
       aiAgentService,
       agentCredentialService,
       agentModelConfigService,
+      projectSessions.get(window.webContents.id),
     );
   });
 
   ipcMain.handle(IPC_CHANNELS.setAgentApiKey, async (event, value: unknown) => {
-    getTrustedSenderWindow(event);
+    const window = getTrustedSenderWindow(event);
     if (!isSetAgentApiKeyRequest(value)) {
       throw new Error("Invalid Agent API key request");
     }
@@ -120,13 +121,14 @@ export const registerAgentIpcHandlers = ({
       aiAgentService,
       agentCredentialService,
       agentModelConfigService,
+      projectSessions.get(window.webContents.id),
     );
   });
 
   ipcMain.handle(
     IPC_CHANNELS.removeAgentCredential,
     async (event, value: unknown) => {
-      getTrustedSenderWindow(event);
+      const window = getTrustedSenderWindow(event);
       if (!isRemoveAgentCredentialRequest(value)) {
         throw new Error("Invalid Agent credential request");
       }
@@ -136,16 +138,36 @@ export const registerAgentIpcHandlers = ({
         aiAgentService,
         agentCredentialService,
         agentModelConfigService,
+        projectSessions.get(window.webContents.id),
       );
     },
   );
+
+  ipcMain.handle(IPC_CHANNELS.resetAgentSettings, async (event) => {
+    const { session } = getProjectSession(event);
+    aiAgentService.reloadConfiguration();
+    await agentCredentialService.reset();
+    await agentModelConfigService.reset(session);
+    const projectSettings = projectSettingsService.reset(session);
+    return {
+      configuration: await getAgentConfiguration(
+        aiAgentService,
+        agentCredentialService,
+        agentModelConfigService,
+        session,
+      ),
+      projectSettings,
+    };
+  });
 
   ipcMain.handle(
     IPC_CHANNELS.updateAgentModelOverride,
     async (event, value: unknown) => {
       getTrustedSenderWindow(event);
       const override = parseAgentModelOverrideRequest(value);
-      const models = await aiAgentService.listModels();
+      const { session } = getProjectSession(event);
+      const modelsPath = await agentModelConfigService.prepareRuntime(session);
+      const models = await aiAgentService.listModels(modelsPath);
       if (
         !models.some(
           ({ id, providerId }) =>
@@ -154,7 +176,7 @@ export const registerAgentIpcHandlers = ({
       ) {
         throw new Error("Unknown Agent model override target");
       }
-      const agentSettings = settingsService.get().agent;
+      const agentSettings = projectSettingsService.get(session);
       if (
         agentSettings.defaultModel?.providerId === override.providerId &&
         agentSettings.defaultModel.modelId === override.modelId &&
@@ -165,11 +187,12 @@ export const registerAgentIpcHandlers = ({
         );
       }
       aiAgentService.reloadConfiguration();
-      await agentModelConfigService.update(override);
+      await agentModelConfigService.update(session, override);
       return getAgentConfiguration(
         aiAgentService,
         agentCredentialService,
         agentModelConfigService,
+        session,
       );
     },
   );
@@ -199,7 +222,8 @@ export const registerAgentIpcHandlers = ({
       ) {
         throw new Error("Stale Agent document snapshot");
       }
-      const agentSettings = settingsService.get().agent;
+      if (session === undefined) throw new Error('No project is open');
+      const agentSettings = projectSettingsService.get(session);
       const selectedModel = agentSettings.defaultModel;
       const configurationError = getAgentStartConfigurationError(
         agentSettings,
@@ -210,13 +234,14 @@ export const registerAgentIpcHandlers = ({
       }
       if (selectedModel === null)
         throw new Error("Agent model invariant failed");
-      if (session === undefined) throw new Error('No project is open');
       const history = agentConversationService.beginPrompt(session, value);
       try {
+        const modelsPath = await agentModelConfigService.prepareRuntime(session);
         const requestId = await aiAgentService.start({
           ...value,
           history,
           model: selectedModel,
+          modelsPath,
           ownerId: window.webContents.id,
           projectSessionId: session?.id,
           sendEvent: (agentEvent) => {

@@ -35,8 +35,8 @@ Preserve these properties when changing affected subsystems.
 - Main responsibilities remain separated across windows, IPC, and services.
   Renderer project/settings state remains in feature hooks; `App.tsx` remains a
   composition layer.
-- Settings schema version 4 migrates earlier unversioned and versioned shapes,
-  including English-default language, Agent settings, and the optional last
+- Global settings schema version 5 migrates earlier unversioned and versioned shapes,
+  removes Agent model selection from global state, and retains the optional last
   project directory used for validated startup restoration.
 
 ## Agent reliability
@@ -56,8 +56,9 @@ Preserve these properties when changing affected subsystems.
   link navigation.
 - Packaged Pi smoke starts `agent-worker.mjs` from ASAR and verifies local model
   discovery for every exposed API-key provider without billable requests.
-- Pi model overrides are main-owned, atomically written, bounded, and reloaded
-  only while the worker is idle. UI-authored values cannot invoke shell commands
+- Pi model overrides are main-owned, project-scoped in `settings.sqlite`,
+  bounded, and reloaded through a per-project generated runtime cache only while
+  the worker is idle. UI-authored values cannot invoke shell commands
   or environment interpolation, and sensitive authorization headers are denied.
 
 ## Coverage

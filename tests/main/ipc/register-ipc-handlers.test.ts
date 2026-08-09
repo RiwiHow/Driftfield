@@ -34,6 +34,7 @@ const invocationChannels = [
   IPC_CHANNELS.startAgentPrompt,
   IPC_CHANNELS.getAgentConfiguration,
   IPC_CHANNELS.removeAgentCredential,
+  IPC_CHANNELS.resetAgentSettings,
   IPC_CHANNELS.rejectAgentProposal,
   IPC_CHANNELS.setAgentApiKey,
   IPC_CHANNELS.updateAgentModelOverride,
@@ -48,7 +49,9 @@ const invocationChannels = [
   IPC_CHANNELS.saveProjectDocument,
   IPC_CHANNELS.confirmCloseUnsavedDocument,
   IPC_CHANNELS.getAppSettings,
+  IPC_CHANNELS.getProjectAgentSettings,
   IPC_CHANNELS.updateAppSettings,
+  IPC_CHANNELS.updateProjectAgentSettings,
   IPC_CHANNELS.setWindowDirty,
   IPC_CHANNELS.completeWindowClose,
 ].sort();
@@ -131,8 +134,24 @@ describe("IPC handler composition", () => {
     });
     expect(context.aiAgentService.reloadConfiguration).toHaveBeenCalledOnce();
     expect(context.agentModelConfigService.update).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'session-1' }),
       override,
     );
+  });
+
+  it('resets credentials and the current project model state', async () => {
+    const context = createContext();
+    registerIpcHandlers(context);
+    const reset = handlers.get(IPC_CHANNELS.resetAgentSettings);
+    if (reset === undefined) throw new Error('Agent reset handler was not registered');
+
+    await expect(reset({})).resolves.toMatchObject({
+      projectSettings: { defaultModel: null, thinkingLevel: 'medium' },
+    });
+    expect(context.aiAgentService.reloadConfiguration).toHaveBeenCalledOnce();
+    expect(context.agentCredentialService.reset).toHaveBeenCalledOnce();
+    expect(context.agentModelConfigService.reset).toHaveBeenCalledOnce();
+    expect(context.projectSettingsService.reset).toHaveBeenCalledOnce();
   });
 });
 
@@ -166,9 +185,12 @@ const createContext = (): IpcHandlerContext => {
       getProviderStatuses: vi.fn(async () => [
         { configured: true, providerId: "anthropic" },
       ]),
+      reset: vi.fn(async () => undefined),
     },
     agentModelConfigService: {
       getOverrides: vi.fn(async () => []),
+      prepareRuntime: vi.fn(async () => '/runtime/models.json'),
+      reset: vi.fn(async () => undefined),
       update: vi.fn(async () => undefined),
     },
     aiAgentService: {
@@ -201,6 +223,14 @@ const createContext = (): IpcHandlerContext => {
           documents: [{ id: "chapter-1", revision: "a".repeat(64) }],
         },
       })),
+    },
+    projectSettingsService: {
+      get: vi.fn(() => ({
+        defaultModel: { modelId: 'model-1', providerId: 'anthropic' },
+        thinkingLevel: 'medium',
+      })),
+      reset: vi.fn(() => ({ defaultModel: null, thinkingLevel: 'medium' })),
+      update: vi.fn((_session, settings) => settings),
     },
     setWindowDirty: vi.fn(),
     settingsService: {

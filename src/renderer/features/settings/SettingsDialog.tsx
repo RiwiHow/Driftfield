@@ -1,5 +1,5 @@
-import { Check, Cpu, Minimize2, MonitorCog, Power } from "lucide-react";
-import { useRef, useState } from "react";
+import { Check, Cpu, Minimize2, MonitorCog, Power, RotateCcw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -25,8 +25,10 @@ import {
   type AgentConfiguration,
 } from "../../../shared/contracts/agent-configuration";
 import type {
+  AgentSettings,
   AppSettings,
   AppTheme,
+  UpdateProjectAgentSettingsRequest,
   UpdateAppSettingsRequest,
 } from "../../../shared/contracts/settings";
 import { APP_THEMES } from "../../../shared/contracts/settings";
@@ -39,15 +41,18 @@ interface SettingsDialogProps {
   isSaving: boolean;
   onOpenChange: (open: boolean) => void;
   onRemoveCredential: (providerId: AgentApiKeyProviderId) => void;
+  onResetModelSettings: () => Promise<boolean>;
   onSetApiKey: (
     providerId: AgentApiKeyProviderId,
     apiKey: string,
   ) => Promise<boolean>;
   onUpdate: (update: UpdateAppSettingsRequest) => void;
+  onUpdateProjectAgent: (update: UpdateProjectAgentSettingsRequest) => void;
   onUpdateModelOverride: (
     override: import("../../../shared/contracts/agent-configuration").AgentModelOverride,
   ) => Promise<boolean>;
   open: boolean;
+  projectAgentSettings: AgentSettings | null;
   settings: AppSettings;
 }
 
@@ -81,10 +86,13 @@ export function SettingsDialog({
   isSaving,
   onOpenChange,
   onRemoveCredential,
+  onResetModelSettings,
   onSetApiKey,
   onUpdate,
+  onUpdateProjectAgent,
   onUpdateModelOverride,
   open,
+  projectAgentSettings,
   settings,
 }: SettingsDialogProps) {
   const { t } = useTranslation("settings");
@@ -94,23 +102,59 @@ export function SettingsDialog({
   const apiKeyRef = useRef<HTMLInputElement>(null);
   const [credentialProvider, setCredentialProvider] =
     useState<AgentApiKeyProviderId>("anthropic");
+  const [modelProviderId, setModelProviderId] = useState('');
   const [category, setCategory] = useState<"interface" | "models">("interface");
-  const selectedModelKey =
-    settings.agent.defaultModel === null
-      ? ""
-      : `${settings.agent.defaultModel.providerId}\u0000${settings.agent.defaultModel.modelId}`;
+  const agentSettings = projectAgentSettings ?? {
+    defaultModel: null,
+    thinkingLevel: 'medium' as const,
+  };
+  const configuredModelProviders = agentConfiguration.providers.filter(
+    ({ configured }) => configured,
+  );
+  const configuredProviderKey = configuredModelProviders
+    .map(({ providerId }) => providerId)
+    .join('\u0000');
+  const providerModels = agentConfiguration.models.filter(
+    ({ providerId }) => providerId === modelProviderId,
+  );
+  const selectedModelId =
+    agentSettings.defaultModel?.providerId === modelProviderId
+      ? agentSettings.defaultModel.modelId
+      : '';
   const selectedModel =
     agentConfiguration.models.find(
       ({ id, providerId }) =>
-        id === settings.agent.defaultModel?.modelId &&
-        providerId === settings.agent.defaultModel?.providerId,
+        id === agentSettings.defaultModel?.modelId &&
+        providerId === agentSettings.defaultModel?.providerId,
     ) ?? null;
+
+  useEffect(() => {
+    setModelProviderId((current) => {
+      const storedProvider = projectAgentSettings?.defaultModel?.providerId;
+      if (storedProvider !== undefined) return storedProvider;
+      if (
+        configuredModelProviders.some(
+          ({ providerId }) => providerId === current,
+        )
+      ) {
+        return current;
+      }
+      return configuredModelProviders[0]?.providerId ?? '';
+    });
+  }, [configuredProviderKey, projectAgentSettings?.defaultModel?.providerId]);
 
   const saveApiKey = async (): Promise<void> => {
     const apiKey = apiKeyRef.current?.value.trim() ?? "";
     if (apiKey.length === 0) return;
     if (await onSetApiKey(credentialProvider, apiKey)) {
       if (apiKeyRef.current !== null) apiKeyRef.current.value = "";
+    }
+  };
+
+  const resetModelSettings = async (): Promise<void> => {
+    if (!window.confirm(t('agent.resetConfirm'))) return;
+    if (await onResetModelSettings()) {
+      if (apiKeyRef.current !== null) apiKeyRef.current.value = '';
     }
   };
 
@@ -447,27 +491,65 @@ export function SettingsDialog({
                 </div>
               </section>
 
-              <section className="settings-field-row">
+              <section className="settings-field-row settings-field-row-stacked">
                 <div className="settings-field-copy">
                   <h3>{t("agent.modelTitle")}</h3>
                   <p>{t("agent.modelDescription")}</p>
                 </div>
-                <div className="settings-field-control">
+                <div className="settings-field-control model-selection-controls">
+                  <Label className="sr-only" htmlFor="project-model-provider">
+                    {t('agent.providerLabel')}
+                  </Label>
+                  <Select
+                    disabled={
+                      isSaving ||
+                      projectAgentSettings === null ||
+                      configuredModelProviders.length === 0
+                    }
+                    onValueChange={(providerId) => {
+                      setModelProviderId(providerId);
+                      if (agentSettings.defaultModel?.providerId !== providerId) {
+                        onUpdateProjectAgent({
+                          ...agentSettings,
+                          defaultModel: null,
+                        });
+                      }
+                    }}
+                    value={modelProviderId}
+                  >
+                    <SelectTrigger
+                      className="w-full"
+                      id="project-model-provider"
+                      size="sm"
+                    >
+                      <SelectValue placeholder={t('agent.selectProvider')} />
+                    </SelectTrigger>
+                    <SelectContent className="settings-select-content">
+                      {configuredModelProviders.map(({ providerId }) => (
+                        <SelectItem key={providerId} value={providerId}>
+                          {AGENT_API_KEY_PROVIDERS.find(
+                            ({ id }) => id === providerId,
+                          )?.label ?? providerId}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Label className="sr-only" htmlFor="default-agent-model">
                     {t("agent.modelLabel")}
                   </Label>
                   <Select
                     disabled={
-                      isSaving || agentConfiguration.models.length === 0
+                      isSaving ||
+                      projectAgentSettings === null ||
+                      modelProviderId.length === 0 ||
+                      providerModels.length === 0
                     }
-                    onValueChange={(modelKey) => {
-                      const model = agentConfiguration.models.find(
-                        ({ id, providerId }) =>
-                          `${providerId}\u0000${id}` === modelKey,
+                    onValueChange={(modelId) => {
+                      const model = providerModels.find(
+                        ({ id }) => id === modelId,
                       );
-                      onUpdate({
-                        agent: {
-                          ...settings.agent,
+                      onUpdateProjectAgent({
+                          ...agentSettings,
                           defaultModel:
                             model === undefined
                               ? null
@@ -479,7 +561,7 @@ export function SettingsDialog({
                             model?.reasoning === false
                               ? "off"
                               : model?.thinkingLevelMap[
-                                    settings.agent.thinkingLevel
+                                    agentSettings.thinkingLevel
                                   ] === null
                                 ? ((
                                     [
@@ -495,26 +577,31 @@ export function SettingsDialog({
                                     (level) =>
                                       model.thinkingLevelMap[level] !== null,
                                   ) ?? "off")
-                                : settings.agent.thinkingLevel,
-                        },
+                                : agentSettings.thinkingLevel,
                       });
                     }}
-                    value={selectedModelKey}
+                    value={selectedModelId}
                   >
                     <SelectTrigger
                       className="w-full"
                       id="default-agent-model"
                       size="sm"
                     >
-                      <SelectValue placeholder={t("agent.selectModel")} />
+                      <SelectValue
+                        placeholder={
+                          providerModels.length === 0
+                            ? t('agent.noModels')
+                            : t("agent.selectModel")
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent className="settings-select-content">
-                      {agentConfiguration.models.map((model) => (
+                      {providerModels.map((model) => (
                         <SelectItem
-                          key={`${model.providerId}/${model.id}`}
-                          value={`${model.providerId}\u0000${model.id}`}
+                          key={model.id}
+                          value={model.id}
                         >
-                          {model.name} · {model.providerId}
+                          {model.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -534,24 +621,23 @@ export function SettingsDialog({
                   <Select
                     disabled={
                       isSaving ||
-                      settings.agent.defaultModel === null ||
+                      projectAgentSettings === null ||
+                      agentSettings.defaultModel === null ||
                       agentConfiguration.models.find(
                         ({ id, providerId }) =>
-                          id === settings.agent.defaultModel?.modelId &&
+                          id === agentSettings.defaultModel?.modelId &&
                           providerId ===
-                            settings.agent.defaultModel?.providerId,
+                            agentSettings.defaultModel?.providerId,
                       )?.reasoning === false
                     }
                     onValueChange={(thinkingLevel) =>
-                      onUpdate({
-                        agent: {
-                          ...settings.agent,
+                      onUpdateProjectAgent({
+                          ...agentSettings,
                           thinkingLevel:
-                            thinkingLevel as AppSettings["agent"]["thinkingLevel"],
-                        },
+                            thinkingLevel as AgentSettings["thinkingLevel"],
                       })
                     }
-                    value={settings.agent.thinkingLevel}
+                    value={agentSettings.thinkingLevel}
                   >
                     <SelectTrigger
                       className="w-full"
@@ -586,7 +672,7 @@ export function SettingsDialog({
                 </div>
               </section>
 
-              {settings.agent.defaultModel !== null && (
+              {agentSettings.defaultModel !== null && (
                 <AgentModelAdvancedSettings
                   isSaving={isSaving}
                   model={selectedModel}
@@ -594,12 +680,32 @@ export function SettingsDialog({
                   override={
                     agentConfiguration.modelOverrides.find(
                       ({ modelId, providerId }) =>
-                        modelId === settings.agent.defaultModel?.modelId &&
-                        providerId === settings.agent.defaultModel?.providerId,
+                        modelId === agentSettings.defaultModel?.modelId &&
+                        providerId === agentSettings.defaultModel?.providerId,
                     ) ?? null
                   }
                 />
               )}
+
+              <section className="settings-field-row">
+                <div className="settings-field-copy">
+                  <h3>{t('agent.resetTitle')}</h3>
+                  <p>{t('agent.resetDescription')}</p>
+                </div>
+                <div className="settings-field-control">
+                  <Button
+                    className="h-8 px-3 text-xs text-destructive hover:text-destructive"
+                    disabled={isSaving || projectAgentSettings === null}
+                    onClick={() => void resetModelSettings()}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <RotateCcw aria-hidden="true" size={13} />
+                    {t('agent.resetAction')}
+                  </Button>
+                </div>
+              </section>
             </div>
           )}
         </div>

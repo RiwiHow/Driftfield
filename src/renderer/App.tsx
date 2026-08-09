@@ -13,6 +13,7 @@ import { useProjectWorkspace } from "@/features/projects/use-project-workspace";
 import { SettingsDialog } from "@/features/settings/SettingsDialog";
 import { useAppSettings } from "@/features/settings/use-app-settings";
 import { useAgentConfiguration } from "@/features/settings/use-agent-configuration";
+import { useProjectAgentSettings } from '@/features/settings/use-project-agent-settings';
 import type { AppSettings } from "../shared/contracts/settings";
 import type { ProjectSnapshot } from "../shared/contracts/project";
 
@@ -31,8 +32,9 @@ export function App({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { isSavingSettings, settings, settingsError, updateSettings } =
     useAppSettings(initialSettings, settingsLoadFailed);
-  const agentConfiguration = useAgentConfiguration();
   const project = useProjectWorkspace(initialProject);
+  const agentConfiguration = useAgentConfiguration(project.projectId);
+  const projectAgentSettings = useProjectAgentSettings(project.projectId);
 
   useEffect(() => {
     const openSettingsFromKeyboard = (event: KeyboardEvent): void => {
@@ -53,7 +55,7 @@ export function App({
         agentConfiguration={agentConfiguration.configuration}
         agentConfigurationError={agentConfiguration.error}
         agentConfigurationLoading={agentConfiguration.isLoading}
-        agentSettings={settings.agent}
+        agentSettings={projectAgentSettings.effectiveSettings}
         documentSaveError={project.documentSaveError}
         editorFontSize={settings.editorFontSize}
         isCreatingProject={project.isCreatingProject}
@@ -71,6 +73,7 @@ export function App({
         onSelectProject={() => void project.selectProjectDirectory()}
         projectDirectory={project.projectDirectory}
         projectId={project.projectId}
+        projectIcon={project.projectIcon}
         projectRootTitles={project.projectRootTitles}
         projectSelectionError={project.projectSelectionError}
         projectTree={project.projectTree}
@@ -82,8 +85,8 @@ export function App({
       />
       <SettingsDialog
         agentConfiguration={agentConfiguration.configuration}
-        error={settingsError ?? agentConfiguration.error}
-        isSaving={isSavingSettings || agentConfiguration.isUpdating}
+        error={settingsError ?? projectAgentSettings.error ?? agentConfiguration.error}
+        isSaving={isSavingSettings || agentConfiguration.isUpdating || projectAgentSettings.isSaving}
         onOpenChange={setIsSettingsOpen}
         onRemoveCredential={(providerId) => {
           void (async () => {
@@ -91,18 +94,27 @@ export function App({
               await agentConfiguration.removeCredential(providerId);
             if (
               removed &&
-              settings.agent.defaultModel?.providerId === providerId
+              projectAgentSettings.settings?.defaultModel?.providerId === providerId
             ) {
-              await updateSettings({
-                agent: { ...settings.agent, defaultModel: null },
+              await projectAgentSettings.update({
+                ...projectAgentSettings.settings,
+                defaultModel: null,
               });
             }
           })();
         }}
+        onResetModelSettings={async () => {
+          const result = await agentConfiguration.resetSettings();
+          if (result === null) return false;
+          projectAgentSettings.replaceSettings(result.projectSettings);
+          return true;
+        }}
         onSetApiKey={agentConfiguration.setApiKey}
         onUpdateModelOverride={agentConfiguration.updateModelOverride}
         onUpdate={(update) => void updateSettings(update)}
+        onUpdateProjectAgent={(update) => void projectAgentSettings.update(update)}
         open={isSettingsOpen}
+        projectAgentSettings={projectAgentSettings.settings}
         settings={settings}
       />
       <Dialog

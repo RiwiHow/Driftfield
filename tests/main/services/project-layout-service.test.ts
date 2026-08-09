@@ -49,13 +49,20 @@ describe('Driftfield project layout', () => {
       title: path.basename(directory),
     });
     expect(await readdir(directory)).toEqual(
-      expect.arrayContaining(['driftfield.yaml', 'lorebook', 'manuscript']),
+      expect.arrayContaining(['.driftfield', '_index.yaml', 'lorebook', 'manuscript']),
     );
     expect(await readdir(path.join(directory, 'manuscript'))).toContain(
       PROJECT_INDEX_NAME,
     );
     expect(await readdir(path.join(directory, 'lorebook'))).toContain(
       PROJECT_INDEX_NAME,
+    );
+    expect(await readdir(path.join(directory, '.driftfield'))).toEqual(
+      expect.arrayContaining([
+        'conversations.sqlite',
+        'project.sqlite',
+        'settings.sqlite',
+      ]),
     );
     expect(layout?.lorebook?.index).toMatchObject({
       children: [],
@@ -114,6 +121,40 @@ describe('Driftfield project layout', () => {
     await expect(loadProjectLayout(directory)).rejects.toThrow(
       'Unknown project label placeholder',
     );
+  });
+
+  it('reads a reviewed icon ID from the root index', async () => {
+    const directory = await createTemporaryDirectory();
+    await initializeProjectLayout(directory);
+    await writeFile(
+      path.join(directory, PROJECT_INDEX_NAME),
+      stringify({ icon: 'castle', kind: 'novel', title: 'Citadel' }),
+    );
+
+    await expect(loadProjectLayout(directory)).resolves.toMatchObject({
+      manifest: { icon: 'castle', title: 'Citadel' },
+    });
+  });
+
+  it('keeps legacy driftfield.yaml projects readable without rewriting them', async () => {
+    const directory = await createTemporaryDirectory();
+    const initialized = await initializeProjectLayout(directory);
+    await writeFile(
+      path.join(directory, PROJECT_MANIFEST_NAME),
+      stringify({
+        formatVersion: 1,
+        id: initialized.manifest.id,
+        kind: 'novel',
+        title: 'Legacy Novel',
+      }),
+    );
+    await rm(path.join(directory, PROJECT_INDEX_NAME));
+
+    await expect(loadProjectLayout(directory)).resolves.toMatchObject({
+      manifest: { id: initialized.manifest.id, title: 'Legacy Novel' },
+    });
+    await expect(readFile(path.join(directory, PROJECT_MANIFEST_NAME), 'utf8'))
+      .resolves.toContain('Legacy Novel');
   });
 
   it('rejects YAML aliases', async () => {

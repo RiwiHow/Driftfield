@@ -161,6 +161,12 @@
   min-width: 0;
 }
 
+.model-selection-controls {
+  display: grid;
+  grid-template-columns: 172px minmax(220px, 1fr);
+  gap: 8px;
+}
+
 .settings-field-control-narrow {
   width: 96px;
   justify-self: end;

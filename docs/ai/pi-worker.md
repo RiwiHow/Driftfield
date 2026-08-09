@@ -58,10 +58,11 @@ database independently from Pi session formats so the SDK can be upgraded or
 replaced. Each request receives a bounded Driftfield-owned active-branch
 transcript; Pi sessions remain temporary runtime objects.
 
-Driftfield owns Pi model overrides under its Agent data directory. Renderer UI
-edits typed model-level settings; main validates and atomically merges the
-approved subset into `models.json`, then restarts the idle worker and reloads
-the effective catalogue. The exposed subset includes OpenRouter routing,
+Driftfield stores Pi model overrides in the active project's
+`.driftfield/settings.sqlite` database.
+Renderer UI edits typed model-level settings; main validates them and generates
+a project-keyed `models.json` runtime cache under application data, then
+restarts the idle worker and reloads the effective catalogue. The exposed subset includes OpenRouter routing,
 thinking-level maps, selected compatibility flags, and literal non-credential
 headers.
 
@@ -74,7 +75,12 @@ headers.
 - Driftfield rejects Pi shell-command and environment interpolation in UI-owned
   values. API keys and sensitive authorization headers remain in the dedicated
   credential flow.
-- Model configuration cannot change while an Agent request is active.
+- Model configuration cannot change while an Agent request is active. Switching
+  projects switches runtime-cache paths, so overrides do not leak between novels.
+- The reviewed reset operation stops the idle runtime, clears credentials,
+  current-project model settings, and generated model/catalog caches, then
+  returns the UI to an unconfigured state. It does not touch novel content or
+  conversation history.
 
 The Pi subsystem is not production-ready yet:
 

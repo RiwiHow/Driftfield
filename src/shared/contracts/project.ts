@@ -20,6 +20,7 @@ export interface ProjectFileNode {
 
 export interface ProjectFolderNode {
   children: ProjectTreeNode[];
+  icon?: import('./project-layout').ProjectIconId;
   name: string;
   relativePath: string;
   type: 'folder';
@@ -31,6 +32,7 @@ export interface ProjectSnapshot {
   directory: ProjectDirectory;
   documents: ProjectDocument[];
   projectId: string;
+  projectIcon?: import('./project-layout').ProjectIconId;
   revision: string;
   rootTitles?: {
     lorebook?: string;

@@ -17,6 +17,7 @@ import {
   DRIFTFIELD_PROJECT_FORMAT_VERSION,
   MANUSCRIPT_DOCUMENT_KINDS,
   PROJECT_INDEX_NAME,
+  PROJECT_ICON_IDS,
   PROJECT_MANIFEST_NAME,
   PROJECT_ROOT_DIRECTORIES,
   type ChapterNumberingPolicy,
@@ -28,8 +29,13 @@ import {
   type ManuscriptIndex,
   type ManuscriptRootChild,
   type ProjectManifest,
+  type ProjectIconId,
+  type ProjectRootIndex,
   type VolumeIndex,
 } from '../../shared/contracts/project-layout';
+import { ProjectDatabase } from '../database/project-database';
+import { ConversationDatabase } from '../database/conversation-database';
+import { SettingsDatabase } from '../database/settings-database';
 
 const MAX_METADATA_BYTES = 256 * 1024;
 const MAX_METADATA_DEPTH = 12;
@@ -62,7 +68,7 @@ interface LoadedLorebookLayout {
 
 export interface LoadedProjectLayout {
   lorebook: LoadedLorebookLayout | null;
-  manifest: ProjectManifest;
+  manifest: ProjectManifest & { icon?: ProjectIconId };
   manuscript: {
     index: ManuscriptIndex;
     volumes: Array<{ directory: string; index: VolumeIndex }>;
@@ -109,6 +115,16 @@ const parseTitle = (value: unknown): string => {
     throw new Error('Project metadata contains an invalid title');
   }
   return value;
+};
+
+const parseIcon = (value: unknown): ProjectIconId => {
+  if (
+    typeof value !== 'string' ||
+    !PROJECT_ICON_IDS.includes(value as ProjectIconId)
+  ) {
+    throw new Error('Project metadata contains an invalid icon');
+  }
+  return value as ProjectIconId;
 };
 
 const parseSegment = (value: unknown): string => {
@@ -247,10 +263,21 @@ const parseManifest = (value: unknown): ProjectManifest => {
   };
 };
 
+const parseProjectRootIndex = (value: unknown): ProjectRootIndex => {
+  if (!isRecord(value)) throw new Error('Invalid Driftfield project index');
+  assertExactKeys(value, ['kind', 'title'], ['icon']);
+  if (value.kind !== 'novel') throw new Error('Invalid Driftfield project root');
+  return {
+    ...(value.icon === undefined ? {} : { icon: parseIcon(value.icon) }),
+    kind: 'novel',
+    title: parseTitle(value.title),
+  };
+};
+
 const parseManuscriptIndex = (value: unknown): ManuscriptIndex => {
   if (!isRecord(value)) throw new Error('Invalid manuscript index');
   assertExactKeys(value, ['children', 'id', 'kind', 'title'], [
-    'chapterNumbering',
+    'chapterNumbering', 'icon',
   ]);
   if (value.kind !== 'manuscript') throw new Error('Invalid manuscript root');
   return {
@@ -259,6 +286,7 @@ const parseManuscriptIndex = (value: unknown): ManuscriptIndex => {
       : { chapterNumbering: parseNumbering(value.chapterNumbering) }),
     children: parseChildren(value.children, parseManuscriptRootChild),
     id: parseId(value.id),
+    ...(value.icon === undefined ? {} : { icon: parseIcon(value.icon) }),
     kind: 'manuscript',
     title: parseTitle(value.title),
   };
@@ -267,7 +295,7 @@ const parseManuscriptIndex = (value: unknown): ManuscriptIndex => {
 const parseVolumeIndex = (value: unknown): VolumeIndex => {
   if (!isRecord(value)) throw new Error('Invalid volume index');
   assertExactKeys(value, ['children', 'id', 'kind', 'title'], [
-    'chapterNumbering',
+    'chapterNumbering', 'icon',
   ]);
   if (value.kind !== 'volume') throw new Error('Invalid volume directory');
   return {
@@ -276,6 +304,7 @@ const parseVolumeIndex = (value: unknown): VolumeIndex => {
       : { chapterNumbering: parseNumbering(value.chapterNumbering) }),
     children: parseChildren(value.children, parseManuscriptDocument),
     id: parseId(value.id),
+    ...(value.icon === undefined ? {} : { icon: parseIcon(value.icon) }),
     kind: 'volume',
     title: parseTitle(value.title),
   };
@@ -283,11 +312,12 @@ const parseVolumeIndex = (value: unknown): VolumeIndex => {
 
 const parseLorebookIndex = (value: unknown): LorebookIndex => {
   if (!isRecord(value)) throw new Error('Invalid lorebook index');
-  assertExactKeys(value, ['children', 'id', 'kind', 'title']);
+  assertExactKeys(value, ['children', 'id', 'kind', 'title'], ['icon']);
   if (value.kind !== 'lorebook') throw new Error('Invalid lorebook root');
   return {
     children: parseChildren(value.children, parseLorebookRootChild),
     id: parseId(value.id),
+    ...(value.icon === undefined ? {} : { icon: parseIcon(value.icon) }),
     kind: 'lorebook',
     title: parseTitle(value.title),
   };
@@ -297,11 +327,12 @@ const parseLorebookCategoryIndex = (
   value: unknown,
 ): LorebookCategoryIndex => {
   if (!isRecord(value)) throw new Error('Invalid lorebook category index');
-  assertExactKeys(value, ['children', 'id', 'kind', 'title']);
+  assertExactKeys(value, ['children', 'id', 'kind', 'title'], ['icon']);
   if (value.kind !== 'category') throw new Error('Invalid lorebook category');
   return {
     children: parseChildren(value.children, parseLorebookEntry),
     id: parseId(value.id),
+    ...(value.icon === undefined ? {} : { icon: parseIcon(value.icon) }),
     kind: 'category',
     title: parseTitle(value.title),
   };
@@ -348,10 +379,13 @@ const readYaml = async (filePath: string): Promise<{ source: string; value: unkn
   return { source, value };
 };
 
-const assertExactRootEntries = async (projectPath: string): Promise<boolean> => {
+const assertExactRootEntries = async (
+  projectPath: string,
+  metadataName: string,
+): Promise<boolean> => {
   const names = await readdir(projectPath);
   for (const expected of [
-    PROJECT_MANIFEST_NAME,
+    metadataName,
     PROJECT_ROOT_DIRECTORIES.manuscript,
   ]) {
     const caseInsensitiveMatches = names.filter(
@@ -418,17 +452,18 @@ export const loadProjectLayout = async (
 ): Promise<LoadedProjectLayout | null> => {
   const projectPath = await realpath(directoryPath);
   const rootNames = await readdir(projectPath);
-  if (!rootNames.includes(PROJECT_MANIFEST_NAME)) {
-    if (
-      rootNames.some(
-        (name) => name.toLowerCase() === PROJECT_MANIFEST_NAME.toLowerCase(),
-      )
-    ) {
-      throw new Error(`Project manifest must be named ${PROJECT_MANIFEST_NAME}`);
+  const hasRootIndex = rootNames.includes(PROJECT_INDEX_NAME);
+  const hasLegacyManifest = rootNames.includes(PROJECT_MANIFEST_NAME);
+  if (!hasRootIndex && !hasLegacyManifest) {
+    for (const expected of [PROJECT_INDEX_NAME, PROJECT_MANIFEST_NAME]) {
+      if (rootNames.some((name) => name.toLowerCase() === expected.toLowerCase())) {
+        throw new Error(`Project metadata must use exact name: ${expected}`);
+      }
     }
     return null;
   }
-  const hasLorebook = await assertExactRootEntries(projectPath);
+  const metadataName = hasRootIndex ? PROJECT_INDEX_NAME : PROJECT_MANIFEST_NAME;
+  const hasLorebook = await assertExactRootEntries(projectPath, metadataName);
 
   const manuscriptPath = path.join(
     projectPath,
@@ -442,13 +477,44 @@ export const loadProjectLayout = async (
     await assertExactEntryName(lorebookPath, PROJECT_INDEX_NAME);
   }
 
-  const [manifestYaml, manuscriptYaml] = await Promise.all([
-    readYaml(path.join(projectPath, PROJECT_MANIFEST_NAME)),
+  const [projectYaml, manuscriptYaml] = await Promise.all([
+    readYaml(path.join(projectPath, metadataName)),
     readYaml(path.join(manuscriptPath, PROJECT_INDEX_NAME)),
   ]);
-  const manifest = parseManifest(manifestYaml.value);
+  let manifest: ProjectManifest & { icon?: ProjectIconId };
+  if (hasRootIndex) {
+    const rootIndex = parseProjectRootIndex(projectYaml.value);
+    const databasePath = path.join(projectPath, '.driftfield', 'project.sqlite');
+    const databaseStats = await lstat(databasePath).catch(() => null);
+    if (
+      databaseStats === null ||
+      !databaseStats.isFile() ||
+      databaseStats.isSymbolicLink()
+    ) {
+      throw new Error('Driftfield project database is missing or invalid');
+    }
+    const database = new ProjectDatabase(projectPath);
+    try {
+      const metadata = database.getProjectMetadata();
+      if (
+        metadata === null ||
+        metadata.formatVersion !== DRIFTFIELD_PROJECT_FORMAT_VERSION
+      ) {
+        throw new Error('Unsupported Driftfield project database format');
+      }
+      manifest = {
+        formatVersion: DRIFTFIELD_PROJECT_FORMAT_VERSION,
+        id: metadata.projectId,
+        ...rootIndex,
+      };
+    } finally {
+      database.close();
+    }
+  } else {
+    manifest = parseManifest(projectYaml.value);
+  }
   const manuscriptIndex = parseManuscriptIndex(manuscriptYaml.value);
-  const metadataSources = [manifestYaml.source, manuscriptYaml.source];
+  const metadataSources = [projectYaml.source, manuscriptYaml.source];
 
   assertUnique(
     manuscriptIndex.children.map((child) =>
@@ -589,9 +655,8 @@ export const initializeProjectLayout = async (
     stagingPath,
     PROJECT_ROOT_DIRECTORIES.lorebook,
   );
-  const manifest: ProjectManifest = {
-    formatVersion: DRIFTFIELD_PROJECT_FORMAT_VERSION,
-    id: randomUUID(),
+  const projectId = randomUUID();
+  const rootIndex: ProjectRootIndex = {
     kind: 'novel',
     title: path.basename(projectPath) || 'Untitled Novel',
   };
@@ -616,8 +681,8 @@ export const initializeProjectLayout = async (
   try {
     await Promise.all([
       writeFile(
-        path.join(stagingPath, PROJECT_MANIFEST_NAME),
-        stringify(manifest),
+        path.join(stagingPath, PROJECT_INDEX_NAME),
+        stringify(rootIndex),
         { encoding: 'utf8', mode: 0o600 },
       ),
       writeFile(
@@ -631,6 +696,17 @@ export const initializeProjectLayout = async (
         { encoding: 'utf8', mode: 0o600 },
       ),
     ]);
+    const database = new ProjectDatabase(stagingPath);
+    try {
+      database.initializeProjectMetadata(
+        projectId,
+        DRIFTFIELD_PROJECT_FORMAT_VERSION,
+      );
+    } finally {
+      database.close();
+    }
+    new ConversationDatabase(stagingPath).close();
+    new SettingsDatabase(stagingPath).close();
     await rename(
       path.join(stagingPath, PROJECT_ROOT_DIRECTORIES.manuscript),
       path.join(projectPath, PROJECT_ROOT_DIRECTORIES.manuscript),
@@ -640,8 +716,12 @@ export const initializeProjectLayout = async (
       path.join(projectPath, PROJECT_ROOT_DIRECTORIES.lorebook),
     );
     await rename(
-      path.join(stagingPath, PROJECT_MANIFEST_NAME),
-      path.join(projectPath, PROJECT_MANIFEST_NAME),
+      path.join(stagingPath, PROJECT_INDEX_NAME),
+      path.join(projectPath, PROJECT_INDEX_NAME),
+    );
+    await rename(
+      path.join(stagingPath, '.driftfield'),
+      path.join(projectPath, '.driftfield'),
     );
   } finally {
     await rm(stagingPath, { force: true, recursive: true });

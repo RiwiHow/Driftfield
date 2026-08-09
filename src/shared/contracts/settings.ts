@@ -26,32 +26,39 @@ export interface AgentSettings {
   thinkingLevel: AgentThinkingLevel;
 }
 
+export type ProjectAgentSettings = AgentSettings;
+
 export interface AppSettings {
-  agent: AgentSettings;
   closeWindowBehavior: CloseWindowBehavior;
   editorFontSize: number;
   lastProjectDirectoryPath: string | null;
   language: AppLanguage;
   theme: AppTheme;
-  version: 4;
+  version: 5;
 }
 
 export type UpdateAppSettingsRequest = Partial<
   Pick<
     AppSettings,
-    'agent' | 'closeWindowBehavior' | 'editorFontSize' | 'language' | 'theme'
+    'closeWindowBehavior' | 'editorFontSize' | 'language' | 'theme'
   >
 >;
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
-  agent: {
-    defaultModel: null,
-    thinkingLevel: 'medium',
-  },
   closeWindowBehavior: 'quit',
   editorFontSize: 17,
   lastProjectDirectoryPath: null,
   language: 'en',
   theme: 'github-light',
-  version: 4,
+  version: 5,
 };
+
+export const DEFAULT_PROJECT_AGENT_SETTINGS: ProjectAgentSettings = {
+  defaultModel: null,
+  thinkingLevel: 'medium',
+};
+
+export interface UpdateProjectAgentSettingsRequest {
+  defaultModel: AgentModelSelection | null;
+  thinkingLevel: AgentThinkingLevel;
+}

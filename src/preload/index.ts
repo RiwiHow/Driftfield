@@ -4,6 +4,7 @@ import { IPC_CHANNELS } from "../shared/contracts/ipc-channels";
 import type {
   AgentConfiguration,
   RemoveAgentCredentialRequest,
+  ResetAgentSettingsResult,
   SetAgentApiKeyRequest,
   UpdateAgentModelOverrideRequest,
 } from "../shared/contracts/agent-configuration";
@@ -17,7 +18,9 @@ import type {
 } from "../shared/contracts/project";
 import type {
   AppSettings,
+  ProjectAgentSettings,
   UpdateAppSettingsRequest,
+  UpdateProjectAgentSettingsRequest,
 } from "../shared/contracts/settings";
 import type {
   CompleteWindowCloseRequest,
@@ -82,6 +85,10 @@ const api: DriftfieldAPI = {
     ) as Promise<CloseUnsavedDocumentDecision>,
   getAppSettings: () =>
     ipcRenderer.invoke(IPC_CHANNELS.getAppSettings) as Promise<AppSettings>,
+  getProjectAgentSettings: () =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.getProjectAgentSettings,
+    ) as Promise<ProjectAgentSettings>,
   getAgentConfiguration: () =>
     ipcRenderer.invoke(
       IPC_CHANNELS.getAgentConfiguration,
@@ -161,6 +168,10 @@ const api: DriftfieldAPI = {
       IPC_CHANNELS.removeAgentCredential,
       request,
     ) as Promise<AgentConfiguration>,
+  resetAgentSettings: () =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.resetAgentSettings,
+    ) as Promise<ResetAgentSettingsResult>,
   saveProjectDocument: (request: SaveProjectDocumentRequest) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.saveProjectDocument,
@@ -199,6 +210,11 @@ const api: DriftfieldAPI = {
       IPC_CHANNELS.updateAppSettings,
       settings,
     ) as Promise<AppSettings>,
+  updateProjectAgentSettings: (settings: UpdateProjectAgentSettingsRequest) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.updateProjectAgentSettings,
+      settings,
+    ) as Promise<ProjectAgentSettings>,
   updateAgentModelOverride: (request: UpdateAgentModelOverrideRequest) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.updateAgentModelOverride,

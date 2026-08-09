@@ -94,6 +94,11 @@ export interface AgentConfiguration {
   providers: AgentProviderStatus[];
 }
 
+export interface ResetAgentSettingsResult {
+  configuration: AgentConfiguration;
+  projectSettings: import('./settings').ProjectAgentSettings;
+}
+
 export interface SetAgentApiKeyRequest {
   apiKey: string;
   providerId: AgentApiKeyProviderId;

@@ -11,7 +11,7 @@ import type { AgentEditProposal } from '../../shared/contracts/agent-proposals';
 import type { AgentEvent } from '../../shared/contracts/agent';
 import { isAgentToolName } from '../../shared/contracts/agent-tools';
 import type { ProjectSession } from './project-session-service';
-import { ProjectDatabase } from '../database/project-database';
+import { ConversationDatabase } from '../database/conversation-database';
 
 const DEFAULT_TITLE = '';
 const MAX_CONTEXT_CHARACTERS = 120_000;
@@ -39,7 +39,7 @@ interface ConversationRow {
 }
 
 interface ActiveRequest {
-  database: ProjectDatabase;
+  database: ConversationDatabase;
   message: AgentConversationMessage;
   outcome: 'running' | 'completed' | 'cancelled' | 'failed' | 'interrupted';
   timer: ReturnType<typeof setTimeout> | null;
@@ -51,7 +51,7 @@ export interface AgentHistoryMessage {
 }
 
 export class AgentConversationService {
-  private readonly databases = new Map<string, ProjectDatabase>();
+  private readonly databases = new Map<string, ConversationDatabase>();
   private readonly activeRequests = new Map<string, ActiveRequest>();
 
   getState(session: ProjectSession): AgentConversationState {
@@ -359,16 +359,16 @@ export class AgentConversationService {
     this.databases.clear();
   }
 
-  private getDatabase(session: ProjectSession): ProjectDatabase {
+  private getDatabase(session: ProjectSession): ConversationDatabase {
     let database = this.databases.get(session.directoryPath);
     if (database === undefined) {
-      database = new ProjectDatabase(session.directoryPath);
+      database = new ConversationDatabase(session.directoryPath);
       this.databases.set(session.directoryPath, database);
     }
     return database;
   }
 
-  private ensureActiveConversation(database: ProjectDatabase): string {
+  private ensureActiveConversation(database: ConversationDatabase): string {
     const active = database.connection.prepare(`
       SELECT c.id FROM conversation_state s
       JOIN conversations c ON c.id = s.active_conversation_id
@@ -392,14 +392,14 @@ export class AgentConversationService {
     return id;
   }
 
-  private assertConversation(database: ProjectDatabase, id: string): void {
+  private assertConversation(database: ConversationDatabase, id: string): void {
     const row = database.connection.prepare(`
       SELECT 1 AS found FROM conversations WHERE id = ? AND deleted_at IS NULL
     `).get(id);
     if (row === undefined) throw new Error('Unknown conversation');
   }
 
-  private readState(database: ProjectDatabase, id: string): AgentConversationState {
+  private readState(database: ConversationDatabase, id: string): AgentConversationState {
     this.assertConversation(database, id);
     const conversations = database.connection.prepare(`
       SELECT id, title, created_at, updated_at FROM conversations
@@ -428,7 +428,7 @@ export class AgentConversationService {
   }
 
   private buildHistory(
-    database: ProjectDatabase,
+    database: ConversationDatabase,
     conversationId: string,
     requestId: string,
   ): AgentHistoryMessage[] {

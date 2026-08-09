@@ -203,6 +203,7 @@ const scanStructuredManuscript = async (
     }
     nodes.push({
       children,
+      ...(volume.index.icon === undefined ? {} : { icon: volume.index.icon }),
       name: volume.index.title,
       relativePath: path.join(manuscriptDirectory, child.directory),
       type: 'folder',
@@ -320,6 +321,9 @@ export const createProjectSnapshot = async (
     projectId:
       layout?.manifest.id ??
       `legacy-${createHash('sha256').update(await realpath(directoryPath)).digest('hex')}`,
+    ...(layout?.manifest.icon === undefined
+      ? {}
+      : { projectIcon: layout.manifest.icon }),
     revision: contentRevision(
       [
         ...(layout?.metadataSources ?? []),

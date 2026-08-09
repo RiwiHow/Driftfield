@@ -93,3 +93,11 @@ Its history selector can create, switch, rename, and soft-delete conversations;
 Renderer state is only a cache of the active Main-owned database record. Editing
 an earlier user message creates a new active branch, while editing an assistant
 message updates the model-facing persisted transcript.
+
+## Model settings
+
+Project model selection uses two controls: first a configured provider, then a
+model filtered to that provider. Do not combine provider and model identity into
+one long option label. Changing providers clears the current project model
+before a replacement is selected, so reasoning and advanced override controls
+cannot silently target the previous provider.

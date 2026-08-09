@@ -22,6 +22,11 @@ describe('AgentCredentialService', () => {
       configured: false,
       providerId: 'anthropic',
     });
+
+    await service.setApiKey('openrouter', 'another-secret');
+    await service.reset();
+    expect((await service.getProviderStatuses()).every(({ configured }) => !configured))
+      .toBe(true);
   });
 
   it('treats malformed credential JSON as unconfigured', async () => {

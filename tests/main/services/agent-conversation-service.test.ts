@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -56,8 +56,10 @@ describe('Agent conversation persistence', () => {
       { content: 'Remember the lantern.', role: 'user', terminal: undefined },
       { content: 'I will remember it.', role: 'assistant', terminal: undefined },
     ]);
-    expect(await readFile(path.join(session.directoryPath, '.driftfield', '.gitignore'), 'utf8'))
-      .toContain('project.sqlite');
+    expect(
+      (await stat(path.join(session.directoryPath, '.driftfield', 'conversations.sqlite')))
+        .isFile(),
+    ).toBe(true);
     restoredService.dispose();
   });
 

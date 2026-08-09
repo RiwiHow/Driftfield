@@ -3,11 +3,8 @@ import path from 'node:path';
 import { isAppLanguage } from '../../shared/i18n/languages';
 
 import {
-  AGENT_THINKING_LEVELS,
   APP_THEMES,
   DEFAULT_APP_SETTINGS,
-  type AgentModelSelection,
-  type AgentSettings,
   type AppSettings,
   type CloseWindowBehavior,
   type UpdateAppSettingsRequest,
@@ -39,15 +36,6 @@ const isCloseWindowBehavior = (
   value: unknown,
 ): value is CloseWindowBehavior => value === 'quit' || value === 'minimize';
 
-const isAgentThinkingLevel = (
-  value: unknown,
-): value is AgentSettings['thinkingLevel'] =>
-  typeof value === 'string' &&
-  AGENT_THINKING_LEVELS.includes(value as AgentSettings['thinkingLevel']);
-
-const isIdentifier = (value: unknown): value is string =>
-  typeof value === 'string' && value.length > 0 && value.length <= 255;
-
 const parseLastProjectDirectoryPath = (value: unknown): string | null =>
   typeof value === 'string' &&
   value.length > 0 &&
@@ -56,37 +44,12 @@ const parseLastProjectDirectoryPath = (value: unknown): string | null =>
     ? value
     : null;
 
-const parseAgentModelSelection = (
-  value: unknown,
-): AgentModelSelection | null => {
-  if (value === null) return null;
-  if (
-    !isRecord(value) ||
-    !isIdentifier(value.providerId) ||
-    !isIdentifier(value.modelId)
-  ) {
-    return null;
-  }
-  return { modelId: value.modelId, providerId: value.providerId };
-};
-
-const parseAgentSettings = (value: unknown): AgentSettings => {
-  if (!isRecord(value)) return { ...DEFAULT_APP_SETTINGS.agent };
-  return {
-    defaultModel: parseAgentModelSelection(value.defaultModel),
-    thinkingLevel: isAgentThinkingLevel(value.thinkingLevel)
-      ? value.thinkingLevel
-      : DEFAULT_APP_SETTINGS.agent.thinkingLevel,
-  };
-};
-
 export const parseStoredSettings = (value: unknown): AppSettings => {
   if (!isRecord(value)) {
     return { ...DEFAULT_APP_SETTINGS };
   }
 
   return {
-    agent: parseAgentSettings(value.agent),
     closeWindowBehavior: isCloseWindowBehavior(value.closeWindowBehavior)
       ? value.closeWindowBehavior
       : DEFAULT_APP_SETTINGS.closeWindowBehavior,
@@ -100,7 +63,7 @@ export const parseStoredSettings = (value: unknown): AppSettings => {
       ? value.language
       : DEFAULT_APP_SETTINGS.language,
     theme: parseStoredTheme(value.theme),
-    version: 4,
+    version: 5,
   };
 };
 
@@ -112,7 +75,6 @@ export const parseSettingsUpdate = (
   }
 
   const allowedKeys = new Set([
-    'agent',
     'closeWindowBehavior',
     'editorFontSize',
     'language',
@@ -124,31 +86,6 @@ export const parseSettingsUpdate = (
   }
 
   const update: UpdateAppSettingsRequest = {};
-
-  if ('agent' in value) {
-    if (!isRecord(value.agent)) throw new Error('Invalid Agent settings');
-    const allowedAgentKeys = new Set([
-      'defaultModel',
-      'thinkingLevel',
-    ]);
-    if (Object.keys(value.agent).some((key) => !allowedAgentKeys.has(key))) {
-      throw new Error('Unknown Agent setting');
-    }
-    if (
-      !('defaultModel' in value.agent) ||
-      !('thinkingLevel' in value.agent)
-    ) {
-      throw new Error('Incomplete Agent settings');
-    }
-    const agent = parseAgentSettings(value.agent);
-    if (
-      (value.agent.defaultModel !== null && agent.defaultModel === null) ||
-      !isAgentThinkingLevel(value.agent.thinkingLevel)
-    ) {
-      throw new Error('Invalid Agent settings');
-    }
-    update.agent = agent;
-  }
 
   if ('closeWindowBehavior' in value) {
     if (!isCloseWindowBehavior(value.closeWindowBehavior)) {

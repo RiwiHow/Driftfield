@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -8,6 +8,7 @@ import {
   parseAgentModelOverrideRequest,
 } from "../../../src/main/services/agent-model-config-service";
 import type { AgentModelOverride } from "../../../src/shared/contracts/agent-configuration";
+import type { ProjectSession } from '../../../src/main/services/project-session-service';
 
 const temporaryDirectories: string[] = [];
 
@@ -48,11 +49,16 @@ describe("AgentModelConfigService", () => {
     );
     temporaryDirectories.push(directory);
     const service = new AgentModelConfigService(directory);
+    const projectDirectory = await mkdtemp(path.join(os.tmpdir(), 'driftfield-project-'));
+    temporaryDirectories.push(projectDirectory);
+    const session = { directoryPath: projectDirectory } as ProjectSession;
 
-    await service.update(createOverride());
+    await service.update(session, createOverride());
 
-    expect(await service.getOverrides()).toEqual([createOverride()]);
-    const stored = JSON.parse(await readFile(service.modelsPath, "utf8"));
+    expect(await service.getOverrides(session)).toEqual([createOverride()]);
+    const stored = JSON.parse(
+      await readFile(await service.prepareRuntime(session), "utf8"),
+    );
     expect(
       stored.providers.openrouter.modelOverrides["anthropic/claude-sonnet-4"]
         .compat.openRouterRouting,
@@ -61,40 +67,32 @@ describe("AgentModelConfigService", () => {
       only: ["amazon-bedrock"],
       zdr: true,
     });
+    await service.reset(session);
+    expect(await service.getOverrides(session)).toEqual([]);
+    expect(
+      JSON.parse(await readFile(await service.prepareRuntime(session), 'utf8')),
+    ).toEqual({ providers: {} });
   });
 
-  it("preserves unrelated Pi model override fields", async () => {
+  it("isolates model overrides by project", async () => {
     const directory = await mkdtemp(
       path.join(os.tmpdir(), "driftfield-models-"),
     );
     temporaryDirectories.push(directory);
     const service = new AgentModelConfigService(directory);
-    await mkdir(path.dirname(service.modelsPath), { recursive: true });
-    await writeFile(
-      service.modelsPath,
-      JSON.stringify({
-        providers: {
-          openrouter: {
-            baseUrl: "https://openrouter.ai/api/v1",
-            modelOverrides: {
-              "anthropic/claude-sonnet-4": {
-                contextWindow: 200000,
-                compat: { supportsStrictMode: true },
-              },
-            },
-          },
-        },
-      }),
+    const firstDirectory = await mkdtemp(path.join(os.tmpdir(), 'driftfield-project-'));
+    const secondDirectory = await mkdtemp(path.join(os.tmpdir(), 'driftfield-project-'));
+    temporaryDirectories.push(firstDirectory, secondDirectory);
+    const first = { directoryPath: firstDirectory } as ProjectSession;
+    const second = { directoryPath: secondDirectory } as ProjectSession;
+
+    await service.update(first, createOverride());
+
+    expect(await service.getOverrides(first)).toHaveLength(1);
+    expect(await service.getOverrides(second)).toEqual([]);
+    expect(await service.prepareRuntime(first)).not.toBe(
+      await service.prepareRuntime(second),
     );
-
-    await service.update(createOverride());
-
-    const stored = JSON.parse(await readFile(service.modelsPath, "utf8"));
-    const provider = stored.providers.openrouter;
-    const override = provider.modelOverrides["anthropic/claude-sonnet-4"];
-    expect(provider.baseUrl).toBe("https://openrouter.ai/api/v1");
-    expect(override.contextWindow).toBe(200000);
-    expect(override.compat.supportsStrictMode).toBe(true);
   });
 
   it("rejects credential headers and Pi command or environment expansion", () => {

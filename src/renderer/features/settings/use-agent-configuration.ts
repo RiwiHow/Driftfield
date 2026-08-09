@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -12,9 +12,9 @@ const EMPTY_CONFIGURATION: AgentConfiguration = {
   modelOverrides: [],
   providers: [],
 };
-type AgentConfigurationErrorCode = "load" | "remove" | "save";
+type AgentConfigurationErrorCode = "load" | "remove" | "reset" | "save";
 
-export const useAgentConfiguration = () => {
+export const useAgentConfiguration = (projectId: string | null) => {
   const { t } = useTranslation("errors");
   const [configuration, setConfiguration] =
     useState<AgentConfiguration>(EMPTY_CONFIGURATION);
@@ -22,81 +22,111 @@ export const useAgentConfiguration = () => {
     useState<AgentConfigurationErrorCode | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
+  const operationId = useRef(0);
 
   const refresh = useCallback(async () => {
+    const currentOperation = ++operationId.current;
+    setIsLoading(true);
     setErrorCode(null);
     try {
-      setConfiguration(await window.driftfield.getAgentConfiguration());
+      const loaded = await window.driftfield.getAgentConfiguration();
+      if (operationId.current === currentOperation) setConfiguration(loaded);
     } catch {
-      setErrorCode("load");
+      if (operationId.current === currentOperation) setErrorCode("load");
     } finally {
-      setIsLoading(false);
+      if (operationId.current === currentOperation) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+  }, [projectId, refresh]);
 
   const setApiKey = useCallback(
     async (providerId: AgentApiKeyProviderId, apiKey: string) => {
       if (isUpdating) return false;
+      const currentOperation = ++operationId.current;
+      setIsLoading(false);
       setIsUpdating(true);
       setErrorCode(null);
       try {
-        setConfiguration(
-          await window.driftfield.setAgentApiKey({ apiKey, providerId }),
-        );
+        const updated = await window.driftfield.setAgentApiKey({ apiKey, providerId });
+        if (operationId.current === currentOperation) setConfiguration(updated);
+        else await refresh();
         return true;
       } catch {
-        setErrorCode("save");
+        if (operationId.current === currentOperation) setErrorCode("save");
         return false;
       } finally {
         setIsUpdating(false);
       }
     },
-    [isUpdating],
+    [isUpdating, refresh],
   );
 
   const removeCredential = useCallback(
     async (providerId: AgentApiKeyProviderId) => {
       if (isUpdating) return false;
+      const currentOperation = ++operationId.current;
+      setIsLoading(false);
       setIsUpdating(true);
       setErrorCode(null);
       try {
-        setConfiguration(
-          await window.driftfield.removeAgentCredential({ providerId }),
-        );
+        const updated = await window.driftfield.removeAgentCredential({ providerId });
+        if (operationId.current === currentOperation) setConfiguration(updated);
+        else await refresh();
         return true;
       } catch {
-        setErrorCode("remove");
+        if (operationId.current === currentOperation) setErrorCode("remove");
         return false;
       } finally {
         setIsUpdating(false);
       }
     },
-    [isUpdating],
+    [isUpdating, refresh],
   );
 
   const updateModelOverride = useCallback(
     async (override: AgentModelOverride) => {
       if (isUpdating) return false;
+      const currentOperation = ++operationId.current;
+      setIsLoading(false);
       setIsUpdating(true);
       setErrorCode(null);
       try {
-        setConfiguration(
-          await window.driftfield.updateAgentModelOverride({ override }),
-        );
+        const updated = await window.driftfield.updateAgentModelOverride({ override });
+        if (operationId.current === currentOperation) setConfiguration(updated);
+        else await refresh();
         return true;
       } catch {
-        setErrorCode("save");
+        if (operationId.current === currentOperation) setErrorCode("save");
         return false;
       } finally {
         setIsUpdating(false);
       }
     },
-    [isUpdating],
+    [isUpdating, refresh],
   );
+
+  const resetSettings = useCallback(async () => {
+    if (isUpdating) return null;
+    const currentOperation = ++operationId.current;
+    setIsLoading(false);
+    setIsUpdating(true);
+    setErrorCode(null);
+    try {
+      const result = await window.driftfield.resetAgentSettings();
+      if (operationId.current === currentOperation) {
+        setConfiguration(result.configuration);
+      } else await refresh();
+      return result;
+    } catch {
+      if (operationId.current === currentOperation) setErrorCode('reset');
+      return null;
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [isUpdating, refresh]);
 
   return {
     configuration,
@@ -108,11 +138,14 @@ export const useAgentConfiguration = () => {
               ? "agent.configurationLoad"
               : errorCode === "save"
                 ? "agent.credentialSave"
-                : "agent.credentialRemove",
+                : errorCode === 'reset'
+                  ? 'agent.resetFailed'
+                  : "agent.credentialRemove",
           ),
     isUpdating,
     isLoading,
     removeCredential,
+    resetSettings,
     setApiKey,
     updateModelOverride,
   };

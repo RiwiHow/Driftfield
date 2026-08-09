@@ -16,6 +16,7 @@ import { SettingsService } from "./services/settings-service";
 import { AgentCredentialService } from "./services/agent-credential-service";
 import { AgentModelConfigService } from "./services/agent-model-config-service";
 import { AgentConversationService } from './services/agent-conversation-service';
+import { ProjectSettingsService } from './services/project-settings-service';
 import { initializeMainI18n } from "./i18n/main-i18n";
 import { createMainWindow } from "./windows/main-window";
 import type { RendererNavigationPolicy } from "./windows/navigation-policy";
@@ -31,6 +32,8 @@ let isQuitting = false;
 let pendingQuit = false;
 let activeAiAgentService: AiAgentService | null = null;
 let activeAgentConversationService: AgentConversationService | null = null;
+let activeProjectSettingsService: ProjectSettingsService | null = null;
+let activeAgentModelConfigService: AgentModelConfigService | null = null;
 
 interface WindowLifecycleState {
   allowClose: boolean;
@@ -148,6 +151,7 @@ void app.whenReady().then(async () => {
       app.getPath("userData"),
     );
     const agentConversationService = new AgentConversationService();
+    const projectSettingsService = new ProjectSettingsService();
     const agentProposalService = new AgentProposalService(
       projectSessions,
       agentConversationService,
@@ -165,6 +169,8 @@ void app.whenReady().then(async () => {
     );
     activeAiAgentService = aiAgentService;
     activeAgentConversationService = agentConversationService;
+    activeProjectSettingsService = projectSettingsService;
+    activeAgentModelConfigService = agentModelConfigService;
     registerIpcHandlers({
       agentConversationService,
       aiAgentService,
@@ -174,6 +180,7 @@ void app.whenReady().then(async () => {
       completeWindowClose,
       getTrustedSenderWindow,
       projectSessions,
+      projectSettingsService,
       setWindowDirty,
       settingsService,
     });
@@ -214,4 +221,8 @@ app.on("will-quit", () => {
   activeAiAgentService = null;
   activeAgentConversationService?.dispose();
   activeAgentConversationService = null;
+  activeProjectSettingsService?.dispose();
+  activeProjectSettingsService = null;
+  activeAgentModelConfigService?.dispose();
+  activeAgentModelConfigService = null;
 });

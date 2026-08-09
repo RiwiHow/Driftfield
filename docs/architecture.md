@@ -84,12 +84,18 @@ added or removed.
 Database drivers belong in `src/main/database/`. Renderer features call typed
 preload methods that reach validated main-process handlers and repositories.
 
-Project-owned structured state uses `.driftfield/project.sqlite`; global
-settings, credentials, and provider configuration remain under Electron
-`userData`. See [Project Database](database.md).
+Project-owned structured state is split by lifecycle under `.driftfield`:
+`project.sqlite` owns identity and future authoritative world state,
+`conversations.sqlite` owns Agent history and generation/tool audit records, and
+`settings.sqlite` owns project-level model configuration. Global UI settings
+and credentials remain under Electron `userData`. Per-project Pi configuration
+files under `userData` are rebuildable runtime caches, not authoritative
+settings. See [Project Databases](database.md).
 
 - Introduce migrations with the first persisted schema.
 - Keep SQL and driver records behind repositories.
+- Do not use cross-database foreign keys. Join domains in main-owned services
+  through validated stable IDs when a workflow needs them.
 - Keep domain types independent of the selected database library.
 - Use transactions for multi-record changes.
 - Do not expose SQL, handles, repositories, or unrestricted query tools to

@@ -35,6 +35,7 @@ interface StartAgentRequest {
   projectSessionId?: string;
   prompt: string;
   model: AgentModelSelection;
+  modelsPath?: string;
   requestId: string;
   sendEvent: (event: AgentEvent) => void;
   thinkingLevel: AgentThinkingLevel;
@@ -90,7 +91,7 @@ export class AiAgentService {
         authPath: path.join(directory, 'auth.json'),
         cwd: directory,
         history: request.history,
-        modelsPath: path.join(directory, 'models.json'),
+        modelsPath: request.modelsPath ?? path.join(directory, 'models.json'),
         modelId: request.model.modelId,
         prompt: request.prompt,
         providerId: request.model.providerId,
@@ -109,7 +110,7 @@ export class AiAgentService {
     }
   }
 
-  async listModels(): Promise<AgentModelOption[]> {
+  async listModels(modelsPath?: string): Promise<AgentModelOption[]> {
     const directory = path.join(this.userDataPath, 'ai', 'pi');
     await mkdir(directory, { recursive: true });
     const worker = await this.getWorker();
@@ -122,7 +123,7 @@ export class AiAgentService {
       this.pendingModelLists.set(requestId, { reject, resolve, timeout });
       worker.postMessage({
         authPath: path.join(directory, 'auth.json'),
-        modelsPath: path.join(directory, 'models.json'),
+        modelsPath: modelsPath ?? path.join(directory, 'models.json'),
         requestId,
         type: 'list-models',
       });

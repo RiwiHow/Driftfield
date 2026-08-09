@@ -23,7 +23,7 @@ export const zhCN = {
     status: { characterCount_one: '{{count}} 字', characterCount_other: '{{count}} 字', dirty: '当前会话修改', missing: '磁盘文件已移动或删除；修改已保留', parseError: '格式解析失败', saving: '正在保存…', plainText: '纯文本', unsavedTitle: '仅保存在当前内存中' },
   },
   errors: {
-    agent: { cancelEnded: 'Agent 请求已经结束，无法取消。', cancelFailed: '取消 Agent 请求失败。', configurationLoad: '无法读取 Agent 模型配置。', credentialMissing: '默认模型的服务商凭据已被移除，请重新连接。', credentialRemove: '无法移除 Agent 凭据。', credentialSave: '无法保存凭据或读取模型，请检查 API Key。', modelNotConfigured: '请先连接模型服务并选择默认模型。', requestFailed: 'Agent 请求未能完成，请检查模型配置后重试。', runtimeExited: 'Agent 运行进程意外退出，请重试。', startFailed: '无法启动 Agent 请求。' },
+    agent: { cancelEnded: 'Agent 请求已经结束，无法取消。', cancelFailed: '取消 Agent 请求失败。', configurationLoad: '无法读取 Agent 模型配置。', credentialMissing: '默认模型的服务商凭据已被移除，请重新连接。', credentialRemove: '无法移除 Agent 凭据。', credentialSave: '无法保存凭据或读取模型，请检查 API Key。', modelNotConfigured: '请先连接模型服务并选择默认模型。', requestFailed: 'Agent 请求未能完成，请检查模型配置后重试。', resetFailed: '无法重置模型设置。', runtimeExited: 'Agent 运行进程意外退出，请重试。', startFailed: '无法启动 Agent 请求。' },
     projects: { create: '无法在这里新建项目，请选择一个空文件夹后重试。', dirtySync: '无法同步未保存状态；请先手动保存文档。', open: '无法打开这个文件夹，请重试。', refresh: '项目刷新失败，请检查文件夹后重试。', save: '保存失败，请检查文件权限后重试。' },
     settings: { load: '无法读取应用设置，当前使用默认值。', save: '设置保存失败，请重试。' },
   },
@@ -48,7 +48,7 @@ export const zhCN = {
     watcher: { refreshFailed: '项目刷新失败；当前内容已保留，请尝试手动刷新。', startFailed: '项目文件监视启动失败；可手动刷新，应用会自动重试。', stopped: '项目文件监视已中断；可手动刷新，应用会自动重连。' },
   },
   settings: {
-    agent: { credentialDescription: '凭据仅保存在本机主进程中，应用不会显示已保存的 Key。', keyPlaceholder: '输入 API Key', modelDescription: 'Agent 请求始终使用这里明确选择的模型。', modelLabel: '默认 Agent 模型', modelTitle: '默认模型', noProvider: '尚未连接模型服务', providerTitle: '模型服务', selectModel: '请选择模型', thinkingDescription: '更高等级通常更慢，并可能产生更多费用。', thinkingLabel: 'Agent 思考深度', thinkingTitle: '思考深度' },
+    agent: { credentialDescription: '凭据全局保存在这台设备上，应用不会显示已保存的 Key。', keyPlaceholder: '输入 API Key', modelDescription: '先选择已配置的 Provider，再选择它提供的模型；所选模型仅保存到当前小说项目。', modelLabel: '项目 Agent 模型', modelTitle: '项目模型', noModels: '没有可用模型', noProvider: '尚未连接模型服务', providerLabel: '项目模型 Provider', providerTitle: '模型服务', resetAction: '重置模型设置', resetConfirm: '确定重置这台设备上的全部模型凭据和当前项目的模型设置吗？对话和小说内容不会被删除。', resetDescription: '清除所有已保存的服务商凭据、当前项目的模型选择和高级覆盖，以及生成的模型缓存。', resetTitle: '重置模型设置', selectModel: '请选择模型', selectProvider: '选择 Provider', thinkingDescription: '此设置按项目保存；更高等级通常更慢，并可能产生更多费用。', thinkingLabel: 'Agent 思考深度', thinkingTitle: '思考深度' },
     appearance: { description: '应用到窗口、目录、编辑器和 Agent 面板。', title: '外观主题', themes: { githubDark: '适合专注写作的 Primer 深色界面', githubLight: '清晰高对比度的 Primer 浅色界面' } },
     categories: { interfaceDescription: '语言、主题和编辑器行为', interfaceTitle: '界面', label: '设置分类', modelsDescription: '服务、模型和思考深度', modelsTitle: '模型' },
     closeBehavior: { description: '明确退出操作始终会完全退出 Driftfield。', label: '关闭主窗口时的行为', minimize: '最小化', quit: '退出应用', title: '关闭主窗口时' },

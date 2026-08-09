@@ -28,16 +28,12 @@ describe('settings parsing and migration', () => {
         theme: 'tokyo-night',
       }),
     ).toEqual({
-      agent: {
-        defaultModel: null,
-        thinkingLevel: 'medium',
-      },
       closeWindowBehavior: 'minimize',
       editorFontSize: 20,
       lastProjectDirectoryPath: null,
       language: 'en',
       theme: 'github-dark',
-      version: 4,
+      version: 5,
     });
 
     expect(parseStoredSettings({ theme: 'one-dark' }).theme).toBe(
@@ -57,7 +53,7 @@ describe('settings parsing and migration', () => {
       lastProjectDirectoryPath: null,
       language: 'en',
       theme: 'github-light',
-      version: 4,
+      version: 5,
     });
   });
 
@@ -69,18 +65,15 @@ describe('settings parsing and migration', () => {
     );
   });
 
-  it('migrates valid version 2 Agent settings to the current schema', () => {
+  it('removes legacy global Agent settings from the current schema', () => {
     expect(
       parseStoredSettings({
         agent: {
           defaultModel: { providerId: 'anthropic', modelId: 'claude' },
           thinkingLevel: 'high',
         },
-      }).agent,
-    ).toEqual({
-      defaultModel: { providerId: 'anthropic', modelId: 'claude' },
-      thinkingLevel: 'high',
-    });
+      }),
+    ).not.toHaveProperty('agent');
   });
 
   it('migrates and validates the last project directory path', () => {
@@ -123,6 +116,6 @@ describe('settings parsing and migration', () => {
     });
     expect(
       JSON.parse(await readFile(path.join(directory, 'settings.json'), 'utf8')),
-    ).toMatchObject({ lastProjectDirectoryPath: '/Novels/Example', version: 4 });
+    ).toMatchObject({ lastProjectDirectoryPath: '/Novels/Example', version: 5 });
   });
 });

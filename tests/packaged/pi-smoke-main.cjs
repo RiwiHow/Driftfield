@@ -51,6 +51,11 @@ void app.whenReady().then(() => {
       )}\n`,
       { mode: 0o600 },
     );
+    fs.writeFileSync(
+      modelsPath,
+      `${JSON.stringify({ providers: {} })}\n`,
+      { mode: 0o600 },
+    );
 
     worker = utilityProcess.fork(
       path.join(asarPath, '.vite', 'build', 'agent-worker.mjs'),

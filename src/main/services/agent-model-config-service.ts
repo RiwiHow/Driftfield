@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { mkdir, rename, rm, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { createHash } from 'node:crypto';
+import { SettingsDatabase } from '../database/settings-database';
+import type { ProjectSession } from './project-session-service';
 
 import {
   AGENT_THINKING_FORMATS,
@@ -86,34 +89,6 @@ const parseCompatibility = (
   };
 };
 
-const parseRouting = (
-  value: unknown,
-): AgentOpenRouterRoutingOverride | null => {
-  if (!isRecord(value)) return null;
-  return {
-    allowFallbacks: parseNullableBoolean(value.allow_fallbacks),
-    dataCollection:
-      value.data_collection === "allow" || value.data_collection === "deny"
-        ? value.data_collection
-        : null,
-    only: parseStringList(value.only),
-    order: parseStringList(value.order),
-    requireParameters: parseNullableBoolean(value.require_parameters),
-    zdr: parseNullableBoolean(value.zdr),
-  };
-};
-
-const parseHeaders = (value: unknown): AgentModelHeaderOverride[] => {
-  if (!isRecord(value)) return [];
-  return Object.entries(value)
-    .slice(0, MAX_HEADERS)
-    .filter(
-      (entry): entry is [string, string] =>
-        isLiteralValue(entry[0], MAX_HEADER_LENGTH) && isLiteralValue(entry[1]),
-    )
-    .map(([name, headerValue]) => ({ name, value: headerValue }));
-};
-
 const parseThinkingLevelMap = (
   value: unknown,
 ): AgentModelOverride["thinkingLevelMap"] => {
@@ -124,26 +99,6 @@ const parseThinkingLevelMap = (
     if (mapped === null || isLiteralValue(mapped, 64)) result[level] = mapped;
   }
   return result;
-};
-
-const readOverride = (
-  providerId: string,
-  modelId: string,
-  value: unknown,
-): AgentModelOverride => {
-  const record = isRecord(value) ? value : {};
-  const compatibility = parseCompatibility(record.compat);
-  const openRouterRouting = isRecord(record.compat)
-    ? parseRouting(record.compat.openRouterRouting)
-    : null;
-  return {
-    compatibility,
-    headers: parseHeaders(record.headers),
-    modelId,
-    openRouterRouting,
-    providerId,
-    thinkingLevelMap: parseThinkingLevelMap(record.thinkingLevelMap),
-  };
 };
 
 export const validateAgentModelOverride = (
@@ -347,107 +302,115 @@ const toStoredOverride = (
 };
 
 export class AgentModelConfigService {
-  readonly modelsPath: string;
   private updateQueue: Promise<void> = Promise.resolve();
+  private readonly databases = new Map<string, SettingsDatabase>();
 
-  constructor(userDataPath: string) {
-    this.modelsPath = path.join(userDataPath, "ai", "pi", "models.json");
+  constructor(private readonly userDataPath: string) {}
+
+  async getOverrides(session: ProjectSession): Promise<AgentModelOverride[]> {
+    const rows = this.getDatabase(session).connection.prepare(`
+      SELECT override_json FROM agent_model_overrides
+      ORDER BY provider_id, model_id
+    `).all() as unknown as Array<{ override_json: string }>;
+    return rows.map(({ override_json }) =>
+      parseAgentModelOverrideRequest({ override: JSON.parse(override_json) }),
+    );
   }
 
-  async getOverrides(): Promise<AgentModelOverride[]> {
-    const config = await this.readConfig();
-    const providers = isRecord(config.providers) ? config.providers : {};
-    const result: AgentModelOverride[] = [];
-    for (const [providerId, providerValue] of Object.entries(providers)) {
-      if (!isRecord(providerValue) || !isRecord(providerValue.modelOverrides))
-        continue;
-      for (const [modelId, override] of Object.entries(
-        providerValue.modelOverrides,
-      )) {
-        result.push(readOverride(providerId, modelId, override));
-      }
-    }
-    return result;
-  }
-
-  async update(override: AgentModelOverride): Promise<void> {
+  async update(session: ProjectSession, override: AgentModelOverride): Promise<void> {
     validateAgentModelOverride(override);
     const operation = this.updateQueue.then(async () => {
-      const config = await this.readConfig();
-      const providers = isRecord(config.providers) ? config.providers : {};
-      const existingProvider = providers[override.providerId];
-      const provider: Record<string, unknown> = isRecord(existingProvider)
-        ? existingProvider
-        : {};
-      const modelOverrides = isRecord(provider.modelOverrides)
-        ? provider.modelOverrides
-        : {};
       const stored = toStoredOverride(override);
-      if (Object.keys(stored).length === 0)
-        delete modelOverrides[override.modelId];
-      else {
-        const storedExistingOverride = modelOverrides[override.modelId];
-        const existingOverride: Record<string, unknown> = isRecord(
-          storedExistingOverride,
-        )
-          ? storedExistingOverride
-          : {};
-        const existingCompat = isRecord(existingOverride.compat)
-          ? { ...existingOverride.compat }
-          : {};
-        for (const key of [
-          "maxTokensField",
-          "supportsDeveloperRole",
-          "supportsReasoningEffort",
-          "supportsUsageInStreaming",
-          "thinkingFormat",
-          "openRouterRouting",
-        ]) {
-          delete existingCompat[key];
-        }
-        const storedCompat = isRecord(stored.compat) ? stored.compat : {};
-        const mergedOverride = { ...existingOverride, ...stored };
-        const mergedCompat = { ...existingCompat, ...storedCompat };
-        if (Object.keys(mergedCompat).length === 0)
-          delete mergedOverride.compat;
-        else mergedOverride.compat = mergedCompat;
-        if (!("headers" in stored)) delete mergedOverride.headers;
-        if (!("thinkingLevelMap" in stored))
-          delete mergedOverride.thinkingLevelMap;
-        modelOverrides[override.modelId] = mergedOverride;
+      const database = this.getDatabase(session);
+      if (Object.keys(stored).length === 0) {
+        database.connection.prepare(`
+          DELETE FROM agent_model_overrides WHERE provider_id = ? AND model_id = ?
+        `).run(override.providerId, override.modelId);
+      } else {
+        database.connection.prepare(`
+          INSERT INTO agent_model_overrides(
+            provider_id, model_id, override_json, updated_at
+          ) VALUES (?, ?, ?, ?)
+          ON CONFLICT(provider_id, model_id) DO UPDATE SET
+            override_json = excluded.override_json,
+            updated_at = excluded.updated_at
+        `).run(
+          override.providerId,
+          override.modelId,
+          JSON.stringify(override),
+          new Date().toISOString(),
+        );
       }
-      provider.modelOverrides = modelOverrides;
-      providers[override.providerId] = provider;
-      config.providers = providers;
-      await this.persist(config);
+      await this.prepareRuntime(session);
     });
     this.updateQueue = operation.catch(() => undefined);
     return operation;
   }
 
-  private async readConfig(): Promise<Record<string, unknown>> {
-    try {
-      const parsed: unknown = JSON.parse(
-        await readFile(this.modelsPath, "utf8"),
-      );
-      if (!isRecord(parsed)) throw new Error("Invalid Pi model configuration");
-      return parsed;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT")
-        return { providers: {} };
-      throw error;
+  async prepareRuntime(session: ProjectSession): Promise<string> {
+    const overrides = await this.getOverrides(session);
+    const providers: Record<string, { modelOverrides: Record<string, unknown> }> = {};
+    for (const override of overrides) {
+      const provider = providers[override.providerId] ?? { modelOverrides: {} };
+      provider.modelOverrides[override.modelId] = toStoredOverride(override);
+      providers[override.providerId] = provider;
     }
+    const projectKey = createHash('sha256')
+      .update(session.directoryPath)
+      .digest('hex');
+    const modelsPath = path.join(
+      this.userDataPath,
+      'ai',
+      'pi',
+      'projects',
+      projectKey,
+      'models.json',
+    );
+    await this.persist(modelsPath, { providers });
+    return modelsPath;
   }
 
-  private async persist(config: Record<string, unknown>): Promise<void> {
-    await mkdir(path.dirname(this.modelsPath), { recursive: true });
-    const temporaryPath = `${this.modelsPath}.${randomUUID()}.tmp`;
+  async reset(session: ProjectSession): Promise<void> {
+    const operation = this.updateQueue.then(async () => {
+      this.getDatabase(session).connection.exec('DELETE FROM agent_model_overrides');
+      const runtimeDirectory = path.join(this.userDataPath, 'ai', 'pi');
+      await Promise.all([
+        rm(path.join(runtimeDirectory, 'projects'), {
+          force: true,
+          recursive: true,
+        }),
+        rm(path.join(runtimeDirectory, 'models-store.json'), { force: true }),
+        rm(path.join(runtimeDirectory, 'models.json'), { force: true }),
+      ]);
+      await this.prepareRuntime(session);
+    });
+    this.updateQueue = operation.catch(() => undefined);
+    return operation;
+  }
+
+  dispose(): void {
+    for (const database of this.databases.values()) database.close();
+    this.databases.clear();
+  }
+
+  private getDatabase(session: ProjectSession): SettingsDatabase {
+    let database = this.databases.get(session.directoryPath);
+    if (database === undefined) {
+      database = new SettingsDatabase(session.directoryPath);
+      this.databases.set(session.directoryPath, database);
+    }
+    return database;
+  }
+
+  private async persist(modelsPath: string, config: Record<string, unknown>): Promise<void> {
+    await mkdir(path.dirname(modelsPath), { recursive: true });
+    const temporaryPath = `${modelsPath}.${randomUUID()}.tmp`;
     try {
       await writeFile(temporaryPath, `${JSON.stringify(config, null, 2)}\n`, {
         encoding: "utf8",
         mode: 0o600,
       });
-      await rename(temporaryPath, this.modelsPath);
+      await rename(temporaryPath, modelsPath);
     } catch (error) {
       await unlink(temporaryPath).catch(() => undefined);
       throw error;

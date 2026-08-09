@@ -1,6 +1,7 @@
 import type {
   AgentConfiguration,
   RemoveAgentCredentialRequest,
+  ResetAgentSettingsResult,
   SetAgentApiKeyRequest,
   UpdateAgentModelOverrideRequest,
 } from "./contracts/agent-configuration";
@@ -14,7 +15,9 @@ import type {
 } from "./contracts/project";
 import type {
   AppSettings,
+  ProjectAgentSettings,
   UpdateAppSettingsRequest,
+  UpdateProjectAgentSettingsRequest,
 } from "./contracts/settings";
 import type {
   CompleteWindowCloseRequest,
@@ -60,6 +63,7 @@ export interface DriftfieldAPI {
   getAgentConfiguration: () => Promise<AgentConfiguration>;
   getAgentConversationState: () => Promise<AgentConversationState>;
   getAppSettings: () => Promise<AppSettings>;
+  getProjectAgentSettings: () => Promise<ProjectAgentSettings>;
   confirmCloseUnsavedDocument: (
     documentTitle: string,
   ) => Promise<CloseUnsavedDocumentDecision>;
@@ -79,6 +83,7 @@ export interface DriftfieldAPI {
   removeAgentCredential: (
     request: RemoveAgentCredentialRequest,
   ) => Promise<AgentConfiguration>;
+  resetAgentSettings: () => Promise<ResetAgentSettingsResult>;
   rejectAgentProposal: (
     request: RejectAgentProposalRequest,
   ) => Promise<RejectAgentProposalResult>;
@@ -104,6 +109,9 @@ export interface DriftfieldAPI {
   updateAppSettings: (
     settings: UpdateAppSettingsRequest,
   ) => Promise<AppSettings>;
+  updateProjectAgentSettings: (
+    settings: UpdateProjectAgentSettingsRequest,
+  ) => Promise<ProjectAgentSettings>;
   updateAgentModelOverride: (
     request: UpdateAgentModelOverrideRequest,
   ) => Promise<AgentConfiguration>;

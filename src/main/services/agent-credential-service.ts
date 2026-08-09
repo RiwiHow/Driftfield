@@ -58,6 +58,10 @@ export class AgentCredentialService {
     });
   }
 
+  async reset(): Promise<void> {
+    await this.enqueue(() => this.persist({}));
+  }
+
   private async enqueue(operation: () => Promise<void>): Promise<void> {
     const queued = this.updateQueue.then(operation);
     this.updateQueue = queued.catch(() => undefined);

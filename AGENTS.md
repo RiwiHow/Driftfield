@@ -42,7 +42,7 @@ sandbox: true
   source control.
 - Keep database access in main. Global mutable data and credentials stay under
   `app.getPath('userData')`; project-owned structured data lives only in the
-  main-owned `.driftfield/project.sqlite`, never in ASAR or renderer authority.
+  main-owned `.driftfield` databases, never in ASAR or renderer authority.
 - Do not load remote pages into the privileged main window.
 - Keep renderer CSP restrictive and review every added source.
 - Deny unexpected navigation and new windows. Open reviewed external URLs only
@@ -84,9 +84,11 @@ New-format projects use:
 
 ```text
 novel/
-├── driftfield.yaml
+├── _index.yaml
 ├── .driftfield/
-│   └── project.sqlite
+│   ├── project.sqlite
+│   ├── conversations.sqlite
+│   └── settings.sqlite
 ├── manuscript/
 │   └── _index.yaml
 └── lorebook/
@@ -96,10 +98,19 @@ novel/
 - New projects create lowercase physical `manuscript` and `lorebook` roots.
   Existing projects may omit `lorebook`; its absence must never block opening a
   manuscript.
-- Selecting an empty directory initializes the manifest, manuscript, and
+- Selecting an empty directory initializes the root index, database, manuscript, and
   lorebook indexes.
 - Never implicitly rewrite or move a nonempty legacy directory.
-- `driftfield.yaml` owns stable project identity and format version.
+- `project.sqlite` owns stable project identity and future authoritative world,
+  timeline, plot, and mutation-ledger state. `conversations.sqlite` owns Agent
+  conversations and generation/tool audit data. `settings.sqlite` owns
+  project-level model selection and overrides.
+- Cross-database references use validated stable IDs and never SQLite foreign
+  keys. Conversation records may refer to tool operations, but they are not the
+  authority for world state.
+- The root `_index.yaml` owns the user-editable project title and optional
+  reviewed icon ID. Legacy `driftfield.yaml` projects remain readable but are
+  never rewritten implicitly.
 - Each semantic directory `_index.yaml` owns its stable ID, kind, display title,
   explicit child order, and inherited numbering/label policy.
 - Paths, filenames, titles, numbers, and array positions are not stable IDs.
@@ -276,4 +287,4 @@ scripts whenever AI/Pi, i18n, renderer bundling, ASAR, or packaging is affected.
 - [Reliability Baseline](docs/reliability.md)
 - [Technical Debt and Roadmap](docs/roadmap.md)
 - [Development and Packaging](docs/development/packaging.md)
-- [Project Database](docs/database.md)
+- [Project Databases](docs/database.md)

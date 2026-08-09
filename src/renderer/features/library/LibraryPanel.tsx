@@ -19,6 +19,8 @@ import type {
   ProjectDirectory,
   ProjectTreeNode,
 } from '../../../shared/contracts/project';
+import type { ProjectIconId } from '../../../shared/contracts/project-layout';
+import { ProjectIcon } from './ProjectIcon';
 
 interface LibraryPanelProps {
   activeChapterId: string | null;
@@ -32,6 +34,7 @@ interface LibraryPanelProps {
   onRefreshProject: () => void;
   onSelectProject: () => void;
   projectDirectory: ProjectDirectory | null;
+  projectIcon?: ProjectIconId;
   projectSelectionError: string | null;
   projectTree: ProjectTreeNode[];
   projectWatcherError: string | null;
@@ -50,6 +53,7 @@ export function LibraryPanel({
   onRefreshProject,
   onSelectProject,
   projectDirectory,
+  projectIcon,
   projectSelectionError,
   projectTree,
   projectWatcherError,
@@ -64,6 +68,9 @@ export function LibraryPanel({
           className="pane-heading-title"
           title={projectDirectory?.path ?? t('title')}
         >
+          {projectIcon !== undefined && (
+            <ProjectIcon aria-hidden="true" icon={projectIcon} size={14} />
+          )}
           {projectDirectory?.name ?? t('title')}
         </span>
         <div className="pane-heading-actions">
@@ -242,7 +249,11 @@ function ProjectTree({
                 ) : (
                   <ChevronDown aria-hidden="true" size={13} />
                 )}
-                <FolderOpen aria-hidden="true" size={14} />
+                {node.icon === undefined ? (
+                  <FolderOpen aria-hidden="true" size={14} />
+                ) : (
+                  <ProjectIcon aria-hidden="true" icon={node.icon} size={14} />
+                )}
                 <span>{node.name}</span>
               </button>
 
