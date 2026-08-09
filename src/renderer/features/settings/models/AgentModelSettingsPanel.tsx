@@ -2,6 +2,13 @@ import { RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import type {
   AgentApiKeyProviderId,
@@ -53,7 +60,12 @@ export function AgentModelSettingsPanel({
   projectAgentSettings,
 }: AgentModelSettingsPanelProps) {
   const { t } = useTranslation("settings");
+  const { t: tCommon } = useTranslation("common");
+  const { t: tErrors } = useTranslation("errors");
   const [credentialInputVersion, setCredentialInputVersion] = useState(0);
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetError, setResetError] = useState(false);
   const agentSettings = projectAgentSettings ?? {
     defaultModel: null,
     thinkingLevel: "medium" as const,
@@ -88,10 +100,16 @@ export function AgentModelSettingsPanel({
   }, [configuredProviderKey, projectAgentSettings?.defaultModel?.providerId]);
 
   const resetModelSettings = async (): Promise<void> => {
-    if (!window.confirm(t("agent.resetConfirm"))) return;
+    if (isResetting) return;
+    setIsResetting(true);
+    setResetError(false);
     if (await onResetModelSettings()) {
       setCredentialInputVersion((current) => current + 1);
+      setIsResetDialogOpen(false);
+    } else {
+      setResetError(true);
     }
+    setIsResetting(false);
   };
 
   return (
@@ -153,7 +171,10 @@ export function AgentModelSettingsPanel({
           <Button
             className="h-8 px-3 text-xs text-destructive hover:text-destructive"
             disabled={isSaving || projectAgentSettings === null}
-            onClick={() => void resetModelSettings()}
+            onClick={() => {
+              setResetError(false);
+              setIsResetDialogOpen(true);
+            }}
             size="sm"
             type="button"
             variant="outline"
@@ -163,6 +184,45 @@ export function AgentModelSettingsPanel({
           </Button>
         </div>
       </section>
+
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!isResetting) {
+            setResetError(false);
+            setIsResetDialogOpen(open);
+          }
+        }}
+        open={isResetDialogOpen}
+      >
+        <AlertDialogContent className="max-w-[360px]">
+          <AlertDialogTitle>{t("agent.resetTitle")}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {t("agent.resetConfirm")}
+          </AlertDialogDescription>
+          {resetError && (
+            <p className="text-[10px] text-destructive" role="alert">
+              {tErrors("agent.resetFailed")}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <AlertDialogCancel asChild>
+              <Button disabled={isResetting} size="sm" variant="ghost">
+                {tCommon("actions.cancel")}
+              </Button>
+            </AlertDialogCancel>
+            <Button
+              disabled={isResetting}
+              onClick={() => void resetModelSettings()}
+              size="sm"
+              variant="destructive"
+            >
+              {isResetting
+                ? t("saveStatus.saving")
+                : t("agent.resetAction")}
+            </Button>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

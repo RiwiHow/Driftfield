@@ -18,6 +18,13 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { Chapter } from '@/app/types';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -72,6 +79,12 @@ export function AssistantPanel({
 }: AssistantPanelProps) {
   const { t } = useTranslation('assistant');
   const { t: tCommon } = useTranslation('common');
+  const [deleteError, setDeleteError] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [renameDraft, setRenameDraft] = useState('');
   const [renameError, setRenameError] = useState(false);
@@ -157,15 +170,27 @@ export function AssistantPanel({
     }
   };
 
+  const openDeleteConversation = (): void => {
+    if (activeConversation === undefined) return;
+    setDeleteError(false);
+    setDeleteTarget({
+      id: activeConversation.id,
+      title: activeConversation.title || t('history.untitled'),
+    });
+  };
+
   const deleteSelectedConversation = async (): Promise<void> => {
-    if (
-      activeConversation === undefined ||
-      !window.confirm(t('history.deleteConfirm', {
-        title: activeConversation.title || t('history.untitled'),
-      }))
-    ) return;
+    if (deleteTarget === null || isDeleting) return;
+    setIsDeleting(true);
+    setDeleteError(false);
     setEditingMessage(null);
-    await deleteConversation(activeConversation.id);
+    const deleted = await deleteConversation(deleteTarget.id);
+    setIsDeleting(false);
+    if (deleted) {
+      setDeleteTarget(null);
+    } else {
+      setDeleteError(true);
+    }
   };
 
   const modelStatus = configurationLoading
@@ -224,7 +249,7 @@ export function AssistantPanel({
               <Button
                 aria-label={t('history.delete')}
                 disabled={isActive || activeConversationId === null}
-                onClick={() => void deleteSelectedConversation()}
+                onClick={openDeleteConversation}
                 size="icon"
                 variant="ghost"
               >
@@ -262,24 +287,28 @@ export function AssistantPanel({
         }}
         open={renameTargetId !== null}
       >
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-[340px]">
           <DialogTitle>{t('history.rename')}</DialogTitle>
           <DialogDescription>
             {t('history.renameDescription')}
           </DialogDescription>
           <form
-            className="grid gap-4"
+            className="grid gap-3"
             onSubmit={(event) => {
               event.preventDefault();
               void submitConversationRename();
             }}
           >
-            <div className="grid gap-2">
-              <Label htmlFor="conversation-rename-title">
+            <div className="grid gap-1.5">
+              <Label
+                className="text-[11px]"
+                htmlFor="conversation-rename-title"
+              >
                 {t('history.renamePrompt')}
               </Label>
               <Input
                 autoFocus
+                className="h-8 text-[11px] focus-visible:ring-2 md:text-[11px]"
                 disabled={isRenaming}
                 id="conversation-rename-title"
                 maxLength={200}
@@ -288,7 +317,7 @@ export function AssistantPanel({
               />
             </div>
             {renameError && (
-              <p className="text-sm text-destructive" role="alert">
+              <p className="text-[10px] text-destructive" role="alert">
                 {t('history.renameError')}
               </p>
             )}
@@ -296,12 +325,14 @@ export function AssistantPanel({
               <Button
                 disabled={isRenaming}
                 onClick={() => setRenameTargetId(null)}
+                size="sm"
                 variant="ghost"
               >
                 {tCommon('actions.cancel')}
               </Button>
               <Button
                 disabled={isRenaming || renameDraft.trim().length === 0}
+                size="sm"
                 type="submit"
               >
                 {isRenaming
@@ -312,6 +343,45 @@ export function AssistantPanel({
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) {
+            setDeleteError(false);
+            setDeleteTarget(null);
+          }
+        }}
+        open={deleteTarget !== null}
+      >
+        <AlertDialogContent className="max-w-[360px]">
+          <AlertDialogTitle>{t('history.delete')}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {t('history.deleteConfirm', {
+              title: deleteTarget?.title ?? '',
+            })}
+          </AlertDialogDescription>
+          {deleteError && (
+            <p className="text-[10px] text-destructive" role="alert">
+              {t('history.deleteError')}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <AlertDialogCancel asChild>
+              <Button disabled={isDeleting} size="sm" variant="ghost">
+                {tCommon('actions.cancel')}
+              </Button>
+            </AlertDialogCancel>
+            <Button
+              disabled={isDeleting}
+              onClick={() => void deleteSelectedConversation()}
+              size="sm"
+              variant="destructive"
+            >
+              {isDeleting ? t('history.deleting') : t('history.delete')}
+            </Button>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div aria-label={t('title')} className="conversation">
         {messages.length === 0 ? (

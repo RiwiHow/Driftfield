@@ -127,17 +127,22 @@ export function App({
           <div className="save-conflict-actions">
             <Button
               onClick={project.reloadConflictedDocument}
+              size="sm"
               variant="outline"
             >
               {t("conflict.reload")}
             </Button>
             <Button
               onClick={project.compareConflictedDocument}
+              size="sm"
               variant="outline"
             >
               {t("conflict.compare")}
             </Button>
-            <Button onClick={() => void project.saveActiveDocument(true)}>
+            <Button
+              onClick={() => void project.saveActiveDocument(true)}
+              size="sm"
+            >
               {t("conflict.overwrite")}
             </Button>
           </div>
