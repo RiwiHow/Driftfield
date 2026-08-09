@@ -54,6 +54,7 @@ export function App({ initialSettings, settingsLoadFailed }: AppProps) {
         isRefreshingProject={project.isRefreshingProject}
         isSavingDocument={project.isSavingDocument}
         onChapterChange={project.selectChapter}
+        onAgentProposalApplied={project.commitAgentProposal}
         onContentChange={project.updateActiveChapter}
         onCreateProject={() => void project.createProjectDirectory()}
         onCloseChapter={() => void project.closeActiveDocument()}

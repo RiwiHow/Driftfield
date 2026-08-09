@@ -5,19 +5,40 @@ import { getAgentStartConfigurationError } from '../ai/agent-start-policy';
 import { getAgentConfiguration } from '../ai/get-agent-configuration';
 import type { IpcHandlerContext } from './ipc-handler-context';
 import {
+  isApplyAgentProposalRequest,
   isCancelAgentRequest,
   isRemoveAgentCredentialRequest,
   isSetAgentApiKeyRequest,
   isStartAgentPromptRequest,
+  isRejectAgentProposalRequest,
 } from './validators/agent-requests';
 
 export const registerAgentIpcHandlers = ({
   agentCredentialService,
+  agentProposalService,
   aiAgentService,
   getTrustedSenderWindow,
   projectSessions,
   settingsService,
 }: IpcHandlerContext): void => {
+  ipcMain.handle(IPC_CHANNELS.applyAgentProposal, async (event, value: unknown) => {
+    const window = getTrustedSenderWindow(event);
+    if (!isApplyAgentProposalRequest(value)) {
+      throw new Error('Invalid Agent proposal apply request');
+    }
+    return agentProposalService.apply(window.webContents.id, value.proposalId);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.rejectAgentProposal, async (event, value: unknown) => {
+    const window = getTrustedSenderWindow(event);
+    if (!isRejectAgentProposalRequest(value)) {
+      throw new Error('Invalid Agent proposal rejection');
+    }
+    return {
+      rejected: agentProposalService.reject(window.webContents.id, value.proposalId),
+    };
+  });
+
   ipcMain.handle(IPC_CHANNELS.getAgentConfiguration, async (event) => {
     getTrustedSenderWindow(event);
     return getAgentConfiguration(aiAgentService, agentCredentialService);

@@ -35,6 +35,11 @@ export interface CancelAgentResult {
 export type AgentEvent =
   | { requestId: string; type: 'started' }
   | { delta: string; requestId: string; type: 'text-delta' }
+  | {
+      proposal: import('./agent-proposals').AgentEditProposal;
+      requestId: string;
+      type: 'edit-proposal';
+    }
   | { requestId: string; type: 'completed' }
   | { requestId: string; type: 'cancelled' }
   | { code: AgentErrorCode; requestId: string; type: 'error' };

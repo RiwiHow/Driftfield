@@ -1,10 +1,12 @@
 export const IPC_CHANNELS = {
   cancelAgent: 'agent:cancel',
+  applyAgentProposal: 'agent:apply-proposal',
   agentEvent: 'agent:event',
   startAgentPrompt: 'agent:start-prompt',
   getAgentConfiguration: 'agent:get-configuration',
   removeAgentCredential: 'agent:remove-credential',
   setAgentApiKey: 'agent:set-api-key',
+  rejectAgentProposal: 'agent:reject-proposal',
   createProjectDirectory: 'project:create-directory',
   selectProjectDirectory: 'project:select-directory',
   refreshProject: 'project:refresh',

@@ -15,6 +15,7 @@ import type { Chapter } from '@/app/types';
 import { Button } from '@/components/ui/button';
 import type { AgentConfiguration } from '../../../shared/contracts/agent-configuration';
 import type { AgentSettings } from '../../../shared/contracts/settings';
+import type { AgentEditProposal, ApplyAgentProposalResult } from '../../../shared/contracts/agent-proposals';
 import type { AgentConversationPhase } from './agent-conversation-state';
 import { SafeMarkdown } from './SafeMarkdown';
 import { useAgentConversation } from './use-agent-conversation';
@@ -25,6 +26,9 @@ interface AssistantPanelProps {
   configurationError: string | null;
   configurationLoading: boolean;
   onOpenSettings: () => void;
+  onProposalApplied: (
+    result: Extract<ApplyAgentProposalResult, { status: 'saved' }>,
+  ) => void;
   settings: AgentSettings;
 }
 
@@ -34,12 +38,22 @@ export function AssistantPanel({
   configurationError,
   configurationLoading,
   onOpenSettings,
+  onProposalApplied,
   settings,
 }: AssistantPanelProps) {
   const { t } = useTranslation('assistant');
   const [prompt, setPrompt] = useState('');
-  const { cancel, clear, error, isActive, messages, phase, send } =
-    useAgentConversation(activeChapter);
+  const {
+    applyProposal,
+    cancel,
+    clear,
+    error,
+    isActive,
+    messages,
+    phase,
+    rejectProposal,
+    send,
+  } = useAgentConversation(activeChapter, onProposalApplied);
   const selectedModel = configuration.models.find(
     ({ id, providerId }) =>
       id === settings.defaultModel?.modelId &&
@@ -153,12 +167,22 @@ export function AssistantPanel({
                     : t('author.user')}
                 </div>
                 {message.role === 'assistant' && message.terminal === undefined ? (
-                  <div className="agent-markdown">
-                    <SafeMarkdown>
-                      {message.content ||
-                        (isActive ? activePhaseLabel(phase) ?? '' : '')}
-                    </SafeMarkdown>
-                  </div>
+                  <>
+                    <div className="agent-markdown">
+                      <SafeMarkdown>
+                        {message.content ||
+                          (isActive ? activePhaseLabel(phase) ?? '' : '')}
+                      </SafeMarkdown>
+                    </div>
+                    {message.proposal !== undefined ? (
+                      <ProposalCard
+                        onApply={() => void applyProposal(message.proposal!)}
+                        onReject={() => void rejectProposal(message.proposal!.proposalId)}
+                        proposal={message.proposal}
+                        status={message.proposalStatus ?? 'pending'}
+                      />
+                    ) : null}
+                  </>
                 ) : (
                   <p>
                     {message.terminal !== undefined
@@ -245,5 +269,50 @@ export function AssistantPanel({
         </div>
       </div>
     </aside>
+  );
+}
+
+function ProposalCard({
+  onApply,
+  onReject,
+  proposal,
+  status,
+}: {
+  onApply: () => void;
+  onReject: () => void;
+  proposal: AgentEditProposal;
+  status: 'pending' | 'applying' | 'saved' | 'rejected' | 'conflict' | 'missing' | 'stale' | 'failed';
+}) {
+  const { t } = useTranslation('assistant');
+  const pending = status === 'pending';
+  return (
+    <div className="agent-proposal">
+      <strong>{t('proposal.title', { title: proposal.title })}</strong>
+      <details>
+        <summary>{t('proposal.preview')}</summary>
+        <div className="agent-proposal-comparison">
+          <section>
+            <span>{t('proposal.original')}</span>
+            <pre>{proposal.baseMarkdown}</pre>
+          </section>
+          <section>
+            <span>{t('proposal.proposed')}</span>
+            <pre>{proposal.markdown}</pre>
+          </section>
+        </div>
+      </details>
+      {pending ? (
+        <div className="agent-proposal-actions">
+          <Button onClick={onReject} size="sm" variant="outline">
+            {t('proposal.reject')}
+          </Button>
+          <Button onClick={onApply} size="sm">
+            {t('proposal.accept')}
+          </Button>
+        </div>
+      ) : (
+        <small>{t(`proposal.status.${status}`)}</small>
+      )}
+    </div>
   );
 }

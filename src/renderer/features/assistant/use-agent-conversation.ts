@@ -2,6 +2,10 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { Chapter } from '@/app/types';
+import type {
+  AgentEditProposal,
+  ApplyAgentProposalResult,
+} from '../../../shared/contracts/agent-proposals';
 import {
   type AgentConversationErrorCode,
   INITIAL_AGENT_RUN_STATE,
@@ -23,10 +27,25 @@ interface ConversationMessage {
   content: string;
   id: string;
   role: 'assistant' | 'user';
+  proposal?: AgentEditProposal;
+  proposalStatus?:
+    | 'pending'
+    | 'applying'
+    | 'saved'
+    | 'rejected'
+    | 'conflict'
+    | 'missing'
+    | 'stale'
+    | 'failed';
   terminal?: 'cancelled' | 'empty' | 'failed';
 }
 
-export function useAgentConversation(activeChapter: Chapter | null) {
+export function useAgentConversation(
+  activeChapter: Chapter | null,
+  onProposalApplied: (
+    result: Extract<ApplyAgentProposalResult, { status: 'saved' }>,
+  ) => void,
+) {
   const { t: tErrors } = useTranslation('errors');
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [run, dispatchRun] = useReducer(
@@ -51,10 +70,21 @@ export function useAgentConversation(activeChapter: Chapter | null) {
           ),
         );
       }
+      if (event.type === 'edit-proposal') {
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === event.requestId
+              ? { ...message, proposal: event.proposal, proposalStatus: 'pending' }
+              : message,
+          ),
+        );
+      }
       if (event.type === 'completed') {
         setMessages((current) =>
           current.map((message) =>
-            message.id === event.requestId && message.content.length === 0
+            message.id === event.requestId &&
+              message.content.length === 0 &&
+              message.proposal === undefined
               ? { ...message, terminal: 'empty' }
               : message,
           ),
@@ -65,7 +95,9 @@ export function useAgentConversation(activeChapter: Chapter | null) {
       if (event.type === 'cancelled') {
         setMessages((current) =>
           current.map((message) =>
-            message.id === event.requestId && message.content.length === 0
+            message.id === event.requestId &&
+              message.content.length === 0 &&
+              message.proposal === undefined
               ? { ...message, terminal: 'cancelled' }
               : message,
           ),
@@ -76,7 +108,9 @@ export function useAgentConversation(activeChapter: Chapter | null) {
       if (event.type === 'error') {
         setMessages((current) =>
           current.map((message) =>
-            message.id === event.requestId && message.content.length === 0
+            message.id === event.requestId &&
+              message.content.length === 0 &&
+              message.proposal === undefined
               ? { ...message, terminal: 'failed' }
               : message,
           ),
@@ -157,7 +191,7 @@ export function useAgentConversation(activeChapter: Chapter | null) {
         return false;
       }
     },
-    [activeChapter?.id],
+    [activeChapter],
   );
 
   const cancel = useCallback(async () => {
@@ -186,15 +220,68 @@ export function useAgentConversation(activeChapter: Chapter | null) {
     }
   }, []);
 
+  const setProposalStatus = useCallback(
+    (
+      proposalId: string,
+      status: NonNullable<ConversationMessage['proposalStatus']>,
+    ) => {
+      setMessages((current) =>
+        setProposalStatusInMessages(current, proposalId, status),
+      );
+    },
+    [],
+  );
+
+  const applyProposal = useCallback(async (proposal: AgentEditProposal) => {
+    if (!canApplyAgentProposal(activeChapter, proposal)) {
+      setProposalStatus(proposal.proposalId, 'stale');
+      return;
+    }
+    setProposalStatus(proposal.proposalId, 'applying');
+    try {
+      const result = await window.driftfield.applyAgentProposal({
+        proposalId: proposal.proposalId,
+      });
+      if (result.status === 'saved') {
+        onProposalApplied(result);
+        setProposalStatus(proposal.proposalId, 'saved');
+      } else {
+        setProposalStatus(
+          proposal.proposalId,
+          result.status === 'not-found' ? 'stale' : result.status,
+        );
+      }
+    } catch {
+      setProposalStatus(proposal.proposalId, 'failed');
+    }
+  }, [activeChapter, onProposalApplied]);
+
+  const rejectProposal = useCallback(async (proposalId: string) => {
+    try {
+      await window.driftfield.rejectAgentProposal({ proposalId });
+      setProposalStatus(proposalId, 'rejected');
+    } catch {
+      setProposalStatus(proposalId, 'failed');
+    }
+  }, []);
+
   const clear = useCallback(() => {
     if (!isAgentConversationActive(run.phase)) {
+      for (const message of messages) {
+        if (message.proposalStatus === 'pending' && message.proposal !== undefined) {
+          void window.driftfield.rejectAgentProposal({
+            proposalId: message.proposal.proposalId,
+          });
+        }
+      }
       setMessages([]);
       dispatchRun({ type: 'reset' });
     }
-  }, [run.phase]);
+  }, [messages, run.phase]);
 
   return {
     cancel,
+    applyProposal,
     clear,
     error:
       run.errorCode === null
@@ -203,6 +290,31 @@ export function useAgentConversation(activeChapter: Chapter | null) {
     isActive: isAgentConversationActive(run.phase),
     messages,
     phase: run.phase,
+    rejectProposal,
     send,
   };
+}
+
+export function canApplyAgentProposal(
+  chapter: Chapter | null,
+  proposal: AgentEditProposal,
+): boolean {
+  return (
+    chapter !== null &&
+    chapter.id === proposal.documentId &&
+    chapter.revision === proposal.baseRevision &&
+    chapter.markdown === proposal.baseMarkdown
+  );
+}
+
+function setProposalStatusInMessages(
+  messages: ConversationMessage[],
+  proposalId: string,
+  status: NonNullable<ConversationMessage['proposalStatus']>,
+): ConversationMessage[] {
+  return messages.map((message) =>
+    message.proposal?.proposalId === proposalId
+      ? { ...message, proposalStatus: status }
+      : message,
+  );
 }

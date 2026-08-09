@@ -29,9 +29,20 @@ import type {
   StartAgentPromptRequest,
   StartAgentPromptResult,
 } from '../shared/contracts/agent';
+import type {
+  ApplyAgentProposalRequest,
+  ApplyAgentProposalResult,
+  RejectAgentProposalRequest,
+  RejectAgentProposalResult,
+} from '../shared/contracts/agent-proposals';
 
 const api: DriftfieldAPI = {
   platform: process.platform,
+  applyAgentProposal: (request: ApplyAgentProposalRequest) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.applyAgentProposal,
+      request,
+    ) as Promise<ApplyAgentProposalResult>,
   cancelAgent: (request: CancelAgentRequest) =>
     ipcRenderer.invoke(IPC_CHANNELS.cancelAgent, request) as Promise<CancelAgentResult>,
   createProjectDirectory: () =>
@@ -104,6 +115,11 @@ const api: DriftfieldAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.refreshProject) as Promise<
       ProjectSnapshot | null
     >,
+  rejectAgentProposal: (request: RejectAgentProposalRequest) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.rejectAgentProposal,
+      request,
+    ) as Promise<RejectAgentProposalResult>,
   removeAgentCredential: (request: RemoveAgentCredentialRequest) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.removeAgentCredential,

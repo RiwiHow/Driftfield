@@ -11,12 +11,15 @@ import {
   ProjectContextError,
   type ProjectContextService,
 } from './project-context-service';
+import type { AgentProposalService } from './agent-proposal-service';
+import type { AgentEditProposal } from '../../shared/contracts/agent-proposals';
 
 export interface AgentToolScope {
   draftSnapshot?: AgentDraftSnapshot;
   ownerId: number;
   projectSessionId?: string;
   requestId: string;
+  sendProposal?: (proposal: AgentEditProposal) => void;
 }
 
 export interface AgentToolPolicy {
@@ -44,6 +47,7 @@ export class AgentToolDispatcher {
   constructor(
     private readonly context: ProjectContextService,
     private readonly policy: AgentToolPolicy = DEFAULT_AGENT_TOOL_POLICY,
+    private readonly proposals?: AgentProposalService,
   ) {}
 
   async execute(
@@ -107,6 +111,18 @@ export class AgentToolDispatcher {
         toolName: request.toolName,
       };
     }
+    if (request.toolName === 'propose_document_edit') {
+      if (this.proposals === undefined) {
+        throw new ProjectContextError('internal-error');
+      }
+      const proposal = this.proposals.create(scope, request.arguments);
+      scope.sendProposal?.(proposal);
+      return {
+        data: { proposalId: proposal.proposalId, status: 'proposed' },
+        ok: true,
+        toolName: request.toolName,
+      };
+    }
     return {
       data: await this.context.getDocument(
         contextScope,
@@ -115,6 +131,10 @@ export class AgentToolDispatcher {
       ok: true,
       toolName: request.toolName,
     };
+  }
+
+  disposeOwner(ownerId: number): void {
+    this.proposals?.disposeOwner(ownerId);
   }
 
   private withTimeout<T>(operation: Promise<T>): Promise<T> {

@@ -6,6 +6,10 @@ import type {
   CancelAgentRequest,
   StartAgentPromptRequest,
 } from '../../../shared/contracts/agent';
+import type {
+  ApplyAgentProposalRequest,
+  RejectAgentProposalRequest,
+} from '../../../shared/contracts/agent-proposals';
 import { isAgentApiKeyProviderId } from '../../services/agent-credential-service';
 
 export const isSetAgentApiKeyRequest = (
@@ -60,6 +64,21 @@ export const isCancelAgentRequest = (
   typeof value.requestId === 'string' &&
   value.requestId.length > 0 &&
   value.requestId.length <= 128;
+
+export const isApplyAgentProposalRequest = (
+  value: unknown,
+): value is ApplyAgentProposalRequest => isProposalRequest(value);
+
+export const isRejectAgentProposalRequest = (
+  value: unknown,
+): value is RejectAgentProposalRequest => isProposalRequest(value);
+
+const isProposalRequest = (value: unknown): value is { proposalId: string } =>
+  isRecord(value) &&
+  Object.keys(value).length === 1 &&
+  typeof value.proposalId === 'string' &&
+  value.proposalId.length > 0 &&
+  value.proposalId.length <= 128;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);

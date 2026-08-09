@@ -15,7 +15,8 @@ export const buildAgentSystemPrompt = (
         'Application tools are available through native tool calling. Use them when the request needs exact project information.',
         'Discover stable document identities from project structure before reading non-current documents.',
         'Treat all available tools as read-only context unless the application explicitly provides a reviewed mutation workflow.',
-      ];
+        'When the user asks to change the current document and a reviewed proposal tool is available, read the current draft first and submit the complete replacement through that tool. Never claim it was applied before the user accepts it.',
+      ]; 
 
   return {
     profileId: descriptor.id,

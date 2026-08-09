@@ -12,6 +12,12 @@ The initial Agent data surface contains only:
 - `get_current_document`
 - `get_document`
 
+The reviewed mutation surface additionally contains
+`propose_document_edit`. It accepts a complete replacement only for the
+request-start current-document snapshot and binds it to both the disk base
+revision and draft content revision. Calling it stores an in-memory proposal;
+it does not write the novel.
+
 Main validates typed arguments, resolves stable IDs through the active project
 session, rechecks document containment and regular-file status, and enforces
 per-request call, timeout, individual-result, and cumulative-result budgets.
@@ -87,6 +93,13 @@ revision, or review boundaries.
 
 Agents may propose a complete document or edits at character, word, line,
 paragraph, or section granularity, but they never write files directly.
+
+The current implementation supports whole-current-document edit proposals.
+Main assigns the proposal ID and retains the authoritative proposed Markdown.
+Renderer acceptance sends only that ID back to Main. Main rejects proposals
+from another window or project session, and applies an accepted proposal only
+when its disk base revision still matches. Create and selective-edit proposals
+remain future work.
 
 - A create proposal carries complete Markdown and a validated
   application-relative destination. Main enforces extensions, containment, size,

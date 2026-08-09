@@ -7,6 +7,7 @@ export const zhCN = {
     composer: { noChapter: '无当前章节', placeholder: '询问 Agent…', setupPlaceholder: '请先配置默认模型' },
     empty: { body: '添加服务商凭据并选择默认模型，Agent 才能处理请求。', loading: '正在读取模型配置', loadingBody: '请稍候。', setup: '连接一个模型后开始写作', setupAction: '打开模型设置', welcome: '我可以阅读当前章节，协助续写、润色或检查设定一致性。生成内容会先供你审阅。' },
     quick: { atmosphere: '增强氛围', atmospherePrompt: '增强当前章节的氛围，但不要改变已发生的情节。', continue: '续写当前章节', continuePrompt: '续写当前章节，保持既有叙事风格。', continuity: '检查一致性', continuityPrompt: '检查当前章节与已知设定是否可能存在矛盾。' },
+    proposal: { accept: '接受并保存', original: '原文', preview: '审阅对比', proposed: '建议稿', reject: '拒绝', status: { applying: '正在保存已接受的修改……', conflict: '磁盘文件已变化，提案未应用。', failed: '无法应用此提案。', missing: '文件已被移动或删除，提案未应用。', rejected: '已拒绝提案。', saved: '已保存接受的修改。', stale: '提案生成后草稿已有变化，请让 Agent 重新读取。' }, title: '对“{{title}}”的修改提案' },
     status: { cancelling: '正在取消…', loadingConfiguration: '正在读取模型配置…', configurationFailed: '模型配置读取失败', modelUnavailable: '所选模型当前不可用', notConfigured: '尚未配置模型', starting: '正在启动…', streaming: '正在生成…' },
     terminal: { cancelled: '（已取消）', empty: '（模型未返回文本）', failed: '（请求失败）' },
     thinking: { high: '深度', low: '快速', max: '最大', medium: '均衡', minimal: '最低', off: '关闭推理', xhigh: '极高' },

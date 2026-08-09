@@ -150,6 +150,7 @@ export class AiAgentService {
       this.activeRequests.delete(requestId);
       this.toolDispatcher?.release(requestId);
     }
+    this.toolDispatcher?.disposeOwner(ownerId);
   }
 
   dispose(): void {
@@ -261,6 +262,12 @@ export class AiAgentService {
               ownerId: active.ownerId,
               projectSessionId: active.projectSessionId,
               requestId: message.requestId,
+              sendProposal: (proposal) =>
+                active.sendEvent({
+                  proposal,
+                  requestId: message.requestId,
+                  type: 'edit-proposal',
+                }),
             },
             message,
           );

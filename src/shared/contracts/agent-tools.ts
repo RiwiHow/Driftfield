@@ -51,6 +51,11 @@ export interface AgentNovelStructureToolResult {
   };
 }
 
+export interface AgentEditProposalToolResult {
+  proposalId: string;
+  status: 'proposed';
+}
+
 export interface AgentToolContractMap {
   get_current_document: {
     arguments: Record<string, never>;
@@ -64,6 +69,15 @@ export interface AgentToolContractMap {
     arguments: Record<string, never>;
     result: AgentNovelStructureToolResult;
   };
+  propose_document_edit: {
+    arguments: {
+      baseContentRevision: string;
+      baseRevision: string;
+      documentId: string;
+      markdown: string;
+    };
+    result: AgentEditProposalToolResult;
+  };
 }
 
 export type AgentToolName = keyof AgentToolContractMap;
@@ -72,6 +86,7 @@ export const AGENT_TOOL_NAMES = [
   'get_novel_structure',
   'get_current_document',
   'get_document',
+  'propose_document_edit',
 ] as const satisfies readonly AgentToolName[];
 
 export type AgentToolRequest<
@@ -98,6 +113,7 @@ export type AgentToolErrorCode =
   | 'project-session-changed'
   | 'document-not-found'
   | 'document-too-large'
+  | 'proposal-base-changed'
   | 'tool-timeout'
   | 'tool-budget-exceeded'
   | 'internal-error';
@@ -107,6 +123,7 @@ export const AGENT_TOOL_ERROR_CODES = [
   'project-session-changed',
   'document-not-found',
   'document-too-large',
+  'proposal-base-changed',
   'tool-timeout',
   'tool-budget-exceeded',
   'internal-error',
@@ -135,12 +152,20 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
   value: unknown,
 ): value is AgentToolContractMap[Name]['arguments'] => {
   if (!isRecord(value)) return false;
+  if (toolName === 'propose_document_edit') {
+    return (
+      Object.keys(value).length === 4 &&
+      isDocumentId(value.documentId) &&
+      isRevision(value.baseRevision) &&
+      isRevision(value.baseContentRevision) &&
+      typeof value.markdown === 'string' &&
+      new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024
+    );
+  }
   if (toolName !== 'get_document') return Object.keys(value).length === 0;
   return (
     Object.keys(value).length === 1 &&
-    typeof value.documentId === 'string' &&
-    value.documentId.length > 0 &&
-    value.documentId.length <= 128
+    isDocumentId(value.documentId)
   );
 };
 
@@ -164,7 +189,21 @@ export const isAgentToolExecutionResult = (
 const isToolData = (toolName: AgentToolName, value: unknown): boolean =>
   toolName === 'get_novel_structure'
     ? isNovelStructureResult(value)
+    : toolName === 'propose_document_edit'
+      ? isEditProposalResult(value)
     : isDocumentResult(value);
+
+const isEditProposalResult = (value: unknown): boolean =>
+  isRecord(value) &&
+  typeof value.proposalId === 'string' &&
+  value.proposalId.length > 0 &&
+  value.status === 'proposed';
+
+const isDocumentId = (value: unknown): value is string =>
+  typeof value === 'string' && value.length > 0 && value.length <= 128;
+
+const isRevision = (value: unknown): value is string =>
+  typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
 
 const isDocumentResult = (value: unknown): value is AgentDocumentToolResult =>
   isRecord(value) &&

@@ -23,10 +23,12 @@ import { IPC_CHANNELS } from '../../../src/shared/contracts/ipc-channels';
 type Handler = (event: unknown, value?: unknown) => unknown;
 
 const invocationChannels = [
+  IPC_CHANNELS.applyAgentProposal,
   IPC_CHANNELS.cancelAgent,
   IPC_CHANNELS.startAgentPrompt,
   IPC_CHANNELS.getAgentConfiguration,
   IPC_CHANNELS.removeAgentCredential,
+  IPC_CHANNELS.rejectAgentProposal,
   IPC_CHANNELS.setAgentApiKey,
   IPC_CHANNELS.createProjectDirectory,
   IPC_CHANNELS.selectProjectDirectory,
@@ -109,6 +111,10 @@ const createContext = (): IpcHandlerContext => {
     },
     aiAgentService: {
       start: vi.fn(async () => 'request-1'),
+    },
+    agentProposalService: {
+      apply: vi.fn(),
+      reject: vi.fn(),
     },
     completeWindowClose: vi.fn(),
     getTrustedSenderWindow: vi.fn(() => window),

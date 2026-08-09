@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AgentToolDispatcher } from '../../../src/main/ai/agent-tool-dispatcher';
 import type { ProjectContextService } from '../../../src/main/ai/project-context-service';
+import type { AgentProposalService } from '../../../src/main/ai/agent-proposal-service';
 
 afterEach(() => vi.useRealTimers());
 
@@ -17,6 +18,44 @@ const documentResult = {
 const scope = { ownerId: 7, projectSessionId: 'session-1', requestId: 'request-1' };
 
 describe('AgentToolDispatcher', () => {
+  it('emits a reviewed proposal without writing through the context service', async () => {
+    const proposal = {
+      baseContentRevision: 'a'.repeat(64),
+      baseMarkdown: '# Original',
+      baseRevision: 'b'.repeat(64),
+      documentId: 'chapter-1',
+      markdown: '# Proposed',
+      proposalId: 'proposal-1',
+      requestId: 'request-1',
+      title: 'Chapter',
+    };
+    const proposals = { create: vi.fn(() => proposal) } as unknown as AgentProposalService;
+    const sendProposal = vi.fn();
+    const dispatcher = new AgentToolDispatcher(
+      {} as ProjectContextService,
+      undefined,
+      proposals,
+    );
+
+    await expect(dispatcher.execute(
+      { ...scope, sendProposal },
+      {
+        arguments: {
+          baseContentRevision: proposal.baseContentRevision,
+          baseRevision: proposal.baseRevision,
+          documentId: proposal.documentId,
+          markdown: proposal.markdown,
+        },
+        toolName: 'propose_document_edit',
+      },
+    )).resolves.toEqual({
+      data: { proposalId: 'proposal-1', status: 'proposed' },
+      ok: true,
+      toolName: 'propose_document_edit',
+    });
+    expect(sendProposal).toHaveBeenCalledWith(proposal);
+  });
+
   it('validates arguments and enforces the per-request call budget', async () => {
     const context = {
       getDocument: vi.fn().mockResolvedValue(documentResult),

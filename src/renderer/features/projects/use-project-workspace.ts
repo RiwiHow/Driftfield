@@ -9,6 +9,7 @@ import type {
   ProjectSnapshot,
   ProjectTreeNode,
 } from '../../../shared/contracts/project';
+import type { ApplyAgentProposalResult } from '../../../shared/contracts/agent-proposals';
 
 interface SaveConflict {
   diskDocument: ProjectDocument;
@@ -100,6 +101,26 @@ export const useProjectWorkspace = () => {
                 revision,
               }
             : item,
+        ),
+      );
+    },
+    [],
+  );
+
+  const commitAgentProposal = useCallback(
+    (result: Extract<ApplyAgentProposalResult, { status: 'saved' }>): void => {
+      setChapters((current) =>
+        current.map((chapter) =>
+          chapter.id === result.documentId
+            ? {
+                ...chapter,
+                isDirty: false,
+                markdown: result.markdown,
+                previousMarkdown: result.markdown,
+                revision: result.revision,
+                sourceRevision: ++projectRevision.current,
+              }
+            : chapter,
         ),
       );
     },
@@ -496,6 +517,7 @@ export const useProjectWorkspace = () => {
   return {
     activeChapter,
     chapters,
+    commitAgentProposal,
     closeActiveDocument,
     compareConflictedDocument,
     createProjectDirectory,

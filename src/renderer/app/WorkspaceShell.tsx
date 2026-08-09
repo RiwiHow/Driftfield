@@ -40,6 +40,7 @@ import type {
   ProjectSnapshot,
   ProjectTreeNode,
 } from '../../shared/contracts/project';
+import type { ApplyAgentProposalResult } from '../../shared/contracts/agent-proposals';
 import {
   WORKSPACE_PANEL_MIN_WIDTHS,
   WORKSPACE_PANEL_SEPARATOR_WIDTH,
@@ -58,6 +59,9 @@ interface WorkspaceShellProps {
   isRefreshingProject: boolean;
   isSavingDocument: boolean;
   onChapterChange: (chapterId: string) => void;
+  onAgentProposalApplied: (
+    result: Extract<ApplyAgentProposalResult, { status: 'saved' }>,
+  ) => void;
   onCloseChapter: () => void;
   onContentChange: (markdown: string) => void;
   onCreateProject: () => void;
@@ -87,6 +91,7 @@ export function WorkspaceShell({
   isRefreshingProject,
   isSavingDocument,
   onChapterChange,
+  onAgentProposalApplied,
   onCloseChapter,
   onContentChange,
   onCreateProject,
@@ -364,6 +369,7 @@ export function WorkspaceShell({
               configuration={agentConfiguration}
               configurationError={agentConfigurationError}
               configurationLoading={agentConfigurationLoading}
+              onProposalApplied={onAgentProposalApplied}
               onOpenSettings={onOpenSettings}
               settings={agentSettings}
             />

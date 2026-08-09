@@ -227,6 +227,24 @@ function createNovelTools(requestId: string) {
       execute: async (toolCallId, params) =>
         textToolResult(await requestTool(requestId, toolCallId, 'get_document', params)),
     }),
+    defineTool({
+      description: 'Submit a complete replacement for the current document as a reviewable proposal. This never writes the file; the user must explicitly accept it in Driftfield.',
+      label: 'Propose document edit',
+      name: 'propose_document_edit',
+      parameters: Type.Object({
+        baseContentRevision: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+        baseRevision: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+        documentId: Type.String({ maxLength: 128, minLength: 1 }),
+        markdown: Type.String({ maxLength: 512 * 1024 }),
+      }, { additionalProperties: false }),
+      execute: async (toolCallId, params) =>
+        textToolResult(await requestTool(
+          requestId,
+          toolCallId,
+          'propose_document_edit',
+          params,
+        )),
+    }),
   ];
 }
 

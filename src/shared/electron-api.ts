@@ -26,9 +26,18 @@ import type {
   StartAgentPromptRequest,
   StartAgentPromptResult,
 } from './contracts/agent';
+import type {
+  ApplyAgentProposalRequest,
+  ApplyAgentProposalResult,
+  RejectAgentProposalRequest,
+  RejectAgentProposalResult,
+} from './contracts/agent-proposals';
 
 export interface DriftfieldAPI {
   platform: string;
+  applyAgentProposal: (
+    request: ApplyAgentProposalRequest,
+  ) => Promise<ApplyAgentProposalResult>;
   cancelAgent: (request: CancelAgentRequest) => Promise<CancelAgentResult>;
   createProjectDirectory: () => Promise<SelectProjectDirectoryResult>;
   copyEditorSelection: () => Promise<void>;
@@ -51,6 +60,9 @@ export interface DriftfieldAPI {
   removeAgentCredential: (
     request: RemoveAgentCredentialRequest,
   ) => Promise<AgentConfiguration>;
+  rejectAgentProposal: (
+    request: RejectAgentProposalRequest,
+  ) => Promise<RejectAgentProposalResult>;
   saveProjectDocument: (
     request: SaveProjectDocumentRequest,
   ) => Promise<SaveProjectDocumentResult>;
