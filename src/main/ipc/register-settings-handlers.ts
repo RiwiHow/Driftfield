@@ -3,7 +3,7 @@ import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/contracts/ipc-channels';
 import { getAgentConfiguration } from '../ai/get-agent-configuration';
 import { parseSettingsUpdate } from '../services/settings-service';
-import { parseProjectAgentSettingsUpdate } from '../services/project-settings-service';
+import { parseProjectAgentSettingsUpdate } from '../services/project/settings-service';
 import { updateMainWindowTheme } from '../windows/main-window';
 import type { IpcHandlerContext } from './ipc-handler-context';
 

@@ -4,7 +4,7 @@ import { IPC_CHANNELS } from "../../shared/contracts/ipc-channels";
 import { getAgentStartConfigurationError } from "../ai/agent-start-policy";
 import { getAgentConfiguration } from "../ai/get-agent-configuration";
 import type { IpcHandlerContext } from "./ipc-handler-context";
-import { parseAgentModelOverrideRequest } from "../services/agent-model-config-service";
+import { parseAgentModelOverrideRequest } from "../services/agent/model-config-service";
 import {
   isApplyAgentProposalRequest,
   isCancelAgentRequest,

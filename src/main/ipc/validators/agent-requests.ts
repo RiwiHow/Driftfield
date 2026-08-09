@@ -10,7 +10,7 @@ import type {
   ApplyAgentProposalRequest,
   RejectAgentProposalRequest,
 } from '../../../shared/contracts/agent-proposals';
-import { isAgentApiKeyProviderId } from '../../services/agent-credential-service';
+import { isAgentApiKeyProviderId } from '../../services/agent/credential-service';
 import type {
   CreateAgentConversationRequest,
   DeleteAgentConversationRequest,

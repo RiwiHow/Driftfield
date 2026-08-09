@@ -3,9 +3,9 @@ import {
   DEFAULT_PROJECT_AGENT_SETTINGS,
   type ProjectAgentSettings,
   type UpdateProjectAgentSettingsRequest,
-} from '../../shared/contracts/settings';
-import { SettingsDatabase } from '../database/settings-database';
-import type { ProjectSession } from './project-session-service';
+} from '../../../shared/contracts/settings';
+import { SettingsDatabase } from '../../database/settings-database';
+import type { ProjectSession } from './session-service';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);

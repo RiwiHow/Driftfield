@@ -2,12 +2,12 @@ import type { BrowserWindow } from 'electron';
 import { randomUUID } from 'node:crypto';
 import { watch, type FSWatcher } from 'node:fs';
 
-import { IPC_CHANNELS } from '../../shared/contracts/ipc-channels';
+import { IPC_CHANNELS } from '../../../shared/contracts/ipc-channels';
 import type {
   ProjectSnapshot,
   ProjectWatcherStatus,
-} from '../../shared/contracts/project';
-import { createProjectSnapshot } from './project-service';
+} from '../../../shared/contracts/project';
+import { createProjectSnapshot } from './snapshot-service';
 
 export interface ProjectSession {
   directoryPath: string;

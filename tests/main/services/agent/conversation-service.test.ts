@@ -3,8 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { AgentConversationService } from '../../../src/main/services/agent-conversation-service';
-import type { ProjectSession } from '../../../src/main/services/project-session-service';
+import { AgentConversationService } from '../../../../src/main/services/agent/conversation-service';
+import type { ProjectSession } from '../../../../src/main/services/project/session-service';
 
 const directories: string[] = [];
 

@@ -13,12 +13,14 @@ import {
 import {
   initializeProjectLayout,
   openProjectLayout,
-} from '../services/project-layout-service';
+} from '../services/project/layout-service';
+import {
+  saveProjectDocument,
+} from '../services/project/document-service';
 import {
   MAX_PROJECT_BYTES,
   createProjectSnapshot,
-  saveProjectDocument,
-} from '../services/project-service';
+} from '../services/project/snapshot-service';
 import type { IpcHandlerContext } from './ipc-handler-context';
 
 export const registerProjectIpcHandlers = ({

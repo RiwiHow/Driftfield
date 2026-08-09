@@ -4,8 +4,8 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { AgentProposalService } from '../../../src/main/ai/agent-proposal-service';
-import { contentRevision } from '../../../src/main/services/project-service';
-import type { ProjectSessionService } from '../../../src/main/services/project-session-service';
+import { contentRevision } from '../../../src/main/services/project/document-utils';
+import type { ProjectSessionService } from '../../../src/main/services/project/session-service';
 
 const createFixture = async () => {
   const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-proposal-'));

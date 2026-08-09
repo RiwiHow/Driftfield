@@ -6,7 +6,7 @@ import {
   AGENT_API_KEY_PROVIDERS,
   type AgentApiKeyProviderId,
   type AgentProviderStatus,
-} from '../../shared/contracts/agent-configuration';
+} from '../../../shared/contracts/agent-configuration';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);

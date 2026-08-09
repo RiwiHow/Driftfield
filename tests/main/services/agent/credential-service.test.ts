@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { AgentCredentialService } from '../../../src/main/services/agent-credential-service';
+import { AgentCredentialService } from '../../../../src/main/services/agent/credential-service';
 
 describe('AgentCredentialService', () => {
   it('stores and removes API keys without returning their value', async () => {

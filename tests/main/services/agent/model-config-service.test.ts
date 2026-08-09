@@ -6,9 +6,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   AgentModelConfigService,
   parseAgentModelOverrideRequest,
-} from "../../../src/main/services/agent-model-config-service";
-import type { AgentModelOverride } from "../../../src/shared/contracts/agent-configuration";
-import type { ProjectSession } from '../../../src/main/services/project-session-service';
+} from "../../../../src/main/services/agent/model-config-service";
+import type { AgentModelOverride } from "../../../../src/shared/contracts/agent-configuration";
+import type { ProjectSession } from '../../../../src/main/services/project/session-service';
 
 const temporaryDirectories: string[] = [];
 

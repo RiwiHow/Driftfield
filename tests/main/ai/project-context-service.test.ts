@@ -5,12 +5,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { stringify } from 'yaml';
 
 import { ProjectContextService } from '../../../src/main/ai/project-context-service';
-import { initializeProjectLayout } from '../../../src/main/services/project-layout-service';
-import { createProjectSnapshot } from '../../../src/main/services/project-service';
+import { initializeProjectLayout } from '../../../src/main/services/project/layout-service';
+import { createProjectSnapshot } from '../../../src/main/services/project/snapshot-service';
 import type {
   ProjectSession,
   ProjectSessionService,
-} from '../../../src/main/services/project-session-service';
+} from '../../../src/main/services/project/session-service';
 import { PROJECT_INDEX_NAME } from '../../../src/shared/contracts/project-layout';
 
 const temporaryDirectories: string[] = [];

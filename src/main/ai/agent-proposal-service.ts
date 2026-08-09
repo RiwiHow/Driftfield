@@ -5,12 +5,10 @@ import type {
   ApplyAgentProposalResult,
 } from '../../shared/contracts/agent-proposals';
 import type { AgentDraftSnapshot } from '../../shared/contracts/agent-tools';
-import {
-  contentRevision,
-  saveProjectDocument,
-} from '../services/project-service';
-import type { ProjectSessionService } from '../services/project-session-service';
-import type { AgentConversationService } from '../services/agent-conversation-service';
+import { saveProjectDocument } from '../services/project/document-service';
+import { contentRevision } from '../services/project/document-utils';
+import type { ProjectSessionService } from '../services/project/session-service';
+import type { AgentConversationService } from '../services/agent/conversation-service';
 import { MAX_AGENT_DOCUMENT_BYTES, ProjectContextError } from './project-context-service';
 
 interface CreateProposalRequest {

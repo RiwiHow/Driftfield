@@ -17,9 +17,9 @@ import {
   initializeProjectLayout,
   loadProjectLayout,
   openProjectLayout,
-} from '../../../src/main/services/project-layout-service';
-import { ProjectDatabase } from '../../../src/main/database/project-database';
-import { PROJECT_INDEX_NAME } from '../../../src/shared/contracts/project-layout';
+} from '../../../../src/main/services/project/layout-service';
+import { ProjectDatabase } from '../../../../src/main/database/project-database';
+import { PROJECT_INDEX_NAME } from '../../../../src/shared/contracts/project-layout';
 
 const temporaryDirectories: string[] = [];
 

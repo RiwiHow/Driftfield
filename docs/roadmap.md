@@ -21,13 +21,6 @@ implemented or authorized.
   instances, define how concurrent access to the same manuscript and its three
   SQLite databases is detected and resolved; otherwise enforce single-instance
   ownership explicitly.
-- `project-layout-service.ts` still combines pure YAML parsing, filesystem
-  validation, complete layout loading, and project initialization. Before adding
-  migration or structural-write workflows, separate parser, reader, and
-  initializer responsibilities behind the existing service boundary.
-- `project-service.ts` still combines project snapshot/scanning behavior with
-  serialized document saves. Split snapshot and document-write services before
-  Agent apply operations materially expand that file.
 
 ## Editor and renderer
 

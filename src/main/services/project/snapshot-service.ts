@@ -1,32 +1,21 @@
-import { createHash, randomUUID } from 'node:crypto';
-import {
-  lstat,
-  readFile,
-  realpath,
-  rename,
-  stat,
-  unlink,
-  writeFile,
-} from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import type {
   ProjectDocument,
   ProjectSnapshot,
   ProjectTreeNode,
-  SaveProjectDocumentRequest,
-  SaveProjectDocumentResult,
-} from '../../shared/contracts/project';
+} from '../../../shared/contracts/project';
 import type {
   ChapterNumberingPolicy,
   ManuscriptDocumentEntry,
-} from '../../shared/contracts/project-layout';
+} from '../../../shared/contracts/project-layout';
 import {
   loadProjectLayout,
   type LoadedProjectLayout,
-} from './project-layout-service';
+} from './layout-service';
+import { contentRevision } from './document-utils';
 
-export const supportedDocumentExtensions = new Set(['.md', '.markdown']);
 export const MAX_PROJECT_DOCUMENTS = 500;
 export const MAX_PROJECT_BYTES = 10 * 1024 * 1024;
 
@@ -34,19 +23,6 @@ interface ProjectScanState {
   bytes: number;
   documents: ProjectDocument[];
 }
-
-export const contentRevision = (content: string | Buffer): string =>
-  createHash('sha256').update(content).digest('hex');
-
-export const isPathInside = (parentPath: string, candidatePath: string): boolean => {
-  const relativePath = path.relative(parentPath, candidatePath);
-  return (
-    relativePath !== '' &&
-    !relativePath.startsWith(`..${path.sep}`) &&
-    relativePath !== '..' &&
-    !path.isAbsolute(relativePath)
-  );
-};
 
 const readProjectDocument = async (
   projectPath: string,
@@ -56,7 +32,6 @@ const readProjectDocument = async (
 ): Promise<ProjectDocument> => {
   const absolutePath = path.resolve(projectPath, relativePath);
   const fileBuffer = await readFile(absolutePath);
-
   return {
     id,
     markdown: fileBuffer.toString('utf8'),
@@ -77,7 +52,11 @@ const formatManuscriptLabel = (
   policy: ChapterNumberingPolicy | undefined,
   context: ManuscriptLabelContext,
 ): string => {
-  if (entry.kind !== 'chapter' || policy?.mode === 'none' || policy === undefined) {
+  if (
+    entry.kind !== 'chapter' ||
+    policy?.mode === 'none' ||
+    policy === undefined
+  ) {
     return entry.label ?? entry.title;
   }
   if (policy.mode === 'manual') return entry.label ?? entry.title;
@@ -103,7 +82,7 @@ const readStructuredDocument = async (
   entry: ManuscriptDocumentEntry,
   displayName: string,
   state: ProjectScanState,
-): Promise<{ document: ProjectDocument; node: ProjectTreeNode }> => {
+): Promise<ProjectTreeNode> => {
   if (state.documents.length >= MAX_PROJECT_DOCUMENTS) {
     throw new Error('Project contains too many Markdown documents');
   }
@@ -122,13 +101,10 @@ const readStructuredDocument = async (
   state.bytes += fileStats.size;
   state.documents.push(document);
   return {
-    document,
-    node: {
-      documentId: document.id,
-      name: displayName,
-      relativePath,
-      type: 'file',
-    },
+    documentId: document.id,
+    name: displayName,
+    relativePath,
+    type: 'file',
   };
 };
 
@@ -155,14 +131,15 @@ const scanStructuredManuscript = async (
       } else if (child.kind === 'chapter' && policy?.mode === 'per-volume') {
         number = ++directNumber;
       }
-      const { node } = await readStructuredDocument(
-        projectPath,
-        manuscriptDirectory,
-        child,
-        formatManuscriptLabel(child, policy, { number }),
-        state,
+      nodes.push(
+        await readStructuredDocument(
+          projectPath,
+          manuscriptDirectory,
+          child,
+          formatManuscriptLabel(child, policy, { number }),
+          state,
+        ),
       );
-      nodes.push(node);
       continue;
     }
 
@@ -184,18 +161,19 @@ const scanStructuredManuscript = async (
         number = ++localNumber;
       }
       const relativeDirectory = path.join(manuscriptDirectory, child.directory);
-      const { node } = await readStructuredDocument(
-        projectPath,
-        relativeDirectory,
-        documentEntry,
-        formatManuscriptLabel(documentEntry, policy, {
-          number,
-          volumeNumber,
-          volumeTitle: volume.index.title,
-        }),
-        state,
+      children.push(
+        await readStructuredDocument(
+          projectPath,
+          relativeDirectory,
+          documentEntry,
+          formatManuscriptLabel(documentEntry, policy, {
+            number,
+            volumeNumber,
+            volumeTitle: volume.index.title,
+          }),
+          state,
+        ),
       );
-      children.push(node);
     }
     nodes.push({
       children,
@@ -218,10 +196,7 @@ export const createProjectSnapshot = async (
   let loreRevisions: string[] = [];
   const loreEntries = layout.lore?.entries ?? [];
   if (loreEntries.length > 0) {
-    if (
-      state.documents.length + loreEntries.length >
-      MAX_PROJECT_DOCUMENTS
-    ) {
+    if (state.documents.length + loreEntries.length > MAX_PROJECT_DOCUMENTS) {
       throw new Error('Project contains too many Markdown documents');
     }
     const loreContents = await Promise.all(
@@ -258,85 +233,15 @@ export const createProjectSnapshot = async (
         ...layout.metadataSources,
         ...loreRevisions,
         ...state.documents.map(
-          (document) => `${document.id}:${document.relativePath}:${document.revision}`,
+          (document) =>
+            `${document.id}:${document.relativePath}:${document.revision}`,
         ),
       ].join('\n'),
     ),
     rootTitles: {
-      ...(layout.lore === null
-        ? {}
-        : { lore: layout.lore.index.title }),
+      ...(layout.lore === null ? {} : { lore: layout.lore.index.title }),
       manuscript: layout.manuscript.index.title,
     },
     tree,
   };
-};
-
-const saveQueues = new Map<string, Promise<void>>();
-
-const enqueueSave = async <T>(documentPath: string, operation: () => Promise<T>): Promise<T> => {
-  const previous = saveQueues.get(documentPath) ?? Promise.resolve();
-  const current = previous.catch(() => undefined).then(operation);
-  const queueTail = current.then(() => undefined, () => undefined);
-  saveQueues.set(documentPath, queueTail);
-  try {
-    return await current;
-  } finally {
-    if (saveQueues.get(documentPath) === queueTail) saveQueues.delete(documentPath);
-  }
-};
-
-export const saveProjectDocument = async (
-  projectPath: string,
-  request: SaveProjectDocumentRequest,
-  relativeDocumentPath: string,
-): Promise<SaveProjectDocumentResult> => {
-  const canonicalProjectPath = await realpath(projectPath);
-  const documentPath = path.resolve(canonicalProjectPath, relativeDocumentPath);
-  const extension = path.extname(documentPath).toLowerCase();
-  if (!isPathInside(canonicalProjectPath, documentPath) || !supportedDocumentExtensions.has(extension)) {
-    throw new Error('Project document path escapes the project');
-  }
-
-  return enqueueSave(documentPath, async () => {
-    let documentStats;
-    try {
-      documentStats = await lstat(documentPath);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { status: 'missing' };
-      throw error;
-    }
-    if (!documentStats.isFile() || documentStats.isSymbolicLink()) {
-      throw new Error('Project document is not a regular file');
-    }
-    const canonicalPath = await realpath(documentPath);
-    if (!isPathInside(canonicalProjectPath, canonicalPath)) {
-      throw new Error('Project document path escapes the project');
-    }
-
-    const diskDocument = await readProjectDocument(
-      canonicalProjectPath,
-      relativeDocumentPath,
-      request.documentId,
-    );
-    if (!request.overwrite && diskDocument.revision !== request.expectedRevision) {
-      return { diskDocument, status: 'conflict' };
-    }
-
-    const temporaryPath = path.join(
-      path.dirname(documentPath),
-      `.${path.basename(documentPath)}.driftfield-${process.pid}-${randomUUID()}.tmp`,
-    );
-    try {
-      await writeFile(temporaryPath, request.markdown, {
-        encoding: 'utf8',
-        mode: documentStats.mode,
-      });
-      await rename(temporaryPath, documentPath);
-    } catch (error) {
-      await unlink(temporaryPath).catch(() => undefined);
-      throw error;
-    }
-    return { revision: contentRevision(request.markdown), status: 'saved' };
-  });
 };

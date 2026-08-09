@@ -15,7 +15,7 @@ import {
   type AgentWorkerMessage,
 } from '../../shared/contracts/agent-worker';
 import type { AgentToolDispatcher } from './agent-tool-dispatcher';
-import type { AgentHistoryMessage } from '../services/agent-conversation-service';
+import type { AgentHistoryMessage } from '../services/agent/conversation-service';
 
 const WORKER_START_TIMEOUT_MS = 15_000;
 

@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { mkdir, rename, rm, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createHash } from 'node:crypto';
-import { SettingsDatabase } from '../database/settings-database';
-import type { ProjectSession } from './project-session-service';
+import { SettingsDatabase } from '../../database/settings-database';
+import type { ProjectSession } from '../project/session-service';
 
 import {
   AGENT_THINKING_FORMATS,
@@ -12,7 +12,7 @@ import {
   type AgentModelHeaderOverride,
   type AgentModelOverride,
   type AgentOpenRouterRoutingOverride,
-} from "../../shared/contracts/agent-configuration";
+} from "../../../shared/contracts/agent-configuration";
 
 const MAX_HEADERS = 16;
 const MAX_HEADER_LENGTH = 256;

@@ -6,12 +6,12 @@ import type {
   AgentConversationState,
   AgentConversationSummary,
   AgentProposalStatus,
-} from '../../shared/contracts/agent-conversations';
-import type { AgentEditProposal } from '../../shared/contracts/agent-proposals';
-import type { AgentEvent } from '../../shared/contracts/agent';
-import { isAgentToolName } from '../../shared/contracts/agent-tools';
-import type { ProjectSession } from './project-session-service';
-import { ConversationDatabase } from '../database/conversation-database';
+} from '../../../shared/contracts/agent-conversations';
+import type { AgentEditProposal } from '../../../shared/contracts/agent-proposals';
+import type { AgentEvent } from '../../../shared/contracts/agent';
+import { isAgentToolName } from '../../../shared/contracts/agent-tools';
+import { ConversationDatabase } from '../../database/conversation-database';
+import type { ProjectSession } from '../project/session-service';
 
 const DEFAULT_TITLE = '';
 const MAX_CONTEXT_CHARACTERS = 120_000;

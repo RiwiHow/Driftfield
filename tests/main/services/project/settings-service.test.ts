@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ProjectSettingsService } from '../../../src/main/services/project-settings-service';
-import type { ProjectSession } from '../../../src/main/services/project-session-service';
+import { ProjectSettingsService } from '../../../../src/main/services/project/settings-service';
+import type { ProjectSession } from '../../../../src/main/services/project/session-service';
 
 const directories: string[] = [];
 

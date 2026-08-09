@@ -12,13 +12,13 @@ import type {
   LoreEntry,
   ManuscriptDocumentEntry,
 } from '../../shared/contracts/project-layout';
-import { loadProjectLayout } from '../services/project-layout-service';
+import { loadProjectLayout } from '../services/project/layout-service';
 import {
   contentRevision,
   isPathInside,
   supportedDocumentExtensions,
-} from '../services/project-service';
-import type { ProjectSessionService } from '../services/project-session-service';
+} from '../services/project/document-utils';
+import type { ProjectSessionService } from '../services/project/session-service';
 
 export const MAX_AGENT_DOCUMENT_BYTES = 512 * 1024;
 

@@ -47,6 +47,27 @@ domain types, runtime schemas, and serializable errors belong under
 Prefer feature-oriented renderer code. Keep `App.tsx` as a composition layer
 rather than accumulating project, editor, or assistant business logic there.
 
+Main services are grouped by domain. `services/project/` owns project layout,
+documents, snapshots, sessions, and project-scoped settings;
+`services/agent/` owns Agent conversations, credentials, and model
+configuration. The application-wide `settings-service.ts` remains at the
+services root rather than being forced into an unrelated domain.
+
+Project responsibilities are separated behind stable entry points:
+
+- `services/project/metadata-parser.ts` performs bounded,
+  filesystem-independent YAML parsing and runtime schema validation.
+- `services/project/layout-service.ts` reads and validates an existing layout,
+  while `services/project/layout-initializer.ts` exclusively stages new project
+  structures.
+- `services/project/snapshot-service.ts` scans validated layouts into renderer
+  snapshots; `services/project/document-service.ts` owns serialized,
+  revision-checked atomic saves; and `services/project/document-utils.ts`
+  contains their shared path and revision
+  primitives.
+- `services/project/index.ts` is a compatibility export surface only and
+  contains no snapshot or write behavior.
+
 ## Tests and generated output
 
 All tests live under root `tests/` and mirror `src/main/`, `src/renderer/`, and
