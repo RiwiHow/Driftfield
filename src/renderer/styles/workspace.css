@@ -7,7 +7,6 @@
   background: var(--background);
   --df-pane-header-height: 43px;
   --df-pane-footer-height: 25px;
-  --df-divider-size: 1px;
   --df-panel-separator-size: var(--df-divider-size);
   --df-panel-separator-hit-size: 9px;
   --df-panel-separator-active-size: 2px;

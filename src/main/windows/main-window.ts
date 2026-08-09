@@ -2,6 +2,7 @@ import { app, BrowserWindow, type Event } from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { WORKSPACE_MIN_CONTENT_WIDTH } from '../../shared/workspace-layout';
 import type { SettingsService } from '../services/settings-service';
 import {
   createRendererNavigationPolicy,
@@ -42,8 +43,9 @@ export const createMainWindow = ({
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
-    minWidth: 900,
+    minWidth: WORKSPACE_MIN_CONTENT_WIDTH,
     minHeight: 620,
+    useContentSize: true,
     backgroundColor: themeBackgroundColors[settingsService.get().theme],
     show: false,
     titleBarStyle: 'hiddenInset',

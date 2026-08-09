@@ -40,6 +40,10 @@ import type {
   ProjectSnapshot,
   ProjectTreeNode,
 } from '../../shared/contracts/project';
+import {
+  WORKSPACE_PANEL_MIN_WIDTHS,
+  WORKSPACE_PANEL_SEPARATOR_WIDTH,
+} from '../../shared/workspace-layout';
 
 interface WorkspaceShellProps {
   activeChapter: Chapter | null;
@@ -212,7 +216,10 @@ export function WorkspaceShell({
         className="app-frame"
         data-theme={theme}
         style={
-          { '--df-editor-font-size': `${editorFontSize}px` } as CSSProperties
+          {
+            '--df-divider-size': `${WORKSPACE_PANEL_SEPARATOR_WIDTH}px`,
+            '--df-editor-font-size': `${editorFontSize}px`,
+          } as CSSProperties
         }
       >
         <header className="titlebar">
@@ -286,7 +293,7 @@ export function WorkspaceShell({
             elementRef={libraryElementRef}
             groupResizeBehavior="preserve-pixel-size"
             id="library"
-            minSize={220}
+            minSize={WORKSPACE_PANEL_MIN_WIDTHS.library}
             maxSize={380}
             onResize={(size) => setIsLibraryCollapsed(size.inPixels === 0)}
             panelRef={libraryPanelRef}
@@ -313,7 +320,11 @@ export function WorkspaceShell({
             isCollapsed={isLibraryCollapsed}
           />
 
-          <Panel defaultSize="56%" id="editor" minSize={430}>
+          <Panel
+            defaultSize="56%"
+            id="editor"
+            minSize={WORKSPACE_PANEL_MIN_WIDTHS.editor}
+          >
             <ManuscriptEditor
               chapter={activeChapter}
               isSaving={isSavingDocument}
@@ -337,7 +348,7 @@ export function WorkspaceShell({
             elementRef={assistantElementRef}
             groupResizeBehavior="preserve-pixel-size"
             id="assistant"
-            minSize={270}
+            minSize={WORKSPACE_PANEL_MIN_WIDTHS.assistant}
             maxSize={460}
             onResize={(size) => setIsAssistantCollapsed(size.inPixels === 0)}
             panelRef={assistantPanelRef}
