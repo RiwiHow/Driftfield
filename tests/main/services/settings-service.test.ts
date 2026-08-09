@@ -19,30 +19,29 @@ afterEach(async () => {
   );
 });
 
-describe('settings parsing and migration', () => {
-  it('migrates a legacy dark theme to GitHub Dark', () => {
+describe('settings parsing and validation', () => {
+  it('accepts only the current complete settings schema', () => {
     expect(
       parseStoredSettings({
         closeWindowBehavior: 'minimize',
         editorFontSize: 20,
-        theme: 'tokyo-night',
+        language: 'zh-CN',
+        lastProjectDirectoryPath: '/Novels/Example',
+        theme: 'github-dark',
+        version: 1,
       }),
     ).toEqual({
       closeWindowBehavior: 'minimize',
       editorFontSize: 20,
-      lastProjectDirectoryPath: null,
-      language: 'en',
+      language: 'zh-CN',
+      lastProjectDirectoryPath: '/Novels/Example',
       theme: 'github-dark',
-      version: 5,
+      version: 1,
     });
-
-    expect(parseStoredSettings({ theme: 'one-dark' }).theme).toBe(
-      'github-dark',
-    );
   });
 
-  it('rejects removed themes in settings updates', () => {
-    expect(() => parseSettingsUpdate({ theme: 'one-dark' })).toThrow(
+  it('rejects unknown themes in settings updates', () => {
+    expect(() => parseSettingsUpdate({ theme: 'unknown-theme' })).toThrow(
       'Unknown application theme',
     );
   });
@@ -53,40 +52,35 @@ describe('settings parsing and migration', () => {
       lastProjectDirectoryPath: null,
       language: 'en',
       theme: 'github-light',
-      version: 5,
+      version: 1,
     });
   });
 
-  it('preserves a supported stored language and rejects unknown languages', () => {
-    expect(parseStoredSettings({ language: 'zh-CN' }).language).toBe('zh-CN');
+  it('defaults incomplete files and rejects unknown language updates', () => {
+    expect(parseStoredSettings({ language: 'zh-CN' })).toEqual(DEFAULT_SETTINGS);
     expect(parseStoredSettings({ language: 'fr' }).language).toBe('en');
     expect(() => parseSettingsUpdate({ language: 'fr' })).toThrow(
       'Unknown application language',
     );
   });
 
-  it('removes legacy global Agent settings from the current schema', () => {
+  it('validates the last project directory path', () => {
     expect(
       parseStoredSettings({
-        agent: {
-          defaultModel: { providerId: 'anthropic', modelId: 'claude' },
-          thinkingLevel: 'high',
-        },
-      }),
-    ).not.toHaveProperty('agent');
-  });
-
-  it('migrates and validates the last project directory path', () => {
-    expect(
-      parseStoredSettings({ lastProjectDirectoryPath: '/Novels/Example' })
+        ...DEFAULT_SETTINGS,
+        lastProjectDirectoryPath: '/Novels/Example',
+      })
         .lastProjectDirectoryPath,
     ).toBe('/Novels/Example');
     expect(
-      parseStoredSettings({ lastProjectDirectoryPath: '' })
+      parseStoredSettings({ ...DEFAULT_SETTINGS, lastProjectDirectoryPath: '' })
         .lastProjectDirectoryPath,
     ).toBeNull();
     expect(
-      parseStoredSettings({ lastProjectDirectoryPath: 'relative/project' })
+      parseStoredSettings({
+        ...DEFAULT_SETTINGS,
+        lastProjectDirectoryPath: 'relative/project',
+      })
         .lastProjectDirectoryPath,
     ).toBeNull();
     expect(() =>
@@ -116,6 +110,15 @@ describe('settings parsing and migration', () => {
     });
     expect(
       JSON.parse(await readFile(path.join(directory, 'settings.json'), 'utf8')),
-    ).toMatchObject({ lastProjectDirectoryPath: '/Novels/Example', version: 5 });
+    ).toMatchObject({ lastProjectDirectoryPath: '/Novels/Example', version: 1 });
   });
 });
+
+const DEFAULT_SETTINGS = {
+  closeWindowBehavior: 'quit',
+  editorFontSize: 17,
+  language: 'en',
+  lastProjectDirectoryPath: null,
+  theme: 'github-light',
+  version: 1,
+} as const;

@@ -18,7 +18,6 @@ import {
 } from '../../../src/main/services/project-layout-service';
 import {
   PROJECT_INDEX_NAME,
-  PROJECT_MANIFEST_NAME,
 } from '../../../src/shared/contracts/project-layout';
 
 const temporaryDirectories: string[] = [];
@@ -71,15 +70,17 @@ describe('Driftfield project layout', () => {
     });
   });
 
-  it('does not initialize or mutate a nonempty legacy folder', async () => {
+  it('rejects a nonempty folder without current project metadata', async () => {
     const directory = await createTemporaryDirectory();
     await writeFile(path.join(directory, 'chapter.md'), '# Existing\n');
 
-    await expect(openProjectLayout(directory)).resolves.toBeNull();
+    await expect(openProjectLayout(directory)).rejects.toThrow(
+      'project root index is missing',
+    );
     await expect(readFile(path.join(directory, 'chapter.md'), 'utf8')).resolves.toBe(
       '# Existing\n',
     );
-    await expect(readFile(path.join(directory, PROJECT_MANIFEST_NAME), 'utf8'))
+    await expect(readFile(path.join(directory, PROJECT_INDEX_NAME), 'utf8'))
       .rejects.toMatchObject({ code: 'ENOENT' });
   });
 
@@ -134,27 +135,6 @@ describe('Driftfield project layout', () => {
     await expect(loadProjectLayout(directory)).resolves.toMatchObject({
       manifest: { icon: 'castle', title: 'Citadel' },
     });
-  });
-
-  it('keeps legacy driftfield.yaml projects readable without rewriting them', async () => {
-    const directory = await createTemporaryDirectory();
-    const initialized = await initializeProjectLayout(directory);
-    await writeFile(
-      path.join(directory, PROJECT_MANIFEST_NAME),
-      stringify({
-        formatVersion: 1,
-        id: initialized.manifest.id,
-        kind: 'novel',
-        title: 'Legacy Novel',
-      }),
-    );
-    await rm(path.join(directory, PROJECT_INDEX_NAME));
-
-    await expect(loadProjectLayout(directory)).resolves.toMatchObject({
-      manifest: { id: initialized.manifest.id, title: 'Legacy Novel' },
-    });
-    await expect(readFile(path.join(directory, PROJECT_MANIFEST_NAME), 'utf8'))
-      .resolves.toContain('Legacy Novel');
   });
 
   it('rejects YAML aliases', async () => {

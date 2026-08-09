@@ -98,9 +98,10 @@ novel/
 - New projects create lowercase physical `manuscript` and `lorebook` roots.
   Existing projects may omit `lorebook`; its absence must never block opening a
   manuscript.
-- Selecting an empty directory initializes the root index, database, manuscript, and
-  lorebook indexes.
-- Never implicitly rewrite or move a nonempty legacy directory.
+- Selecting an empty directory initializes the root index, databases,
+  manuscript, and lorebook indexes.
+- Reject nonempty directories that do not contain the current project format;
+  never infer or rewrite an older development format.
 - `project.sqlite` owns stable project identity and future authoritative world,
   timeline, plot, and mutation-ledger state. `conversations.sqlite` owns Agent
   conversations and generation/tool audit data. `settings.sqlite` owns
@@ -109,8 +110,7 @@ novel/
   keys. Conversation records may refer to tool operations, but they are not the
   authority for world state.
 - The root `_index.yaml` owns the user-editable project title and optional
-  reviewed icon ID. Legacy `driftfield.yaml` projects remain readable but are
-  never rewritten implicitly.
+  reviewed icon ID. It is the only supported root metadata file.
 - Each semantic directory `_index.yaml` owns its stable ID, kind, display title,
   explicit child order, and inherited numbering/label policy.
 - Paths, filenames, titles, numbers, and array positions are not stable IDs.

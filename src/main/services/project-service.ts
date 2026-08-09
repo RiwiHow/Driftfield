@@ -2,7 +2,6 @@ import { createHash, randomUUID } from 'node:crypto';
 import {
   lstat,
   readFile,
-  readdir,
   realpath,
   rename,
   stat,
@@ -28,15 +27,12 @@ import {
 } from './project-layout-service';
 
 export const supportedDocumentExtensions = new Set(['.md', '.markdown']);
-const ignoredDirectoryNames = new Set(['.git', 'node_modules']);
 export const MAX_PROJECT_DOCUMENTS = 500;
 export const MAX_PROJECT_BYTES = 10 * 1024 * 1024;
-const MAX_SCANNED_ENTRIES = 10_000;
 
 interface ProjectScanState {
   bytes: number;
   documents: ProjectDocument[];
-  entries: number;
 }
 
 export const contentRevision = (content: string | Buffer): string =>
@@ -212,79 +208,16 @@ const scanStructuredManuscript = async (
   return nodes;
 };
 
-const scanProjectDirectory = async (
-  projectPath: string,
-  relativeDirectory: string,
-  state: ProjectScanState,
-): Promise<ProjectTreeNode[]> => {
-  const absoluteDirectory = path.join(projectPath, relativeDirectory);
-  const entries = await readdir(absoluteDirectory, { withFileTypes: true });
-  const nodes: ProjectTreeNode[] = [];
-
-  entries.sort((left, right) =>
-    left.name.localeCompare(right.name, undefined, {
-      numeric: true,
-      sensitivity: 'base',
-    }),
-  );
-
-  for (const entry of entries) {
-    state.entries += 1;
-    if (state.entries > MAX_SCANNED_ENTRIES) {
-      throw new Error('Project directory contains too many entries');
-    }
-    if (entry.isSymbolicLink() || entry.name.startsWith('.')) continue;
-
-    const relativePath = path.join(relativeDirectory, entry.name);
-    if (entry.isDirectory()) {
-      if (ignoredDirectoryNames.has(entry.name)) continue;
-      const children = await scanProjectDirectory(projectPath, relativePath, state);
-      if (children.length > 0) {
-        nodes.push({ children, name: entry.name, relativePath, type: 'folder' });
-      }
-      continue;
-    }
-    if (!entry.isFile()) continue;
-
-    const extension = path.extname(entry.name).toLowerCase();
-    if (!supportedDocumentExtensions.has(extension)) continue;
-    if (state.documents.length >= MAX_PROJECT_DOCUMENTS) {
-      throw new Error('Project contains too many Markdown documents');
-    }
-
-    const absolutePath = path.join(projectPath, relativePath);
-    const fileStats = await stat(absolutePath);
-    if (state.bytes + fileStats.size > MAX_PROJECT_BYTES) {
-      throw new Error('Project Markdown documents are too large');
-    }
-
-    const document = await readProjectDocument(projectPath, relativePath);
-    state.bytes += fileStats.size;
-    state.documents.push(document);
-    nodes.push({
-      documentId: document.id,
-      name: document.name,
-      relativePath,
-      type: 'file',
-    });
-  }
-
-  return nodes;
-};
-
 export const createProjectSnapshot = async (
   directoryPath: string,
-  loadedLayout?: LoadedProjectLayout | null,
+  loadedLayout?: LoadedProjectLayout,
 ): Promise<ProjectSnapshot> => {
-  const state: ProjectScanState = { bytes: 0, documents: [], entries: 0 };
+  const state: ProjectScanState = { bytes: 0, documents: [] };
   const layout = loadedLayout ?? (await loadProjectLayout(directoryPath));
-  const tree =
-    layout === null
-      ? await scanProjectDirectory(directoryPath, '', state)
-      : await scanStructuredManuscript(directoryPath, layout, state);
+  const tree = await scanStructuredManuscript(directoryPath, layout, state);
   let lorebookRevisions: string[] = [];
-  const lorebookEntries = layout?.lorebook?.entries ?? [];
-  if (layout !== null && lorebookEntries.length > 0) {
+  const lorebookEntries = layout.lorebook?.entries ?? [];
+  if (lorebookEntries.length > 0) {
     if (
       state.documents.length + lorebookEntries.length >
       MAX_PROJECT_DOCUMENTS
@@ -312,37 +245,29 @@ export const createProjectSnapshot = async (
   }
   return {
     directory: {
-      name:
-        layout?.manifest.title ??
-        (path.basename(directoryPath) || directoryPath),
+      name: layout.manifest.title,
       path: directoryPath,
     },
     documents: state.documents,
-    projectId:
-      layout?.manifest.id ??
-      `legacy-${createHash('sha256').update(await realpath(directoryPath)).digest('hex')}`,
-    ...(layout?.manifest.icon === undefined
+    projectId: layout.manifest.id,
+    ...(layout.manifest.icon === undefined
       ? {}
       : { projectIcon: layout.manifest.icon }),
     revision: contentRevision(
       [
-        ...(layout?.metadataSources ?? []),
+        ...layout.metadataSources,
         ...lorebookRevisions,
         ...state.documents.map(
           (document) => `${document.id}:${document.relativePath}:${document.revision}`,
         ),
       ].join('\n'),
     ),
-    ...(layout === null
-      ? {}
-      : {
-          rootTitles: {
-            ...(layout.lorebook === null
-              ? {}
-              : { lorebook: layout.lorebook.index.title }),
-            manuscript: layout.manuscript.index.title,
-          },
-        }),
+    rootTitles: {
+      ...(layout.lorebook === null
+        ? {}
+        : { lorebook: layout.lorebook.index.title }),
+      manuscript: layout.manuscript.index.title,
+    },
     tree,
   };
 };
@@ -364,7 +289,7 @@ const enqueueSave = async <T>(documentPath: string, operation: () => Promise<T>)
 export const saveProjectDocument = async (
   projectPath: string,
   request: SaveProjectDocumentRequest,
-  relativeDocumentPath = request.documentId,
+  relativeDocumentPath: string,
 ): Promise<SaveProjectDocumentResult> => {
   const canonicalProjectPath = await realpath(projectPath);
   const documentPath = path.resolve(canonicalProjectPath, relativeDocumentPath);

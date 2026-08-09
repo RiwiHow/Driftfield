@@ -1,6 +1,6 @@
 import { ProjectSqliteDatabase } from './project-sqlite-database';
 
-const DATABASE_VERSION = 3;
+const DATABASE_VERSION = 1;
 
 export interface ProjectMetadataRecord {
   formatVersion: number;
@@ -62,16 +62,9 @@ export class ProjectDatabase extends ProjectSqliteDatabase {
             created_at TEXT NOT NULL
           ) STRICT;
           INSERT INTO schema_migrations(version, applied_at)
-          VALUES (3, datetime('now'));
+          VALUES (1, datetime('now'));
         `);
       });
-      return;
-    }
-    if (row.version < 3) {
-      this.connection.prepare(`
-        INSERT INTO schema_migrations(version, applied_at)
-        VALUES (3, ?)
-      `).run(new Date().toISOString());
     }
   }
 }

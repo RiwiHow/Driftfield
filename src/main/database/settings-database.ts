@@ -1,16 +1,11 @@
-import { existsSync } from 'node:fs';
-import path from 'node:path';
-
 import { ProjectSqliteDatabase } from './project-sqlite-database';
 
 const DATABASE_VERSION = 1;
-const LEGACY_IMPORT_ID = 'project-v2-settings';
 
 export class SettingsDatabase extends ProjectSqliteDatabase {
-  constructor(private readonly projectDirectory: string) {
+  constructor(projectDirectory: string) {
     super(projectDirectory, 'settings.sqlite');
     this.migrate();
-    this.importLegacyProjectDatabase();
   }
 
   private migrate(): void {
@@ -18,10 +13,6 @@ export class SettingsDatabase extends ProjectSqliteDatabase {
       CREATE TABLE IF NOT EXISTS schema_migrations (
         version INTEGER PRIMARY KEY,
         applied_at TEXT NOT NULL
-      ) STRICT;
-      CREATE TABLE IF NOT EXISTS legacy_imports (
-        id TEXT PRIMARY KEY,
-        imported_at TEXT NOT NULL
       ) STRICT;
     `);
     const row = this.connection.prepare(`
@@ -57,73 +48,4 @@ export class SettingsDatabase extends ProjectSqliteDatabase {
     });
   }
 
-  private importLegacyProjectDatabase(): void {
-    const sourcePath = path.join(
-      this.projectDirectory,
-      '.driftfield',
-      'project.sqlite',
-    );
-    if (!existsSync(sourcePath)) return;
-    const source = new ProjectSqliteDatabase(
-      this.projectDirectory,
-      'project.sqlite',
-    );
-    try {
-      if (!source.hasTable('agent_settings')) return;
-      const imported = this.connection.prepare(`
-        SELECT 1 AS found FROM legacy_imports WHERE id = ?
-      `).get(LEGACY_IMPORT_ID);
-      if (imported === undefined) this.copyLegacyRows(source);
-      source.transaction(() => {
-        source.connection.exec(`
-          DROP TABLE IF EXISTS agent_model_overrides;
-          DROP TABLE IF EXISTS agent_settings;
-        `);
-      });
-    } finally {
-      source.close();
-    }
-  }
-
-  private copyLegacyRows(source: ProjectSqliteDatabase): void {
-    this.transaction(() => {
-      const settings = source.connection.prepare(`
-        SELECT provider_id, model_id, thinking_level
-        FROM agent_settings WHERE singleton = 1
-      `).get() as {
-        model_id: string | null;
-        provider_id: string | null;
-        thinking_level: string;
-      } | undefined;
-      if (settings !== undefined) {
-        this.connection.prepare(`
-          UPDATE agent_settings
-          SET provider_id = ?, model_id = ?, thinking_level = ?
-          WHERE singleton = 1
-        `).run(
-          settings.provider_id,
-          settings.model_id,
-          settings.thinking_level,
-        );
-      }
-      for (const row of source.connection.prepare(`
-        SELECT provider_id, model_id, override_json, updated_at
-        FROM agent_model_overrides
-      `).iterate() as Iterable<Record<string, string | number | null>>) {
-        this.connection.prepare(`
-          INSERT OR IGNORE INTO agent_model_overrides(
-            provider_id, model_id, override_json, updated_at
-          ) VALUES (?, ?, ?, ?)
-        `).run(
-          row.provider_id,
-          row.model_id,
-          row.override_json,
-          row.updated_at,
-        );
-      }
-      this.connection.prepare(`
-        INSERT INTO legacy_imports(id, imported_at) VALUES (?, ?)
-      `).run(LEGACY_IMPORT_ID, new Date().toISOString());
-    });
-  }
 }

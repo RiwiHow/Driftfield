@@ -21,8 +21,7 @@ export interface AgentStructureDocument {
     | 'interlude'
     | 'epilogue'
     | 'appendix'
-    | 'entry'
-    | 'document';
+    | 'entry';
   revision?: string;
   title: string;
   type: 'document';
@@ -30,8 +29,8 @@ export interface AgentStructureDocument {
 
 export interface AgentStructureDirectory {
   children: AgentStructureNode[];
-  id?: string;
-  kind: 'manuscript' | 'volume' | 'lorebook' | 'category' | 'directory';
+  id: string;
+  kind: 'manuscript' | 'volume' | 'lorebook' | 'category';
   title: string;
   type: 'directory';
 }
@@ -41,11 +40,11 @@ export type AgentStructureNode =
   | AgentStructureDocument;
 
 export interface AgentNovelStructureToolResult {
-  format: 'driftfield' | 'legacy';
+  format: 'driftfield';
   lorebook?: AgentStructureDirectory;
   manuscript: AgentStructureDirectory;
   project: {
-    id?: string;
+    id: string;
     revision: string;
     title: string;
   };
@@ -219,9 +218,9 @@ const isNovelStructureResult = (
 ): value is AgentNovelStructureToolResult => {
   if (
     !isRecord(value) ||
-    (value.format !== 'driftfield' && value.format !== 'legacy') ||
+    value.format !== 'driftfield' ||
     !isRecord(value.project) ||
-    (value.project.id !== undefined && typeof value.project.id !== 'string') ||
+    typeof value.project.id !== 'string' ||
     typeof value.project.revision !== 'string' ||
     typeof value.project.title !== 'string'
   ) {
@@ -245,13 +244,12 @@ const isStructureDirectory = (
     !isRecord(value) ||
     value.type !== 'directory' ||
     typeof value.title !== 'string' ||
-    (value.id !== undefined && typeof value.id !== 'string') ||
+    typeof value.id !== 'string' ||
     ![
       'manuscript',
       'volume',
       'lorebook',
       'category',
-      'directory',
     ].includes(value.kind as string) ||
     !Array.isArray(value.children)
   ) {

@@ -35,9 +35,9 @@ Preserve these properties when changing affected subsystems.
 - Main responsibilities remain separated across windows, IPC, and services.
   Renderer project/settings state remains in feature hooks; `App.tsx` remains a
   composition layer.
-- Global settings schema version 5 migrates earlier unversioned and versioned shapes,
-  removes Agent model selection from global state, and retains the optional last
-  project directory used for validated startup restoration.
+- Global settings schema version 1 accepts only the complete current shape and
+  retains the optional last project directory used for validated startup
+  restoration. Earlier development shapes fall back to defaults.
 
 ## Agent reliability
 
@@ -64,7 +64,7 @@ Preserve these properties when changing affected subsystems.
 ## Coverage
 
 Focused tests cover path containment, scanning, revisions and conflicts,
-settings migration, strict project YAML, stable IDs, ordering and labels, dirty
+settings validation, strict project YAML, stable IDs, ordering and labels, dirty
 decisions, snapshot merges, navigation policy, Agent protocol and state,
 cancellation races, project invalidation, credentials, worker restart, tool
 timeouts and budgets, targeted reads, path-free structure, safe Markdown,

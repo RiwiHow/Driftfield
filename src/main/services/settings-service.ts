@@ -16,16 +16,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isTheme = (value: unknown): value is AppSettings['theme'] =>
   typeof value === 'string' && APP_THEMES.includes(value as AppSettings['theme']);
 
-const LEGACY_DARK_THEMES = new Set(['one-dark', 'tokyo-night']);
-
-const parseStoredTheme = (value: unknown): AppSettings['theme'] => {
-  if (isTheme(value)) return value;
-  if (typeof value === 'string' && LEGACY_DARK_THEMES.has(value)) {
-    return 'github-dark';
-  }
-  return DEFAULT_APP_SETTINGS.theme;
-};
-
 const isEditorFontSize = (value: unknown): value is number =>
   typeof value === 'number' &&
   Number.isInteger(value) &&
@@ -44,26 +34,39 @@ const parseLastProjectDirectoryPath = (value: unknown): string | null =>
     ? value
     : null;
 
+const isLastProjectDirectoryPath = (value: unknown): value is string | null =>
+  value === null || parseLastProjectDirectoryPath(value) !== null;
+
 export const parseStoredSettings = (value: unknown): AppSettings => {
-  if (!isRecord(value)) {
+  const expectedKeys = [
+    'closeWindowBehavior',
+    'editorFontSize',
+    'language',
+    'lastProjectDirectoryPath',
+    'theme',
+    'version',
+  ];
+  if (
+    !isRecord(value) ||
+    value.version !== 1 ||
+    Object.keys(value).length !== expectedKeys.length ||
+    expectedKeys.some((key) => !(key in value)) ||
+    !isCloseWindowBehavior(value.closeWindowBehavior) ||
+    !isEditorFontSize(value.editorFontSize) ||
+    !isAppLanguage(value.language) ||
+    !isTheme(value.theme) ||
+    !isLastProjectDirectoryPath(value.lastProjectDirectoryPath)
+  ) {
     return { ...DEFAULT_APP_SETTINGS };
   }
 
   return {
-    closeWindowBehavior: isCloseWindowBehavior(value.closeWindowBehavior)
-      ? value.closeWindowBehavior
-      : DEFAULT_APP_SETTINGS.closeWindowBehavior,
-    editorFontSize: isEditorFontSize(value.editorFontSize)
-      ? value.editorFontSize
-      : DEFAULT_APP_SETTINGS.editorFontSize,
-    lastProjectDirectoryPath: parseLastProjectDirectoryPath(
-      value.lastProjectDirectoryPath,
-    ),
-    language: isAppLanguage(value.language)
-      ? value.language
-      : DEFAULT_APP_SETTINGS.language,
-    theme: parseStoredTheme(value.theme),
-    version: 5,
+    closeWindowBehavior: value.closeWindowBehavior,
+    editorFontSize: value.editorFontSize,
+    lastProjectDirectoryPath: value.lastProjectDirectoryPath,
+    language: value.language,
+    theme: value.theme,
+    version: 1,
   };
 };
 

@@ -42,11 +42,10 @@ schema change must be an ordered, transactional migration. Opening a database
 created by a newer Driftfield version fails closed. Application code never
 accepts migrations from the project directory.
 
-Projects created by the earlier combined schema are upgraded lazily. Driftfield
-first copies conversation or settings rows into the corresponding target
-database and records an idempotent import marker. Only after that transaction
-commits does it remove those legacy tables from `project.sqlite`. An interrupted
-upgrade can therefore retry without losing the source rows.
+The pre-release schema starts at version 1 in each database. Driftfield does not
+recognize or import earlier development schemas. Once a public release makes a
+schema persistent user data, later schema changes must add explicit forward
+migrations rather than guessing from table shapes.
 
 ## Conversations
 

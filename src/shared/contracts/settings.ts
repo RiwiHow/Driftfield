@@ -34,7 +34,7 @@ export interface AppSettings {
   lastProjectDirectoryPath: string | null;
   language: AppLanguage;
   theme: AppTheme;
-  version: 5;
+  version: 1;
 }
 
 export type UpdateAppSettingsRequest = Partial<
@@ -50,7 +50,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   lastProjectDirectoryPath: null,
   language: 'en',
   theme: 'github-light',
-  version: 5,
+  version: 1,
 };
 
 export const DEFAULT_PROJECT_AGENT_SETTINGS: ProjectAgentSettings = {

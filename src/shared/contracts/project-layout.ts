@@ -1,5 +1,4 @@
 export const DRIFTFIELD_PROJECT_FORMAT_VERSION = 1 as const;
-export const PROJECT_MANIFEST_NAME = 'driftfield.yaml' as const;
 export const PROJECT_INDEX_NAME = '_index.yaml' as const;
 export const PROJECT_ICON_IDS = [
   'book-open',

@@ -22,6 +22,29 @@ const createTemporaryProject = async (): Promise<string> => {
   return directory;
 };
 
+const createProjectWithChapter = async (markdown: string): Promise<string> => {
+  const directory = await createTemporaryProject();
+  await initializeProjectLayout(directory);
+  await writeFile(
+    path.join(directory, 'manuscript', PROJECT_INDEX_NAME),
+    stringify({
+      children: [
+        {
+          file: 'chapter.md',
+          id: 'chapter-1',
+          kind: 'chapter',
+          title: 'Chapter',
+        },
+      ],
+      id: 'manuscript-1',
+      kind: 'manuscript',
+      title: 'Manuscript',
+    }),
+  );
+  await writeFile(path.join(directory, 'manuscript', 'chapter.md'), markdown);
+  return directory;
+};
+
 afterEach(async () => {
   await Promise.all(
     temporaryDirectories.splice(0).map((directory) =>
@@ -40,31 +63,36 @@ describe('project path containment', () => {
 
 describe('project documents', () => {
   it('scans Markdown with a content revision and ignores MDX', async () => {
-    const directory = await createTemporaryProject();
-    await writeFile(path.join(directory, 'chapter.md'), '# Chapter\n');
-    await writeFile(path.join(directory, 'unsafe.mdx'), '<Component />\n');
+    const directory = await createProjectWithChapter('# Chapter\n');
+    await writeFile(
+      path.join(directory, 'manuscript', 'unsafe.mdx'),
+      '<Component />\n',
+    );
 
     const snapshot = await createProjectSnapshot(directory);
 
     expect(snapshot.documents).toHaveLength(1);
     expect(snapshot.documents[0]).toMatchObject({
-      id: 'chapter.md',
+      id: 'chapter-1',
       revision: contentRevision('# Chapter\n'),
     });
   });
 
   it('returns a conflict instead of overwriting an external edit', async () => {
-    const directory = await createTemporaryProject();
-    const documentPath = path.join(directory, 'chapter.md');
-    await writeFile(documentPath, 'original');
+    const directory = await createProjectWithChapter('original');
+    const documentPath = path.join(directory, 'manuscript', 'chapter.md');
     const [document] = (await createProjectSnapshot(directory)).documents;
     await writeFile(documentPath, 'external edit');
 
-    const result = await saveProjectDocument(directory, {
-      documentId: document.id,
-      expectedRevision: document.revision,
-      markdown: 'renderer edit',
-    });
+    const result = await saveProjectDocument(
+      directory,
+      {
+        documentId: document.id,
+        expectedRevision: document.revision,
+        markdown: 'renderer edit',
+      },
+      document.relativePath,
+    );
 
     expect(result.status).toBe('conflict');
     expect(await readFile(documentPath, 'utf8')).toBe('external edit');
@@ -75,12 +103,16 @@ describe('project documents', () => {
     const documentPath = path.join(directory, 'chapter.md');
     await writeFile(documentPath, 'external edit');
 
-    const result = await saveProjectDocument(directory, {
-      documentId: 'chapter.md',
-      expectedRevision: contentRevision('external edit'),
-      markdown: 'reviewed renderer edit',
-      overwrite: true,
-    });
+    const result = await saveProjectDocument(
+      directory,
+      {
+        documentId: 'chapter.md',
+        expectedRevision: contentRevision('external edit'),
+        markdown: 'reviewed renderer edit',
+        overwrite: true,
+      },
+      'chapter.md',
+    );
 
     expect(result).toEqual({
       revision: contentRevision('reviewed renderer edit'),

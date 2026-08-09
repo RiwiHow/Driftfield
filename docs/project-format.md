@@ -19,8 +19,8 @@ novel/
 
 Selecting an empty folder initializes all of these entries. A missing
 `lorebook/` in an existing project never prevents the manuscript from opening.
-Nonempty directories without recognized root metadata remain available through
-temporary legacy scanning and are not rewritten implicitly.
+Nonempty directories without the current root metadata are rejected and never
+rewritten implicitly.
 
 `.driftfield` is an application-owned hidden data directory. It is ignored by
 manuscript scanning and watcher refresh decisions. Users and Agents do not edit
@@ -46,11 +46,6 @@ metadata.
 
 Icon values come from Driftfield's fixed Lucide-backed registry. YAML cannot
 inject SVG, HTML, URLs, filesystem paths, or executable icon definitions.
-
-Legacy projects with a root `driftfield.yaml` remain readable with their
-existing identity. Opening them does not delete, rename, or rewrite metadata;
-conversion to the database-identity format requires a future explicit reviewed
-migration.
 
 ## Ordering, numbering, and formatting
 

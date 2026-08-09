@@ -5,13 +5,9 @@ implemented or authorized.
 
 ## Projects and persistence
 
-- Legacy nonempty Markdown folders can open, but there is no reviewed migration
-  workflow. A future migration must preview classification, create stable IDs
-  and ordered indexes, handle collisions, and never move or rewrite user files
-  without approval.
 - Project selection, open tabs, and unsaved drafts are not restored after
   relaunch. Agent conversations are project-scoped and persisted through the
-  main-owned migrated project database.
+  main-owned conversation database.
 - Watcher retry and close/quit behavior have unit coverage but not complete
   packaged Electron end-to-end coverage on every supported platform.
 - YAML comment and exact-format round-trip preservation remains undecided.
@@ -67,4 +63,6 @@ implemented or authorized.
 
 - Review every new `allowBuilds` entry; never approve transitive lifecycle
   scripts merely because pnpm prompts during installation.
-- Increment the settings schema and add a migration before incompatible changes.
+- Before the first public release, reset the settings schema instead of adding
+  compatibility branches for discarded development formats. After release,
+  incompatible changes require an explicit migration.

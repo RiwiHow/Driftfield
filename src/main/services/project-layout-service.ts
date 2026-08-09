@@ -18,7 +18,6 @@ import {
   MANUSCRIPT_DOCUMENT_KINDS,
   PROJECT_INDEX_NAME,
   PROJECT_ICON_IDS,
-  PROJECT_MANIFEST_NAME,
   PROJECT_ROOT_DIRECTORIES,
   type ChapterNumberingPolicy,
   type LorebookCategoryIndex,
@@ -246,23 +245,6 @@ const parseChildren = <T>(
   return value.map(parseChild);
 };
 
-const parseManifest = (value: unknown): ProjectManifest => {
-  if (!isRecord(value)) throw new Error('Invalid Driftfield project manifest');
-  assertExactKeys(value, ['formatVersion', 'id', 'kind', 'title']);
-  if (
-    value.formatVersion !== DRIFTFIELD_PROJECT_FORMAT_VERSION ||
-    value.kind !== 'novel'
-  ) {
-    throw new Error('Unsupported Driftfield project format');
-  }
-  return {
-    formatVersion: DRIFTFIELD_PROJECT_FORMAT_VERSION,
-    id: parseId(value.id),
-    kind: 'novel',
-    title: parseTitle(value.title),
-  };
-};
-
 const parseProjectRootIndex = (value: unknown): ProjectRootIndex => {
   if (!isRecord(value)) throw new Error('Invalid Driftfield project index');
   assertExactKeys(value, ['kind', 'title'], ['icon']);
@@ -449,21 +431,23 @@ const assertUnique = (values: string[], message: string): void => {
 
 export const loadProjectLayout = async (
   directoryPath: string,
-): Promise<LoadedProjectLayout | null> => {
+): Promise<LoadedProjectLayout> => {
   const projectPath = await realpath(directoryPath);
   const rootNames = await readdir(projectPath);
-  const hasRootIndex = rootNames.includes(PROJECT_INDEX_NAME);
-  const hasLegacyManifest = rootNames.includes(PROJECT_MANIFEST_NAME);
-  if (!hasRootIndex && !hasLegacyManifest) {
-    for (const expected of [PROJECT_INDEX_NAME, PROJECT_MANIFEST_NAME]) {
-      if (rootNames.some((name) => name.toLowerCase() === expected.toLowerCase())) {
-        throw new Error(`Project metadata must use exact name: ${expected}`);
-      }
+  if (!rootNames.includes(PROJECT_INDEX_NAME)) {
+    if (
+      rootNames.some(
+        (name) => name.toLowerCase() === PROJECT_INDEX_NAME.toLowerCase(),
+      )
+    ) {
+      throw new Error(`Project metadata must use exact name: ${PROJECT_INDEX_NAME}`);
     }
-    return null;
+    throw new Error('Driftfield project root index is missing');
   }
-  const metadataName = hasRootIndex ? PROJECT_INDEX_NAME : PROJECT_MANIFEST_NAME;
-  const hasLorebook = await assertExactRootEntries(projectPath, metadataName);
+  const hasLorebook = await assertExactRootEntries(
+    projectPath,
+    PROJECT_INDEX_NAME,
+  );
 
   const manuscriptPath = path.join(
     projectPath,
@@ -478,40 +462,36 @@ export const loadProjectLayout = async (
   }
 
   const [projectYaml, manuscriptYaml] = await Promise.all([
-    readYaml(path.join(projectPath, metadataName)),
+    readYaml(path.join(projectPath, PROJECT_INDEX_NAME)),
     readYaml(path.join(manuscriptPath, PROJECT_INDEX_NAME)),
   ]);
+  const rootIndex = parseProjectRootIndex(projectYaml.value);
+  const databasePath = path.join(projectPath, '.driftfield', 'project.sqlite');
+  const databaseStats = await lstat(databasePath).catch(() => null);
+  if (
+    databaseStats === null ||
+    !databaseStats.isFile() ||
+    databaseStats.isSymbolicLink()
+  ) {
+    throw new Error('Driftfield project database is missing or invalid');
+  }
+  const database = new ProjectDatabase(projectPath);
   let manifest: ProjectManifest & { icon?: ProjectIconId };
-  if (hasRootIndex) {
-    const rootIndex = parseProjectRootIndex(projectYaml.value);
-    const databasePath = path.join(projectPath, '.driftfield', 'project.sqlite');
-    const databaseStats = await lstat(databasePath).catch(() => null);
+  try {
+    const metadata = database.getProjectMetadata();
     if (
-      databaseStats === null ||
-      !databaseStats.isFile() ||
-      databaseStats.isSymbolicLink()
+      metadata === null ||
+      metadata.formatVersion !== DRIFTFIELD_PROJECT_FORMAT_VERSION
     ) {
-      throw new Error('Driftfield project database is missing or invalid');
+      throw new Error('Unsupported Driftfield project database format');
     }
-    const database = new ProjectDatabase(projectPath);
-    try {
-      const metadata = database.getProjectMetadata();
-      if (
-        metadata === null ||
-        metadata.formatVersion !== DRIFTFIELD_PROJECT_FORMAT_VERSION
-      ) {
-        throw new Error('Unsupported Driftfield project database format');
-      }
-      manifest = {
-        formatVersion: DRIFTFIELD_PROJECT_FORMAT_VERSION,
-        id: metadata.projectId,
-        ...rootIndex,
-      };
-    } finally {
-      database.close();
-    }
-  } else {
-    manifest = parseManifest(projectYaml.value);
+    manifest = {
+      formatVersion: DRIFTFIELD_PROJECT_FORMAT_VERSION,
+      id: metadata.projectId,
+      ...rootIndex,
+    };
+  } finally {
+    database.close();
   }
   const manuscriptIndex = parseManuscriptIndex(manuscriptYaml.value);
   const metadataSources = [projectYaml.source, manuscriptYaml.source];
@@ -728,17 +708,15 @@ export const initializeProjectLayout = async (
   }
 
   const loaded = await loadProjectLayout(projectPath);
-  if (loaded === null) throw new Error('Project initialization failed');
   return loaded;
 };
 
 export const openProjectLayout = async (
   directoryPath: string,
-): Promise<LoadedProjectLayout | null> => {
-  const loaded = await loadProjectLayout(directoryPath);
-  if (loaded !== null) return loaded;
+): Promise<LoadedProjectLayout> => {
   const names = await readdir(directoryPath);
-  return names.every((name) => name.startsWith('.'))
-    ? initializeProjectLayout(directoryPath)
-    : null;
+  if (names.every((name) => name.startsWith('.'))) {
+    return initializeProjectLayout(directoryPath);
+  }
+  return loadProjectLayout(directoryPath);
 };

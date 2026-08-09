@@ -5,11 +5,9 @@ import type {
   AgentDocumentToolResult,
   AgentDraftSnapshot,
   AgentNovelStructureToolResult,
-  AgentStructureDirectory,
   AgentStructureNode,
   AgentToolErrorCode,
 } from '../../shared/contracts/agent-tools';
-import type { ProjectTreeNode } from '../../shared/contracts/project';
 import type {
   LorebookEntry,
   ManuscriptDocumentEntry,
@@ -91,24 +89,6 @@ export class ProjectContextService {
   ): Promise<AgentNovelStructureToolResult> {
     const session = this.requireSession(scope);
     const layout = await loadProjectLayout(session.directoryPath);
-    if (layout === null) {
-      return {
-        format: 'legacy',
-        manuscript: {
-          children: session.project.tree.map((node) =>
-            this.mapLegacyNode(node, session.project.documents),
-          ),
-          kind: 'manuscript',
-          title: session.project.rootTitles?.manuscript ?? 'Manuscript',
-          type: 'directory',
-        },
-        project: {
-          revision: session.project.revision,
-          title: session.project.directory.name,
-        },
-      };
-    }
-
     const documents = new Map(session.project.documents.map((document) => [document.id, document]));
     const volumes = new Map(layout.manuscript.volumes.map((volume) => [volume.directory, volume]));
     const manuscriptChildren: AgentStructureNode[] = layout.manuscript.index.children.map((child) => {
@@ -236,26 +216,5 @@ export class ProjectContextService {
 
   private mapLorebookEntry(entry: LorebookEntry): AgentStructureNode {
     return { id: entry.id, kind: 'entry', title: entry.title, type: 'document' };
-  }
-
-  private mapLegacyNode(
-    node: ProjectTreeNode,
-    documents: Array<{ id: string; revision: string }>,
-  ): AgentStructureNode {
-    if (node.type === 'file') {
-      return {
-        id: node.documentId,
-        kind: 'document',
-        revision: documents.find(({ id }) => id === node.documentId)?.revision,
-        title: node.name,
-        type: 'document',
-      };
-    }
-    return {
-      children: node.children.map((child) => this.mapLegacyNode(child, documents)),
-      kind: 'directory',
-      title: node.name,
-      type: 'directory',
-    } satisfies AgentStructureDirectory;
   }
 }
