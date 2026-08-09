@@ -63,6 +63,12 @@ or settings stylesheet. Separators are a one-pixel hairline with a wider
 invisible drag target; do not restore visible spacer gutters or feature-local
 header/footer offsets.
 
+Window chrome is platform-aware: macOS uses the inset native titlebar, while
+Windows overlays native caption controls on the renderer-owned draggable
+titlebar and keeps the legacy menu bar hidden until requested with Alt. Reserve
+the Windows caption-control area in shared workspace geometry, and derive its
+background and symbol colors from the registered theme contract.
+
 ## Pane transitions
 
 Library and Agents collapse controls use the native same-document View

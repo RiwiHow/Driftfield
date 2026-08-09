@@ -62,6 +62,11 @@
   color: var(--muted-foreground);
 }
 
+.app-frame[data-platform="win32"] .titlebar {
+  padding-right: 146px;
+  padding-left: 8px;
+}
+
 .workspace-panels {
   min-height: 0;
   flex: 1;

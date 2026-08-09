@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   APP_THEMES,
   APP_THEME_WINDOW_BACKGROUNDS,
+  APP_THEME_WINDOW_CHROME,
   THEME_REQUIRED_CSS_VARIABLES,
 } from '../../src/shared/theme-contract';
 
@@ -75,6 +76,16 @@ describe('renderer theme contract', () => {
   it.each(APP_THEMES)('%s keeps its native-window background in sync', (theme) => {
     expect(readThemeVariables(theme).get('--background')).toBe(
       APP_THEME_WINDOW_BACKGROUNDS[theme],
+    );
+  });
+
+  it.each(APP_THEMES)('%s keeps its Windows chrome in sync', (theme) => {
+    const variables = readThemeVariables(theme);
+    expect(variables.get('--df-sidebar')).toBe(
+      APP_THEME_WINDOW_CHROME[theme].background,
+    );
+    expect(variables.get('--muted-foreground')).toBe(
+      APP_THEME_WINDOW_CHROME[theme].symbol,
     );
   });
 

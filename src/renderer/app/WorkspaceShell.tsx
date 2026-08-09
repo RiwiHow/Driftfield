@@ -227,6 +227,7 @@ export function WorkspaceShell({
     <TooltipProvider>
       <main
         className="app-frame"
+        data-platform={window.driftfield.platform}
         data-theme={theme}
         style={
           {

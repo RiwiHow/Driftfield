@@ -28,7 +28,11 @@ vi.mock('electron', () => ({
   },
 }));
 
-import { createMainWindow } from '../../../src/main/windows/main-window';
+import {
+  createMainWindow,
+  getMainWindowChromeOptions,
+  updateMainWindowTheme,
+} from '../../../src/main/windows/main-window';
 
 describe('main window', () => {
   beforeEach(() => {
@@ -54,5 +58,39 @@ describe('main window', () => {
         useContentSize: true,
       }),
     );
+  });
+
+  it('integrates the renderer titlebar with the Windows caption controls', () => {
+    expect(getMainWindowChromeOptions('win32', 'github-dark')).toEqual({
+      autoHideMenuBar: true,
+      titleBarOverlay: {
+        color: '#151b23',
+        height: 37,
+        symbolColor: '#9198a1',
+      },
+      titleBarStyle: 'hidden',
+    });
+  });
+
+  it('keeps the inset native titlebar on macOS', () => {
+    expect(getMainWindowChromeOptions('darwin', 'github-dark')).toEqual({
+      titleBarStyle: 'hiddenInset',
+    });
+  });
+
+  it('updates Windows native chrome when the application theme changes', () => {
+    const window = {
+      setBackgroundColor: vi.fn(),
+      setTitleBarOverlay: vi.fn(),
+    };
+
+    updateMainWindowTheme(window as never, 'github-light', 'win32');
+
+    expect(window.setBackgroundColor).toHaveBeenCalledWith('#ffffff');
+    expect(window.setTitleBarOverlay).toHaveBeenCalledWith({
+      color: '#f6f8fa',
+      height: 37,
+      symbolColor: '#59636e',
+    });
   });
 });

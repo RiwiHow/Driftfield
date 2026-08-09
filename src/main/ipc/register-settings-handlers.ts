@@ -4,6 +4,7 @@ import { IPC_CHANNELS } from '../../shared/contracts/ipc-channels';
 import { getAgentConfiguration } from '../ai/get-agent-configuration';
 import { parseSettingsUpdate } from '../services/settings-service';
 import { parseProjectAgentSettingsUpdate } from '../services/project-settings-service';
+import { updateMainWindowTheme } from '../windows/main-window';
 import type { IpcHandlerContext } from './ipc-handler-context';
 
 export const registerSettingsIpcHandlers = ({
@@ -28,9 +29,13 @@ export const registerSettingsIpcHandlers = ({
   });
 
   ipcMain.handle(IPC_CHANNELS.updateAppSettings, async (event, value) => {
-    getTrustedSenderWindow(event);
+    const window = getTrustedSenderWindow(event);
     const update = parseSettingsUpdate(value);
-    return settingsService.update(update);
+    const settings = await settingsService.update(update);
+    if (update.theme !== undefined) {
+      updateMainWindowTheme(window, settings.theme);
+    }
+    return settings;
   });
 
   ipcMain.handle(IPC_CHANNELS.updateProjectAgentSettings, async (event, value) => {

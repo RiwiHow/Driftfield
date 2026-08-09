@@ -15,6 +15,20 @@ export const APP_THEME_WINDOW_BACKGROUNDS = {
   'github-light': '#ffffff',
 } as const satisfies Record<AppTheme, string>;
 
+export const APP_THEME_WINDOW_CHROME = {
+  'github-dark': {
+    background: '#151b23',
+    symbol: '#9198a1',
+  },
+  'github-light': {
+    background: '#f6f8fa',
+    symbol: '#59636e',
+  },
+} as const satisfies Record<
+  AppTheme,
+  { background: string; symbol: string }
+>;
+
 export const THEME_REQUIRED_CSS_VARIABLES = [
   '--background',
   '--foreground',
