@@ -21,6 +21,7 @@ import {
   createProjectSnapshot,
   saveProjectDocument,
 } from '../services/project-service';
+import { openProjectLayout } from '../services/project-layout-service';
 import type { ProjectSessionService } from '../services/project-session-service';
 import {
   type SettingsService,
@@ -133,7 +134,8 @@ export const registerIpcHandlers = ({
     const session = projectSessions.get(window.webContents.id);
     if (
       value.currentDocumentId !== undefined &&
-      (session === undefined || !session.documentIds.has(value.currentDocumentId))
+      (session === undefined ||
+        !session.documentPaths.has(value.currentDocumentId))
     ) {
       throw new Error('Unknown project document');
     }
@@ -235,12 +237,16 @@ export const registerIpcHandlers = ({
       throw new Error('Invalid project document save request');
     }
     const request = value as Partial<SaveProjectDocumentRequest>;
+    const relativeDocumentPath =
+      typeof request.documentId === 'string'
+        ? session.documentPaths.get(request.documentId)
+        : undefined;
     if (
       typeof request.documentId !== 'string' ||
       typeof request.expectedRevision !== 'string' ||
       typeof request.markdown !== 'string' ||
       (request.overwrite !== undefined && typeof request.overwrite !== 'boolean') ||
-      !session.documentIds.has(request.documentId) ||
+      relativeDocumentPath === undefined ||
       Buffer.byteLength(request.markdown, 'utf8') > MAX_PROJECT_BYTES
     ) {
       throw new Error('Unknown project document');
@@ -248,6 +254,7 @@ export const registerIpcHandlers = ({
     return saveProjectDocument(
       session.directoryPath,
       request as SaveProjectDocumentRequest,
+      relativeDocumentPath,
     );
   });
 
@@ -306,7 +313,8 @@ export const registerIpcHandlers = ({
       if (!(await stat(directoryPath)).isDirectory()) {
         throw new Error('Selected project path is not a directory');
       }
-      const project = await createProjectSnapshot(directoryPath);
+      const layout = await openProjectLayout(directoryPath);
+      const project = await createProjectSnapshot(directoryPath, layout);
       aiAgentService.disposeOwner(window.webContents.id);
       projectSessions.watch(window, directoryPath, project);
       return project;

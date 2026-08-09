@@ -18,6 +18,14 @@ import type {
   SaveProjectDocumentRequest,
   SaveProjectDocumentResult,
 } from '../../shared/contracts/project';
+import type {
+  ChapterNumberingPolicy,
+  ManuscriptDocumentEntry,
+} from '../../shared/contracts/project-layout';
+import {
+  loadProjectLayout,
+  type LoadedProjectLayout,
+} from './project-layout-service';
 
 export const supportedDocumentExtensions = new Set(['.md', '.markdown']);
 const ignoredDirectoryNames = new Set(['.git', 'node_modules']);
@@ -47,18 +55,160 @@ export const isPathInside = (parentPath: string, candidatePath: string): boolean
 const readProjectDocument = async (
   projectPath: string,
   relativePath: string,
+  id = relativePath,
+  name = path.basename(relativePath, path.extname(relativePath)),
 ): Promise<ProjectDocument> => {
   const absolutePath = path.resolve(projectPath, relativePath);
   const fileBuffer = await readFile(absolutePath);
-  const extension = path.extname(relativePath).toLowerCase();
 
   return {
-    id: relativePath,
+    id,
     markdown: fileBuffer.toString('utf8'),
-    name: path.basename(relativePath, extension),
+    name,
     relativePath,
     revision: contentRevision(fileBuffer),
   };
+};
+
+interface ManuscriptLabelContext {
+  number?: number;
+  volumeNumber?: number;
+  volumeTitle?: string;
+}
+
+const formatManuscriptLabel = (
+  entry: ManuscriptDocumentEntry,
+  policy: ChapterNumberingPolicy | undefined,
+  context: ManuscriptLabelContext,
+): string => {
+  if (entry.kind !== 'chapter' || policy?.mode === 'none' || policy === undefined) {
+    return entry.label ?? entry.title;
+  }
+  if (policy.mode === 'manual') return entry.label ?? entry.title;
+  const number = context.number;
+  if (number === undefined) return entry.title;
+  const fields: Record<string, string> = {
+    kind: entry.kind,
+    number: String(number),
+    title: entry.title,
+    volumeNumber:
+      context.volumeNumber === undefined ? '' : String(context.volumeNumber),
+    volumeTitle: context.volumeTitle ?? '',
+  };
+  return (policy.format ?? '{number}. {title}').replace(
+    /\{(kind|number|title|volumeNumber|volumeTitle)\}/gu,
+    (_match, field: string) => fields[field] ?? '',
+  );
+};
+
+const readStructuredDocument = async (
+  projectPath: string,
+  relativeDirectory: string,
+  entry: ManuscriptDocumentEntry,
+  displayName: string,
+  state: ProjectScanState,
+): Promise<{ document: ProjectDocument; node: ProjectTreeNode }> => {
+  if (state.documents.length >= MAX_PROJECT_DOCUMENTS) {
+    throw new Error('Project contains too many Markdown documents');
+  }
+  const relativePath = path.join(relativeDirectory, entry.file);
+  const absolutePath = path.join(projectPath, relativePath);
+  const fileStats = await stat(absolutePath);
+  if (state.bytes + fileStats.size > MAX_PROJECT_BYTES) {
+    throw new Error('Project Markdown documents are too large');
+  }
+  const document = await readProjectDocument(
+    projectPath,
+    relativePath,
+    entry.id,
+    displayName,
+  );
+  state.bytes += fileStats.size;
+  state.documents.push(document);
+  return {
+    document,
+    node: {
+      documentId: document.id,
+      name: displayName,
+      relativePath,
+      type: 'file',
+    },
+  };
+};
+
+const scanStructuredManuscript = async (
+  projectPath: string,
+  layout: LoadedProjectLayout,
+  state: ProjectScanState,
+): Promise<ProjectTreeNode[]> => {
+  const manuscriptDirectory = 'manuscript';
+  const nodes: ProjectTreeNode[] = [];
+  const volumes = new Map(
+    layout.manuscript.volumes.map((volume) => [volume.directory, volume]),
+  );
+  let continuousNumber = 0;
+  let directNumber = 0;
+  let volumeNumber = 0;
+
+  for (const child of layout.manuscript.index.children) {
+    if (child.kind !== 'volume') {
+      const policy = layout.manuscript.index.chapterNumbering;
+      let number: number | undefined;
+      if (child.kind === 'chapter' && policy?.mode === 'continuous') {
+        number = ++continuousNumber;
+      } else if (child.kind === 'chapter' && policy?.mode === 'per-volume') {
+        number = ++directNumber;
+      }
+      const { node } = await readStructuredDocument(
+        projectPath,
+        manuscriptDirectory,
+        child,
+        formatManuscriptLabel(child, policy, { number }),
+        state,
+      );
+      nodes.push(node);
+      continue;
+    }
+
+    volumeNumber += 1;
+    const volume = volumes.get(child.directory);
+    if (volume === undefined) throw new Error('Volume index was not loaded');
+    const policy =
+      volume.index.chapterNumbering ?? layout.manuscript.index.chapterNumbering;
+    let localNumber = 0;
+    const children: ProjectTreeNode[] = [];
+    for (const documentEntry of volume.index.children) {
+      let number: number | undefined;
+      if (documentEntry.kind === 'chapter' && policy?.mode === 'continuous') {
+        number = ++continuousNumber;
+      } else if (
+        documentEntry.kind === 'chapter' &&
+        policy?.mode === 'per-volume'
+      ) {
+        number = ++localNumber;
+      }
+      const relativeDirectory = path.join(manuscriptDirectory, child.directory);
+      const { node } = await readStructuredDocument(
+        projectPath,
+        relativeDirectory,
+        documentEntry,
+        formatManuscriptLabel(documentEntry, policy, {
+          number,
+          volumeNumber,
+          volumeTitle: volume.index.title,
+        }),
+        state,
+      );
+      children.push(node);
+    }
+    nodes.push({
+      children,
+      name: volume.index.title,
+      relativePath: path.join(manuscriptDirectory, child.directory),
+      type: 'folder',
+    });
+  }
+  return nodes;
 };
 
 const scanProjectDirectory = async (
@@ -123,18 +273,66 @@ const scanProjectDirectory = async (
 
 export const createProjectSnapshot = async (
   directoryPath: string,
+  loadedLayout?: LoadedProjectLayout | null,
 ): Promise<ProjectSnapshot> => {
   const state: ProjectScanState = { bytes: 0, documents: [], entries: 0 };
-  const tree = await scanProjectDirectory(directoryPath, '', state);
+  const layout = loadedLayout ?? (await loadProjectLayout(directoryPath));
+  const tree =
+    layout === null
+      ? await scanProjectDirectory(directoryPath, '', state)
+      : await scanStructuredManuscript(directoryPath, layout, state);
+  let lorebookRevisions: string[] = [];
+  if (layout !== null) {
+    if (
+      state.documents.length + layout.lorebook.entries.length >
+      MAX_PROJECT_DOCUMENTS
+    ) {
+      throw new Error('Project contains too many Markdown documents');
+    }
+    const lorebookContents = await Promise.all(
+      layout.lorebook.entries.map(async (entry) => ({
+        content: await readFile(path.join(directoryPath, entry.relativePath)),
+        entry,
+      })),
+    );
+    const lorebookBytes = lorebookContents.reduce(
+      (total, { content }) => total + content.byteLength,
+      0,
+    );
+    if (state.bytes + lorebookBytes > MAX_PROJECT_BYTES) {
+      throw new Error('Project Markdown documents are too large');
+    }
+    state.bytes += lorebookBytes;
+    lorebookRevisions = lorebookContents.map(
+      ({ content, entry }) =>
+        `${entry.id}:${entry.relativePath}:${contentRevision(content)}`,
+    );
+  }
   return {
     directory: {
-      name: path.basename(directoryPath) || directoryPath,
+      name:
+        layout?.manifest.title ??
+        (path.basename(directoryPath) || directoryPath),
       path: directoryPath,
     },
     documents: state.documents,
     revision: contentRevision(
-      state.documents.map((document) => `${document.id}:${document.revision}`).join('\n'),
+      [
+        ...(layout?.metadataSources ?? []),
+        ...lorebookRevisions,
+        ...state.documents.map(
+          (document) => `${document.id}:${document.relativePath}:${document.revision}`,
+        ),
+      ].join('\n'),
     ),
+    ...(layout === null
+      ? {}
+      : {
+          rootTitles: {
+            lorebook: layout.lorebook.index.title,
+            manuscript: layout.manuscript.index.title,
+          },
+        }),
     tree,
   };
 };
@@ -156,9 +354,10 @@ const enqueueSave = async <T>(documentPath: string, operation: () => Promise<T>)
 export const saveProjectDocument = async (
   projectPath: string,
   request: SaveProjectDocumentRequest,
+  relativeDocumentPath = request.documentId,
 ): Promise<SaveProjectDocumentResult> => {
   const canonicalProjectPath = await realpath(projectPath);
-  const documentPath = path.resolve(canonicalProjectPath, request.documentId);
+  const documentPath = path.resolve(canonicalProjectPath, relativeDocumentPath);
   const extension = path.extname(documentPath).toLowerCase();
   if (!isPathInside(canonicalProjectPath, documentPath) || !supportedDocumentExtensions.has(extension)) {
     throw new Error('Project document path escapes the project');
@@ -180,7 +379,11 @@ export const saveProjectDocument = async (
       throw new Error('Project document path escapes the project');
     }
 
-    const diskDocument = await readProjectDocument(canonicalProjectPath, request.documentId);
+    const diskDocument = await readProjectDocument(
+      canonicalProjectPath,
+      relativeDocumentPath,
+      request.documentId,
+    );
     if (!request.overwrite && diskDocument.revision !== request.expectedRevision) {
       return { diskDocument, status: 'conflict' };
     }

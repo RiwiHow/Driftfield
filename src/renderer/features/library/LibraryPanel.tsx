@@ -24,6 +24,7 @@ interface LibraryPanelProps {
   activeChapterId: string | null;
   isSelectingProject: boolean;
   isRefreshingProject: boolean;
+  manuscriptTitle: string | null;
   onChapterChange: (chapterId: string) => void;
   onOpenSettings: () => void;
   onRefreshProject: () => void;
@@ -39,6 +40,7 @@ export function LibraryPanel({
   activeChapterId,
   isSelectingProject,
   isRefreshingProject,
+  manuscriptTitle,
   onChapterChange,
   onOpenSettings,
   onRefreshProject,
@@ -108,7 +110,9 @@ export function LibraryPanel({
       )}
 
       <nav className="manuscript-tree" aria-label={t('title')}>
-        <div className="tree-section-label">{t('labels.manuscript')}</div>
+        <div className="tree-section-label">
+          {manuscriptTitle ?? t('labels.manuscript')}
+        </div>
         {projectDirectory === null ? (
           <p
             aria-label={`${t('empty.hint')} ${t('empty.action')}`}

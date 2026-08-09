@@ -37,6 +37,7 @@ import type { AgentConfiguration } from '../../shared/contracts/agent-configurat
 import type { AgentSettings, AppTheme } from '../../shared/contracts/settings';
 import type {
   ProjectDirectory,
+  ProjectSnapshot,
   ProjectTreeNode,
 } from '../../shared/contracts/project';
 
@@ -59,6 +60,7 @@ interface WorkspaceShellProps {
   onSaveDocument: () => void;
   onSelectProject: () => void;
   projectDirectory: ProjectDirectory | null;
+  projectRootTitles: ProjectSnapshot['rootTitles'] | null;
   projectSelectionError: string | null;
   projectTree: ProjectTreeNode[];
   projectWatcherError: string | null;
@@ -85,6 +87,7 @@ export function WorkspaceShell({
   onSaveDocument,
   onSelectProject,
   projectDirectory,
+  projectRootTitles,
   projectSelectionError,
   projectTree,
   projectWatcherError,
@@ -297,6 +300,7 @@ export function WorkspaceShell({
               onRefreshProject={onRefreshProject}
               onSelectProject={onSelectProject}
               projectDirectory={projectDirectory}
+              manuscriptTitle={projectRootTitles?.manuscript ?? null}
               projectSelectionError={projectSelectionError}
               projectTree={projectTree}
               projectWatcherError={projectWatcherError}

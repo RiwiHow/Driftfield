@@ -31,6 +31,10 @@ export interface ProjectSnapshot {
   directory: ProjectDirectory;
   documents: ProjectDocument[];
   revision: string;
+  rootTitles?: {
+    lorebook: string;
+    manuscript: string;
+  };
   tree: ProjectTreeNode[];
 }
 

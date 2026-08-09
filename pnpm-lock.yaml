@@ -252,6 +252,9 @@ importers:
       typebox:
         specifier: ^1.3.9
         version: 1.3.9
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
     devDependencies:
       '@electron-forge/cli':
         specifier: ^7.11.2

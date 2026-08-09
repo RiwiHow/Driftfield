@@ -11,7 +11,7 @@ import { createProjectSnapshot } from './project-service';
 
 interface ProjectSession {
   directoryPath: string;
-  documentIds: Set<string>;
+  documentPaths: Map<string, string>;
   id: string;
   lastRevision: string;
   refreshTimer: ReturnType<typeof setTimeout> | null;
@@ -53,7 +53,9 @@ export class ProjectSessionService {
     this.close(webContentsId);
     const session: ProjectSession = {
       directoryPath,
-      documentIds: new Set(project.documents.map((document) => document.id)),
+      documentPaths: new Map(
+        project.documents.map((document) => [document.id, document.relativePath]),
+      ),
       id: randomUUID(),
       lastRevision: project.revision,
       refreshTimer: null,
@@ -69,7 +71,7 @@ export class ProjectSessionService {
     project: ProjectSnapshot,
   ): void {
     for (const document of project.documents) {
-      session.documentIds.add(document.id);
+      session.documentPaths.set(document.id, document.relativePath);
     }
   }
 

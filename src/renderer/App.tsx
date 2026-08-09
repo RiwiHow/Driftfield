@@ -60,6 +60,7 @@ export function App({ initialSettings, settingsLoadFailed }: AppProps) {
         onSaveDocument={() => void project.saveActiveDocument()}
         onSelectProject={() => void project.selectProjectDirectory()}
         projectDirectory={project.projectDirectory}
+        projectRootTitles={project.projectRootTitles}
         projectSelectionError={project.projectSelectionError}
         projectTree={project.projectTree}
         projectWatcherError={project.projectWatcherError}

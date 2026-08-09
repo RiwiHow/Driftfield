@@ -49,6 +49,7 @@ Driftfield/
     │   ├── ipc/
     │   │   └── register-ipc-handlers.ts # Validated privileged IPC handlers
     │   ├── services/
+    │   │   ├── project-layout-service.ts # Versioned YAML project structure
     │   │   ├── project-service.ts # Project scan, revisions, and serialized saves
     │   │   ├── project-session-service.ts # Watcher sessions and recovery
     │   │   └── settings-service.ts # Versioned settings parsing and persistence
@@ -87,7 +88,7 @@ Driftfield/
     └── shared/
         ├── electron-api.ts        # Shared preload API contract
         ├── i18n/                  # Supported languages and bundled catalogs
-        └── contracts/             # IPC channels, projects, settings, lifecycle
+        └── contracts/             # IPC, project layout, settings, and lifecycle
 ```
 
 All tests live under the root `tests/` directory and mirror the corresponding
@@ -183,6 +184,57 @@ preload methods, which call validated main-process handlers and repositories.
 - Use transactions for multi-record document changes.
 - When adding a native SQLite module, update Electron rebuild and ASAR unpacking
   configuration and verify packaged applications on every supported platform.
+
+## Project Structure and Metadata
+
+A Driftfield project is a portable, versioned folder format. New-format projects
+have one root manifest and two required lowercase semantic roots:
+
+```text
+novel/
+├── driftfield.yaml
+├── manuscript/
+│   └── _index.yaml
+└── lorebook/
+    └── _index.yaml
+```
+
+- Keep the physical root names exactly `manuscript` and `lorebook`. Treat their
+  spelling and lowercase casing as part of the project format; UI labels are
+  separate, user-authored metadata and may be localized or renamed without
+  changing the physical paths.
+- Use `driftfield.yaml` only at the project root to identify the project, carry
+  its stable project ID, and declare the overall project-format version. Do not
+  repeat the format version in every directory index.
+- Use `_index.yaml` for metadata in each semantic directory. An index owns that
+  directory's stable ID, kind, display title, child ordering, and any inherited
+  child-label or numbering policy. Do not duplicate the same metadata in both a
+  parent and child index.
+- Keep Markdown files as content. Do not use filenames, paths, display titles,
+  volume/chapter numbers, or array positions as stable domain identity.
+- A directory's `title` controls its own UI label. A constrained `format`
+  controls child labels only. Formatters are data templates, never executable
+  code: allow only documented placeholders, reject unknown placeholders, bound
+  their size, and never allow expressions, property traversal, environment
+  access, custom YAML tags, or formatter-derived file paths or IDs.
+- Store ordering explicitly in index `children` arrays rather than inferring it
+  from lexical filenames. Keep numbering behavior structured and separate from
+  formatting, with supported modes such as continuous, per-volume, manual, and
+  none.
+- Parse YAML in main with a safe schema and strict runtime validation. Bound file
+  size, nesting, aliases, collection size, string size, and child count; reject
+  unsupported keys and kinds. Canonicalize and contain every referenced path
+  below its owning project and semantic root.
+- Main-process project services own project initialization, metadata reads,
+  migrations, revision checks, serialized atomic writes, and conflict handling.
+  Renderer features and Agent workers must not parse, mutate, or construct
+  project metadata paths themselves.
+- Agents access structure through bounded domain tools and stable IDs. They must
+  never edit YAML directly; structural changes follow the same propose, preview,
+  approve, revision-check, and main-owned apply flow as manuscript changes.
+- Whether application writes must preserve user-authored YAML comments and exact
+  formatting is intentionally undecided. Do not promise round-trip comment
+  preservation until that product decision and parser strategy are explicit.
 
 ## AI and Pi Integration
 
@@ -466,13 +518,17 @@ Keep shared pane dimensions and divider geometry in semantic variables under
 wider invisible drag target; do not reintroduce visible spacer gutters or
 feature-local header/footer offsets.
 
-The project tree currently reads Markdown files through narrow main-process IPC,
-and existing `.md` and `.markdown` documents can be saved back through a
-validated, conflict-aware save handler. General `.mdx`/JSX files are not
-supported. Project selection, open-document state, unsaved edits, and Agent
-conversations are still session-only. Do not describe those parts as restored
-or persisted. Keep raw HTML processing disabled in MDXEditor unless the CSP and
-sanitization strategy are explicitly reviewed.
+New-format projects use `driftfield.yaml`, fixed `manuscript/` and `lorebook/`
+roots, and hierarchical `_index.yaml` metadata. Selecting an empty folder safely
+initializes that structure. Nonempty folders without a manifest remain available
+through temporary legacy scanning and are never moved or rewritten implicitly.
+The project tree reads manuscript Markdown through narrow main-process IPC, and
+existing `.md` and `.markdown` documents can be saved back through a validated,
+conflict-aware save handler. General `.mdx`/JSX files are not supported. Project
+selection, open-document state, unsaved edits, and Agent conversations are still
+session-only. Do not describe those parts as restored or persisted. Keep raw HTML
+processing disabled in MDXEditor unless the CSP and sanitization strategy are
+explicitly reviewed.
 
 ## Current Reliability Baseline
 
@@ -496,6 +552,12 @@ properties when extending the affected subsystems:
 - Main-process saves are serialized per document, use unique temporary files,
   and validate sender identity, request size, supported extension, canonical
   containment, and regular-file status.
+- New-format project metadata is parsed and strictly validated in main. Physical
+  root and index casing, regular-file and non-symlink constraints, stable-ID
+  uniqueness, bounded YAML, explicit child order, safe formatter placeholders,
+  and referenced Markdown entries are checked before a snapshot is exposed.
+  Project sessions map stable document IDs to validated relative paths instead
+  of treating IDs as filesystem paths.
 - Main-process responsibilities are separated across `windows/`, `ipc/`, and
   `services/`. Renderer project and settings state live in feature hooks; root
   `App.tsx` remains a composition layer.
@@ -512,14 +574,20 @@ properties when extending the affected subsystems:
   packaged ASAR and verifies local model discovery for every API-key provider
   exposed by Driftfield without making billable provider requests.
 - Vitest covers path containment, project scanning, revision conflicts, settings
-  parsing and migration, dirty-action decisions, snapshot merges, navigation
-  policy, Agent run/protocol state, cancellation races, project invalidation,
-  credential-state failures, worker restart, tool timeouts, safe Agent Markdown,
-  locale parity and switching, native dialog options, and MDXEditor
-  initialization and translation adapters.
+  parsing and migration, project-layout initialization and strict YAML validation,
+  stable document identity, formatter-driven ordering and labels, dirty-action
+  decisions, snapshot merges, navigation policy, Agent run/protocol state,
+  cancellation races, project invalidation, credential-state failures, worker
+  restart, tool timeouts, safe Agent Markdown, locale parity and switching,
+  native dialog options, and MDXEditor initialization and translation adapters.
 
 ## Remaining Technical Debt
 
+- Nonempty legacy Markdown folders can still be opened, but no reviewed migration
+  workflow exists yet. Add an explicit previewable migration that classifies
+  manuscript and lorebook files, creates stable IDs and ordered indexes, handles
+  collisions, and never moves or rewrites user files without approval. Remove
+  legacy scanning only after that migration path is shipped.
 - MDXEditor's current CodeMirror configuration enables
   `autoLoadLanguageSupport`, which causes the packaged renderer to include the
   complete `@codemirror/language-data` dynamic language catalog even though the
