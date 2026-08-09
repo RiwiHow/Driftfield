@@ -22,6 +22,8 @@ Main validates typed arguments, resolves stable IDs through the active project
 session, rechecks document containment and regular-file status, and enforces
 per-request call, timeout, individual-result, and cumulative-result budgets.
 Results do not expose physical project paths or raw YAML.
+`get_novel_structure` exposes the optional knowledge root as `lore` with
+directory kind `lore`, matching the project format and application domain.
 
 The worker emits bounded Tool activity events around the Driftfield-owned tool
 bridge. Renderer shows the current call and its completion result in collapsible

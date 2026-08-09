@@ -21,10 +21,10 @@ import {
   PROJECT_ICON_IDS,
   PROJECT_ROOT_DIRECTORIES,
   type ChapterNumberingPolicy,
-  type LorebookCategoryIndex,
-  type LorebookEntry,
-  type LorebookIndex,
-  type LorebookRootChild,
+  type LoreCategoryIndex,
+  type LoreEntry,
+  type LoreIndex,
+  type LoreRootChild,
   type ManuscriptDocumentEntry,
   type ManuscriptIndex,
   type ManuscriptRootChild,
@@ -58,18 +58,18 @@ const ALLOWED_FORMAT_FIELDS = new Set([
 
 type RecordValue = Record<string, unknown>;
 
-interface LoadedLorebookLayout {
-  categories: Array<{ directory: string; index: LorebookCategoryIndex }>;
+interface LoadedLoreLayout {
+  categories: Array<{ directory: string; index: LoreCategoryIndex }>;
   entries: Array<{
     id: string;
     relativePath: string;
     title: string;
   }>;
-  index: LorebookIndex;
+  index: LoreIndex;
 }
 
 export interface LoadedProjectLayout {
-  lorebook: LoadedLorebookLayout | null;
+  lore: LoadedLoreLayout | null;
   manifest: ProjectManifest & { icon?: ProjectIconId };
   manuscript: {
     index: ManuscriptIndex;
@@ -232,10 +232,10 @@ const parseManuscriptRootChild = (value: unknown): ManuscriptRootChild => {
   return { directory: parseSegment(value.directory), kind: 'volume' };
 };
 
-const parseLorebookEntry = (value: unknown): LorebookEntry => {
-  if (!isRecord(value)) throw new Error('Invalid lorebook entry');
+const parseLoreEntry = (value: unknown): LoreEntry => {
+  if (!isRecord(value)) throw new Error('Invalid lore entry');
   assertExactKeys(value, ['file', 'id', 'kind', 'title']);
-  if (value.kind !== 'entry') throw new Error('Unknown lorebook entry kind');
+  if (value.kind !== 'entry') throw new Error('Unknown lore entry kind');
   return {
     file: parseSegment(value.file),
     id: parseId(value.id),
@@ -244,9 +244,9 @@ const parseLorebookEntry = (value: unknown): LorebookEntry => {
   };
 };
 
-const parseLorebookRootChild = (value: unknown): LorebookRootChild => {
-  if (!isRecord(value)) throw new Error('Invalid lorebook child');
-  if (value.kind !== 'category') return parseLorebookEntry(value);
+const parseLoreRootChild = (value: unknown): LoreRootChild => {
+  if (!isRecord(value)) throw new Error('Invalid lore child');
+  if (value.kind !== 'category') return parseLoreEntry(value);
   assertExactKeys(value, ['directory', 'kind']);
   return { directory: parseSegment(value.directory), kind: 'category' };
 };
@@ -315,25 +315,25 @@ const parseVolumeIndex = (value: unknown): VolumeIndex => {
   };
 };
 
-const parseLorebookIndex = (value: unknown): LorebookIndex => {
-  if (!isRecord(value)) throw new Error('Invalid lorebook index');
+const parseLoreIndex = (value: unknown): LoreIndex => {
+  if (!isRecord(value)) throw new Error('Invalid lore index');
   assertExactKeys(value, ['children', 'id', 'kind', 'title'], ['icon']);
-  if (value.kind !== 'lorebook') throw new Error('Invalid lorebook root');
+  if (value.kind !== 'lore') throw new Error('Invalid lore root');
   return {
-    children: parseChildren(value.children, parseLorebookRootChild),
+    children: parseChildren(value.children, parseLoreRootChild),
     id: parseId(value.id),
     ...(value.icon === undefined ? {} : { icon: parseIcon(value.icon) }),
-    kind: 'lorebook',
+    kind: 'lore',
     title: parseTitle(value.title),
   };
 };
 
-const parseLorebookCategoryIndex = (value: unknown): LorebookCategoryIndex => {
-  if (!isRecord(value)) throw new Error('Invalid lorebook category index');
+const parseLoreCategoryIndex = (value: unknown): LoreCategoryIndex => {
+  if (!isRecord(value)) throw new Error('Invalid lore category index');
   assertExactKeys(value, ['children', 'id', 'kind', 'title'], ['icon']);
-  if (value.kind !== 'category') throw new Error('Invalid lorebook category');
+  if (value.kind !== 'category') throw new Error('Invalid lore category');
   return {
-    children: parseChildren(value.children, parseLorebookEntry),
+    children: parseChildren(value.children, parseLoreEntry),
     id: parseId(value.id),
     ...(value.icon === undefined ? {} : { icon: parseIcon(value.icon) }),
     kind: 'category',
@@ -401,19 +401,19 @@ const assertExactRootEntries = async (
       throw new Error(`Driftfield project is missing ${expected}`);
     }
   }
-  const lorebookName = PROJECT_ROOT_DIRECTORIES.lorebook;
-  const lorebookMatches = names.filter(
-    (name) => name.toLowerCase() === lorebookName.toLowerCase(),
+  const loreName = PROJECT_ROOT_DIRECTORIES.lore;
+  const loreMatches = names.filter(
+    (name) => name.toLowerCase() === loreName.toLowerCase(),
   );
   if (
-    lorebookMatches.length > 0 &&
-    (!names.includes(lorebookName) || lorebookMatches.length !== 1)
+    loreMatches.length > 0 &&
+    (!names.includes(loreName) || loreMatches.length !== 1)
   ) {
     throw new Error(
-      `Project entry must use exact lowercase name: ${lorebookName}`,
+      `Project entry must use exact lowercase name: ${loreName}`,
     );
   }
-  return names.includes(lorebookName);
+  return names.includes(loreName);
 };
 
 const assertProjectDatabaseFile = async (
@@ -527,21 +527,21 @@ export const loadProjectLayout = async (
       );
     }
   }
-  const hasLorebook = await assertExactRootEntries(projectPath);
+  const hasLore = await assertExactRootEntries(projectPath);
 
   const manuscriptPath = path.join(
     projectPath,
     PROJECT_ROOT_DIRECTORIES.manuscript,
   );
-  const lorebookPath = path.join(
+  const lorePath = path.join(
     projectPath,
-    PROJECT_ROOT_DIRECTORIES.lorebook,
+    PROJECT_ROOT_DIRECTORIES.lore,
   );
   await assertDirectory(manuscriptPath);
   await assertExactEntryName(manuscriptPath, PROJECT_INDEX_NAME);
-  if (hasLorebook) {
-    await assertDirectory(lorebookPath);
-    await assertExactEntryName(lorebookPath, PROJECT_INDEX_NAME);
+  if (hasLore) {
+    await assertDirectory(lorePath);
+    await assertExactEntryName(lorePath, PROJECT_INDEX_NAME);
   }
 
   const manuscriptYaml = await readYaml(
@@ -648,52 +648,52 @@ export const loadProjectLayout = async (
     volumes.push({ directory: child.directory, index });
   }
 
-  let lorebook: LoadedLorebookLayout | null = null;
-  if (hasLorebook) {
-    const lorebookYaml = await readYaml(
-      path.join(lorebookPath, PROJECT_INDEX_NAME),
+  let lore: LoadedLoreLayout | null = null;
+  if (hasLore) {
+    const loreYaml = await readYaml(
+      path.join(lorePath, PROJECT_INDEX_NAME),
     );
-    const lorebookIndex = parseLorebookIndex(lorebookYaml.value);
-    metadataSources.push(lorebookYaml.source);
+    const loreIndex = parseLoreIndex(loreYaml.value);
+    metadataSources.push(loreYaml.source);
     assertUnique(
-      lorebookIndex.children.map((child) =>
+      loreIndex.children.map((child) =>
         child.kind === 'category' ? child.directory : child.file,
       ),
-      'Lorebook index contains duplicate child paths',
+      'Lore index contains duplicate child paths',
     );
-    const categories: LoadedLorebookLayout['categories'] = [];
-    const lorebookEntries: LoadedLorebookLayout['entries'] = [];
-    for (const child of lorebookIndex.children) {
+    const categories: LoadedLoreLayout['categories'] = [];
+    const loreEntries: LoadedLoreLayout['entries'] = [];
+    for (const child of loreIndex.children) {
       if (child.kind !== 'category') {
-        await assertMarkdownFile(lorebookPath, child.file);
-        lorebookEntries.push({
+        await assertMarkdownFile(lorePath, child.file);
+        loreEntries.push({
           id: child.id,
           relativePath: path.join(
-            PROJECT_ROOT_DIRECTORIES.lorebook,
+            PROJECT_ROOT_DIRECTORIES.lore,
             child.file,
           ),
           title: child.title,
         });
         continue;
       }
-      const categoryPath = path.join(lorebookPath, child.directory);
-      await assertExactEntryName(lorebookPath, child.directory);
+      const categoryPath = path.join(lorePath, child.directory);
+      await assertExactEntryName(lorePath, child.directory);
       await assertDirectory(categoryPath);
       await assertExactEntryName(categoryPath, PROJECT_INDEX_NAME);
       const categoryYaml = await readYaml(
         path.join(categoryPath, PROJECT_INDEX_NAME),
       );
-      const index = parseLorebookCategoryIndex(categoryYaml.value);
+      const index = parseLoreCategoryIndex(categoryYaml.value);
       assertUnique(
         index.children.map(({ file }) => file),
-        'Lorebook category contains duplicate child paths',
+        'Lore category contains duplicate child paths',
       );
       for (const entry of index.children) {
         await assertMarkdownFile(categoryPath, entry.file);
-        lorebookEntries.push({
+        loreEntries.push({
           id: entry.id,
           relativePath: path.join(
-            PROJECT_ROOT_DIRECTORIES.lorebook,
+            PROJECT_ROOT_DIRECTORIES.lore,
             child.directory,
             entry.file,
           ),
@@ -703,13 +703,13 @@ export const loadProjectLayout = async (
       metadataSources.push(categoryYaml.source);
       categories.push({ directory: child.directory, index });
     }
-    lorebook = { categories, entries: lorebookEntries, index: lorebookIndex };
+    lore = { categories, entries: loreEntries, index: loreIndex };
   }
 
   const ids = [
     manifest.id,
     manuscriptIndex.id,
-    ...(lorebook === null ? [] : [lorebook.index.id]),
+    ...(lore === null ? [] : [lore.index.id]),
     ...manuscriptIndex.children.flatMap((child) =>
       child.kind === 'volume' ? [] : [child.id],
     ),
@@ -717,13 +717,13 @@ export const loadProjectLayout = async (
       index.id,
       ...index.children.map(({ id }) => id),
     ]),
-    ...(lorebook === null
+    ...(lore === null
       ? []
       : [
-          ...lorebook.index.children.flatMap((child) =>
+          ...lore.index.children.flatMap((child) =>
             child.kind === 'category' ? [] : [child.id],
           ),
-          ...lorebook.categories.flatMap(({ index }) => [
+          ...lore.categories.flatMap(({ index }) => [
             index.id,
             ...index.children.map(({ id }) => id),
           ]),
@@ -732,7 +732,7 @@ export const loadProjectLayout = async (
   assertUnique(ids, 'Project metadata contains duplicate stable IDs');
 
   return {
-    lorebook,
+    lore,
     manifest,
     manuscript: { index: manuscriptIndex, volumes },
     metadataSources,
@@ -756,9 +756,9 @@ export const initializeProjectLayout = async (
     stagingPath,
     PROJECT_ROOT_DIRECTORIES.manuscript,
   );
-  const lorebookPath = path.join(
+  const lorePath = path.join(
     stagingPath,
-    PROJECT_ROOT_DIRECTORIES.lorebook,
+    PROJECT_ROOT_DIRECTORIES.lore,
   );
   const projectId = randomUUID();
   const projectTitle = path.basename(projectPath) || 'Untitled Novel';
@@ -769,16 +769,16 @@ export const initializeProjectLayout = async (
     kind: 'manuscript',
     title: 'Manuscript',
   };
-  const lorebook: LorebookIndex = {
+  const lore: LoreIndex = {
     children: [],
     id: randomUUID(),
-    kind: 'lorebook',
-    title: 'Lorebook',
+    kind: 'lore',
+    title: 'Lore',
   };
 
   await Promise.all([
     mkdir(manuscriptPath, { recursive: true }),
-    mkdir(lorebookPath, { recursive: true }),
+    mkdir(lorePath, { recursive: true }),
   ]);
   try {
     await Promise.all([
@@ -788,8 +788,8 @@ export const initializeProjectLayout = async (
         { encoding: 'utf8', mode: 0o600 },
       ),
       writeFile(
-        path.join(lorebookPath, PROJECT_INDEX_NAME),
-        stringify(lorebook),
+        path.join(lorePath, PROJECT_INDEX_NAME),
+        stringify(lore),
         { encoding: 'utf8', mode: 0o600 },
       ),
     ]);
@@ -810,8 +810,8 @@ export const initializeProjectLayout = async (
       path.join(projectPath, PROJECT_ROOT_DIRECTORIES.manuscript),
     );
     await rename(
-      path.join(stagingPath, PROJECT_ROOT_DIRECTORIES.lorebook),
-      path.join(projectPath, PROJECT_ROOT_DIRECTORIES.lorebook),
+      path.join(stagingPath, PROJECT_ROOT_DIRECTORIES.lore),
+      path.join(projectPath, PROJECT_ROOT_DIRECTORIES.lore),
     );
     await rename(
       path.join(stagingPath, '.driftfield'),

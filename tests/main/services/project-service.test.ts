@@ -191,7 +191,7 @@ describe('project documents', () => {
       { id: 'chapter-c', name: '3. Gamma' },
     ]);
     expect(snapshot.rootTitles).toEqual({
-      lorebook: 'Lorebook',
+      lore: 'Lore',
       manuscript: 'Main Story',
     });
     expect(snapshot.tree[0]).toMatchObject({
@@ -217,11 +217,11 @@ describe('project documents', () => {
     ).toBe('# Revised Alpha\n');
   });
 
-  it('includes indexed lorebook content in the project revision', async () => {
+  it('includes indexed lore content in the project revision', async () => {
     const directory = await createTemporaryProject();
     await initializeProjectLayout(directory);
     await writeFile(
-      path.join(directory, 'lorebook', PROJECT_INDEX_NAME),
+      path.join(directory, 'lore', PROJECT_INDEX_NAME),
       stringify({
         children: [
           {
@@ -231,12 +231,12 @@ describe('project documents', () => {
             title: 'World',
           },
         ],
-        id: 'lorebook-1',
-        kind: 'lorebook',
-        title: 'Lorebook',
+        id: 'lore-1',
+        kind: 'lore',
+        title: 'Lore',
       }),
     );
-    const lorePath = path.join(directory, 'lorebook', 'world.md');
+    const lorePath = path.join(directory, 'lore', 'world.md');
     await writeFile(lorePath, '# First version\n');
     const first = await createProjectSnapshot(directory);
 

@@ -259,7 +259,7 @@ function createNovelTools(requestId: string) {
   return [
     defineTool({
       description:
-        "Read the ordered novel, volume, chapter, and lorebook structure without loading document text.",
+        "Read the ordered novel, volume, chapter, and lore structure without loading document text.",
       label: "Read novel structure",
       name: "get_novel_structure",
       parameters: Type.Object({}, { additionalProperties: false }),
@@ -291,7 +291,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Read one persisted manuscript or lorebook document by the stable ID returned by get_novel_structure.",
+        "Read one persisted manuscript or lore document by the stable ID returned by get_novel_structure.",
       label: "Read document",
       name: "get_document",
       parameters: Type.Object(

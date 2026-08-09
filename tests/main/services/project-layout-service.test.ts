@@ -38,24 +38,24 @@ afterEach(async () => {
 });
 
 describe('Driftfield project layout', () => {
-  it('initializes an empty folder with manuscript and lorebook roots', async () => {
+  it('initializes an empty folder with manuscript and lore roots', async () => {
     const directory = await createTemporaryDirectory();
 
     const layout = await openProjectLayout(directory);
 
     expect(layout?.manifest).toMatchObject({
-      formatVersion: 1,
+      formatVersion: 2,
       kind: 'novel',
       title: path.basename(directory),
     });
     expect(await readdir(directory)).toEqual(
-      expect.arrayContaining(['.driftfield', 'lorebook', 'manuscript']),
+      expect.arrayContaining(['.driftfield', 'lore', 'manuscript']),
     );
     expect(await readdir(directory)).not.toContain(PROJECT_INDEX_NAME);
     expect(await readdir(path.join(directory, 'manuscript'))).toContain(
       PROJECT_INDEX_NAME,
     );
-    expect(await readdir(path.join(directory, 'lorebook'))).toContain(
+    expect(await readdir(path.join(directory, 'lore'))).toContain(
       PROJECT_INDEX_NAME,
     );
     expect(await readdir(path.join(directory, '.driftfield'))).toEqual(
@@ -65,10 +65,10 @@ describe('Driftfield project layout', () => {
         'settings.sqlite',
       ]),
     );
-    expect(layout?.lorebook?.index).toMatchObject({
+    expect(layout?.lore?.index).toMatchObject({
       children: [],
-      kind: 'lorebook',
-      title: 'Lorebook',
+      kind: 'lore',
+      title: 'Lore',
     });
   });
 
@@ -258,7 +258,7 @@ describe('Driftfield project layout', () => {
     );
   });
 
-  it('rejects duplicate stable IDs across manuscript and lorebook', async () => {
+  it('rejects duplicate stable IDs across manuscript and lore', async () => {
     const directory = await createTemporaryDirectory();
     await initializeProjectLayout(directory);
     await Promise.all([
@@ -283,7 +283,7 @@ describe('Driftfield project layout', () => {
         '# Chapter\n',
       ),
       writeFile(
-        path.join(directory, 'lorebook', PROJECT_INDEX_NAME),
+        path.join(directory, 'lore', PROJECT_INDEX_NAME),
         stringify({
           children: [
             {
@@ -293,12 +293,12 @@ describe('Driftfield project layout', () => {
               title: 'World',
             },
           ],
-          id: 'lorebook-1',
-          kind: 'lorebook',
-          title: 'Lorebook',
+          id: 'lore-1',
+          kind: 'lore',
+          title: 'Lore',
         }),
       ),
-      writeFile(path.join(directory, 'lorebook', 'world.md'), '# World\n'),
+      writeFile(path.join(directory, 'lore', 'world.md'), '# World\n'),
     ]);
 
     await expect(loadProjectLayout(directory)).rejects.toThrow(

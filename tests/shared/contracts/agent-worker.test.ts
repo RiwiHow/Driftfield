@@ -66,6 +66,39 @@ describe("Agent utility-process protocol", () => {
         requestId: "request-1",
         result: {
           data: {
+            format: "driftfield",
+            lore: {
+              children: [],
+              id: "lore-1",
+              kind: "lore",
+              title: "Lore",
+              type: "directory",
+            },
+            manuscript: {
+              children: [],
+              id: "manuscript-1",
+              kind: "manuscript",
+              title: "Manuscript",
+              type: "directory",
+            },
+            project: {
+              id: "project-1",
+              revision: "revision-1",
+              title: "Novel",
+            },
+          },
+          ok: true,
+          toolName: "get_novel_structure",
+        },
+        toolCallId: "tool-structure",
+        type: "tool-result",
+      }),
+    ).toBe(true);
+    expect(
+      isAgentWorkerCommand({
+        requestId: "request-1",
+        result: {
+          data: {
             baseRevision: "revision",
             contentRevision: "revision",
             documentId: "chapter-1",

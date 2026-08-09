@@ -35,7 +35,7 @@ export interface ProjectSnapshot {
   projectIcon?: import('./project-layout').ProjectIconId;
   revision: string;
   rootTitles?: {
-    lorebook?: string;
+    lore?: string;
     manuscript: string;
   };
   tree: ProjectTreeNode[];

@@ -30,7 +30,7 @@ export interface AgentStructureDocument {
 export interface AgentStructureDirectory {
   children: AgentStructureNode[];
   id: string;
-  kind: 'manuscript' | 'volume' | 'lorebook' | 'category';
+  kind: 'manuscript' | 'volume' | 'lore' | 'category';
   title: string;
   type: 'directory';
 }
@@ -41,7 +41,7 @@ export type AgentStructureNode =
 
 export interface AgentNovelStructureToolResult {
   format: 'driftfield';
-  lorebook?: AgentStructureDirectory;
+  lore?: AgentStructureDirectory;
   manuscript: AgentStructureDirectory;
   project: {
     id: string;
@@ -229,8 +229,8 @@ const isNovelStructureResult = (
   const state = { nodes: 0 };
   return (
     isStructureDirectory(value.manuscript, 0, state) &&
-    (value.lorebook === undefined ||
-      isStructureDirectory(value.lorebook, 0, state))
+    (value.lore === undefined ||
+      isStructureDirectory(value.lore, 0, state))
   );
 };
 
@@ -248,7 +248,7 @@ const isStructureDirectory = (
     ![
       'manuscript',
       'volume',
-      'lorebook',
+      'lore',
       'category',
     ].includes(value.kind as string) ||
     !Array.isArray(value.children)

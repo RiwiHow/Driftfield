@@ -105,6 +105,11 @@ describe('ProjectContextService', () => {
     });
     expect(structure).toMatchObject({
       format: 'driftfield',
+      lore: {
+        children: [],
+        kind: 'lore',
+        title: 'Lore',
+      },
       manuscript: {
         children: [{ id: 'chapter-1', kind: 'chapter', title: 'Arrival' }],
         id: 'manuscript-1',

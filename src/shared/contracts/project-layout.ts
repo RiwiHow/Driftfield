@@ -1,4 +1,4 @@
-export const DRIFTFIELD_PROJECT_FORMAT_VERSION = 1 as const;
+export const DRIFTFIELD_PROJECT_FORMAT_VERSION = 2 as const;
 export const DRIFTFIELD_PROJECT_MARKER = 'driftfield-project' as const;
 export const PROJECT_INDEX_NAME = '_index.yaml' as const;
 export const PROJECT_ICON_IDS = [
@@ -18,7 +18,7 @@ export const PROJECT_ICON_IDS = [
 ] as const;
 export type ProjectIconId = (typeof PROJECT_ICON_IDS)[number];
 export const PROJECT_ROOT_DIRECTORIES = {
-  lorebook: 'lorebook',
+  lore: 'lore',
   manuscript: 'manuscript',
 } as const;
 
@@ -87,30 +87,30 @@ export interface VolumeIndex {
   title: string;
 }
 
-export interface LorebookEntry {
+export interface LoreEntry {
   file: string;
   id: string;
   kind: 'entry';
   title: string;
 }
 
-export interface LorebookCategoryDirectoryEntry {
+export interface LoreCategoryDirectoryEntry {
   directory: string;
   kind: 'category';
 }
 
-export type LorebookRootChild = LorebookCategoryDirectoryEntry | LorebookEntry;
+export type LoreRootChild = LoreCategoryDirectoryEntry | LoreEntry;
 
-export interface LorebookIndex {
-  children: LorebookRootChild[];
+export interface LoreIndex {
+  children: LoreRootChild[];
   id: string;
   icon?: ProjectIconId;
-  kind: 'lorebook';
+  kind: 'lore';
   title: string;
 }
 
-export interface LorebookCategoryIndex {
-  children: LorebookEntry[];
+export interface LoreCategoryIndex {
+  children: LoreEntry[];
   id: string;
   icon?: ProjectIconId;
   kind: 'category';
@@ -118,4 +118,4 @@ export interface LorebookCategoryIndex {
 }
 
 export type ProjectDirectoryIndex =
-  LorebookCategoryIndex | LorebookIndex | ManuscriptIndex | VolumeIndex;
+  LoreCategoryIndex | LoreIndex | ManuscriptIndex | VolumeIndex;

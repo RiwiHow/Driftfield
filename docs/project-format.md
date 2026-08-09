@@ -1,7 +1,7 @@
 # Project Format
 
 A Driftfield project is a portable, versioned directory. A newly initialized
-project has three project databases and lowercase manuscript and lorebook
+project has three project databases and lowercase manuscript and lore
 roots:
 
 ```text
@@ -12,12 +12,12 @@ novel/
 │   └── settings.sqlite
 ├── manuscript/
 │   └── _index.yaml
-└── lorebook/
+└── lore/
     └── _index.yaml
 ```
 
 Selecting an empty folder initializes all of these entries. A missing
-`lorebook/` in an existing project never prevents the manuscript from opening.
+`lore/` in an existing project never prevents the manuscript from opening.
 Only a truly empty selected directory is initialized. A nonempty directory is
 recognized only when `.driftfield/project.sqlite` is a regular, non-symlink
 SQLite database containing Driftfield's fixed project marker, stable project
@@ -33,8 +33,8 @@ metadata.
 
 ## Physical names and metadata ownership
 
-- Keep the physical roots exactly `manuscript` and `lorebook`. New projects
-  create both; existing projects may omit `lorebook`. Lowercase spelling is part
+- Keep the physical roots exactly `manuscript` and `lore`. New projects create
+  both; existing projects may omit `lore`. Lowercase spelling is part
   of the format.
 - `project.sqlite` owns the fixed Driftfield marker, stable project identity,
   project title, optional reviewed icon ID, and format/schema versions.

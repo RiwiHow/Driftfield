@@ -215,30 +215,30 @@ export const createProjectSnapshot = async (
   const state: ProjectScanState = { bytes: 0, documents: [] };
   const layout = loadedLayout ?? (await loadProjectLayout(directoryPath));
   const tree = await scanStructuredManuscript(directoryPath, layout, state);
-  let lorebookRevisions: string[] = [];
-  const lorebookEntries = layout.lorebook?.entries ?? [];
-  if (lorebookEntries.length > 0) {
+  let loreRevisions: string[] = [];
+  const loreEntries = layout.lore?.entries ?? [];
+  if (loreEntries.length > 0) {
     if (
-      state.documents.length + lorebookEntries.length >
+      state.documents.length + loreEntries.length >
       MAX_PROJECT_DOCUMENTS
     ) {
       throw new Error('Project contains too many Markdown documents');
     }
-    const lorebookContents = await Promise.all(
-      lorebookEntries.map(async (entry) => ({
+    const loreContents = await Promise.all(
+      loreEntries.map(async (entry) => ({
         content: await readFile(path.join(directoryPath, entry.relativePath)),
         entry,
       })),
     );
-    const lorebookBytes = lorebookContents.reduce(
+    const loreBytes = loreContents.reduce(
       (total, { content }) => total + content.byteLength,
       0,
     );
-    if (state.bytes + lorebookBytes > MAX_PROJECT_BYTES) {
+    if (state.bytes + loreBytes > MAX_PROJECT_BYTES) {
       throw new Error('Project Markdown documents are too large');
     }
-    state.bytes += lorebookBytes;
-    lorebookRevisions = lorebookContents.map(
+    state.bytes += loreBytes;
+    loreRevisions = loreContents.map(
       ({ content, entry }) =>
         `${entry.id}:${entry.relativePath}:${contentRevision(content)}`,
     );
@@ -256,16 +256,16 @@ export const createProjectSnapshot = async (
     revision: contentRevision(
       [
         ...layout.metadataSources,
-        ...lorebookRevisions,
+        ...loreRevisions,
         ...state.documents.map(
           (document) => `${document.id}:${document.relativePath}:${document.revision}`,
         ),
       ].join('\n'),
     ),
     rootTitles: {
-      ...(layout.lorebook === null
+      ...(layout.lore === null
         ? {}
-        : { lorebook: layout.lorebook.index.title }),
+        : { lore: layout.lore.index.title }),
       manuscript: layout.manuscript.index.title,
     },
     tree,

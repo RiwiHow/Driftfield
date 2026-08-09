@@ -90,15 +90,15 @@ novel/
 │   └── settings.sqlite
 ├── manuscript/
 │   └── _index.yaml
-└── lorebook/
+└── lore/
     └── _index.yaml
 ```
 
-- New projects create lowercase physical `manuscript` and `lorebook` roots.
-  Existing projects may omit `lorebook`; its absence must never block opening a
+- New projects create lowercase physical `manuscript` and `lore` roots.
+  Existing projects may omit `lore`; its absence must never block opening a
   manuscript.
 - Selecting an empty directory initializes the databases, manuscript, and
-  lorebook indexes.
+  lore indexes.
 - Recognize a nonempty project through the fixed marker, stable ID, and positive
   format version in `.driftfield/project.sqlite`. Report a missing database
   separately from a damaged database. The project format version is not yet a

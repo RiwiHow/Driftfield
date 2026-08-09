@@ -9,7 +9,7 @@ import type {
   AgentToolErrorCode,
 } from '../../shared/contracts/agent-tools';
 import type {
-  LorebookEntry,
+  LoreEntry,
   ManuscriptDocumentEntry,
 } from '../../shared/contracts/project-layout';
 import { loadProjectLayout } from '../services/project-layout-service';
@@ -67,7 +67,7 @@ export class ProjectContextService {
     const knownDocument = session.project.documents.find(({ id }) => id === documentId);
     if (relativePath === undefined || knownDocument === undefined) {
       const layout = await loadProjectLayout(session.directoryPath);
-      const loreEntry = layout?.lorebook?.entries.find(({ id }) => id === documentId);
+      const loreEntry = layout?.lore?.entries.find(({ id }) => id === documentId);
       if (loreEntry === undefined) throw new ProjectContextError('document-not-found');
       return this.readDiskDocument(
         session.directoryPath,
@@ -120,24 +120,24 @@ export class ProjectContextService {
         title: layout.manifest.title,
       },
     };
-    if (layout.lorebook !== null) {
-      const categories = new Map(layout.lorebook.categories.map((category) => [category.directory, category]));
-      result.lorebook = {
-        children: layout.lorebook.index.children.map((child) => {
-          if (child.kind !== 'category') return this.mapLorebookEntry(child);
+    if (layout.lore !== null) {
+      const categories = new Map(layout.lore.categories.map((category) => [category.directory, category]));
+      result.lore = {
+        children: layout.lore.index.children.map((child) => {
+          if (child.kind !== 'category') return this.mapLoreEntry(child);
           const category = categories.get(child.directory);
           if (category === undefined) throw new ProjectContextError('internal-error');
           return {
-            children: category.index.children.map((entry) => this.mapLorebookEntry(entry)),
+            children: category.index.children.map((entry) => this.mapLoreEntry(entry)),
             id: category.index.id,
             kind: 'category',
             title: category.index.title,
             type: 'directory',
           };
         }),
-        id: layout.lorebook.index.id,
-        kind: 'lorebook',
-        title: layout.lorebook.index.title,
+        id: layout.lore.index.id,
+        kind: 'lore',
+        title: layout.lore.index.title,
         type: 'directory',
       };
     }
@@ -214,7 +214,7 @@ export class ProjectContextService {
     };
   }
 
-  private mapLorebookEntry(entry: LorebookEntry): AgentStructureNode {
+  private mapLoreEntry(entry: LoreEntry): AgentStructureNode {
     return { id: entry.id, kind: 'entry', title: entry.title, type: 'document' };
   }
 }
