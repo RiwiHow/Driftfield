@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useProjectWorkspace } from "@/features/projects/use-project-workspace";
-import { SettingsDialog } from "@/features/settings/SettingsDialog";
+import { SettingsDialog } from "@/features/settings/dialog/SettingsDialog";
 import { useAppSettings } from "@/features/settings/use-app-settings";
 import { useAgentConfiguration } from "@/features/settings/use-agent-configuration";
 import { useProjectAgentSettings } from '@/features/settings/use-project-agent-settings';

@@ -122,3 +122,12 @@ Project model selection and thinking level save immediately. Pi model overrides,
 including OpenRouter routing, remain an explicit-save form. The settings footer
 must report unsaved advanced changes and save failures instead of describing the
 whole model page as automatically saved.
+
+Settings UI ownership is organized under `features/settings/` by responsibility:
+`dialog/` composes the category navigation and panels, `interface/` owns global
+appearance and behavior controls, `models/` owns credentials and project model
+selection, and `model-overrides/` owns the explicit-save override form. Keep
+provider routing, thinking-map, compatibility, and header sections isolated under
+`model-overrides/sections/`, with reusable fields and pure form transitions kept
+separate from those views. New model capabilities should extend the focused owner
+instead of growing the dialog composition component.

@@ -32,12 +32,12 @@ implemented or authorized.
   narrow validated main handler; never load them in the application window.
 - General MDX/JSX remains disabled pending an explicit descriptor, CSP,
   sanitization, and test strategy.
-- The settings dialog now separates interface and model configuration. Continue
-  splitting model override editing into focused components. `SettingsDialog.tsx`
-  and `AgentModelAdvancedSettings.tsx` already combine substantial form,
-  validation, provider-specific, and save-state behavior; additional Pi
-  capabilities should not expand those components without first extracting
-  focused sections and pure form transitions.
+- The settings dialog separates interface and model configuration into focused
+  nested feature directories. Model override routing, thinking-map,
+  compatibility, and header sections now have separate components, and reusable
+  form transitions are pure helpers. Preserve those ownership boundaries as Pi
+  capabilities expand rather than accumulating provider-specific behavior in the
+  dialog or override-form composition components.
 - Agent conversation history load, refresh, rename, selection, and deletion
   failures do not yet have complete typed, user-visible error states. Do not
   represent a failed history load as an empty history, and keep persisted Main
