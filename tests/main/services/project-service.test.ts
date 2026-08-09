@@ -159,7 +159,6 @@ describe('project documents', () => {
       { id: 'chapter-c', name: '3. Gamma' },
     ]);
     expect(snapshot.rootTitles).toEqual({
-      lorebook: 'Lorebook',
       manuscript: 'Main Story',
     });
     expect(snapshot.tree[0]).toMatchObject({
@@ -188,6 +187,7 @@ describe('project documents', () => {
   it('includes indexed lorebook content in the project revision', async () => {
     const directory = await createTemporaryProject();
     await initializeProjectLayout(directory);
+    await mkdir(path.join(directory, 'lorebook'));
     await writeFile(
       path.join(directory, 'lorebook', PROJECT_INDEX_NAME),
       stringify({

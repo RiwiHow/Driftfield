@@ -50,16 +50,18 @@ const ALLOWED_FORMAT_FIELDS = new Set([
 
 type RecordValue = Record<string, unknown>;
 
+interface LoadedLorebookLayout {
+  categories: Array<{ directory: string; index: LorebookCategoryIndex }>;
+  entries: Array<{
+    id: string;
+    relativePath: string;
+    title: string;
+  }>;
+  index: LorebookIndex;
+}
+
 export interface LoadedProjectLayout {
-  lorebook: {
-    categories: Array<{ directory: string; index: LorebookCategoryIndex }>;
-    entries: Array<{
-      id: string;
-      relativePath: string;
-      title: string;
-    }>;
-    index: LorebookIndex;
-  };
+  lorebook: LoadedLorebookLayout | null;
   manifest: ProjectManifest;
   manuscript: {
     index: ManuscriptIndex;
@@ -346,12 +348,11 @@ const readYaml = async (filePath: string): Promise<{ source: string; value: unkn
   return { source, value };
 };
 
-const assertExactRootEntries = async (projectPath: string): Promise<void> => {
+const assertExactRootEntries = async (projectPath: string): Promise<boolean> => {
   const names = await readdir(projectPath);
   for (const expected of [
     PROJECT_MANIFEST_NAME,
     PROJECT_ROOT_DIRECTORIES.manuscript,
-    PROJECT_ROOT_DIRECTORIES.lorebook,
   ]) {
     const caseInsensitiveMatches = names.filter(
       (name) => name.toLowerCase() === expected.toLowerCase(),
@@ -363,6 +364,17 @@ const assertExactRootEntries = async (projectPath: string): Promise<void> => {
       throw new Error(`Driftfield project is missing ${expected}`);
     }
   }
+  const lorebookName = PROJECT_ROOT_DIRECTORIES.lorebook;
+  const lorebookMatches = names.filter(
+    (name) => name.toLowerCase() === lorebookName.toLowerCase(),
+  );
+  if (
+    lorebookMatches.length > 0 &&
+    (!names.includes(lorebookName) || lorebookMatches.length !== 1)
+  ) {
+    throw new Error(`Project entry must use exact lowercase name: ${lorebookName}`);
+  }
+  return names.includes(lorebookName);
 };
 
 const assertExactEntryName = async (
@@ -416,44 +428,33 @@ export const loadProjectLayout = async (
     }
     return null;
   }
-  await assertExactRootEntries(projectPath);
+  const hasLorebook = await assertExactRootEntries(projectPath);
 
   const manuscriptPath = path.join(
     projectPath,
     PROJECT_ROOT_DIRECTORIES.manuscript,
   );
   const lorebookPath = path.join(projectPath, PROJECT_ROOT_DIRECTORIES.lorebook);
-  await Promise.all([assertDirectory(manuscriptPath), assertDirectory(lorebookPath)]);
-  await Promise.all([
-    assertExactEntryName(manuscriptPath, PROJECT_INDEX_NAME),
-    assertExactEntryName(lorebookPath, PROJECT_INDEX_NAME),
-  ]);
+  await assertDirectory(manuscriptPath);
+  await assertExactEntryName(manuscriptPath, PROJECT_INDEX_NAME);
+  if (hasLorebook) {
+    await assertDirectory(lorebookPath);
+    await assertExactEntryName(lorebookPath, PROJECT_INDEX_NAME);
+  }
 
-  const [manifestYaml, manuscriptYaml, lorebookYaml] = await Promise.all([
+  const [manifestYaml, manuscriptYaml] = await Promise.all([
     readYaml(path.join(projectPath, PROJECT_MANIFEST_NAME)),
     readYaml(path.join(manuscriptPath, PROJECT_INDEX_NAME)),
-    readYaml(path.join(lorebookPath, PROJECT_INDEX_NAME)),
   ]);
   const manifest = parseManifest(manifestYaml.value);
   const manuscriptIndex = parseManuscriptIndex(manuscriptYaml.value);
-  const lorebookIndex = parseLorebookIndex(lorebookYaml.value);
-  const metadataSources = [
-    manifestYaml.source,
-    manuscriptYaml.source,
-    lorebookYaml.source,
-  ];
+  const metadataSources = [manifestYaml.source, manuscriptYaml.source];
 
   assertUnique(
     manuscriptIndex.children.map((child) =>
       child.kind === 'volume' ? child.directory : child.file,
     ),
     'Manuscript index contains duplicate child paths',
-  );
-  assertUnique(
-    lorebookIndex.children.map((child) =>
-      child.kind === 'category' ? child.directory : child.file,
-    ),
-    'Lorebook index contains duplicate child paths',
   );
 
   const volumes: LoadedProjectLayout['manuscript']['volumes'] = [];
@@ -479,48 +480,68 @@ export const loadProjectLayout = async (
     volumes.push({ directory: child.directory, index });
   }
 
-  const categories: LoadedProjectLayout['lorebook']['categories'] = [];
-  const lorebookEntries: LoadedProjectLayout['lorebook']['entries'] = [];
-  for (const child of lorebookIndex.children) {
-    if (child.kind !== 'category') {
-      await assertMarkdownFile(lorebookPath, child.file);
-      lorebookEntries.push({
-        id: child.id,
-        relativePath: path.join(PROJECT_ROOT_DIRECTORIES.lorebook, child.file),
-        title: child.title,
-      });
-      continue;
-    }
-    const categoryPath = path.join(lorebookPath, child.directory);
-    await assertExactEntryName(lorebookPath, child.directory);
-    await assertDirectory(categoryPath);
-    await assertExactEntryName(categoryPath, PROJECT_INDEX_NAME);
-    const categoryYaml = await readYaml(path.join(categoryPath, PROJECT_INDEX_NAME));
-    const index = parseLorebookCategoryIndex(categoryYaml.value);
-    assertUnique(
-      index.children.map(({ file }) => file),
-      'Lorebook category contains duplicate child paths',
+  let lorebook: LoadedLorebookLayout | null = null;
+  if (hasLorebook) {
+    const lorebookYaml = await readYaml(
+      path.join(lorebookPath, PROJECT_INDEX_NAME),
     );
-    for (const entry of index.children) {
-      await assertMarkdownFile(categoryPath, entry.file);
-      lorebookEntries.push({
-        id: entry.id,
-        relativePath: path.join(
-          PROJECT_ROOT_DIRECTORIES.lorebook,
-          child.directory,
-          entry.file,
-        ),
-        title: entry.title,
-      });
+    const lorebookIndex = parseLorebookIndex(lorebookYaml.value);
+    metadataSources.push(lorebookYaml.source);
+    assertUnique(
+      lorebookIndex.children.map((child) =>
+        child.kind === 'category' ? child.directory : child.file,
+      ),
+      'Lorebook index contains duplicate child paths',
+    );
+    const categories: LoadedLorebookLayout['categories'] = [];
+    const lorebookEntries: LoadedLorebookLayout['entries'] = [];
+    for (const child of lorebookIndex.children) {
+      if (child.kind !== 'category') {
+        await assertMarkdownFile(lorebookPath, child.file);
+        lorebookEntries.push({
+          id: child.id,
+          relativePath: path.join(
+            PROJECT_ROOT_DIRECTORIES.lorebook,
+            child.file,
+          ),
+          title: child.title,
+        });
+        continue;
+      }
+      const categoryPath = path.join(lorebookPath, child.directory);
+      await assertExactEntryName(lorebookPath, child.directory);
+      await assertDirectory(categoryPath);
+      await assertExactEntryName(categoryPath, PROJECT_INDEX_NAME);
+      const categoryYaml = await readYaml(
+        path.join(categoryPath, PROJECT_INDEX_NAME),
+      );
+      const index = parseLorebookCategoryIndex(categoryYaml.value);
+      assertUnique(
+        index.children.map(({ file }) => file),
+        'Lorebook category contains duplicate child paths',
+      );
+      for (const entry of index.children) {
+        await assertMarkdownFile(categoryPath, entry.file);
+        lorebookEntries.push({
+          id: entry.id,
+          relativePath: path.join(
+            PROJECT_ROOT_DIRECTORIES.lorebook,
+            child.directory,
+            entry.file,
+          ),
+          title: entry.title,
+        });
+      }
+      metadataSources.push(categoryYaml.source);
+      categories.push({ directory: child.directory, index });
     }
-    metadataSources.push(categoryYaml.source);
-    categories.push({ directory: child.directory, index });
+    lorebook = { categories, entries: lorebookEntries, index: lorebookIndex };
   }
 
   const ids = [
     manifest.id,
     manuscriptIndex.id,
-    lorebookIndex.id,
+    ...(lorebook === null ? [] : [lorebook.index.id]),
     ...manuscriptIndex.children.flatMap((child) =>
       child.kind === 'volume' ? [] : [child.id],
     ),
@@ -528,18 +549,22 @@ export const loadProjectLayout = async (
       index.id,
       ...index.children.map(({ id }) => id),
     ]),
-    ...lorebookIndex.children.flatMap((child) =>
-      child.kind === 'category' ? [] : [child.id],
-    ),
-    ...categories.flatMap(({ index }) => [
-      index.id,
-      ...index.children.map(({ id }) => id),
-    ]),
+    ...(lorebook === null
+      ? []
+      : [
+          ...lorebook.index.children.flatMap((child) =>
+            child.kind === 'category' ? [] : [child.id],
+          ),
+          ...lorebook.categories.flatMap(({ index }) => [
+            index.id,
+            ...index.children.map(({ id }) => id),
+          ]),
+        ]),
   ];
   assertUnique(ids, 'Project metadata contains duplicate stable IDs');
 
   return {
-    lorebook: { categories, entries: lorebookEntries, index: lorebookIndex },
+    lorebook,
     manifest,
     manuscript: { index: manuscriptIndex, volumes },
     metadataSources,
@@ -560,10 +585,6 @@ export const initializeProjectLayout = async (
     stagingPath,
     PROJECT_ROOT_DIRECTORIES.manuscript,
   );
-  const lorebookPath = path.join(
-    stagingPath,
-    PROJECT_ROOT_DIRECTORIES.lorebook,
-  );
   const manifest: ProjectManifest = {
     formatVersion: DRIFTFIELD_PROJECT_FORMAT_VERSION,
     id: randomUUID(),
@@ -577,15 +598,8 @@ export const initializeProjectLayout = async (
     kind: 'manuscript',
     title: 'Manuscript',
   };
-  const lorebook: LorebookIndex = {
-    children: [],
-    id: randomUUID(),
-    kind: 'lorebook',
-    title: 'Lorebook',
-  };
 
   await mkdir(manuscriptPath, { recursive: true });
-  await mkdir(lorebookPath, { recursive: true });
   try {
     await Promise.all([
       writeFile(
@@ -598,19 +612,10 @@ export const initializeProjectLayout = async (
         stringify(manuscript),
         { encoding: 'utf8', mode: 0o600 },
       ),
-      writeFile(
-        path.join(lorebookPath, PROJECT_INDEX_NAME),
-        stringify(lorebook),
-        { encoding: 'utf8', mode: 0o600 },
-      ),
     ]);
     await rename(
       path.join(stagingPath, PROJECT_ROOT_DIRECTORIES.manuscript),
       path.join(projectPath, PROJECT_ROOT_DIRECTORIES.manuscript),
-    );
-    await rename(
-      path.join(stagingPath, PROJECT_ROOT_DIRECTORIES.lorebook),
-      path.join(projectPath, PROJECT_ROOT_DIRECTORIES.lorebook),
     );
     await rename(
       path.join(stagingPath, PROJECT_MANIFEST_NAME),

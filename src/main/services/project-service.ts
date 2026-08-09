@@ -282,15 +282,16 @@ export const createProjectSnapshot = async (
       ? await scanProjectDirectory(directoryPath, '', state)
       : await scanStructuredManuscript(directoryPath, layout, state);
   let lorebookRevisions: string[] = [];
-  if (layout !== null) {
+  const lorebookEntries = layout?.lorebook?.entries ?? [];
+  if (layout !== null && lorebookEntries.length > 0) {
     if (
-      state.documents.length + layout.lorebook.entries.length >
+      state.documents.length + lorebookEntries.length >
       MAX_PROJECT_DOCUMENTS
     ) {
       throw new Error('Project contains too many Markdown documents');
     }
     const lorebookContents = await Promise.all(
-      layout.lorebook.entries.map(async (entry) => ({
+      lorebookEntries.map(async (entry) => ({
         content: await readFile(path.join(directoryPath, entry.relativePath)),
         entry,
       })),
@@ -329,7 +330,9 @@ export const createProjectSnapshot = async (
       ? {}
       : {
           rootTitles: {
-            lorebook: layout.lorebook.index.title,
+            ...(layout.lorebook === null
+              ? {}
+              : { lorebook: layout.lorebook.index.title }),
             manuscript: layout.manuscript.index.title,
           },
         }),

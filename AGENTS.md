@@ -188,21 +188,24 @@ preload methods, which call validated main-process handlers and repositories.
 ## Project Structure and Metadata
 
 A Driftfield project is a portable, versioned folder format. New-format projects
-have one root manifest and two required lowercase semantic roots:
+require one root manifest and one lowercase manuscript root. The lowercase
+lorebook root is optional and is created only when the project uses it:
 
 ```text
 novel/
 ├── driftfield.yaml
 ├── manuscript/
 │   └── _index.yaml
-└── lorebook/
+└── lorebook/                    # Optional
     └── _index.yaml
 ```
 
-- Keep the physical root names exactly `manuscript` and `lorebook`. Treat their
+- Keep the required physical manuscript root exactly `manuscript`. When present,
+  keep the optional physical lorebook root exactly `lorebook`. Treat their
   spelling and lowercase casing as part of the project format; UI labels are
   separate, user-authored metadata and may be localized or renamed without
-  changing the physical paths.
+  changing the physical paths. A missing `lorebook/` means the project has not
+  created a lorebook yet and must not prevent the manuscript from opening.
 - Use `driftfield.yaml` only at the project root to identify the project, carry
   its stable project ID, and declare the overall project-format version. Do not
   repeat the format version in every directory index.
@@ -518,10 +521,11 @@ Keep shared pane dimensions and divider geometry in semantic variables under
 wider invisible drag target; do not reintroduce visible spacer gutters or
 feature-local header/footer offsets.
 
-New-format projects use `driftfield.yaml`, fixed `manuscript/` and `lorebook/`
-roots, and hierarchical `_index.yaml` metadata. Selecting an empty folder safely
-initializes that structure. Nonempty folders without a manifest remain available
-through temporary legacy scanning and are never moved or rewritten implicitly.
+New-format projects use `driftfield.yaml`, a fixed `manuscript/` root, an optional
+`lorebook/` root, and hierarchical `_index.yaml` metadata. Selecting an empty
+folder safely initializes the manifest and manuscript structure without creating
+an unused lorebook. Nonempty folders without a manifest remain available through
+temporary legacy scanning and are never moved or rewritten implicitly.
 The project tree reads manuscript Markdown through narrow main-process IPC, and
 existing `.md` and `.markdown` documents can be saved back through a validated,
 conflict-aware save handler. General `.mdx`/JSX files are not supported. Project

@@ -32,7 +32,7 @@ export interface ProjectSnapshot {
   documents: ProjectDocument[];
   revision: string;
   rootTitles?: {
-    lorebook: string;
+    lorebook?: string;
     manuscript: string;
   };
   tree: ProjectTreeNode[];
