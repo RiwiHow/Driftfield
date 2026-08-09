@@ -8,9 +8,15 @@ import {
   AGENT_THINKING_LEVELS,
   type AgentThinkingLevel,
 } from './settings';
+import {
+  isAgentToolExecutionResult,
+  isAgentToolName,
+  type AgentToolExecutionResult,
+  type AgentToolName,
+} from './agent-tools';
 
 export interface AgentWorkerStartCommand {
-  authPath: string;
+      authPath: string;
   cwd: string;
   modelsPath: string;
   modelId: string;
@@ -32,7 +38,7 @@ export type AgentWorkerCommand =
     }
   | { requestId: string; type: 'cancel' }
   | {
-      content: string;
+      result: AgentToolExecutionResult;
       requestId: string;
       toolCallId: string;
       type: 'tool-result';
@@ -43,7 +49,13 @@ export type AgentWorkerMessage =
   | { type: 'ready' }
   | { models: AgentModelOption[]; requestId: string; type: 'models' }
   | { code: 'model-list-failed'; requestId: string; type: 'models-error' }
-  | { requestId: string; toolCallId: string; type: 'tool-request' }
+  | {
+      arguments: unknown;
+      requestId: string;
+      toolCallId: string;
+      toolName: AgentToolName;
+      type: 'tool-request';
+    }
   | { delta: string; requestId: string; type: 'text-delta' }
   | { requestId: string; type: 'completed' }
   | { requestId: string; type: 'cancelled' }
@@ -74,9 +86,12 @@ export const isAgentWorkerMessage = (
   if (message.type === 'error') {
     return message.code === 'request-failed' || message.code === 'runtime-exited';
   }
-  return (
-    message.type === 'tool-request' && typeof message.toolCallId === 'string'
-  );
+  return message.type === 'tool-request' &&
+    typeof message.toolCallId === 'string' &&
+    isAgentToolName(message.toolName) &&
+    typeof message.arguments === 'object' &&
+    message.arguments !== null &&
+    !Array.isArray(message.arguments);
 };
 
 export const isAgentWorkerCommand = (
@@ -98,7 +113,7 @@ export const isAgentWorkerCommand = (
   if (command.type === 'tool-result') {
     return (
       typeof command.toolCallId === 'string' &&
-      typeof command.content === 'string'
+      isAgentToolExecutionResult(command.result)
     );
   }
   return (

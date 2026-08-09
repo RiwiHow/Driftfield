@@ -31,8 +31,19 @@ describe('Agent utility-process protocol', () => {
     ).toBe(true);
     expect(
       isAgentWorkerCommand({
-        content: 'Chapter text',
         requestId: 'request-1',
+        result: {
+          data: {
+            baseRevision: 'revision',
+            contentRevision: 'revision',
+            documentId: 'chapter-1',
+            markdown: 'Chapter text',
+            source: 'disk',
+            title: 'Chapter',
+          },
+          ok: true,
+          toolName: 'get_document',
+        },
         toolCallId: 'tool-1',
         type: 'tool-result',
       }),
@@ -89,8 +100,10 @@ describe('Agent utility-process protocol', () => {
     ).toBe(true);
     expect(
       isAgentWorkerMessage({
+        arguments: { documentId: 'chapter-1' },
         requestId: 'request-1',
         toolCallId: 'tool-1',
+        toolName: 'get_document',
         type: 'tool-request',
       }),
     ).toBe(true);

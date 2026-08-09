@@ -9,11 +9,12 @@ import type {
 } from '../../shared/contracts/project';
 import { createProjectSnapshot } from './project-service';
 
-interface ProjectSession {
+export interface ProjectSession {
   directoryPath: string;
   documentPaths: Map<string, string>;
   id: string;
   lastRevision: string;
+  project: ProjectSnapshot;
   refreshTimer: ReturnType<typeof setTimeout> | null;
   restartTimer: ReturnType<typeof setTimeout> | null;
   watcher: FSWatcher | null;
@@ -40,6 +41,7 @@ export class ProjectSessionService {
     if (session === undefined) return null;
     const project = await createProjectSnapshot(session.directoryPath);
     session.lastRevision = project.revision;
+    session.project = project;
     this.rememberDocuments(session, project);
     return project;
   }
@@ -58,6 +60,7 @@ export class ProjectSessionService {
       ),
       id: randomUUID(),
       lastRevision: project.revision,
+      project,
       refreshTimer: null,
       restartTimer: null,
       watcher: null,
@@ -127,6 +130,7 @@ export class ProjectSessionService {
               return;
             }
             session.lastRevision = project.revision;
+            session.project = project;
             this.rememberDocuments(session, project);
             window.webContents.send(IPC_CHANNELS.projectChanged, project);
           },

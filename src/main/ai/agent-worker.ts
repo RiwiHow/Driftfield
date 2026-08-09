@@ -21,6 +21,7 @@ import {
 } from '../../shared/contracts/agent-worker';
 import { buildAgentSystemPrompt } from './prompts/prompt-builder';
 import { AgentToolResultBridge } from './agent-tool-result-bridge';
+import type { AgentToolName } from '../../shared/contracts/agent-tools';
 
 const TOOL_RESULT_TIMEOUT_MS = 30_000;
 
@@ -38,8 +39,8 @@ const send = (message: AgentWorkerMessage): void => {
 };
 
 const toolResults = new AgentToolResultBridge(
-  ({ requestId, toolCallId }) =>
-    send({ requestId, toolCallId, type: 'tool-request' }),
+  ({ arguments: args, requestId, toolCallId, toolName }) =>
+    send({ arguments: args, requestId, toolCallId, toolName, type: 'tool-request' }),
   TOOL_RESULT_TIMEOUT_MS,
 );
 
@@ -93,7 +94,7 @@ async function handleCommand(command: AgentWorkerCommand): Promise<void> {
     toolResults.resolve(
       command.requestId,
       command.toolCallId,
-      command.content,
+      command.result,
     );
     return;
   }
@@ -122,19 +123,27 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
       throw new Error('The configured model is not available');
     }
     const systemPrompt = buildAgentSystemPrompt({
-      availableTools: ['get_current_document'],
+      availableTools: [
+        'get_novel_structure',
+        'get_current_document',
+        'get_document',
+      ],
       role: command.role,
     });
     ({ session } = await createAgentSession({
       cwd: command.cwd,
-      customTools: [createCurrentDocumentTool(command.requestId)],
+      customTools: createNovelTools(command.requestId),
       model,
       modelRuntime: runtime,
       resourceLoader: createDriftfieldResourceLoader(systemPrompt.prompt),
       sessionManager: SessionManager.inMemory(command.cwd),
       settingsManager: SettingsManager.inMemory(),
       thinkingLevel: command.thinkingLevel,
-      tools: ['get_current_document'],
+      tools: [
+        'get_novel_structure',
+        'get_current_document',
+        'get_document',
+      ],
     }));
     active.session = session;
     if (active.cancelled) {
@@ -180,23 +189,42 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
   }
 }
 
-function createCurrentDocumentTool(requestId: string) {
-  return defineTool({
-    description:
-      'Read the current manuscript document selected by the user. Use it only when the request needs its exact text.',
-    label: 'Read current document',
-    name: 'get_current_document',
-    parameters: Type.Object({}),
-    execute: async (toolCallId) =>
-      textToolResult(await requestCurrentDocument(requestId, toolCallId)),
-  });
+function createNovelTools(requestId: string) {
+  return [
+    defineTool({
+      description: 'Read the ordered novel, volume, chapter, and lorebook structure without loading document text.',
+      label: 'Read novel structure',
+      name: 'get_novel_structure',
+      parameters: Type.Object({}, { additionalProperties: false }),
+      execute: async (toolCallId, params) =>
+        textToolResult(await requestTool(requestId, toolCallId, 'get_novel_structure', params)),
+    }),
+    defineTool({
+      description: 'Read the current manuscript draft selected by the user, including unsaved edits.',
+      label: 'Read current document',
+      name: 'get_current_document',
+      parameters: Type.Object({}, { additionalProperties: false }),
+      execute: async (toolCallId, params) =>
+        textToolResult(await requestTool(requestId, toolCallId, 'get_current_document', params)),
+    }),
+    defineTool({
+      description: 'Read one persisted manuscript or lorebook document by the stable ID returned by get_novel_structure.',
+      label: 'Read document',
+      name: 'get_document',
+      parameters: Type.Object({ documentId: Type.String({ maxLength: 128, minLength: 1 }) }, { additionalProperties: false }),
+      execute: async (toolCallId, params) =>
+        textToolResult(await requestTool(requestId, toolCallId, 'get_document', params)),
+    }),
+  ];
 }
 
-function requestCurrentDocument(
+async function requestTool(
   requestId: string,
   toolCallId: string,
+  toolName: AgentToolName,
+  args: unknown,
 ): Promise<string> {
-  return toolResults.request(requestId, toolCallId);
+  return JSON.stringify(await toolResults.request(requestId, toolCallId, toolName, args));
 }
 
 async function getModelRuntime(

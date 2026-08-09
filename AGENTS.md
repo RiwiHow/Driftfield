@@ -571,6 +571,17 @@ properties when extending the affected subsystems:
   Project switches cancel the owning request, and late worker output or tool
   calls from an obsolete session are rejected. Cancellation remains terminal
   when completion or streamed output races with the cancel request.
+- The first Agent data surface consists only of `get_novel_structure`,
+  `get_current_document`, and `get_document`. Main validates their typed
+  arguments, resolves stable IDs through the active project session, rechecks
+  document containment and regular-file status, and enforces per-request call,
+  timeout, individual-result, and cumulative-result budgets. These tools never
+  expose physical project paths or raw YAML.
+- Agent requests capture a size-bounded immutable editor draft with its stable
+  document ID and disk base revision. `get_current_document` reads that snapshot,
+  including unsaved edits; `get_document` deliberately reads persisted content.
+  Pi uses the application-owned Agent data directory as its working directory,
+  never the opened novel folder.
 - Assistant replies render through a dedicated read-only Markdown path. Raw
   HTML is not interpreted, remote images are not loaded, and links remain
   non-navigable until a reviewed external-link IPC operation exists.
@@ -582,7 +593,8 @@ properties when extending the affected subsystems:
   stable document identity, formatter-driven ordering and labels, dirty-action
   decisions, snapshot merges, navigation policy, Agent run/protocol state,
   cancellation races, project invalidation, credential-state failures, worker
-  restart, tool timeouts, safe Agent Markdown, locale parity and switching,
+  restart, tool timeouts and budgets, targeted Agent document reads, path-free
+  structure results, safe Agent Markdown, locale parity and switching,
   native dialog options, and MDXEditor initialization and translation adapters.
 
 ## Remaining Technical Debt
@@ -612,14 +624,10 @@ properties when extending the affected subsystems:
   - API-key provider credentials, explicit model selection, and thinking level
     now have application UI, validated IPC, and main-owned persistence. OAuth
     provider flows are not implemented yet.
-  - The current-document tool scans the whole project and reads the on-disk copy,
-    so it is both unnecessarily expensive and stale when the active manuscript
-    has unsaved edits. Introduce a validated targeted read service and an
-    explicit, size-bounded draft snapshot contract carrying document and revision
-    identity.
-  - Agent output, context size, tool-call count, and cost are not yet bounded as
-    application policy. Add limits and typed terminal reasons before enabling
-    general use.
+  - Read-tool calls and returned context are bounded, but streamed Agent output,
+    model input context, and monetary cost do not yet have complete
+    application-owned budgets or typed terminal reasons. Add those limits before
+    enabling general use.
   - Pi now runs in a separately bundled native ESM Electron utility process and
     the Forge CommonJS main no longer rewrites `import.meta.url`. Packaged startup
     and local provider-discovery smoke coverage exists, but real upstream

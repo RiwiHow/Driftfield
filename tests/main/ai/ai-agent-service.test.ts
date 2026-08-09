@@ -56,7 +56,6 @@ describe('AiAgentService', () => {
       currentDocumentId: 'chapter.md',
       model: { modelId: 'model', providerId: 'anthropic' },
       ownerId: 7,
-      projectDirectory: userDataPath,
       projectSessionId: 'session-1',
       prompt: 'Review this chapter',
       requestId,
@@ -163,5 +162,20 @@ describe('AiAgentService', () => {
     workers[1].emit('message', { type: 'ready' });
     await expect(secondStart).resolves.toBe('request-2');
     expect(electronMock.fork).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses an application-owned working directory for Pi', async () => {
+    const service = new AiAgentService(userDataPath);
+    const started = start(service, 'request-1');
+    await waitFor(() => workers.length === 1);
+    workers[0].emit('message', { type: 'ready' });
+    await started;
+
+    expect(workers[0].messages).toContainEqual(
+      expect.objectContaining({
+        cwd: path.join(userDataPath, 'ai', 'pi'),
+        type: 'start',
+      }),
+    );
   });
 });

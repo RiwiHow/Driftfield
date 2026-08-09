@@ -15,6 +15,7 @@ export type StartAgentErrorCode =
 
 export interface StartAgentPromptRequest {
   currentDocumentId?: string;
+  draftSnapshot?: import('./agent-tools').AgentDraftSnapshot;
   prompt: string;
   requestId: string;
 }

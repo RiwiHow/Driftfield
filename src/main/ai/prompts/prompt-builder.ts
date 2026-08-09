@@ -7,8 +7,12 @@ import type {
 } from './types';
 
 const TOOL_INSTRUCTIONS: Record<AgentToolName, string> = {
+  get_novel_structure:
+    'get_novel_structure: Read the ordered novel structure and stable document IDs without loading document text.',
   get_current_document:
-    'get_current_document: Read the exact current manuscript document selected by the user. Use it only when the request needs that text.',
+    'get_current_document: Read the request-start snapshot of the selected manuscript, including unsaved edits.',
+  get_document:
+    'get_document: Read one persisted manuscript or lorebook document by a stable ID returned by get_novel_structure.',
 };
 
 export const buildAgentSystemPrompt = (

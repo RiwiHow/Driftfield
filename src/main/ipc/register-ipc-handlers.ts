@@ -132,12 +132,22 @@ export const registerIpcHandlers = ({
       throw new Error('Invalid Agent prompt request');
     }
     const session = projectSessions.get(window.webContents.id);
+    const currentDocument = session?.project.documents.find(
+      ({ id }) => id === value.currentDocumentId,
+    );
     if (
       value.currentDocumentId !== undefined &&
-      (session === undefined ||
-        !session.documentPaths.has(value.currentDocumentId))
+      (session === undefined || currentDocument === undefined)
     ) {
       throw new Error('Unknown project document');
+    }
+    if (
+      value.draftSnapshot !== undefined &&
+      (currentDocument === undefined ||
+        value.draftSnapshot.documentId !== value.currentDocumentId ||
+        value.draftSnapshot.baseRevision !== currentDocument.revision)
+    ) {
+      throw new Error('Stale Agent document snapshot');
     }
     const agentSettings = settingsService.get().agent;
     const selectedModel = agentSettings.defaultModel;
@@ -154,7 +164,6 @@ export const registerIpcHandlers = ({
         ...value,
         model: selectedModel,
         ownerId: window.webContents.id,
-        projectDirectory: session?.directoryPath,
         projectSessionId: session?.id,
         sendEvent: (agentEvent) => {
           if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
@@ -339,7 +348,20 @@ const isStartAgentPromptRequest = (
     (request.currentDocumentId === undefined ||
       (typeof request.currentDocumentId === 'string' &&
         request.currentDocumentId.length > 0 &&
-        request.currentDocumentId.length <= 1_024))
+        request.currentDocumentId.length <= 1_024)) &&
+    (request.draftSnapshot === undefined ||
+      (typeof request.draftSnapshot === 'object' &&
+        request.draftSnapshot !== null &&
+        !Array.isArray(request.draftSnapshot) &&
+        typeof request.draftSnapshot.documentId === 'string' &&
+        request.draftSnapshot.documentId.length > 0 &&
+        request.draftSnapshot.documentId.length <= 1_024 &&
+        typeof request.draftSnapshot.baseRevision === 'string' &&
+        /^[a-f0-9]{64}$/u.test(request.draftSnapshot.baseRevision) &&
+        typeof request.draftSnapshot.markdown === 'string' &&
+        Buffer.byteLength(request.draftSnapshot.markdown, 'utf8') <= 512 * 1024)) &&
+    ((request.currentDocumentId === undefined && request.draftSnapshot === undefined) ||
+      (request.currentDocumentId !== undefined && request.draftSnapshot !== undefined))
   );
 };
 

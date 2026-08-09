@@ -4,6 +4,7 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { AgentEvent } from '../../shared/contracts/agent';
+import type { AgentDraftSnapshot } from '../../shared/contracts/agent-tools';
 import type { AgentModelOption } from '../../shared/contracts/agent-configuration';
 import type {
   AgentModelSelection,
@@ -13,24 +14,22 @@ import {
   isAgentWorkerMessage,
   type AgentWorkerMessage,
 } from '../../shared/contracts/agent-worker';
-import { createProjectSnapshot } from '../services/project-service';
+import type { AgentToolDispatcher } from './agent-tool-dispatcher';
 
-const MAX_AGENT_DOCUMENT_BYTES = 512 * 1024;
 const WORKER_START_TIMEOUT_MS = 15_000;
 
 interface ActiveAgentRequest {
   cancelled: boolean;
-  currentDocumentId?: string;
+  draftSnapshot?: AgentDraftSnapshot;
   ownerId: number;
-  projectDirectory?: string;
   projectSessionId?: string;
   sendEvent: (event: AgentEvent) => void;
 }
 
 interface StartAgentRequest {
   currentDocumentId?: string;
+  draftSnapshot?: AgentDraftSnapshot;
   ownerId: number;
-  projectDirectory?: string;
   projectSessionId?: string;
   prompt: string;
   model: AgentModelSelection;
@@ -57,6 +56,7 @@ export class AiAgentService {
       ownerId: number,
       projectSessionId: string,
     ) => boolean = () => true,
+    private readonly toolDispatcher?: AgentToolDispatcher,
   ) {}
 
   async start(request: StartAgentRequest): Promise<string> {
@@ -71,9 +71,8 @@ export class AiAgentService {
 
     const active: ActiveAgentRequest = {
       cancelled: false,
-      currentDocumentId: request.currentDocumentId,
+      draftSnapshot: request.draftSnapshot,
       ownerId: request.ownerId,
-      projectDirectory: request.projectDirectory,
       projectSessionId: request.projectSessionId,
       sendEvent: request.sendEvent,
     };
@@ -87,7 +86,7 @@ export class AiAgentService {
       active.sendEvent({ requestId: request.requestId, type: 'started' });
       worker.postMessage({
         authPath: path.join(directory, 'auth.json'),
-        cwd: request.projectDirectory ?? this.userDataPath,
+        cwd: directory,
         modelsPath: path.join(directory, 'models.json'),
         modelId: request.model.modelId,
         prompt: request.prompt,
@@ -101,6 +100,7 @@ export class AiAgentService {
     } catch (error) {
       if (this.activeRequests.get(request.requestId) === active) {
         this.activeRequests.delete(request.requestId);
+        this.toolDispatcher?.release(request.requestId);
       }
       throw error;
     }
@@ -148,6 +148,7 @@ export class AiAgentService {
       this.worker?.postMessage({ requestId, type: 'cancel' });
       active.sendEvent({ requestId, type: 'cancelled' });
       this.activeRequests.delete(requestId);
+      this.toolDispatcher?.release(requestId);
     }
   }
 
@@ -229,6 +230,7 @@ export class AiAgentService {
       this.worker?.postMessage({ requestId: message.requestId, type: 'cancel' });
       active.sendEvent({ requestId: message.requestId, type: 'cancelled' });
       this.activeRequests.delete(message.requestId);
+      this.toolDispatcher?.release(message.requestId);
       return;
     }
     if (active.cancelled) {
@@ -239,21 +241,46 @@ export class AiAgentService {
       ) {
         active.sendEvent({ requestId: message.requestId, type: 'cancelled' });
         this.activeRequests.delete(message.requestId);
+        this.toolDispatcher?.release(message.requestId);
       }
       return;
     }
 
     if (message.type === 'tool-request') {
-      const content = await this.readCurrentDocument(active).catch(
-        () => 'The selected manuscript document could not be read.',
-      );
-      if (this.activeRequests.get(message.requestId) === active) {
+      const result = this.toolDispatcher === undefined
+        ? {
+            error: { code: 'internal-error' as const },
+            ok: false as const,
+            toolName: message.toolName,
+          }
+        : await this.toolDispatcher.execute(
+            {
+              ...(active.draftSnapshot === undefined
+                ? {}
+                : { draftSnapshot: active.draftSnapshot }),
+              ownerId: active.ownerId,
+              projectSessionId: active.projectSessionId,
+              requestId: message.requestId,
+            },
+            message.toolName,
+            message.arguments,
+          );
+      if (
+        this.activeRequests.get(message.requestId) === active &&
+        this.requestHasActiveProjectSession(active)
+      ) {
         this.worker?.postMessage({
-          content,
+          result,
           requestId: message.requestId,
           toolCallId: message.toolCallId,
           type: 'tool-result',
         });
+      } else if (this.activeRequests.get(message.requestId) === active) {
+        active.cancelled = true;
+        this.worker?.postMessage({ requestId: message.requestId, type: 'cancel' });
+        active.sendEvent({ requestId: message.requestId, type: 'cancelled' });
+        this.activeRequests.delete(message.requestId);
+        this.toolDispatcher?.release(message.requestId);
       }
       return;
     }
@@ -265,6 +292,7 @@ export class AiAgentService {
 
     active.sendEvent(message);
     this.activeRequests.delete(message.requestId);
+    this.toolDispatcher?.release(message.requestId);
   }
 
   private handleWorkerExit(worker: UtilityProcess): void {
@@ -282,6 +310,7 @@ export class AiAgentService {
         requestId,
         type: 'error',
       });
+      this.toolDispatcher?.release(requestId);
     }
     this.activeRequests.clear();
   }
@@ -296,28 +325,9 @@ export class AiAgentService {
       pending.reject(new Error('Agent runtime configuration changed'));
     }
     this.pendingModelLists.clear();
-  }
-
-  private async readCurrentDocument(
-    request: ActiveAgentRequest,
-  ): Promise<string> {
-    if (
-      request.projectDirectory === undefined ||
-      request.currentDocumentId === undefined
-    ) {
-      return 'No current manuscript document is available.';
+    for (const requestId of this.activeRequests.keys()) {
+      this.toolDispatcher?.release(requestId);
     }
-    const project = await createProjectSnapshot(request.projectDirectory);
-    const document = project.documents.find(
-      ({ id }) => id === request.currentDocumentId,
-    );
-    if (document === undefined) {
-      return 'The selected manuscript document is no longer available.';
-    }
-    if (Buffer.byteLength(document.markdown, 'utf8') > MAX_AGENT_DOCUMENT_BYTES) {
-      return 'The current document is too large to load into this request.';
-    }
-    return `Document: ${document.relativePath}\nRevision: ${document.revision}\n\n${document.markdown}`;
   }
 
   private requestHasActiveProjectSession(request: ActiveAgentRequest): boolean {

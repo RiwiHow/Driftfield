@@ -1,6 +1,7 @@
 import type { AgentRole } from '../../../shared/contracts/agent';
+import type { AgentToolName } from '../../../shared/contracts/agent-tools';
 
-export type AgentToolName = 'get_current_document';
+export type { AgentToolName } from '../../../shared/contracts/agent-tools';
 
 export interface AgentPromptContext {
   availableTools: readonly AgentToolName[];

@@ -1,12 +1,19 @@
+import type {
+  AgentToolExecutionResult,
+  AgentToolName,
+} from '../../shared/contracts/agent-tools';
+
 interface PendingToolResult {
   reject: (error: Error) => void;
-  resolve: (content: string) => void;
+  resolve: (result: AgentToolExecutionResult) => void;
   timeout: ReturnType<typeof setTimeout>;
 }
 
 export interface AgentToolRequest {
+  arguments: unknown;
   requestId: string;
   toolCallId: string;
+  toolName: AgentToolName;
 }
 
 export class AgentToolResultBridge {
@@ -17,25 +24,34 @@ export class AgentToolResultBridge {
     private readonly timeoutMs: number,
   ) {}
 
-  request(requestId: string, toolCallId: string): Promise<string> {
+  request(
+    requestId: string,
+    toolCallId: string,
+    toolName: AgentToolName,
+    args: unknown,
+  ): Promise<AgentToolExecutionResult> {
     const key = this.key(requestId, toolCallId);
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pending.delete(key);
-        reject(new Error('Current document tool timed out'));
+        reject(new Error('Agent tool timed out'));
       }, this.timeoutMs);
       this.pending.set(key, { reject, resolve, timeout });
-      this.sendRequest({ requestId, toolCallId });
+      this.sendRequest({ arguments: args, requestId, toolCallId, toolName });
     });
   }
 
-  resolve(requestId: string, toolCallId: string, content: string): boolean {
+  resolve(
+    requestId: string,
+    toolCallId: string,
+    result: AgentToolExecutionResult,
+  ): boolean {
     const key = this.key(requestId, toolCallId);
     const pending = this.pending.get(key);
     if (pending === undefined) return false;
     clearTimeout(pending.timeout);
     this.pending.delete(key);
-    pending.resolve(content);
+    pending.resolve(result);
     return true;
   }
 

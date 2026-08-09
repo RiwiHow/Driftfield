@@ -8,6 +8,8 @@ import type {
 } from '../shared/contracts/window-lifecycle';
 import { registerIpcHandlers } from './ipc/register-ipc-handlers';
 import { AiAgentService } from './ai/ai-agent-service';
+import { AgentToolDispatcher } from './ai/agent-tool-dispatcher';
+import { ProjectContextService } from './ai/project-context-service';
 import { ProjectSessionService } from './services/project-session-service';
 import { SettingsService } from './services/settings-service';
 import { AgentCredentialService } from './services/agent-credential-service';
@@ -130,10 +132,14 @@ void app.whenReady().then(async () => {
     const agentCredentialService = new AgentCredentialService(
       app.getPath('userData'),
     );
+    const agentToolDispatcher = new AgentToolDispatcher(
+      new ProjectContextService(projectSessions),
+    );
     const aiAgentService = new AiAgentService(
       app.getPath('userData'),
       (ownerId, projectSessionId) =>
         projectSessions.get(ownerId)?.id === projectSessionId,
+      agentToolDispatcher,
     );
     activeAiAgentService = aiAgentService;
     registerIpcHandlers({

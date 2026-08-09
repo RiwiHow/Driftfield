@@ -114,6 +114,15 @@ export function useAgentConversation(activeChapter: Chapter | null) {
       try {
         const started = await window.driftfield.startAgentPrompt({
           currentDocumentId: activeChapter?.id,
+          ...(activeChapter === null
+            ? {}
+            : {
+                draftSnapshot: {
+                  baseRevision: activeChapter.revision,
+                  documentId: activeChapter.id,
+                  markdown: activeChapter.markdown,
+                },
+              }),
           prompt: trimmedPrompt,
           requestId: nextRequestId,
         });
