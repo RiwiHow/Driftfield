@@ -1,81 +1,30 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useReducer, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { Chapter } from '@/app/types';
-import { mergeProjectSnapshot } from '@/features/library/merge-project-snapshot';
-import type {
-  ProjectDirectory,
-  ProjectDocument,
-  ProjectSnapshot,
-  ProjectTreeNode,
-} from '../../../shared/contracts/project';
 import type { ApplyAgentProposalResult } from '../../../shared/contracts/agent-proposals';
-
-interface SaveConflict {
-  diskDocument: ProjectDocument;
-  documentId: string;
-}
-
-type ProjectMessageKey =
-  | 'errors.conflictBeforeQuit'
-  | 'errors.conflictBeforeSwitch'
-  | 'errors.failedBeforeQuit'
-  | 'errors.failedBeforeSwitch'
-  | 'errors.missingBeforeQuit'
-  | 'errors.missingBeforeSwitch'
-  | 'errors.saveConflict'
-  | 'errors.saveMissing'
-  | 'messages.comparisonReady';
-
-type ErrorMessageKey =
-  | 'projects.create'
-  | 'projects.dirtySync'
-  | 'projects.open'
-  | 'projects.refresh'
-  | 'projects.save';
-
-type LocalizedWorkspaceMessage =
-  | { catalog: 'projects'; key: ProjectMessageKey }
-  | { catalog: 'errors'; key: ErrorMessageKey };
-
-interface SaveDocumentsMessages {
-  conflict: LocalizedWorkspaceMessage;
-  failed: LocalizedWorkspaceMessage;
-  missing: LocalizedWorkspaceMessage;
-}
+import type { ProjectSnapshot } from '../../../shared/contracts/project';
+import {
+  initialProjectWorkspaceState,
+  projectWorkspaceReducer,
+  type LocalizedWorkspaceMessage,
+} from './project-workspace-reducer';
+import {
+  useDocumentLifecycleEffects,
+  type SaveDocumentsMessages,
+} from './use-document-lifecycle-effects';
+import { useProjectSessionEffects } from './use-project-session-effects';
 
 export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
   const { t } = useTranslation('projects');
   const { t: tErrors } = useTranslation('errors');
-  const [chapters, setChapters] = useState<Chapter[]>([]);
-  const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
-  const [projectDirectory, setProjectDirectory] =
-    useState<ProjectDirectory | null>(null);
-  const [projectId, setProjectId] = useState<string | null>(null);
-  const [projectIcon, setProjectIcon] = useState<ProjectSnapshot['projectIcon']>();
-  const [projectTree, setProjectTree] = useState<ProjectTreeNode[]>([]);
-  const [projectRootTitles, setProjectRootTitles] = useState<
-    ProjectSnapshot['rootTitles'] | null
-  >(null);
-  const [projectPickerAction, setProjectPickerAction] = useState<
-    'create' | 'open' | null
-  >(null);
-  const [isRefreshingProject, setIsRefreshingProject] = useState(false);
-  const [isSavingDocument, setIsSavingDocument] = useState(false);
-  const [isConfirmingClose, setIsConfirmingClose] = useState(false);
-  const [documentSaveMessage, setDocumentSaveMessage] =
-    useState<LocalizedWorkspaceMessage | null>(null);
-  const [saveConflict, setSaveConflict] = useState<SaveConflict | null>(null);
-  const [projectSelectionMessage, setProjectSelectionMessage] =
-    useState<LocalizedWorkspaceMessage | null>(null);
-  const [projectWatcherCode, setProjectWatcherCode] = useState<
-    'refresh-failed' | 'start-failed' | 'stopped' | null
-  >(null);
+  const [state, dispatch] = useReducer(
+    projectWorkspaceReducer,
+    initialProjectWorkspaceState,
+  );
   const projectRevision = useRef(0);
   const chaptersRef = useRef<Chapter[]>([]);
-  chaptersRef.current = chapters;
-  const isSelectingProject = projectPickerAction !== null;
-  const didApplyInitialProject = useRef(false);
+  chaptersRef.current = state.chapters;
 
   const localizeMessage = useCallback(
     (message: LocalizedWorkspaceMessage | null): string | null => {
@@ -88,44 +37,24 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
   );
 
   const activeChapter = useMemo(
-    () => chapters.find((chapter) => chapter.id === activeChapterId) ?? null,
-    [activeChapterId, chapters],
+    () => state.chapters.find(({ id }) => id === state.activeChapterId) ?? null,
+    [state.activeChapterId, state.chapters],
   );
 
   const commitSavedChapter = useCallback(
     (chapter: Chapter, revision: string): void => {
-      setChapters((current) =>
-        current.map((item) =>
-          item.id === chapter.id
-            ? {
-                ...item,
-                isDirty: item.markdown !== chapter.markdown,
-                previousMarkdown: chapter.markdown,
-                revision,
-              }
-            : item,
-        ),
-      );
+      dispatch({ chapter, revision, type: 'commit-saved-chapter' });
     },
     [],
   );
 
   const commitAgentProposal = useCallback(
     (result: Extract<ApplyAgentProposalResult, { status: 'saved' }>): void => {
-      setChapters((current) =>
-        current.map((chapter) =>
-          chapter.id === result.documentId
-            ? {
-                ...chapter,
-                isDirty: false,
-                markdown: result.markdown,
-                previousMarkdown: result.markdown,
-                revision: result.revision,
-                sourceRevision: ++projectRevision.current,
-              }
-            : chapter,
-        ),
-      );
+      dispatch({
+        result,
+        sourceRevision: ++projectRevision.current,
+        type: 'commit-agent-proposal',
+      });
     },
     [],
   );
@@ -135,13 +64,13 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
       documents: Chapter[],
       messages: SaveDocumentsMessages,
     ): Promise<boolean> => {
-      setIsSavingDocument(true);
-      setDocumentSaveMessage(null);
+      dispatch({ type: 'set-saving', value: true });
+      dispatch({ type: 'set-save-message', value: null });
       try {
         for (const chapter of documents) {
           if (chapter.backingFileStatus === 'missing') {
-            setActiveChapterId(chapter.id);
-            setDocumentSaveMessage(messages.missing);
+            dispatch({ type: 'select-chapter', chapterId: chapter.id });
+            dispatch({ type: 'set-save-message', value: messages.missing });
             return false;
           }
           const result = await window.driftfield.saveProjectDocument({
@@ -150,27 +79,30 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
             markdown: chapter.markdown,
           });
           if (result.status === 'conflict') {
-            setActiveChapterId(chapter.id);
-            setSaveConflict({
-              diskDocument: result.diskDocument,
-              documentId: chapter.id,
+            dispatch({ type: 'select-chapter', chapterId: chapter.id });
+            dispatch({
+              type: 'set-save-conflict',
+              value: {
+                diskDocument: result.diskDocument,
+                documentId: chapter.id,
+              },
             });
-            setDocumentSaveMessage(messages.conflict);
+            dispatch({ type: 'set-save-message', value: messages.conflict });
             return false;
           }
           if (result.status === 'missing') {
-            setActiveChapterId(chapter.id);
-            setDocumentSaveMessage(messages.missing);
+            dispatch({ type: 'select-chapter', chapterId: chapter.id });
+            dispatch({ type: 'set-save-message', value: messages.missing });
             return false;
           }
           commitSavedChapter(chapter, result.revision);
         }
         return true;
       } catch {
-        setDocumentSaveMessage(messages.failed);
+        dispatch({ type: 'set-save-message', value: messages.failed });
         return false;
       } finally {
-        setIsSavingDocument(false);
+        dispatch({ type: 'set-saving', value: false });
       }
     },
     [commitSavedChapter],
@@ -178,206 +110,132 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
 
   const applyProjectSnapshot = useCallback(
     (project: ProjectSnapshot, preserveDirtyDocuments: boolean): void => {
-      const next = mergeProjectSnapshot(
-        chaptersRef.current,
-        project,
+      dispatch({
         preserveDirtyDocuments,
-        ++projectRevision.current,
-      );
-      setProjectDirectory(project.directory);
-      setProjectId(project.projectId);
-      setProjectIcon(project.projectIcon);
-      setProjectRootTitles(project.rootTitles ?? null);
-      setProjectTree(project.tree);
-      setChapters(next);
-      setActiveChapterId((activeId) =>
-        preserveDirtyDocuments && activeId === null
-          ? null
-          : activeId !== null && next.some((chapter) => chapter.id === activeId)
-            ? activeId
-            : (next[0]?.id ?? null),
-      );
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (initialProject === null || didApplyInitialProject.current) return;
-    didApplyInitialProject.current = true;
-    applyProjectSnapshot(initialProject, false);
-  }, [applyProjectSnapshot, initialProject]);
-
-  useEffect(() => {
-    void window.driftfield
-      .setWindowDirty(chapters.some((chapter) => chapter.isDirty))
-      .catch(() => {
-        setDocumentSaveMessage({
-          catalog: 'errors',
-          key: 'projects.dirtySync',
-        });
+        project,
+        sourceRevision: ++projectRevision.current,
+        type: 'apply-snapshot',
       });
-  }, [chapters]);
-
-  useEffect(
-    () =>
-      window.driftfield.onProjectChanged((project) => {
-        setProjectSelectionMessage(null);
-        applyProjectSnapshot(project, true);
-      }),
-    [applyProjectSnapshot],
-  );
-
-  useEffect(
-    () =>
-      window.driftfield.onProjectWatcherStatusChanged((status) => {
-        setProjectWatcherCode(status.status === 'error' ? status.code : null);
-      }),
+    },
     [],
   );
 
-  useEffect(
-    () =>
-      window.driftfield.onWindowCloseRequested((request) => {
-        void (async () => {
-          const dirtyChapters = chaptersRef.current.filter(
-            (chapter) => chapter.isDirty,
-          );
-          if (dirtyChapters.length === 0) {
-            await window.driftfield.completeWindowClose({
-              proceed: true,
-              requestId: request.requestId,
-            });
-            return;
-          }
-          setIsConfirmingClose(true);
-          const decision = await window.driftfield.confirmCloseUnsavedDocument(
-            t('unsavedDocuments', { count: dirtyChapters.length }),
-          );
-          let proceed = decision === 'discard';
-          if (decision === 'save') {
-            proceed = await saveDocuments(dirtyChapters, {
-              conflict: { catalog: 'projects', key: 'errors.conflictBeforeQuit' },
-              failed: { catalog: 'projects', key: 'errors.failedBeforeQuit' },
-              missing: { catalog: 'projects', key: 'errors.missingBeforeQuit' },
-            });
-          }
-          setIsConfirmingClose(false);
-          await window.driftfield.completeWindowClose({
-            proceed,
-            requestId: request.requestId,
-          });
-        })();
-      }),
-    [saveDocuments, t],
-  );
+  useProjectSessionEffects({
+    applyProjectSnapshot,
+    dispatch,
+    initialProject,
+  });
 
-  const updateActiveChapter = useCallback(
-    (markdown: string): void => {
-      setChapters((current) =>
-        current.map((chapter) =>
-          chapter.id === activeChapterId && chapter.markdown !== markdown
-            ? { ...chapter, isDirty: true, markdown }
-            : chapter,
-        ),
-      );
-    },
-    [activeChapterId],
-  );
+  const updateActiveChapter = useCallback((markdown: string): void => {
+    dispatch({ markdown, type: 'update-active-chapter' });
+  }, []);
 
   const saveActiveDocument = useCallback(
     async (overwrite = false): Promise<boolean> => {
-      if (activeChapter === null || !activeChapter.isDirty || isSavingDocument) {
+      if (
+        activeChapter === null ||
+        !activeChapter.isDirty ||
+        state.isSavingDocument
+      ) {
         return activeChapter !== null;
       }
       const { id: documentId, markdown } = activeChapter;
-      setIsSavingDocument(true);
-      setDocumentSaveMessage(null);
+      dispatch({ type: 'set-saving', value: true });
+      dispatch({ type: 'set-save-message', value: null });
       try {
         const result = await window.driftfield.saveProjectDocument({
           documentId,
           expectedRevision:
-            overwrite && saveConflict?.documentId === documentId
-              ? saveConflict.diskDocument.revision
+            overwrite && state.saveConflict?.documentId === documentId
+              ? state.saveConflict.diskDocument.revision
               : activeChapter.revision,
           markdown,
           overwrite,
         });
         if (result.status === 'conflict') {
-          setSaveConflict({ diskDocument: result.diskDocument, documentId });
-          setDocumentSaveMessage({
-            catalog: 'projects',
-            key: 'errors.saveConflict',
+          dispatch({
+            type: 'set-save-conflict',
+            value: { diskDocument: result.diskDocument, documentId },
+          });
+          dispatch({
+            type: 'set-save-message',
+            value: { catalog: 'projects', key: 'errors.saveConflict' },
           });
           return false;
         }
         if (result.status === 'missing') {
-          setDocumentSaveMessage({
-            catalog: 'projects',
-            key: 'errors.saveMissing',
+          dispatch({
+            type: 'set-save-message',
+            value: { catalog: 'projects', key: 'errors.saveMissing' },
           });
           return false;
         }
         commitSavedChapter(activeChapter, result.revision);
-        setSaveConflict(null);
+        dispatch({ type: 'set-save-conflict', value: null });
         return true;
       } catch {
-        setDocumentSaveMessage({ catalog: 'errors', key: 'projects.save' });
+        dispatch({
+          type: 'set-save-message',
+          value: { catalog: 'errors', key: 'projects.save' },
+        });
         return false;
       } finally {
-        setIsSavingDocument(false);
+        dispatch({ type: 'set-saving', value: false });
       }
     },
     [
       activeChapter,
       commitSavedChapter,
-      isSavingDocument,
-      saveConflict,
+      state.isSavingDocument,
+      state.saveConflict,
     ],
   );
 
-  useEffect(() => {
-    const saveFromKeyboard = (event: KeyboardEvent): void => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
-        event.preventDefault();
-        void saveActiveDocument();
-      }
-    };
-    window.addEventListener('keydown', saveFromKeyboard, { capture: true });
-    return () =>
-      window.removeEventListener('keydown', saveFromKeyboard, { capture: true });
-  }, [saveActiveDocument]);
+  const dirtyDocumentsLabel = useCallback(
+    (count: number): string => t('unsavedDocuments', { count }),
+    [t],
+  );
+
+  useDocumentLifecycleEffects({
+    chapters: state.chapters,
+    chaptersRef,
+    dirtyDocumentsLabel,
+    dispatch,
+    saveActiveDocument,
+    saveDocuments,
+  });
 
   const closeActiveDocument = useCallback(async (): Promise<void> => {
-    if (activeChapter === null || isConfirmingClose || isSavingDocument) return;
-    if (!activeChapter.isDirty) {
-      setActiveChapterId(null);
+    if (
+      activeChapter === null ||
+      state.isConfirmingClose ||
+      state.isSavingDocument
+    ) {
       return;
     }
-    setIsConfirmingClose(true);
+    if (!activeChapter.isDirty) {
+      dispatch({ type: 'select-chapter', chapterId: null });
+      return;
+    }
+    dispatch({ type: 'set-confirming-close', value: true });
     try {
       const decision = await window.driftfield.confirmCloseUnsavedDocument(
         activeChapter.title,
       );
       if (decision === 'save' && (await saveActiveDocument())) {
-        setActiveChapterId(null);
+        dispatch({ type: 'select-chapter', chapterId: null });
       } else if (decision === 'discard') {
-        setChapters((current) =>
-          current.map((chapter) =>
-            chapter.id === activeChapter.id
-              ? {
-                  ...chapter,
-                  isDirty: false,
-                  markdown: chapter.previousMarkdown,
-                }
-              : chapter,
-          ),
-        );
-        setActiveChapterId(null);
+        dispatch({ type: 'discard-active-changes' });
       }
     } finally {
-      setIsConfirmingClose(false);
+      dispatch({ type: 'set-confirming-close', value: false });
     }
-  }, [activeChapter, isConfirmingClose, isSavingDocument, saveActiveDocument]);
+  }, [
+    activeChapter,
+    saveActiveDocument,
+    state.isConfirmingClose,
+    state.isSavingDocument,
+  ]);
 
   const chooseProjectDirectory = useCallback(
     async (
@@ -385,13 +243,13 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
       errorKey: 'projects.create' | 'projects.open',
       pickerAction: 'create' | 'open',
     ): Promise<void> => {
-      if (isSelectingProject || isSavingDocument) return;
+      if (state.projectPickerAction !== null || state.isSavingDocument) return;
       const dirtyChapters = chaptersRef.current.filter(
         (chapter) => chapter.isDirty,
       );
       if (dirtyChapters.length > 0) {
         const decision = await window.driftfield.confirmCloseUnsavedDocument(
-          t('unsavedDocuments', { count: dirtyChapters.length }),
+          dirtyDocumentsLabel(dirtyChapters.length),
         );
         if (decision === 'cancel') return;
         if (
@@ -414,23 +272,26 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
           return;
         }
       }
-      setProjectPickerAction(pickerAction);
-      setProjectSelectionMessage(null);
+      dispatch({ type: 'set-picker-action', value: pickerAction });
+      dispatch({ type: 'set-selection-message', value: null });
       try {
         const project = await choose();
         if (project !== null) applyProjectSnapshot(project, false);
       } catch {
-        setProjectSelectionMessage({ catalog: 'errors', key: errorKey });
+        dispatch({
+          type: 'set-selection-message',
+          value: { catalog: 'errors', key: errorKey },
+        });
       } finally {
-        setProjectPickerAction(null);
+        dispatch({ type: 'set-picker-action', value: null });
       }
     },
     [
       applyProjectSnapshot,
-      isSavingDocument,
-      isSelectingProject,
+      dirtyDocumentsLabel,
       saveDocuments,
-      t,
+      state.isSavingDocument,
+      state.projectPickerAction,
     ],
   );
 
@@ -455,101 +316,74 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
   );
 
   const refreshProject = useCallback(async (): Promise<void> => {
-    if (projectDirectory === null || isRefreshingProject) return;
-    setIsRefreshingProject(true);
-    setProjectSelectionMessage(null);
+    if (state.projectDirectory === null || state.isRefreshingProject) return;
+    dispatch({ type: 'set-refreshing', value: true });
+    dispatch({ type: 'set-selection-message', value: null });
     try {
       const project = await window.driftfield.refreshProject();
       if (project !== null) applyProjectSnapshot(project, true);
     } catch {
-      setProjectSelectionMessage({
-        catalog: 'errors',
-        key: 'projects.refresh',
+      dispatch({
+        type: 'set-selection-message',
+        value: { catalog: 'errors', key: 'projects.refresh' },
       });
     } finally {
-      setIsRefreshingProject(false);
+      dispatch({ type: 'set-refreshing', value: false });
     }
-  }, [applyProjectSnapshot, isRefreshingProject, projectDirectory]);
+  }, [applyProjectSnapshot, state.isRefreshingProject, state.projectDirectory]);
 
   const reloadConflictedDocument = useCallback((): void => {
-    if (saveConflict === null) return;
-    const { diskDocument, documentId } = saveConflict;
-    setChapters((current) =>
-      current.map((chapter) =>
-        chapter.id === documentId
-          ? {
-              ...chapter,
-              isDirty: false,
-              markdown: diskDocument.markdown,
-              previousMarkdown: diskDocument.markdown,
-              revision: diskDocument.revision,
-              sourceRevision: ++projectRevision.current,
-            }
-          : chapter,
-      ),
-    );
-    setSaveConflict(null);
-    setDocumentSaveMessage(null);
-  }, [saveConflict]);
+    dispatch({
+      sourceRevision: ++projectRevision.current,
+      type: 'reload-conflict',
+    });
+  }, []);
 
   const compareConflictedDocument = useCallback((): void => {
-    if (saveConflict === null) return;
-    const { diskDocument, documentId } = saveConflict;
-    setChapters((current) =>
-      current.map((chapter) =>
-        chapter.id === documentId
-          ? {
-              ...chapter,
-              previousMarkdown: diskDocument.markdown,
-              revision: diskDocument.revision,
-              sourceRevision: ++projectRevision.current,
-            }
-          : chapter,
-      ),
-    );
-    setSaveConflict(null);
-    setDocumentSaveMessage({
-      catalog: 'projects',
-      key: 'messages.comparisonReady',
+    dispatch({
+      sourceRevision: ++projectRevision.current,
+      type: 'compare-conflict',
     });
-  }, [saveConflict]);
+  }, []);
 
   const projectWatcherError =
-    projectWatcherCode === null
+    state.projectWatcherCode === null
       ? null
       : t(
-          projectWatcherCode === 'refresh-failed'
+          state.projectWatcherCode === 'refresh-failed'
             ? 'watcher.refreshFailed'
-            : projectWatcherCode === 'start-failed'
+            : state.projectWatcherCode === 'start-failed'
               ? 'watcher.startFailed'
               : 'watcher.stopped',
         );
 
   return {
     activeChapter,
-    chapters,
+    chapters: state.chapters,
     commitAgentProposal,
     closeActiveDocument,
     compareConflictedDocument,
     createProjectDirectory,
-    dismissSaveConflict: () => setSaveConflict(null),
-    documentSaveError: localizeMessage(documentSaveMessage),
-    isCreatingProject: projectPickerAction === 'create',
-    isRefreshingProject,
-    isSavingDocument,
-    isSelectingProject,
-    projectDirectory,
-    projectId,
-    projectIcon,
-    projectRootTitles,
-    projectSelectionError: localizeMessage(projectSelectionMessage),
-    projectTree,
+    dismissSaveConflict: () =>
+      dispatch({ type: 'set-save-conflict', value: null }),
+    documentSaveError: localizeMessage(state.documentSaveMessage),
+    isCreatingProject: state.projectPickerAction === 'create',
+    isRefreshingProject: state.isRefreshingProject,
+    isSavingDocument: state.isSavingDocument,
+    isSelectingProject: state.projectPickerAction !== null,
+    projectDirectory: state.projectDirectory,
+    projectId: state.projectId,
+    projectIcon: state.projectIcon,
+    projectRootTitles: state.projectRootTitles,
+    projectSelectionError: localizeMessage(state.projectSelectionMessage),
+    projectTree: state.projectTree,
     projectWatcherError,
     refreshProject,
     reloadConflictedDocument,
     saveActiveDocument,
-    saveConflict,
-    selectChapter: setActiveChapterId,
+    saveConflict: state.saveConflict,
+    selectChapter: (chapterId: string | null) =>
+      dispatch({ type: 'select-chapter', chapterId }),
     selectProjectDirectory,
     updateActiveChapter,
   };

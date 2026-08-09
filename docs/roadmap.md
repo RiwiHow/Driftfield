@@ -32,20 +32,12 @@ implemented or authorized.
   narrow validated main handler; never load them in the application window.
 - General MDX/JSX remains disabled pending an explicit descriptor, CSP,
   sanitization, and test strategy.
-- `use-project-workspace.ts` still coordinates snapshots, dirty state, saves,
-  conflicts, project switching, watcher events, window close, and shortcuts.
-  Before adding session restoration or more document lifecycle states, move pure
-  transitions into a reducer and separate project-session effects from document
-  save/close effects without introducing a global state library by default.
 - The settings dialog now separates interface and model configuration. Continue
   splitting model override editing into focused components. `SettingsDialog.tsx`
   and `AgentModelAdvancedSettings.tsx` already combine substantial form,
   validation, provider-specific, and save-state behavior; additional Pi
   capabilities should not expand those components without first extracting
   focused sections and pure form transitions.
-- `WorkspaceShell.tsx` can move panel transition mechanics into a focused hook if
-  the shell grows further. Preserve the existing native View Transition behavior
-  and do not refactor it solely to reduce line count.
 - Agent conversation history load, refresh, rename, selection, and deletion
   failures do not yet have complete typed, user-visible error states. Do not
   represent a failed history load as an empty history, and keep persisted Main

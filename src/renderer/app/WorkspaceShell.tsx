@@ -6,21 +6,11 @@ import {
   PanelRightOpen,
 } from 'lucide-react';
 import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
   type CSSProperties,
   type RefObject,
 } from 'react';
-import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import {
-  Group,
-  Panel,
-  Separator,
-  usePanelRef,
-} from 'react-resizable-panels';
+import { Group, Panel, Separator } from 'react-resizable-panels';
 
 import type { Chapter } from '@/app/types';
 import { Button } from '@/components/ui/button';
@@ -45,6 +35,7 @@ import {
   WORKSPACE_PANEL_MIN_WIDTHS,
   WORKSPACE_PANEL_SEPARATOR_WIDTH,
 } from '../../shared/workspace-layout';
+import { useWorkspacePanelTransitions } from './use-workspace-panel-transitions';
 
 interface WorkspaceShellProps {
   activeChapter: Chapter | null;
@@ -113,115 +104,20 @@ export function WorkspaceShell({
 }: WorkspaceShellProps) {
   const { t } = useTranslation('workspace');
   const { t: tCommon } = useTranslation('common');
-  const libraryPanelRef = usePanelRef();
-  const assistantPanelRef = usePanelRef();
-  const libraryElementRef = useRef<HTMLDivElement | null>(null);
-  const assistantElementRef = useRef<HTMLDivElement | null>(null);
-  const librarySeparatorRef = useRef<HTMLDivElement | null>(null);
-  const assistantSeparatorRef = useRef<HTMLDivElement | null>(null);
-  const activeViewTransitionRef = useRef<ViewTransition | null>(null);
-  const [isLibraryCollapsed, setIsLibraryCollapsed] = useState(false);
-  const [isAssistantCollapsed, setIsAssistantCollapsed] = useState(false);
-
-  const clearViewTransitionStyles = useCallback((): void => {
-    for (const panelElement of [
-      libraryElementRef.current,
-      assistantElementRef.current,
-    ]) {
-      panelElement?.style.removeProperty('view-transition-name');
-    }
-    for (const separatorElement of [
-      librarySeparatorRef.current,
-      assistantSeparatorRef.current,
-    ]) {
-      separatorElement?.style.removeProperty('visibility');
-    }
-    document.documentElement.removeAttribute('data-panel-transition');
-  }, []);
-
-  useEffect(
-    () => () => {
-      activeViewTransitionRef.current?.skipTransition();
-      activeViewTransitionRef.current = null;
-      clearViewTransitionStyles();
-    },
-    [clearViewTransitionStyles],
-  );
-
-  const animatePanelToggle = (
-    side: 'left' | 'right',
-    panelElement: HTMLDivElement | null,
-    separatorElement: HTMLDivElement | null,
-    isCollapsed: boolean,
-    toggle: () => void,
-  ): void => {
-    activeViewTransitionRef.current?.skipTransition();
-    activeViewTransitionRef.current = null;
-    clearViewTransitionStyles();
-
-    if (
-      panelElement === null ||
-      !document.startViewTransition ||
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    ) {
-      toggle();
-      return;
-    }
-
-    const transitionKind = `${side}-${isCollapsed ? 'open' : 'close'}`;
-    document.documentElement.dataset.panelTransition = transitionKind;
-    panelElement.style.viewTransitionName = isCollapsed
-      ? 'none'
-      : 'df-side-panel';
-    if (separatorElement !== null) separatorElement.style.visibility = 'hidden';
-
-    const transition = document.startViewTransition(() => {
-      flushSync(toggle);
-      panelElement.style.viewTransitionName = isCollapsed
-        ? 'df-side-panel'
-        : 'none';
-    });
-    activeViewTransitionRef.current = transition;
-
-    const cleanUp = (): void => {
-      if (activeViewTransitionRef.current !== transition) return;
-      activeViewTransitionRef.current = null;
-      clearViewTransitionStyles();
-    };
-    void transition.finished.then(cleanUp, cleanUp);
-  };
-
-  const toggleLibraryPanel = (): void => {
-    animatePanelToggle(
-      'left',
-      libraryElementRef.current,
-      librarySeparatorRef.current,
-      libraryPanelRef.current?.isCollapsed() ?? false,
-      () => {
-        if (libraryPanelRef.current?.isCollapsed()) {
-          libraryPanelRef.current.expand();
-        } else {
-          libraryPanelRef.current?.collapse();
-        }
-      },
-    );
-  };
-
-  const toggleAssistantPanel = (): void => {
-    animatePanelToggle(
-      'right',
-      assistantElementRef.current,
-      assistantSeparatorRef.current,
-      assistantPanelRef.current?.isCollapsed() ?? false,
-      () => {
-        if (assistantPanelRef.current?.isCollapsed()) {
-          assistantPanelRef.current.expand();
-        } else {
-          assistantPanelRef.current?.collapse();
-        }
-      },
-    );
-  };
+  const {
+    assistantElementRef,
+    assistantPanelRef,
+    assistantSeparatorRef,
+    isAssistantCollapsed,
+    isLibraryCollapsed,
+    libraryElementRef,
+    libraryPanelRef,
+    librarySeparatorRef,
+    onAssistantResize,
+    onLibraryResize,
+    toggleAssistantPanel,
+    toggleLibraryPanel,
+  } = useWorkspacePanelTransitions();
 
   return (
     <TooltipProvider>
@@ -309,7 +205,7 @@ export function WorkspaceShell({
             id="library"
             minSize={WORKSPACE_PANEL_MIN_WIDTHS.library}
             maxSize={380}
-            onResize={(size) => setIsLibraryCollapsed(size.inPixels === 0)}
+            onResize={onLibraryResize}
             panelRef={libraryPanelRef}
           >
             <LibraryPanel
@@ -367,7 +263,7 @@ export function WorkspaceShell({
             id="assistant"
             minSize={WORKSPACE_PANEL_MIN_WIDTHS.assistant}
             maxSize={460}
-            onResize={(size) => setIsAssistantCollapsed(size.inPixels === 0)}
+            onResize={onAssistantResize}
             panelRef={assistantPanelRef}
           >
             <AssistantPanel

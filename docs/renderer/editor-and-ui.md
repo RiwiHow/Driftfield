@@ -9,6 +9,11 @@ Keep application state separate from persisted data:
 - Renderer stores own transient UI state and cached views.
 - Main services and future repositories remain the source of truth for novels.
 
+Project workspace state transitions live in
+`features/projects/project-workspace-reducer.ts`. Project-session subscriptions
+and document/window lifecycle effects use separate hooks; the composition hook
+does not duplicate those effects or introduce a global state store.
+
 ## Current UI foundation
 
 - Tailwind CSS provides utilities and semantic design tokens.
@@ -74,6 +79,11 @@ background and symbol colors from the registered theme contract.
 Library and Agents collapse controls use the native same-document View
 Transitions API, with an immediate fallback for reduced motion or unsupported
 runtimes. Do not restore hand-built DOM snapshot overlays.
+
+`app/use-workspace-panel-transitions.ts` owns panel refs, collapsed state,
+transition setup, interruption, cleanup, and reduced-motion fallback.
+`WorkspaceShell.tsx` consumes that hook and remains focused on layout
+composition.
 
 Do not capture the loaded MDXEditor or its tall `contenteditable` manuscript as
 one large snapshot. Capture the clipped editor surface viewport, stable editor
