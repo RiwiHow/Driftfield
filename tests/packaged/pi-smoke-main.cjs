@@ -53,7 +53,26 @@ void app.whenReady().then(() => {
     );
     fs.writeFileSync(
       modelsPath,
-      `${JSON.stringify({ providers: {} })}\n`,
+      `${JSON.stringify({
+        providers: {
+          openrouter: {
+            modelOverrides: {
+              'anthropic/claude-3-haiku': {
+                compat: {
+                  openRouterRouting: {
+                    allow_fallbacks: false,
+                    data_collection: 'deny',
+                    only: ['anthropic'],
+                    order: ['anthropic'],
+                    require_parameters: true,
+                    zdr: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      })}\n`,
       { mode: 0o600 },
     );
 

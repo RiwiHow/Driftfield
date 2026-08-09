@@ -4,6 +4,7 @@ import type {
   ResetAgentSettingsResult,
   SetAgentApiKeyRequest,
   UpdateAgentModelOverrideRequest,
+  UpdateAgentModelOverrideResult,
 } from "./contracts/agent-configuration";
 import type {
   ProjectSnapshot,
@@ -114,7 +115,7 @@ export interface DriftfieldAPI {
   ) => Promise<ProjectAgentSettings>;
   updateAgentModelOverride: (
     request: UpdateAgentModelOverrideRequest,
-  ) => Promise<AgentConfiguration>;
+  ) => Promise<UpdateAgentModelOverrideResult>;
   updateAgentConversationMessage: (
     request: UpdateAgentConversationMessageRequest,
   ) => Promise<AgentConversationState>;

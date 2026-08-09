@@ -104,6 +104,7 @@ export function SettingsDialog({
     useState<AgentApiKeyProviderId>("anthropic");
   const [modelProviderId, setModelProviderId] = useState('');
   const [category, setCategory] = useState<"interface" | "models">("interface");
+  const [isModelOverrideDirty, setIsModelOverrideDirty] = useState(false);
   const agentSettings = projectAgentSettings ?? {
     defaultModel: null,
     thinkingLevel: 'medium' as const,
@@ -676,6 +677,7 @@ export function SettingsDialog({
                 <AgentModelAdvancedSettings
                   isSaving={isSaving}
                   model={selectedModel}
+                  onDirtyChange={setIsModelOverrideDirty}
                   onSave={onUpdateModelOverride}
                   override={
                     agentConfiguration.modelOverrides.find(
@@ -713,7 +715,15 @@ export function SettingsDialog({
         <footer className="settings-footer">
           <span aria-live="polite" className={cn(error && "is-error")}>
             {error ??
-              (isSaving ? t("saveStatus.saving") : t("saveStatus.saved"))}
+              (isSaving
+                ? t("saveStatus.saving")
+                : category === "models"
+                  ? t(
+                      isModelOverrideDirty
+                        ? "saveStatus.modelUnsaved"
+                        : "saveStatus.modelSaved",
+                    )
+                  : t("saveStatus.saved"))}
           </span>
           <Button
             className="h-8 px-3 text-xs"

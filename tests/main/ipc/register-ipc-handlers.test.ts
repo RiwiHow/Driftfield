@@ -128,10 +128,11 @@ describe("IPC handler composition", () => {
       providerId: "anthropic",
       thinkingLevelMap: { xhigh: null },
     };
+    vi.mocked(context.agentModelConfigService.getOverrides).mockResolvedValue([
+      override,
+    ]);
 
-    await expect(update({}, { override })).resolves.toMatchObject({
-      modelOverrides: [],
-    });
+    await expect(update({}, { override })).resolves.toEqual({ override });
     expect(context.aiAgentService.reloadConfiguration).toHaveBeenCalledOnce();
     expect(context.agentModelConfigService.update).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'session-1' }),

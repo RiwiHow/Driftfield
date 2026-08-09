@@ -23,7 +23,7 @@ export const zhCN = {
     status: { characterCount_one: '{{count}} 字', characterCount_other: '{{count}} 字', dirty: '当前会话修改', missing: '磁盘文件已移动或删除；修改已保留', parseError: '格式解析失败', saving: '正在保存…', plainText: '纯文本', unsavedTitle: '仅保存在当前内存中' },
   },
   errors: {
-    agent: { cancelEnded: 'Agent 请求已经结束，无法取消。', cancelFailed: '取消 Agent 请求失败。', configurationLoad: '无法读取 Agent 模型配置。', credentialMissing: '默认模型的服务商凭据已被移除，请重新连接。', credentialRemove: '无法移除 Agent 凭据。', credentialSave: '无法保存凭据或读取模型，请检查 API Key。', modelNotConfigured: '请先连接模型服务并选择默认模型。', requestFailed: 'Agent 请求未能完成，请检查模型配置后重试。', resetFailed: '无法重置模型设置。', runtimeExited: 'Agent 运行进程意外退出，请重试。', startFailed: '无法启动 Agent 请求。' },
+    agent: { cancelEnded: 'Agent 请求已经结束，无法取消。', cancelFailed: '取消 Agent 请求失败。', configurationLoad: '无法读取 Agent 模型配置。', credentialMissing: '默认模型的服务商凭据已被移除，请重新连接。', credentialRemove: '无法移除 Agent 凭据。', credentialSave: '无法保存凭据或读取模型，请检查 API Key。', modelConfigSave: '无法保存 Pi 模型配置，请检查配置值后重试。', modelNotConfigured: '请先连接模型服务并选择默认模型。', requestFailed: 'Agent 请求未能完成，请检查模型配置后重试。', resetFailed: '无法重置模型设置。', runtimeExited: 'Agent 运行进程意外退出，请重试。', startFailed: '无法启动 Agent 请求。' },
     projects: { create: '无法在这里新建项目，请选择一个空文件夹后重试。', dirtySync: '无法同步未保存状态；请先手动保存文档。', open: '无法打开这个文件夹，请重试。', refresh: '项目刷新失败，请检查文件夹后重试。', save: '保存失败，请检查文件权限后重试。' },
     settings: { load: '无法读取应用设置，当前使用默认值。', save: '设置保存失败，请重试。' },
   },
@@ -64,7 +64,7 @@ export const zhCN = {
       thinkingMap: { custom: '自定义值', default: '使用 Pi 默认值', description: '控制可用的 Pi 思考等级以及发送给上游的实际值。', title: '思考级别映射', unsupported: '不支持' },
       title: 'Pi 模型配置',
     },
-    saveStatus: { saved: '设置已自动保存', saving: '正在保存…' },
+    saveStatus: { modelSaved: '模型设置已保存', modelUnsaved: 'Pi 模型配置有未保存的更改', saved: '设置已自动保存', saving: '正在保存…' },
     title: '应用设置',
   },
   workspace: { collapseAgents: '收起 Agents', collapseLibrary: '收起小说目录', expandAgents: '展开 Agents', expandLibrary: '展开小说目录' },

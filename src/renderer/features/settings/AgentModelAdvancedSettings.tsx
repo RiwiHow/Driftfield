@@ -24,6 +24,7 @@ import {
 interface AgentModelAdvancedSettingsProps {
   isSaving: boolean;
   model: AgentModelOption | null;
+  onDirtyChange: (dirty: boolean) => void;
   onSave: (override: AgentModelOverride) => Promise<boolean>;
   override: AgentModelOverride | null;
 }
@@ -72,9 +73,19 @@ const toTriState = (value: boolean | null): TriState =>
 const fromTriState = (value: string): boolean | null =>
   value === "default" ? null : value === "enabled";
 
+const inferRoutingMode = (
+  routing: AgentOpenRouterRoutingOverride | null,
+): RoutingMode => {
+  if (routing === null) return "automatic";
+  return routing.only.length === 1 && routing.order.length <= 1
+    ? "exact"
+    : "ordered";
+};
+
 export function AgentModelAdvancedSettings({
   isSaving,
   model,
+  onDirtyChange,
   onSave,
   override,
 }: AgentModelAdvancedSettingsProps) {
@@ -82,24 +93,46 @@ export function AgentModelAdvancedSettings({
   const { t: tAssistant } = useTranslation("assistant");
   const { t: tCommon } = useTranslation("common");
   const [draft, setDraft] = useState<AgentModelOverride | null>(null);
+  const [routingMode, setRoutingMode] =
+    useState<RoutingMode>("automatic");
+  const persisted = useMemo(
+    () =>
+      model === null
+        ? null
+        : structuredClone(override ?? emptyOverride(model)),
+    [model, override],
+  );
 
   useEffect(() => {
-    setDraft(
-      model === null ? null : structuredClone(override ?? emptyOverride(model)),
-    );
-  }, [model, override]);
+    setDraft(persisted);
+    setRoutingMode(inferRoutingMode(persisted?.openRouterRouting ?? null));
+  }, [persisted]);
 
-  const routingMode = useMemo<RoutingMode>(() => {
-    if (draft?.openRouterRouting === null || draft === null) return "automatic";
-    return draft.openRouterRouting.only.length === 1 &&
-      draft.openRouterRouting.order.length <= 1
-      ? "exact"
-      : "ordered";
-  }, [draft]);
+  const isDirty = useMemo(
+    () => JSON.stringify(draft) !== JSON.stringify(persisted),
+    [draft, persisted],
+  );
+
+  useEffect(() => {
+    onDirtyChange(isDirty);
+  }, [isDirty, onDirtyChange]);
+
+  useEffect(
+    () => () => {
+      onDirtyChange(false);
+    },
+    [onDirtyChange],
+  );
 
   if (model === null || draft === null) return null;
 
+  const canSave =
+    isDirty &&
+    (routingMode !== "exact" ||
+      draft.openRouterRouting?.only.length === 1);
+
   const updateRoutingMode = (mode: RoutingMode): void => {
+    setRoutingMode(mode);
     setDraft((current) => {
       if (current === null) return current;
       if (mode === "automatic") return { ...current, openRouterRouting: null };
@@ -146,7 +179,7 @@ export function AgentModelAdvancedSettings({
         </div>
         <Button
           className="h-8 px-3 text-xs"
-          disabled={isSaving}
+          disabled={isSaving || !canSave}
           onClick={() => void onSave(draft)}
           size="sm"
           type="button"

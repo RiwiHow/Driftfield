@@ -188,12 +188,14 @@ export const registerAgentIpcHandlers = ({
       }
       aiAgentService.reloadConfiguration();
       await agentModelConfigService.update(session, override);
-      return getAgentConfiguration(
-        aiAgentService,
-        agentCredentialService,
-        agentModelConfigService,
-        session,
-      );
+      return {
+        override:
+          (await agentModelConfigService.getOverrides(session)).find(
+            ({ modelId, providerId }) =>
+              modelId === override.modelId &&
+              providerId === override.providerId,
+          ) ?? null,
+      };
     },
   );
 

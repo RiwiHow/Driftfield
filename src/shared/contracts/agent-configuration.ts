@@ -88,6 +88,10 @@ export interface UpdateAgentModelOverrideRequest {
   override: AgentModelOverride;
 }
 
+export interface UpdateAgentModelOverrideResult {
+  override: AgentModelOverride | null;
+}
+
 export interface AgentConfiguration {
   models: AgentModelOption[];
   modelOverrides: AgentModelOverride[];

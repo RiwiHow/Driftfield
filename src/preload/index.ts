@@ -7,6 +7,7 @@ import type {
   ResetAgentSettingsResult,
   SetAgentApiKeyRequest,
   UpdateAgentModelOverrideRequest,
+  UpdateAgentModelOverrideResult,
 } from "../shared/contracts/agent-configuration";
 import type {
   ProjectSnapshot,
@@ -219,7 +220,7 @@ const api: DriftfieldAPI = {
     ipcRenderer.invoke(
       IPC_CHANNELS.updateAgentModelOverride,
       request,
-    ) as Promise<AgentConfiguration>,
+    ) as Promise<UpdateAgentModelOverrideResult>,
   updateAgentConversationMessage: (request: UpdateAgentConversationMessageRequest) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.updateAgentConversationMessage,

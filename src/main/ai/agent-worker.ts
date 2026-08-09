@@ -21,6 +21,7 @@ import {
 } from "../../shared/contracts/agent-worker";
 import { buildAgentSystemPrompt } from "./prompts/prompt-builder";
 import { AgentToolResultBridge } from "./agent-tool-result-bridge";
+import { didAssistantResponseFail } from './agent-response-status';
 import {
   isAgentToolName,
   type AgentToolContractMap,
@@ -188,6 +189,7 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
       send({ requestId: command.requestId, type: "cancelled" });
       return;
     }
+    let responseFailed = false;
     const unsubscribe = session.subscribe((event) => {
       if (
         event.type === "message_update" &&
@@ -199,13 +201,23 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
           type: "text-delta",
         });
       }
+      if (event.type === 'message_end' && event.message.role === 'assistant') {
+        responseFailed = didAssistantResponseFail(event.message);
+      }
     });
     try {
       await session.prompt(command.prompt);
-      send({
-        requestId: command.requestId,
-        type: active.cancelled ? "cancelled" : "completed",
-      });
+      if (active.cancelled) {
+        send({ requestId: command.requestId, type: 'cancelled' });
+      } else if (responseFailed) {
+        send({
+          code: 'request-failed',
+          requestId: command.requestId,
+          type: 'error',
+        });
+      } else {
+        send({ requestId: command.requestId, type: 'completed' });
+      }
     } finally {
       unsubscribe();
     }

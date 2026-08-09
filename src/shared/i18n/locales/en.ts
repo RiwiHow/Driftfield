@@ -24,7 +24,7 @@ export const en = {
     status: { characterCount_one: '{{count}} character', characterCount_other: '{{count}} characters', dirty: 'Unsaved session changes', missing: 'The file was moved or deleted; your changes are preserved', parseError: 'Formatting failed', saving: 'Saving…', plainText: 'Plain text', unsavedTitle: 'Stored in memory only' },
   },
   errors: {
-    agent: { cancelEnded: 'The Agent request has already ended and cannot be cancelled.', cancelFailed: 'Could not cancel the Agent request.', configurationLoad: 'Could not load Agent model configuration.', credentialMissing: 'The selected model provider credentials are missing. Reconnect the provider.', credentialRemove: 'Could not remove Agent credentials.', credentialSave: 'Could not save credentials or load models. Check the API key.', modelNotConfigured: 'Connect a model provider and select a default model first.', requestFailed: 'The Agent request could not be completed. Check the model configuration and try again.', resetFailed: 'Could not reset model settings.', runtimeExited: 'The Agent runtime exited unexpectedly. Try again.', startFailed: 'Could not start the Agent request.' },
+    agent: { cancelEnded: 'The Agent request has already ended and cannot be cancelled.', cancelFailed: 'Could not cancel the Agent request.', configurationLoad: 'Could not load Agent model configuration.', credentialMissing: 'The selected model provider credentials are missing. Reconnect the provider.', credentialRemove: 'Could not remove Agent credentials.', credentialSave: 'Could not save credentials or load models. Check the API key.', modelConfigSave: 'Could not save the Pi model configuration. Review its values and try again.', modelNotConfigured: 'Connect a model provider and select a default model first.', requestFailed: 'The Agent request could not be completed. Check the model configuration and try again.', resetFailed: 'Could not reset model settings.', runtimeExited: 'The Agent runtime exited unexpectedly. Try again.', startFailed: 'Could not start the Agent request.' },
     projects: { create: 'Could not create a project here. Choose an empty folder and try again.', dirtySync: 'Could not synchronize unsaved state. Save the document manually before continuing.', open: 'Could not open this folder. Try again.', refresh: 'Could not refresh the project. Check the folder and try again.', save: 'Save failed. Check file permissions and try again.' },
     settings: { load: 'Could not load application settings. Defaults are being used.', save: 'Could not save settings. Try again.' },
   },
@@ -65,7 +65,7 @@ export const en = {
       thinkingMap: { custom: 'Custom value', default: 'Use Pi default', description: 'Control which Pi thinking levels are available and the value sent upstream.', title: 'Thinking level map', unsupported: 'Unsupported' },
       title: 'Pi model configuration',
     },
-    saveStatus: { saved: 'Settings saved automatically', saving: 'Saving…' },
+    saveStatus: { modelSaved: 'Model settings saved', modelUnsaved: 'Pi model configuration has unsaved changes', saved: 'Settings saved automatically', saving: 'Saving…' },
     title: 'Application settings',
   },
   workspace: { collapseAgents: 'Collapse Agents', collapseLibrary: 'Collapse novel library', expandAgents: 'Expand Agents', expandLibrary: 'Expand novel library' },

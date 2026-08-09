@@ -12,7 +12,12 @@ const EMPTY_CONFIGURATION: AgentConfiguration = {
   modelOverrides: [],
   providers: [],
 };
-type AgentConfigurationErrorCode = "load" | "remove" | "reset" | "save";
+type AgentConfigurationErrorCode =
+  | "credentialSave"
+  | "load"
+  | "modelSave"
+  | "remove"
+  | "reset";
 
 export const useAgentConfiguration = (projectId: string | null) => {
   const { t } = useTranslation("errors");
@@ -55,7 +60,8 @@ export const useAgentConfiguration = (projectId: string | null) => {
         else await refresh();
         return true;
       } catch {
-        if (operationId.current === currentOperation) setErrorCode("save");
+        if (operationId.current === currentOperation)
+          setErrorCode("credentialSave");
         return false;
       } finally {
         setIsUpdating(false);
@@ -94,12 +100,24 @@ export const useAgentConfiguration = (projectId: string | null) => {
       setIsUpdating(true);
       setErrorCode(null);
       try {
-        const updated = await window.driftfield.updateAgentModelOverride({ override });
-        if (operationId.current === currentOperation) setConfiguration(updated);
+        const result = await window.driftfield.updateAgentModelOverride({ override });
+        if (operationId.current === currentOperation) {
+          setConfiguration((current) => ({
+            ...current,
+            modelOverrides: [
+              ...current.modelOverrides.filter(
+                ({ modelId, providerId }) =>
+                  modelId !== override.modelId ||
+                  providerId !== override.providerId,
+              ),
+              ...(result.override === null ? [] : [result.override]),
+            ],
+          }));
+        }
         else await refresh();
         return true;
       } catch {
-        if (operationId.current === currentOperation) setErrorCode("save");
+        if (operationId.current === currentOperation) setErrorCode("modelSave");
         return false;
       } finally {
         setIsUpdating(false);
@@ -136,8 +154,10 @@ export const useAgentConfiguration = (projectId: string | null) => {
         : t(
             errorCode === "load"
               ? "agent.configurationLoad"
-              : errorCode === "save"
+              : errorCode === "credentialSave"
                 ? "agent.credentialSave"
+                : errorCode === "modelSave"
+                  ? "agent.modelConfigSave"
                 : errorCode === 'reset'
                   ? 'agent.resetFailed'
                   : "agent.credentialRemove",

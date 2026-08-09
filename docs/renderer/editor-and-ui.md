@@ -101,3 +101,8 @@ model filtered to that provider. Do not combine provider and model identity into
 one long option label. Changing providers clears the current project model
 before a replacement is selected, so reasoning and advanced override controls
 cannot silently target the previous provider.
+
+Project model selection and thinking level save immediately. Pi model overrides,
+including OpenRouter routing, remain an explicit-save form. The settings footer
+must report unsaved advanced changes and save failures instead of describing the
+whole model page as automatically saved.
