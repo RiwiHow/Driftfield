@@ -1,43 +1,54 @@
 import type {
+  AgentToolContractMap,
   AgentToolExecutionResult,
   AgentToolName,
+  AgentToolRequest as SharedAgentToolRequest,
 } from '../../shared/contracts/agent-tools';
 
 interface PendingToolResult {
   reject: (error: Error) => void;
   resolve: (result: AgentToolExecutionResult) => void;
   timeout: ReturnType<typeof setTimeout>;
-}
-
-export interface AgentToolRequest {
-  arguments: unknown;
-  requestId: string;
-  toolCallId: string;
   toolName: AgentToolName;
 }
+
+export type AgentToolBridgeRequest = SharedAgentToolRequest & {
+  requestId: string;
+  toolCallId: string;
+};
 
 export class AgentToolResultBridge {
   private readonly pending = new Map<string, PendingToolResult>();
 
   constructor(
-    private readonly sendRequest: (request: AgentToolRequest) => void,
+    private readonly sendRequest: (request: AgentToolBridgeRequest) => void,
     private readonly timeoutMs: number,
   ) {}
 
-  request(
+  request<Name extends AgentToolName>(
     requestId: string,
     toolCallId: string,
-    toolName: AgentToolName,
-    args: unknown,
-  ): Promise<AgentToolExecutionResult> {
+    toolName: Name,
+    args: AgentToolContractMap[Name]['arguments'],
+  ): Promise<AgentToolExecutionResult<Name>> {
     const key = this.key(requestId, toolCallId);
-    return new Promise((resolve, reject) => {
+    return new Promise<AgentToolExecutionResult<Name>>((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pending.delete(key);
         reject(new Error('Agent tool timed out'));
       }, this.timeoutMs);
-      this.pending.set(key, { reject, resolve, timeout });
-      this.sendRequest({ arguments: args, requestId, toolCallId, toolName });
+      this.pending.set(key, {
+        reject,
+        resolve: (result) => resolve(result as AgentToolExecutionResult<Name>),
+        timeout,
+        toolName,
+      });
+      this.sendRequest({
+        arguments: args,
+        requestId,
+        toolCallId,
+        toolName,
+      } as AgentToolBridgeRequest);
     });
   }
 
@@ -51,6 +62,10 @@ export class AgentToolResultBridge {
     if (pending === undefined) return false;
     clearTimeout(pending.timeout);
     this.pending.delete(key);
+    if (result.toolName !== pending.toolName) {
+      pending.reject(new Error('Agent tool result identity mismatch'));
+      return false;
+    }
     pending.resolve(result);
     return true;
   }

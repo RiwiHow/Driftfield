@@ -10,9 +10,9 @@ import {
 } from './settings';
 import {
   isAgentToolExecutionResult,
-  isAgentToolName,
+  isAgentToolRequest,
   type AgentToolExecutionResult,
-  type AgentToolName,
+  type AgentToolRequest,
 } from './agent-tools';
 
 export interface AgentWorkerStartCommand {
@@ -49,13 +49,11 @@ export type AgentWorkerMessage =
   | { type: 'ready' }
   | { models: AgentModelOption[]; requestId: string; type: 'models' }
   | { code: 'model-list-failed'; requestId: string; type: 'models-error' }
-  | {
-      arguments: unknown;
+  | (AgentToolRequest & {
       requestId: string;
       toolCallId: string;
-      toolName: AgentToolName;
       type: 'tool-request';
-    }
+    })
   | { delta: string; requestId: string; type: 'text-delta' }
   | { requestId: string; type: 'completed' }
   | { requestId: string; type: 'cancelled' }
@@ -86,12 +84,11 @@ export const isAgentWorkerMessage = (
   if (message.type === 'error') {
     return message.code === 'request-failed' || message.code === 'runtime-exited';
   }
-  return message.type === 'tool-request' &&
+  return (
+    message.type === 'tool-request' &&
     typeof message.toolCallId === 'string' &&
-    isAgentToolName(message.toolName) &&
-    typeof message.arguments === 'object' &&
-    message.arguments !== null &&
-    !Array.isArray(message.arguments);
+    isAgentToolRequest(message)
+  );
 };
 
 export const isAgentWorkerCommand = (

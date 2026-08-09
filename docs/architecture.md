@@ -73,6 +73,12 @@ IPC is the application boundary, not an implementation shortcut.
 - Never send class instances, functions, Electron objects, database handles,
   SDK sessions, or custom prototypes across IPC.
 
+IPC registration is grouped by domain under `src/main/ipc/`: Agent, project,
+settings, and window/editor lifecycle modules each own their handlers, while
+`register-ipc-handlers.ts` is composition-only. Keep request validators close to
+their IPC domain and retain a registration-completeness test when channels are
+added or removed.
+
 ## Database
 
 Database drivers belong in `src/main/database/`. Renderer features call typed

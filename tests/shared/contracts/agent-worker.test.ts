@@ -59,6 +59,25 @@ describe('Agent utility-process protocol', () => {
     ).toBe(false);
     expect(
       isAgentWorkerCommand({
+        requestId: 'request-1',
+        result: {
+          data: {
+            baseRevision: 'revision',
+            contentRevision: 'revision',
+            documentId: 'chapter-1',
+            markdown: 'Chapter text',
+            source: 'disk',
+            title: 'Chapter',
+          },
+          ok: true,
+          toolName: 'get_novel_structure',
+        },
+        toolCallId: 'tool-1',
+        type: 'tool-result',
+      }),
+    ).toBe(false);
+    expect(
+      isAgentWorkerCommand({
         authPath: '/app-data/auth.json',
         cwd: '/project',
         modelId: 'claude-sonnet',
@@ -115,6 +134,15 @@ describe('Agent utility-process protocol', () => {
     ).toBe(false);
     expect(
       isAgentWorkerMessage({ requestId: 1, type: 'completed' }),
+    ).toBe(false);
+    expect(
+      isAgentWorkerMessage({
+        arguments: { documentId: 'not-allowed' },
+        requestId: 'request-1',
+        toolCallId: 'tool-1',
+        toolName: 'get_current_document',
+        type: 'tool-request',
+      }),
     ).toBe(false);
   });
 });

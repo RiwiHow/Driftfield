@@ -49,4 +49,23 @@ describe('AgentToolResultBridge', () => {
 
     await expect(result).rejects.toThrow('Agent request ended');
   });
+
+  it('rejects a result for a different tool identity', async () => {
+    const bridge = new AgentToolResultBridge(() => {}, 30_000);
+    const result = bridge.request(
+      'request-1',
+      'tool-1',
+      'get_current_document',
+      {},
+    );
+
+    expect(
+      bridge.resolve('request-1', 'tool-1', {
+        error: { code: 'document-not-found' },
+        ok: false,
+        toolName: 'get_document',
+      }),
+    ).toBe(false);
+    await expect(result).rejects.toThrow('identity mismatch');
+  });
 });

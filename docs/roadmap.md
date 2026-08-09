@@ -15,6 +15,13 @@ implemented or authorized.
 - Watcher retry and close/quit behavior have unit coverage but not complete
   packaged Electron end-to-end coverage on every supported platform.
 - YAML comment and exact-format round-trip preservation remains undecided.
+- `project-layout-service.ts` still combines pure YAML parsing, filesystem
+  validation, complete layout loading, and project initialization. Before adding
+  migration or structural-write workflows, separate parser, reader, and
+  initializer responsibilities behind the existing service boundary.
+- `project-service.ts` still combines project snapshot/scanning behavior with
+  serialized document saves. Split snapshot and document-write services before
+  Agent apply operations materially expand that file.
 
 ## Editor and renderer
 
@@ -26,6 +33,16 @@ implemented or authorized.
   narrow validated main handler; never load them in the application window.
 - General MDX/JSX remains disabled pending an explicit descriptor, CSP,
   sanitization, and test strategy.
+- `use-project-workspace.ts` still coordinates snapshots, dirty state, saves,
+  conflicts, project switching, watcher events, window close, and shortcuts.
+  Before adding session restoration or more document lifecycle states, move pure
+  transitions into a reducer and separate project-session effects from document
+  save/close effects without introducing a global state library by default.
+- `SettingsDialog.tsx` can be split into language, Agent provider/model,
+  appearance, and editor sections as a low-risk presentation cleanup.
+- `WorkspaceShell.tsx` can move panel transition mechanics into a focused hook if
+  the shell grows further. Preserve the existing native View Transition behavior
+  and do not refactor it solely to reduce line count.
 
 ## Agent and Pi
 
@@ -40,6 +57,10 @@ implemented or authorized.
   tree-shaking while preserving exposed providers and packaged smoke tests.
 - Do not enable Pi extensions, untrusted resource discovery, module-relative
   assets, or broader tools before corresponding packaged and security coverage.
+- `ProjectContextService` and `AiAgentService` remain intentionally cohesive for
+  the current three-tool, single-coordinator prototype. Reassess their split only
+  when additional context domains, concurrent specialists, or lifecycle states
+  create distinct responsibilities; do not add abstractions preemptively.
 
 ## Build and settings
 

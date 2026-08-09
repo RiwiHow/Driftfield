@@ -28,12 +28,18 @@ describe('AgentToolDispatcher', () => {
       timeoutMs: 1_000,
     });
 
-    await expect(dispatcher.execute(scope, 'get_document', { path: '/tmp/book.md' })).resolves.toEqual({
+    await expect(dispatcher.execute(scope, {
+      arguments: { path: '/tmp/book.md' },
+      toolName: 'get_document',
+    })).resolves.toEqual({
       error: { code: 'invalid-arguments' },
       ok: false,
       toolName: 'get_document',
     });
-    await expect(dispatcher.execute(scope, 'get_document', { documentId: 'chapter-1' })).resolves.toEqual({
+    await expect(dispatcher.execute(scope, {
+      arguments: { documentId: 'chapter-1' },
+      toolName: 'get_document',
+    })).resolves.toEqual({
       error: { code: 'tool-budget-exceeded' },
       ok: false,
       toolName: 'get_document',
@@ -52,7 +58,10 @@ describe('AgentToolDispatcher', () => {
       maxTotalResultBytes: 10_000,
       timeoutMs: 25,
     });
-    const result = dispatcher.execute(scope, 'get_document', { documentId: 'chapter-1' });
+    const result = dispatcher.execute(scope, {
+      arguments: { documentId: 'chapter-1' },
+      toolName: 'get_document',
+    });
 
     await vi.advanceTimersByTimeAsync(25);
 
@@ -73,8 +82,14 @@ describe('AgentToolDispatcher', () => {
       maxTotalResultBytes: 250,
       timeoutMs: 1_000,
     });
-    const first = await dispatcher.execute(scope, 'get_document', { documentId: 'chapter-1' });
-    const second = await dispatcher.execute(scope, 'get_document', { documentId: 'chapter-1' });
+    const first = await dispatcher.execute(scope, {
+      arguments: { documentId: 'chapter-1' },
+      toolName: 'get_document',
+    });
+    const second = await dispatcher.execute(scope, {
+      arguments: { documentId: 'chapter-1' },
+      toolName: 'get_document',
+    });
 
     expect(first.ok).toBe(true);
     expect(second).toEqual({
@@ -83,6 +98,9 @@ describe('AgentToolDispatcher', () => {
       toolName: 'get_document',
     });
     dispatcher.release(scope.requestId);
-    await expect(dispatcher.execute(scope, 'get_document', { documentId: 'chapter-1' })).resolves.toMatchObject({ ok: true });
+    await expect(dispatcher.execute(scope, {
+      arguments: { documentId: 'chapter-1' },
+      toolName: 'get_document',
+    })).resolves.toMatchObject({ ok: true });
   });
 });

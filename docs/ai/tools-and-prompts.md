@@ -17,6 +17,13 @@ session, rechecks document containment and regular-file status, and enforces
 per-request call, timeout, individual-result, and cumulative-result budgets.
 Results do not expose physical project paths or raw YAML.
 
+`AgentToolContractMap` is the shared compile-time mapping from each tool name to
+its arguments and result. Request and result unions are derived from that map so
+a tool cannot be paired with another tool's payload. Runtime validators enforce
+the same correlation at the utility-process boundary. The worker derives the
+enabled Pi tool-name list from the actual `defineTool()` collection instead of
+maintaining separate prompt and session arrays.
+
 Agent requests capture a size-bounded immutable editor draft with its stable
 document ID and disk base revision. `get_current_document` returns that snapshot,
 including unsaved edits. `get_document` deliberately reads persisted content.

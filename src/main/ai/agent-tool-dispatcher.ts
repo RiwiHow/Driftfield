@@ -1,8 +1,12 @@
 import type {
   AgentDraftSnapshot,
   AgentToolExecutionResult,
+  AgentToolFailureResult,
   AgentToolName,
+  AgentToolRequest,
+  AgentToolSuccessResult,
 } from '../../shared/contracts/agent-tools';
+import { isAgentToolRequest } from '../../shared/contracts/agent-tools';
 import {
   ProjectContextError,
   type ProjectContextService,
@@ -44,37 +48,35 @@ export class AgentToolDispatcher {
 
   async execute(
     scope: AgentToolScope,
-    toolName: AgentToolName,
-    args: unknown,
+    request: { arguments: unknown; toolName: AgentToolName },
   ): Promise<AgentToolExecutionResult> {
     const budget = this.budgets.get(scope.requestId) ?? { calls: 0, resultBytes: 0 };
     if (budget.calls >= this.policy.maxCalls) {
-      return this.error(toolName, 'tool-budget-exceeded');
+      return this.error(request.toolName, 'tool-budget-exceeded');
     }
     budget.calls += 1;
     this.budgets.set(scope.requestId, budget);
 
-    if (!this.hasValidArguments(toolName, args)) {
-      return this.error(toolName, 'invalid-arguments');
+    if (!isAgentToolRequest(request)) {
+      return this.error(request.toolName, 'invalid-arguments');
     }
 
     try {
-      const operation = this.executeValidated(scope, toolName, args);
-      const data = await this.withTimeout(operation);
-      const result: AgentToolExecutionResult = { data, ok: true, toolName };
+      const operation = this.executeValidated(scope, request);
+      const result = await this.withTimeout(operation);
       const bytes = Buffer.byteLength(JSON.stringify(result), 'utf8');
       if (
         bytes > this.policy.maxResultBytes ||
         budget.resultBytes + bytes > this.policy.maxTotalResultBytes
       ) {
-        return this.error(toolName, 'tool-budget-exceeded');
+        return this.error(request.toolName, 'tool-budget-exceeded');
       }
       budget.resultBytes += bytes;
       return result;
     } catch (error) {
-      if (error instanceof ProjectContextError) return this.error(toolName, error.code);
-      if (error instanceof ToolTimeoutError) return this.error(toolName, 'tool-timeout');
-      return this.error(toolName, 'internal-error');
+      if (error instanceof ProjectContextError) return this.error(request.toolName, error.code);
+      if (error instanceof ToolTimeoutError) return this.error(request.toolName, 'tool-timeout');
+      return this.error(request.toolName, 'internal-error');
     }
   }
 
@@ -84,34 +86,35 @@ export class AgentToolDispatcher {
 
   private async executeValidated(
     scope: AgentToolScope,
-    toolName: AgentToolName,
-    args: unknown,
-  ) {
+    request: AgentToolRequest,
+  ): Promise<AgentToolSuccessResult> {
     const contextScope = {
       ...(scope.draftSnapshot === undefined ? {} : { draftSnapshot: scope.draftSnapshot }),
       ownerId: scope.ownerId,
       projectSessionId: scope.projectSessionId,
     };
-    if (toolName === 'get_novel_structure') {
-      return await this.context.getNovelStructure(contextScope);
+    if (request.toolName === 'get_novel_structure') {
+      return {
+        data: await this.context.getNovelStructure(contextScope),
+        ok: true,
+        toolName: request.toolName,
+      };
     }
-    if (toolName === 'get_current_document') {
-      return await this.context.getCurrentDocument(contextScope);
+    if (request.toolName === 'get_current_document') {
+      return {
+        data: await this.context.getCurrentDocument(contextScope),
+        ok: true,
+        toolName: request.toolName,
+      };
     }
-    return await this.context.getDocument(
-      contextScope,
-      (args as { documentId: string }).documentId,
-    );
-  }
-
-  private hasValidArguments(toolName: AgentToolName, args: unknown): boolean {
-    if (typeof args !== 'object' || args === null || Array.isArray(args)) return false;
-    const record = args as Record<string, unknown>;
-    if (toolName !== 'get_document') return Object.keys(record).length === 0;
-    return Object.keys(record).length === 1 &&
-      typeof record.documentId === 'string' &&
-      record.documentId.length > 0 &&
-      record.documentId.length <= 128;
+    return {
+      data: await this.context.getDocument(
+        contextScope,
+        request.arguments.documentId,
+      ),
+      ok: true,
+      toolName: request.toolName,
+    };
   }
 
   private withTimeout<T>(operation: Promise<T>): Promise<T> {
@@ -130,11 +133,11 @@ export class AgentToolDispatcher {
     });
   }
 
-  private error(
-    toolName: AgentToolName,
+  private error<Name extends AgentToolName>(
+    toolName: Name,
     code: Extract<AgentToolExecutionResult, { ok: false }>['error']['code'],
-  ): AgentToolExecutionResult {
-    return { error: { code }, ok: false, toolName };
+  ): AgentToolFailureResult<Name> {
+    return { error: { code }, ok: false, toolName } as AgentToolFailureResult<Name>;
   }
 }
 

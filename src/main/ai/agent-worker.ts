@@ -21,7 +21,11 @@ import {
 } from '../../shared/contracts/agent-worker';
 import { buildAgentSystemPrompt } from './prompts/prompt-builder';
 import { AgentToolResultBridge } from './agent-tool-result-bridge';
-import type { AgentToolName } from '../../shared/contracts/agent-tools';
+import {
+  isAgentToolName,
+  type AgentToolContractMap,
+  type AgentToolName,
+} from '../../shared/contracts/agent-tools';
 
 const TOOL_RESULT_TIMEOUT_MS = 30_000;
 
@@ -39,8 +43,7 @@ const send = (message: AgentWorkerMessage): void => {
 };
 
 const toolResults = new AgentToolResultBridge(
-  ({ arguments: args, requestId, toolCallId, toolName }) =>
-    send({ arguments: args, requestId, toolCallId, toolName, type: 'tool-request' }),
+  (request) => send({ ...request, type: 'tool-request' }),
   TOOL_RESULT_TIMEOUT_MS,
 );
 
@@ -122,28 +125,27 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
     if (model === undefined) {
       throw new Error('The configured model is not available');
     }
+    const customTools = createNovelTools(command.requestId);
+    const enabledToolNames = customTools.map(({ name }) => {
+      if (!isAgentToolName(name)) {
+        throw new Error(`Unregistered Driftfield tool: ${name}`);
+      }
+      return name;
+    });
     const systemPrompt = buildAgentSystemPrompt({
-      availableTools: [
-        'get_novel_structure',
-        'get_current_document',
-        'get_document',
-      ],
+      availableTools: enabledToolNames,
       role: command.role,
     });
     ({ session } = await createAgentSession({
       cwd: command.cwd,
-      customTools: createNovelTools(command.requestId),
+      customTools,
       model,
       modelRuntime: runtime,
       resourceLoader: createDriftfieldResourceLoader(systemPrompt.prompt),
       sessionManager: SessionManager.inMemory(command.cwd),
       settingsManager: SettingsManager.inMemory(),
       thinkingLevel: command.thinkingLevel,
-      tools: [
-        'get_novel_structure',
-        'get_current_document',
-        'get_document',
-      ],
+      tools: enabledToolNames,
     }));
     active.session = session;
     if (active.cancelled) {
@@ -197,7 +199,12 @@ function createNovelTools(requestId: string) {
       name: 'get_novel_structure',
       parameters: Type.Object({}, { additionalProperties: false }),
       execute: async (toolCallId, params) =>
-        textToolResult(await requestTool(requestId, toolCallId, 'get_novel_structure', params)),
+        textToolResult(await requestTool(
+          requestId,
+          toolCallId,
+          'get_novel_structure',
+          params as AgentToolContractMap['get_novel_structure']['arguments'],
+        )),
     }),
     defineTool({
       description: 'Read the current manuscript draft selected by the user, including unsaved edits.',
@@ -205,7 +212,12 @@ function createNovelTools(requestId: string) {
       name: 'get_current_document',
       parameters: Type.Object({}, { additionalProperties: false }),
       execute: async (toolCallId, params) =>
-        textToolResult(await requestTool(requestId, toolCallId, 'get_current_document', params)),
+        textToolResult(await requestTool(
+          requestId,
+          toolCallId,
+          'get_current_document',
+          params as AgentToolContractMap['get_current_document']['arguments'],
+        )),
     }),
     defineTool({
       description: 'Read one persisted manuscript or lorebook document by the stable ID returned by get_novel_structure.',
@@ -218,11 +230,11 @@ function createNovelTools(requestId: string) {
   ];
 }
 
-async function requestTool(
+async function requestTool<Name extends AgentToolName>(
   requestId: string,
   toolCallId: string,
-  toolName: AgentToolName,
-  args: unknown,
+  toolName: Name,
+  args: AgentToolContractMap[Name]['arguments'],
 ): Promise<string> {
   return JSON.stringify(await toolResults.request(requestId, toolCallId, toolName, args));
 }

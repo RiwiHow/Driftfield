@@ -262,8 +262,7 @@ export class AiAgentService {
               projectSessionId: active.projectSessionId,
               requestId: message.requestId,
             },
-            message.toolName,
-            message.arguments,
+            message,
           );
       if (
         this.activeRequests.get(message.requestId) === active &&
