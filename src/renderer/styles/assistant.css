@@ -14,16 +14,47 @@
   padding: 0 24px 0 7px;
   color: var(--foreground);
   font: inherit;
+  font-size: 11px;
   text-overflow: ellipsis;
   background: var(--df-pane-header-background);
   border: 1px solid transparent;
   border-radius: 4px;
+  box-shadow: none;
 }
 
 .conversation-select:hover,
 .conversation-select:focus-visible {
   border-color: var(--border);
   outline: none;
+  box-shadow: none;
+}
+
+.conversation-select svg {
+  width: 13px;
+  height: 13px;
+}
+
+.conversation-select-content {
+  width: var(--radix-select-trigger-width);
+  min-width: 160px;
+  max-width: min(320px, var(--radix-select-content-available-width));
+  font-size: 11px;
+}
+
+.conversation-select-content [data-slot="select-item"] {
+  min-height: 26px;
+  padding: 5px 26px 5px 8px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.conversation-select-content [data-slot="select-item-indicator"] {
+  right: 7px;
+}
+
+.conversation-select-content [data-slot="select-item-indicator"] svg {
+  width: 13px;
+  height: 13px;
 }
 
 .conversation-actions {

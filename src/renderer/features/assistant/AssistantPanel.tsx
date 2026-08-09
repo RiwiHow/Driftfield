@@ -35,6 +35,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -206,29 +213,43 @@ export function AssistantPanel({
   return (
     <aside className="assistant-pane">
       <div className="pane-heading assistant-heading">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <select
-              aria-label={t('history.select')}
-              className="conversation-select"
-              disabled={
-                isActive || historyLoading || activeConversationId === null
-              }
-              onChange={(event) => {
-                setEditingMessage(null);
-                void selectConversation(event.target.value);
-              }}
-              value={activeConversationId ?? ''}
-            >
-              {conversations.map((conversation) => (
-                <option key={conversation.id} value={conversation.id}>
-                  {conversation.title || t('history.untitled')}
-                </option>
-              ))}
-            </select>
-          </TooltipTrigger>
-          <TooltipContent>{t('history.select')}</TooltipContent>
-        </Tooltip>
+        <Select
+          disabled={
+            isActive || historyLoading || activeConversationId === null
+          }
+          onValueChange={(conversationId) => {
+            if (conversationId !== activeConversationId) {
+              setEditingMessage(null);
+              void selectConversation(conversationId);
+            }
+          }}
+          value={activeConversationId ?? ''}
+        >
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <SelectTrigger
+                aria-label={t('history.select')}
+                className="conversation-select"
+                size="sm"
+              >
+                <SelectValue />
+              </SelectTrigger>
+            </TooltipTrigger>
+            <TooltipContent>{t('history.select')}</TooltipContent>
+          </Tooltip>
+          <SelectContent
+            align="start"
+            className="conversation-select-content"
+            position="popper"
+            sideOffset={4}
+          >
+            {conversations.map((conversation) => (
+              <SelectItem key={conversation.id} value={conversation.id}>
+                {conversation.title || t('history.untitled')}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <div className="conversation-actions">
           <Tooltip>
             <TooltipTrigger asChild>
