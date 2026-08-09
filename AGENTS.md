@@ -287,10 +287,16 @@ domain types.
   formats so the SDK can be upgraded or replaced.
 - Keep application system prompts under `src/main/ai/prompts/` as versioned,
   application-owned role profiles. Compose immutable application boundaries,
-  role instructions, and the exact enabled tool descriptions through the
-  prompt registry; do not embed complete prompts in the worker entry or allow
-  renderer-supplied arbitrary system prompts. Future user writing instructions
-  may be size-bounded additions but must not replace application boundaries.
+  role instructions, and cross-tool usage policy through the prompt registry;
+  do not embed complete prompts in the worker entry or allow renderer-supplied
+  arbitrary system prompts. Keep each tool's name, description, and parameter
+  schema in its `defineTool()` registration as the single source of truth; do
+  not duplicate per-tool descriptions in the system prompt. Whenever a tool is
+  added, removed, or its semantics change, explicitly review and, when needed,
+  update the cross-tool policy in `src/main/ai/prompts/prompt-builder.ts`. Bump
+  the affected prompt profile versions whenever that review changes model-facing
+  prompt behavior. Future user writing instructions may be size-bounded
+  additions but must not replace application boundaries.
 
 ### Agent Coordination
 

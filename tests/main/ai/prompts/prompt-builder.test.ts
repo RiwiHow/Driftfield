@@ -13,12 +13,16 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain(`Role profile: ${role}`);
   });
 
-  it('describes only the bounded tools enabled for the request', () => {
+  it('adds cross-tool policy without duplicating registered tool descriptions', () => {
     const built = buildAgentSystemPrompt({
       availableTools: ['get_current_document'],
       role: 'coordinator',
     });
-    expect(built.prompt).toContain('get_current_document:');
+    expect(built.prompt).toContain('native tool calling');
+    expect(built.prompt).toContain('stable document identities');
+    expect(built.prompt).not.toContain('get_current_document:');
+    expect(built.prompt).not.toContain('get_novel_structure:');
+    expect(built.prompt).not.toContain('get_document:');
     expect(built.prompt).not.toContain('No application tools are available');
   });
 });
