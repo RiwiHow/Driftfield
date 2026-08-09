@@ -17,6 +17,7 @@ import type {
 import type {
   AgentSettings,
   AppSettings,
+  AppTheme,
   UpdateAppSettingsRequest,
   UpdateProjectAgentSettingsRequest,
 } from "../../../../shared/contracts/settings";
@@ -45,6 +46,7 @@ interface SettingsDialogProps {
   ) => Promise<boolean>;
   open: boolean;
   projectAgentSettings: AgentSettings | null;
+  resolvedTheme: AppTheme;
   settings: AppSettings;
 }
 
@@ -61,6 +63,7 @@ export function SettingsDialog({
   onUpdateModelOverride,
   open,
   projectAgentSettings,
+  resolvedTheme,
   settings,
 }: SettingsDialogProps) {
   const { t } = useTranslation("settings");
@@ -93,6 +96,7 @@ export function SettingsDialog({
             <InterfaceSettingsPanel
               isSaving={isSaving}
               onUpdate={onUpdate}
+              resolvedTheme={resolvedTheme}
               settings={settings}
             />
           ) : (

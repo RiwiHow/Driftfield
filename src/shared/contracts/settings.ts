@@ -1,7 +1,15 @@
 import type { AppLanguage } from '../i18n/languages';
-import { APP_THEMES, type AppTheme } from '../theme-contract';
+import {
+  APP_THEME_PREFERENCES,
+  type AppThemePreference,
+} from '../theme-contract';
 
-export { APP_THEMES, type AppTheme } from '../theme-contract';
+export {
+  APP_THEMES,
+  APP_THEME_PREFERENCES,
+  type AppTheme,
+  type AppThemePreference,
+} from '../theme-contract';
 export type CloseWindowBehavior = 'minimize' | 'quit';
 
 export const AGENT_THINKING_LEVELS = [
@@ -33,7 +41,7 @@ export interface AppSettings {
   editorFontSize: number;
   lastProjectDirectoryPath: string | null;
   language: AppLanguage;
-  theme: AppTheme;
+  theme: AppThemePreference;
   version: 1;
 }
 

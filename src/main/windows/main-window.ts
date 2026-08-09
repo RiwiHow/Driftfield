@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  nativeTheme,
   type BrowserWindowConstructorOptions,
   type Event,
 } from 'electron';
@@ -12,6 +13,8 @@ import {
   APP_THEME_WINDOW_BACKGROUNDS,
   APP_THEME_WINDOW_CHROME,
   type AppTheme,
+  type AppThemePreference,
+  resolveAppTheme,
 } from '../../shared/theme-contract';
 import type { SettingsService } from '../services/settings-service';
 import {
@@ -59,9 +62,11 @@ export const getMainWindowChromeOptions = (
 
 export const updateMainWindowTheme = (
   window: BrowserWindow,
-  theme: AppTheme,
+  preference: AppThemePreference,
   platform: NodeJS.Platform = process.platform,
+  prefersDark: boolean = nativeTheme.shouldUseDarkColors,
 ): void => {
+  const theme = resolveAppTheme(preference, prefersDark);
   window.setBackgroundColor(APP_THEME_WINDOW_BACKGROUNDS[theme]);
   if (platform === 'win32') {
     const chrome = APP_THEME_WINDOW_CHROME[theme];
@@ -87,7 +92,11 @@ export const createMainWindow = ({
         ),
       ).href;
   const navigationPolicy = createRendererNavigationPolicy(rendererUrl);
-  const theme = settingsService.get().theme;
+  const themePreference = settingsService.get().theme;
+  const theme = resolveAppTheme(
+    themePreference,
+    nativeTheme.shouldUseDarkColors,
+  );
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -106,7 +115,16 @@ export const createMainWindow = ({
   });
 
   const webContentsId = window.webContents.id;
-  window.once('closed', () => onClosed(webContentsId));
+  const updateSystemTheme = (): void => {
+    if (settingsService.get().theme === 'system') {
+      updateMainWindowTheme(window, 'system');
+    }
+  };
+  nativeTheme.on('updated', updateSystemTheme);
+  window.once('closed', () => {
+    nativeTheme.off('updated', updateSystemTheme);
+    onClosed(webContentsId);
+  });
   window.on('close', (event) => onClose(window, event));
   window.once('ready-to-show', () => !window.isDestroyed() && window.show());
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));

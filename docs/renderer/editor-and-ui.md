@@ -51,6 +51,12 @@ are derived from the same registry. Contract tests enforce variable
 completeness, startup-background agreement, critical text contrast, and the
 absence of palette literals outside the theme stylesheet.
 
+The persisted appearance preference may also be `system`. It resolves to one
+of the registered light or dark themes: Renderer follows
+`prefers-color-scheme`, while Main follows Electron's native theme state for
+the window background and native titlebar chrome. A system preference is not a
+third palette and must not introduce a separate CSS theme block.
+
 The built-in GitHub Light and GitHub Dark palettes map Driftfield roles from the
 official `@primer/primitives` functional light and dark themes. Preserve
 Primer's separation between accent interactions and success, attention, and

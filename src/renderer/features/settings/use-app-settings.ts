@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -7,6 +7,7 @@ import {
 } from '../../../shared/contracts/settings';
 import { changeRendererLanguage } from '../../i18n';
 import { applyDocumentTheme } from '../../app/apply-document-theme';
+import { resolveAppTheme } from '../../../shared/theme-contract';
 
 type SettingsErrorCode = 'load' | 'save';
 
@@ -19,10 +20,27 @@ export const useAppSettings = (
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsErrorCode, setSettingsErrorCode] =
     useState<SettingsErrorCode | null>(settingsLoadFailed ? 'load' : null);
+  const [prefersDark, setPrefersDark] = useState(
+    () => window.matchMedia('(prefers-color-scheme: dark)').matches,
+  );
+  const resolvedTheme = useMemo(
+    () => resolveAppTheme(settings.theme, prefersDark),
+    [prefersDark, settings.theme],
+  );
 
   useEffect(() => {
-    applyDocumentTheme(settings.theme);
-  }, [settings.theme]);
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const updateSystemTheme = (event: MediaQueryListEvent): void => {
+      setPrefersDark(event.matches);
+    };
+    mediaQuery.addEventListener('change', updateSystemTheme);
+    setPrefersDark(mediaQuery.matches);
+    return () => mediaQuery.removeEventListener('change', updateSystemTheme);
+  }, []);
+
+  useEffect(() => {
+    applyDocumentTheme(resolvedTheme);
+  }, [resolvedTheme]);
 
   const updateSettings = useCallback(
     async (update: UpdateAppSettingsRequest): Promise<void> => {
@@ -46,6 +64,7 @@ export const useAppSettings = (
 
   return {
     isSavingSettings,
+    resolvedTheme,
     settings,
     settingsError:
       settingsErrorCode === null

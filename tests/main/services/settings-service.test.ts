@@ -46,6 +46,15 @@ describe('settings parsing and validation', () => {
     );
   });
 
+  it('accepts the system theme preference', () => {
+    expect(parseSettingsUpdate({ theme: 'system' })).toEqual({
+      theme: 'system',
+    });
+    expect(
+      parseStoredSettings({ ...DEFAULT_SETTINGS, theme: 'system' }).theme,
+    ).toBe('system');
+  });
+
   it('uses defaults for invalid stored fields', () => {
     expect(parseStoredSettings({ editorFontSize: 100 })).toMatchObject({
       editorFontSize: 17,

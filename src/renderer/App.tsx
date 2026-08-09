@@ -30,7 +30,13 @@ export function App({
 }: AppProps) {
   const { t } = useTranslation("projects");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const { isSavingSettings, settings, settingsError, updateSettings } =
+  const {
+    isSavingSettings,
+    resolvedTheme,
+    settings,
+    settingsError,
+    updateSettings,
+  } =
     useAppSettings(initialSettings, settingsLoadFailed);
   const project = useProjectWorkspace(initialProject);
   const agentConfiguration = useAgentConfiguration(project.projectId);
@@ -81,7 +87,7 @@ export function App({
         recoveredChapters={project.chapters.filter(
           (chapter) => chapter.backingFileStatus === "missing",
         )}
-        theme={settings.theme}
+        theme={resolvedTheme}
       />
       <SettingsDialog
         agentConfiguration={agentConfiguration.configuration}
@@ -115,6 +121,7 @@ export function App({
         onUpdateProjectAgent={(update) => void projectAgentSettings.update(update)}
         open={isSettingsOpen}
         projectAgentSettings={projectAgentSettings.settings}
+        resolvedTheme={resolvedTheme}
         settings={settings}
       />
       <Dialog

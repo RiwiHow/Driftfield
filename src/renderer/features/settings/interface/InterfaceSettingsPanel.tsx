@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -22,6 +23,7 @@ import { APP_LANGUAGE_OPTIONS } from "../../../../shared/i18n/languages";
 interface InterfaceSettingsPanelProps {
   isSaving: boolean;
   onUpdate: (update: UpdateAppSettingsRequest) => void;
+  resolvedTheme: AppTheme;
   settings: AppSettings;
 }
 
@@ -52,6 +54,7 @@ const editorFontSizes = [14, 15, 16, 17, 18, 20, 22, 24];
 export function InterfaceSettingsPanel({
   isSaving,
   onUpdate,
+  resolvedTheme,
   settings,
 }: InterfaceSettingsPanelProps) {
   const { t } = useTranslation("settings");
@@ -109,22 +112,42 @@ export function InterfaceSettingsPanel({
           <p>{t("appearance.description")}</p>
         </div>
 
+        <div className="theme-system-option">
+          <div>
+            <Label htmlFor="follow-system-theme">
+              {t("appearance.followSystem")}
+            </Label>
+            <p>{t("appearance.followSystemDescription")}</p>
+          </div>
+          <Switch
+            aria-label={t("appearance.followSystem")}
+            checked={settings.theme === "system"}
+            disabled={isSaving}
+            id="follow-system-theme"
+            onCheckedChange={(checked) =>
+              onUpdate({ theme: checked ? "system" : resolvedTheme })
+            }
+          />
+        </div>
+
         <div className="theme-options">
           {themeOptions.map((option) => {
-            const isSelected = settings.theme === option.theme;
+            const followsSystem = settings.theme === "system";
+            const isSelected = resolvedTheme === option.theme;
 
             return (
               <Label
                 className={cn(
                   "theme-option relative block min-w-0 cursor-pointer",
-                  isSaving && "pointer-events-none opacity-50",
+                  (isSaving || followsSystem) &&
+                    "pointer-events-none opacity-50",
                 )}
                 key={option.theme}
               >
                 <input
                   checked={isSelected}
                   className="peer sr-only"
-                  disabled={isSaving}
+                  disabled={isSaving || followsSystem}
                   name="application-theme"
                   onChange={() => onUpdate({ theme: option.theme })}
                   type="radio"

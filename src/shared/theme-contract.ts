@@ -5,6 +5,10 @@ export const APP_THEMES = [
 
 export type AppTheme = (typeof APP_THEMES)[number];
 
+export const APP_THEME_PREFERENCES = ['system', ...APP_THEMES] as const;
+
+export type AppThemePreference = (typeof APP_THEME_PREFERENCES)[number];
+
 export const APP_THEME_COLOR_SCHEMES = {
   'github-dark': 'dark',
   'github-light': 'light',
@@ -71,3 +75,11 @@ export const THEME_REQUIRED_CSS_VARIABLES = [
 
 export const isDarkAppTheme = (theme: AppTheme): boolean =>
   APP_THEME_COLOR_SCHEMES[theme] === 'dark';
+
+export const resolveAppTheme = (
+  preference: AppThemePreference,
+  prefersDark: boolean,
+): AppTheme => {
+  if (preference !== 'system') return preference;
+  return prefersDark ? 'github-dark' : 'github-light';
+};

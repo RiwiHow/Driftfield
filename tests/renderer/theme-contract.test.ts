@@ -5,9 +5,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   APP_THEMES,
+  APP_THEME_PREFERENCES,
   APP_THEME_WINDOW_BACKGROUNDS,
   APP_THEME_WINDOW_CHROME,
   THEME_REQUIRED_CSS_VARIABLES,
+  resolveAppTheme,
 } from '../../src/shared/theme-contract';
 
 const stylesDirectory = resolve(process.cwd(), 'src/renderer/styles');
@@ -63,6 +65,18 @@ const contrastRatio = (foreground: string, background: string): number => {
 describe('renderer theme contract', () => {
   it('offers only the two supported GitHub Primer themes', () => {
     expect(APP_THEMES).toEqual(['github-light', 'github-dark']);
+    expect(APP_THEME_PREFERENCES).toEqual([
+      'system',
+      'github-light',
+      'github-dark',
+    ]);
+  });
+
+  it('resolves the system preference without changing explicit themes', () => {
+    expect(resolveAppTheme('system', false)).toBe('github-light');
+    expect(resolveAppTheme('system', true)).toBe('github-dark');
+    expect(resolveAppTheme('github-light', true)).toBe('github-light');
+    expect(resolveAppTheme('github-dark', false)).toBe('github-dark');
   });
 
   it.each(APP_THEMES)('%s implements every required semantic variable', (theme) => {

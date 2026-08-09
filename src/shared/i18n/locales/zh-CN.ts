@@ -49,7 +49,7 @@ export const zhCN = {
   },
   settings: {
     agent: { credentialDescription: '凭据全局保存在这台设备上，应用不会显示已保存的 Key。', keyPlaceholder: '输入 API Key', modelDescription: '先选择已配置的 Provider，再选择它提供的模型；所选模型仅保存到当前小说项目。', modelLabel: '项目 Agent 模型', modelTitle: '项目模型', noModels: '没有可用模型', noProvider: '尚未连接模型服务', providerLabel: '项目模型 Provider', providerTitle: '模型服务', resetAction: '重置模型设置', resetConfirm: '确定重置这台设备上的全部模型凭据和当前项目的模型设置吗？对话和小说内容不会被删除。', resetDescription: '清除所有已保存的服务商凭据、当前项目的模型选择和高级覆盖，以及生成的模型缓存。', resetTitle: '重置模型设置', selectModel: '请选择模型', selectProvider: '选择 Provider', thinkingDescription: '此设置按项目保存；更高等级通常更慢，并可能产生更多费用。', thinkingLabel: 'Agent 思考深度', thinkingTitle: '思考深度' },
-    appearance: { description: '应用到窗口、目录、编辑器和 Agent 面板。', title: '外观主题', themes: { githubDark: '适合专注写作的 Primer 深色界面', githubLight: '清晰高对比度的 Primer 浅色界面' } },
+    appearance: { description: '应用到窗口、目录、编辑器和 Agent 面板。', followSystem: '跟随系统外观', followSystemDescription: '系统外观变化时，自动切换浅色与深色主题。', title: '外观主题', themes: { githubDark: '适合专注写作的 Primer 深色界面', githubLight: '清晰高对比度的 Primer 浅色界面' } },
     categories: { interfaceDescription: '语言、主题和编辑器行为', interfaceTitle: '界面', label: '设置分类', modelsDescription: '服务、模型和思考深度', modelsTitle: '模型' },
     closeBehavior: { description: '明确退出操作始终会完全退出 Driftfield。', label: '关闭主窗口时的行为', minimize: '最小化', quit: '退出应用', title: '关闭主窗口时' },
     description: '调整 Driftfield 的语言、外观和写作体验。更改会自动保存。',

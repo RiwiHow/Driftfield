@@ -3,7 +3,7 @@ import path from 'node:path';
 import { isAppLanguage } from '../../shared/i18n/languages';
 
 import {
-  APP_THEMES,
+  APP_THEME_PREFERENCES,
   DEFAULT_APP_SETTINGS,
   type AppSettings,
   type CloseWindowBehavior,
@@ -14,7 +14,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const isTheme = (value: unknown): value is AppSettings['theme'] =>
-  typeof value === 'string' && APP_THEMES.includes(value as AppSettings['theme']);
+  typeof value === 'string' &&
+  APP_THEME_PREFERENCES.includes(value as AppSettings['theme']);
 
 const isEditorFontSize = (value: unknown): value is number =>
   typeof value === 'number' &&

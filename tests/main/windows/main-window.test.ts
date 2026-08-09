@@ -2,8 +2,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WORKSPACE_MIN_CONTENT_WIDTH } from '../../../src/shared/workspace-layout';
 
-const { browserWindowOptions } = vi.hoisted(() => ({
+const {
+  browserWindowOptions,
+  nativeThemeState,
+  setBackgroundColor,
+  setTitleBarOverlay,
+} = vi.hoisted(() => ({
   browserWindowOptions: vi.fn(),
+  nativeThemeState: {
+    dark: false,
+    updatedHandlers: new Set<() => void>(),
+  },
+  setBackgroundColor: vi.fn(),
+  setTitleBarOverlay: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
@@ -24,7 +35,20 @@ vi.mock('electron', () => ({
     loadURL = vi.fn(() => Promise.resolve());
     on = vi.fn();
     once = vi.fn();
+    setBackgroundColor = setBackgroundColor;
+    setTitleBarOverlay = setTitleBarOverlay;
     show = vi.fn();
+  },
+  nativeTheme: {
+    get shouldUseDarkColors() {
+      return nativeThemeState.dark;
+    },
+    off: vi.fn((_event: string, handler: () => void) => {
+      nativeThemeState.updatedHandlers.delete(handler);
+    }),
+    on: vi.fn((_event: string, handler: () => void) => {
+      nativeThemeState.updatedHandlers.add(handler);
+    }),
   },
 }));
 
@@ -37,6 +61,10 @@ import {
 describe('main window', () => {
   beforeEach(() => {
     browserWindowOptions.mockClear();
+    nativeThemeState.dark = false;
+    nativeThemeState.updatedHandlers.clear();
+    setBackgroundColor.mockClear();
+    setTitleBarOverlay.mockClear();
     vi.stubGlobal(
       'MAIN_WINDOW_VITE_DEV_SERVER_URL',
       'http://localhost:5173/',
@@ -92,5 +120,40 @@ describe('main window', () => {
       height: 37,
       symbolColor: '#59636e',
     });
+  });
+
+  it('resolves a system theme preference for native chrome', () => {
+    const window = {
+      setBackgroundColor: vi.fn(),
+      setTitleBarOverlay: vi.fn(),
+    };
+
+    updateMainWindowTheme(window as never, 'system', 'win32', true);
+
+    expect(window.setBackgroundColor).toHaveBeenCalledWith('#0d1117');
+    expect(window.setTitleBarOverlay).toHaveBeenCalledWith({
+      color: '#151b23',
+      height: 37,
+      symbolColor: '#9198a1',
+    });
+  });
+
+  it('updates a following window when the system appearance changes', () => {
+    createMainWindow({
+      onClose: vi.fn(),
+      onClosed: vi.fn(),
+      settingsService: {
+        get: () => ({ theme: 'system' }),
+      } as never,
+    });
+
+    expect(browserWindowOptions).toHaveBeenCalledWith(
+      expect.objectContaining({ backgroundColor: '#ffffff' }),
+    );
+
+    nativeThemeState.dark = true;
+    for (const handler of nativeThemeState.updatedHandlers) handler();
+
+    expect(setBackgroundColor).toHaveBeenCalledWith('#0d1117');
   });
 });
