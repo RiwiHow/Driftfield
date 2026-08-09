@@ -10,6 +10,7 @@ import {
   saveProjectDocument,
 } from '../services/project-service';
 import type { ProjectSessionService } from '../services/project-session-service';
+import type { AgentConversationService } from '../services/agent-conversation-service';
 import { MAX_AGENT_DOCUMENT_BYTES, ProjectContextError } from './project-context-service';
 
 interface CreateProposalRequest {
@@ -35,7 +36,10 @@ interface StoredProposal {
 export class AgentProposalService {
   private readonly proposals = new Map<string, StoredProposal>();
 
-  constructor(private readonly sessions: ProjectSessionService) {}
+  constructor(
+    private readonly sessions: ProjectSessionService,
+    private readonly conversations?: AgentConversationService,
+  ) {}
 
   create(scope: ProposalScope, request: CreateProposalRequest): AgentEditProposal {
     const draft = scope.draftSnapshot;
@@ -88,15 +92,25 @@ export class AgentProposalService {
 
   async apply(ownerId: number, proposalId: string): Promise<ApplyAgentProposalResult> {
     const stored = this.proposals.get(proposalId);
-    if (stored === undefined || stored.ownerId !== ownerId) {
+    const session = this.sessions.get(ownerId);
+    if (session === undefined) return { proposalId, status: 'not-found' };
+    if (stored !== undefined && stored.ownerId !== ownerId) {
       return { proposalId, status: 'not-found' };
     }
-    const session = this.sessions.get(ownerId);
-    if (session === undefined || session.id !== stored.projectSessionId) {
+    const hasActiveStoredProposal =
+      stored !== undefined &&
+      stored.projectSessionId === session.id;
+    if (stored !== undefined && !hasActiveStoredProposal) {
       this.proposals.delete(proposalId);
-      return { proposalId, status: 'stale' };
     }
-    const { proposal } = stored;
+    const isRecovered = !hasActiveStoredProposal;
+    const proposal =
+      hasActiveStoredProposal
+        ? stored.proposal
+        : this.conversations?.getProposal(session, proposalId);
+    if (proposal === undefined || proposal === null) {
+      return { proposalId, status: 'not-found' };
+    }
     const relativePath = session.documentPaths.get(proposal.documentId);
     const currentDocument = session.project.documents.find(
       ({ id }) => id === proposal.documentId,
@@ -104,8 +118,10 @@ export class AgentProposalService {
     if (
       relativePath === undefined ||
       currentDocument === undefined ||
-      currentDocument.revision !== proposal.baseRevision
+      currentDocument.revision !== proposal.baseRevision ||
+      (isRecovered && currentDocument.markdown !== proposal.baseMarkdown)
     ) {
+      this.conversations?.setProposalStatus(session, proposalId, 'stale');
       return { proposalId, status: 'stale' };
     }
     const result = await saveProjectDocument(
@@ -118,9 +134,14 @@ export class AgentProposalService {
       relativePath,
     );
     if (result.status !== 'saved') {
-      return { proposalId, status: result.status };
+      const status = isRecovered && result.status === 'conflict'
+        ? 'stale'
+        : result.status;
+      this.conversations?.setProposalStatus(session, proposalId, status);
+      return { proposalId, status };
     }
     this.proposals.delete(proposalId);
+    this.conversations?.setProposalStatus(session, proposalId, 'saved');
     return {
       documentId: proposal.documentId,
       markdown: proposal.markdown,
@@ -132,8 +153,12 @@ export class AgentProposalService {
 
   reject(ownerId: number, proposalId: string): boolean {
     const stored = this.proposals.get(proposalId);
-    if (stored === undefined || stored.ownerId !== ownerId) return false;
-    this.proposals.delete(proposalId);
+    const session = this.sessions.get(ownerId);
+    if (session === undefined) return false;
+    const persisted = this.conversations?.getProposal(session, proposalId);
+    if ((stored === undefined || stored.ownerId !== ownerId) && persisted === null) return false;
+    if (stored !== undefined) this.proposals.delete(proposalId);
+    this.conversations?.setProposalStatus(session, proposalId, 'rejected');
     return true;
   }
 

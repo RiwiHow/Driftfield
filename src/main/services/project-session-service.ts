@@ -115,7 +115,15 @@ export class ProjectSessionService {
       return;
     }
 
-    session.watcher.on('change', () => {
+    session.watcher.on('change', (_eventType, filename) => {
+      const changedPath = filename?.toString() ?? '';
+      if (
+        changedPath === '.driftfield' ||
+        changedPath.startsWith('.driftfield/') ||
+        changedPath.startsWith('.driftfield\\')
+      ) {
+        return;
+      }
       if (session.refreshTimer !== null) clearTimeout(session.refreshTimer);
       session.refreshTimer = setTimeout(() => {
         session.refreshTimer = null;

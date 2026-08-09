@@ -84,6 +84,10 @@ added or removed.
 Database drivers belong in `src/main/database/`. Renderer features call typed
 preload methods that reach validated main-process handlers and repositories.
 
+Project-owned structured state uses `.driftfield/project.sqlite`; global
+settings, credentials, and provider configuration remain under Electron
+`userData`. See [Project Database](database.md).
+
 - Introduce migrations with the first persisted schema.
 - Keep SQL and driver records behind repositories.
 - Keep domain types independent of the selected database library.

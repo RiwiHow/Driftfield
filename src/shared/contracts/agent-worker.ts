@@ -12,6 +12,7 @@ import {
 export interface AgentWorkerStartCommand {
   authPath: string;
   cwd: string;
+  history: Array<{ content: string; role: 'assistant' | 'user' }>;
   modelsPath: string;
   modelId: string;
   prompt: string;
@@ -142,6 +143,18 @@ export const isAgentWorkerCommand = (
     command.type === "start" &&
     typeof command.authPath === "string" &&
     typeof command.cwd === "string" &&
+    Array.isArray(command.history) &&
+    command.history.length <= 200 &&
+    command.history.every(
+      (message) =>
+        typeof message === 'object' &&
+        message !== null &&
+        !Array.isArray(message) &&
+        ((message as { role?: unknown }).role === 'user' ||
+          (message as { role?: unknown }).role === 'assistant') &&
+        typeof (message as { content?: unknown }).content === 'string' &&
+        (message as { content: string }).content.length <= 512 * 1024,
+    ) &&
     typeof command.modelsPath === "string" &&
     typeof command.modelId === "string" &&
     typeof command.prompt === "string" &&

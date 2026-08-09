@@ -70,6 +70,7 @@ export function App({
         onSaveDocument={() => void project.saveActiveDocument()}
         onSelectProject={() => void project.selectProjectDirectory()}
         projectDirectory={project.projectDirectory}
+        projectId={project.projectId}
         projectRootTitles={project.projectRootTitles}
         projectSelectionError={project.projectSelectionError}
         projectTree={project.projectTree}

@@ -40,8 +40,9 @@ sandbox: true
   `src/shared/contracts/`.
 - Keep API keys and OAuth tokens out of renderer state, local storage, logs, and
   source control.
-- Keep database access in main and mutable application data under
-  `app.getPath('userData')`, never in ASAR.
+- Keep database access in main. Global mutable data and credentials stay under
+  `app.getPath('userData')`; project-owned structured data lives only in the
+  main-owned `.driftfield/project.sqlite`, never in ASAR or renderer authority.
 - Do not load remote pages into the privileged main window.
 - Keep renderer CSP restrictive and review every added source.
 - Deny unexpected navigation and new windows. Open reviewed external URLs only
@@ -84,6 +85,8 @@ New-format projects use:
 ```text
 novel/
 ├── driftfield.yaml
+├── .driftfield/
+│   └── project.sqlite
 ├── manuscript/
 │   └── _index.yaml
 └── lorebook/
@@ -110,6 +113,8 @@ novel/
 - Support manuscript `.md` and `.markdown`, not general MDX/JSX.
 - Do not promise YAML comment/format preservation until that product decision is
   explicit.
+- `.driftfield` is main-owned mutable project data. Scanners and watchers ignore
+  it; credentials never enter it, and it is not a generic Agent filesystem.
 
 See [Project Format](docs/project-format.md).
 
@@ -271,3 +276,4 @@ scripts whenever AI/Pi, i18n, renderer bundling, ASAR, or packaging is affected.
 - [Reliability Baseline](docs/reliability.md)
 - [Technical Debt and Roadmap](docs/roadmap.md)
 - [Development and Packaging](docs/development/packaging.md)
+- [Project Database](docs/database.md)

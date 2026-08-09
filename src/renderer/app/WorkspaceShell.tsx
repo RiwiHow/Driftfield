@@ -70,6 +70,7 @@ interface WorkspaceShellProps {
   onSaveDocument: () => void;
   onSelectProject: () => void;
   projectDirectory: ProjectDirectory | null;
+  projectId: string | null;
   projectRootTitles: ProjectSnapshot['rootTitles'] | null;
   projectSelectionError: string | null;
   projectTree: ProjectTreeNode[];
@@ -100,6 +101,7 @@ export function WorkspaceShell({
   onSaveDocument,
   onSelectProject,
   projectDirectory,
+  projectId,
   projectRootTitles,
   projectSelectionError,
   projectTree,
@@ -371,6 +373,7 @@ export function WorkspaceShell({
               configurationLoading={agentConfigurationLoading}
               onProposalApplied={onAgentProposalApplied}
               onOpenSettings={onOpenSettings}
+              projectId={projectId}
               settings={agentSettings}
             />
           </Panel>

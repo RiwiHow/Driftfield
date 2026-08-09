@@ -6,7 +6,12 @@ import type {
   AgentEditProposal,
   ApplyAgentProposalResult,
 } from '../../../shared/contracts/agent-proposals';
-import type { AgentToolName } from '../../../shared/contracts/agent-tools';
+import type {
+  AgentConversationMessage,
+  AgentConversationPart as SharedAgentConversationPart,
+  AgentConversationSummary,
+  AgentToolActivity as SharedAgentToolActivity,
+} from '../../../shared/contracts/agent-conversations';
 import {
   type AgentConversationErrorCode,
   INITIAL_AGENT_RUN_STATE,
@@ -24,36 +29,9 @@ const errorTranslationKeys = {
   'start-failed': 'agent.startFailed',
 } as const satisfies Record<AgentConversationErrorCode, string>;
 
-export interface ConversationMessage {
-  content: string;
-  id: string;
-  parts?: AgentConversationPart[];
-  role: 'assistant' | 'user';
-  proposal?: AgentEditProposal;
-  proposalStatus?:
-    | 'pending'
-    | 'applying'
-    | 'saved'
-    | 'rejected'
-    | 'conflict'
-    | 'missing'
-    | 'stale'
-    | 'failed';
-  terminal?: 'cancelled' | 'empty' | 'failed';
-}
-
-export interface AgentToolActivity {
-  failed?: boolean;
-  input: string;
-  output?: string;
-  status: 'running' | 'completed' | 'cancelled';
-  toolCallId: string;
-  toolName: AgentToolName;
-}
-
-export type AgentConversationPart =
-  | { content: string; type: 'text' }
-  | { activity: AgentToolActivity; type: 'tool' };
+export type ConversationMessage = AgentConversationMessage;
+export type AgentToolActivity = SharedAgentToolActivity;
+export type AgentConversationPart = SharedAgentConversationPart;
 
 type ConversationUpdate = (
   messages: ConversationMessage[],
@@ -65,16 +43,65 @@ export function useAgentConversation(
   onProposalApplied: (
     result: Extract<ApplyAgentProposalResult, { status: 'saved' }>,
   ) => void,
+  projectId: string | null,
 ) {
   const { t: tErrors } = useTranslation('errors');
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [conversations, setConversations] = useState<AgentConversationSummary[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [run, dispatchRun] = useReducer(
     reduceAgentConversationRun,
     INITIAL_AGENT_RUN_STATE,
   );
   const requestIdRef = useRef<string | null>(null);
+  const projectIdRef = useRef(projectId);
+  projectIdRef.current = projectId;
+
+  const applyConversationState = useCallback((state: import('../../../shared/contracts/agent-conversations').AgentConversationState) => {
+    setActiveConversationId(state.activeConversation.id);
+    setConversations(state.conversations);
+    setMessages(state.activeConversation.messages);
+  }, []);
 
   useEffect(() => {
+    requestIdRef.current = null;
+    dispatchRun({ type: 'reset' });
+    if (projectId === null) {
+      setActiveConversationId(null);
+      setConversations([]);
+      setMessages([]);
+      return;
+    }
+    let current = true;
+    setHistoryLoading(true);
+    void window.driftfield.getAgentConversationState().then(
+      (state) => {
+        if (current && projectIdRef.current === projectId) applyConversationState(state);
+      },
+      () => {
+        if (current) {
+          setActiveConversationId(null);
+          setConversations([]);
+          setMessages([]);
+        }
+      },
+    ).finally(() => {
+      if (current) setHistoryLoading(false);
+    });
+    return () => { current = false; };
+  }, [applyConversationState, projectId]);
+
+  useEffect(() => {
+    const refreshPersistedConversation = (): void => {
+      const expectedProjectId = projectIdRef.current;
+      if (expectedProjectId === null) return;
+      void window.driftfield.getAgentConversationState().then((state) => {
+        if (projectIdRef.current === expectedProjectId) {
+          applyConversationState(state);
+        }
+      }).catch(() => undefined);
+    };
     return window.driftfield.onAgentEvent((event) => {
       if (event.requestId !== requestIdRef.current) return;
       if (event.type === 'started') {
@@ -150,6 +177,7 @@ export function useAgentConversation(
         );
         dispatchRun({ requestId: event.requestId, type: 'completed' });
         requestIdRef.current = null;
+        refreshPersistedConversation();
       }
       if (event.type === 'cancelled') {
         setMessages((current) =>
@@ -157,26 +185,20 @@ export function useAgentConversation(
             message.id === event.requestId
               ? {
                   ...message,
+                  terminal: 'cancelled' as const,
                   parts: cancelRunningTools(message.parts ?? []),
-                  ...(message.content.length === 0 &&
-                  message.proposal === undefined &&
-                  (message.parts?.length ?? 0) === 0
-                    ? { terminal: 'cancelled' as const }
-                    : {}),
                 }
               : message,
           ),
         );
         dispatchRun({ requestId: event.requestId, type: 'cancelled' });
         requestIdRef.current = null;
+        refreshPersistedConversation();
       }
       if (event.type === 'error') {
         setMessages((current) =>
           current.map((message) =>
-            message.id === event.requestId &&
-              message.content.length === 0 &&
-              message.proposal === undefined &&
-              (message.parts?.length ?? 0) === 0
+            message.id === event.requestId
               ? { ...message, terminal: 'failed' }
               : message,
           ),
@@ -190,20 +212,28 @@ export function useAgentConversation(
           type: 'failed',
         });
         requestIdRef.current = null;
+        refreshPersistedConversation();
       }
     });
-  }, []);
+  }, [applyConversationState]);
 
   const startRequest = useCallback(
-    async (prompt: string, updateConversation: ConversationUpdate) => {
+    async (
+      prompt: string,
+      userMessageId: string,
+      updateConversation: ConversationUpdate,
+      editMessageId?: string,
+    ) => {
       const trimmedPrompt = prompt.trim();
-      if (!trimmedPrompt || requestIdRef.current !== null) return false;
+      if (!trimmedPrompt || requestIdRef.current !== null || activeConversationId === null) return false;
       const nextRequestId = crypto.randomUUID();
       requestIdRef.current = nextRequestId;
       dispatchRun({ requestId: nextRequestId, type: 'start' });
       setMessages((current) => updateConversation(current, nextRequestId));
       try {
         const started = await window.driftfield.startAgentPrompt({
+          conversationId: activeConversationId,
+          ...(editMessageId === undefined ? {} : { editMessageId }),
           currentDocumentId: activeChapter?.id,
           ...(activeChapter === null
             ? {}
@@ -216,6 +246,7 @@ export function useAgentConversation(
               }),
           prompt: trimmedPrompt,
           requestId: nextRequestId,
+          userMessageId,
         });
         if (started.status === 'error') {
           const errorCode: AgentConversationErrorCode =
@@ -226,9 +257,9 @@ export function useAgentConversation(
                 : 'start-failed';
           dispatchRun({ errorCode, requestId: nextRequestId, type: 'failed' });
           requestIdRef.current = null;
-          setMessages((current) =>
-            current.filter((message) => message.id !== nextRequestId),
-          );
+          void window.driftfield.getAgentConversationState()
+            .then(applyConversationState)
+            .catch(() => undefined);
           return false;
         }
         if (started.requestId !== nextRequestId) {
@@ -242,13 +273,13 @@ export function useAgentConversation(
           type: 'failed',
         });
         requestIdRef.current = null;
-        setMessages((current) =>
-          current.filter((message) => message.id !== nextRequestId),
-        );
+        void window.driftfield.getAgentConversationState()
+          .then(applyConversationState)
+          .catch(() => undefined);
         return false;
       }
     },
-    [activeChapter],
+    [activeChapter, activeConversationId, applyConversationState],
   );
 
   const send = useCallback(
@@ -258,6 +289,7 @@ export function useAgentConversation(
       const userMessageId = crypto.randomUUID();
       return startRequest(
         trimmedPrompt,
+        userMessageId,
         (current, nextRequestId) => [
           ...current,
           { content: trimmedPrompt, id: userMessageId, role: 'user' },
@@ -279,6 +311,7 @@ export function useAgentConversation(
       rejectPendingProposals(messages.slice(messageIndex + 1));
       return startRequest(
         trimmedPrompt,
+        messageId,
         (current, nextRequestId) =>
           branchConversationFromUserEdit(
             current,
@@ -286,21 +319,26 @@ export function useAgentConversation(
             trimmedPrompt,
             nextRequestId,
           ),
+        messageId,
       );
     },
     [messages, startRequest],
   );
 
   const editAssistantMessage = useCallback(
-    (messageId: string, content: string) => {
+    async (messageId: string, content: string) => {
       const trimmedContent = content.trim();
-      if (!trimmedContent || requestIdRef.current !== null) return false;
-      setMessages((current) =>
-        replaceAssistantMessage(current, messageId, trimmedContent),
-      );
-      return true;
+      if (!trimmedContent || requestIdRef.current !== null || activeConversationId === null) return false;
+      try {
+        applyConversationState(await window.driftfield.updateAgentConversationMessage({
+          content: trimmedContent,
+          conversationId: activeConversationId,
+          messageId,
+        }));
+        return true;
+      } catch { return false; }
     },
-    [],
+    [activeConversationId, applyConversationState],
   );
 
   const cancel = useCallback(async () => {
@@ -376,27 +414,57 @@ export function useAgentConversation(
 
   const clear = useCallback(() => {
     if (!isAgentConversationActive(run.phase)) {
-      rejectPendingProposals(messages);
-      setMessages([]);
+      void window.driftfield.createAgentConversation({}).then(applyConversationState);
       dispatchRun({ type: 'reset' });
     }
-  }, [messages, run.phase]);
+  }, [applyConversationState, run.phase]);
+
+  const selectConversation = useCallback(async (conversationId: string) => {
+    if (isAgentConversationActive(run.phase)) return false;
+    try {
+      applyConversationState(await window.driftfield.selectAgentConversation({ conversationId }));
+      dispatchRun({ type: 'reset' });
+      return true;
+    } catch { return false; }
+  }, [applyConversationState, run.phase]);
+
+  const renameConversation = useCallback(async (conversationId: string, title: string) => {
+    try {
+      applyConversationState(await window.driftfield.renameAgentConversation({ conversationId, title }));
+      return true;
+    } catch { return false; }
+  }, [applyConversationState]);
+
+  const deleteConversation = useCallback(async (conversationId: string) => {
+    if (isAgentConversationActive(run.phase)) return false;
+    try {
+      applyConversationState(await window.driftfield.deleteAgentConversation({ conversationId }));
+      dispatchRun({ type: 'reset' });
+      return true;
+    } catch { return false; }
+  }, [applyConversationState, run.phase]);
 
   return {
     cancel,
+    activeConversationId,
     applyProposal,
     clear,
+    conversations,
+    deleteConversation,
     editAssistantMessage,
     error:
       run.errorCode === null
         ? null
         : tErrors(errorTranslationKeys[run.errorCode]),
     isActive: isAgentConversationActive(run.phase),
+    historyLoading,
     messages,
     phase: run.phase,
     rejectProposal,
+    renameConversation,
     resend,
     send,
+    selectConversation,
   };
 }
 

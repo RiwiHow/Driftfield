@@ -9,9 +9,9 @@ implemented or authorized.
   workflow. A future migration must preview classification, create stable IDs
   and ordered indexes, handle collisions, and never move or rewrite user files
   without approval.
-- Project selection, open tabs, unsaved drafts, and Agent conversations are not
-  restored after relaunch. Future persistence remains main-owned and starts with
-  migrations.
+- Project selection, open tabs, and unsaved drafts are not restored after
+  relaunch. Agent conversations are project-scoped and persisted through the
+  main-owned migrated project database.
 - Watcher retry and close/quit behavior have unit coverage but not complete
   packaged Electron end-to-end coverage on every supported platform.
 - YAML comment and exact-format round-trip preservation remains undecided.

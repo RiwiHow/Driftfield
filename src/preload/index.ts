@@ -36,6 +36,14 @@ import type {
   RejectAgentProposalRequest,
   RejectAgentProposalResult,
 } from "../shared/contracts/agent-proposals";
+import type {
+  AgentConversationState,
+  CreateAgentConversationRequest,
+  DeleteAgentConversationRequest,
+  RenameAgentConversationRequest,
+  SelectAgentConversationRequest,
+  UpdateAgentConversationMessageRequest,
+} from '../shared/contracts/agent-conversations';
 
 const api: DriftfieldAPI = {
   platform: process.platform,
@@ -49,6 +57,16 @@ const api: DriftfieldAPI = {
       IPC_CHANNELS.cancelAgent,
       request,
     ) as Promise<CancelAgentResult>,
+  createAgentConversation: (request: CreateAgentConversationRequest) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.createAgentConversation,
+      request,
+    ) as Promise<AgentConversationState>,
+  deleteAgentConversation: (request: DeleteAgentConversationRequest) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.deleteAgentConversation,
+      request,
+    ) as Promise<AgentConversationState>,
   createProjectDirectory: () =>
     ipcRenderer.invoke(
       IPC_CHANNELS.createProjectDirectory,
@@ -68,6 +86,10 @@ const api: DriftfieldAPI = {
     ipcRenderer.invoke(
       IPC_CHANNELS.getAgentConfiguration,
     ) as Promise<AgentConfiguration>,
+  getAgentConversationState: () =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.getAgentConversationState,
+    ) as Promise<AgentConversationState>,
   onProjectChanged: (listener) => {
     const handleProjectChanged = (
       _event: Electron.IpcRendererEvent,
@@ -129,6 +151,11 @@ const api: DriftfieldAPI = {
       IPC_CHANNELS.rejectAgentProposal,
       request,
     ) as Promise<RejectAgentProposalResult>,
+  renameAgentConversation: (request: RenameAgentConversationRequest) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.renameAgentConversation,
+      request,
+    ) as Promise<AgentConversationState>,
   removeAgentCredential: (request: RemoveAgentCredentialRequest) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.removeAgentCredential,
@@ -141,6 +168,11 @@ const api: DriftfieldAPI = {
     ) as Promise<SaveProjectDocumentResult>,
   selectAllEditorText: () =>
     ipcRenderer.invoke(IPC_CHANNELS.selectAllEditorText) as Promise<void>,
+  selectAgentConversation: (request: SelectAgentConversationRequest) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.selectAgentConversation,
+      request,
+    ) as Promise<AgentConversationState>,
   setWindowDirty: (isDirty: boolean) =>
     ipcRenderer.invoke(IPC_CHANNELS.setWindowDirty, isDirty) as Promise<void>,
   setAgentApiKey: (request: SetAgentApiKeyRequest) =>
@@ -172,6 +204,11 @@ const api: DriftfieldAPI = {
       IPC_CHANNELS.updateAgentModelOverride,
       request,
     ) as Promise<AgentConfiguration>,
+  updateAgentConversationMessage: (request: UpdateAgentConversationMessageRequest) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.updateAgentConversationMessage,
+      request,
+    ) as Promise<AgentConversationState>,
   versions: {
     chrome: process.versions.chrome,
     electron: process.versions.electron,

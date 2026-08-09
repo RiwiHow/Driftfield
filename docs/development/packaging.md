@@ -19,6 +19,9 @@ pnpm is the only package manager for npm dependencies.
   `package.json.main` change together.
 - Keep target-specific Vite configs under `config/vite/`; resolve paths through
   repository root rather than assuming configs remain at root.
+- Project persistence uses Electron's bundled `node:sqlite`; do not add a native
+  SQLite addon without reviewing Electron rebuild, ASAR unpacking, and packaged
+  database smoke coverage.
 
 Forge 7 currently resolves `tar@6.2.1` through `@electron/rebuild` and
 `@electron/node-gyp`. Production dependency audits report no known runtime

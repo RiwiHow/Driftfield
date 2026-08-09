@@ -1,0 +1,65 @@
+import type { AgentEditProposal } from './agent-proposals';
+import type { AgentToolName } from './agent-tools';
+
+export type AgentProposalStatus =
+  | 'pending'
+  | 'applying'
+  | 'saved'
+  | 'rejected'
+  | 'conflict'
+  | 'missing'
+  | 'stale'
+  | 'failed';
+
+export interface AgentToolActivity {
+  failed?: boolean;
+  input: string;
+  output?: string;
+  status: 'running' | 'completed' | 'cancelled';
+  toolCallId: string;
+  toolName: AgentToolName;
+}
+
+export type AgentConversationPart =
+  | { content: string; type: 'text' }
+  | { activity: AgentToolActivity; type: 'tool' };
+
+export interface AgentConversationMessage {
+  content: string;
+  createdAt?: string;
+  id: string;
+  parts?: AgentConversationPart[];
+  proposal?: AgentEditProposal;
+  proposalStatus?: AgentProposalStatus;
+  role: 'assistant' | 'user';
+  terminal?: 'cancelled' | 'empty' | 'failed' | 'interrupted';
+}
+
+export interface AgentConversationSummary {
+  createdAt: string;
+  id: string;
+  title: string;
+  updatedAt: string;
+}
+
+export interface AgentConversation extends AgentConversationSummary {
+  messages: AgentConversationMessage[];
+}
+
+export interface AgentConversationState {
+  activeConversation: AgentConversation;
+  conversations: AgentConversationSummary[];
+}
+
+export interface CreateAgentConversationRequest { title?: string }
+export interface SelectAgentConversationRequest { conversationId: string }
+export interface RenameAgentConversationRequest {
+  conversationId: string;
+  title: string;
+}
+export interface DeleteAgentConversationRequest { conversationId: string }
+export interface UpdateAgentConversationMessageRequest {
+  content: string;
+  conversationId: string;
+  messageId: string;
+}

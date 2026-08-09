@@ -137,13 +137,47 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
       availableTools: enabledToolNames,
       role: command.role,
     });
+    const sessionManager = SessionManager.inMemory(command.cwd);
+    const history = selectModelHistory(
+      command.history,
+      model.contextWindow,
+      model.maxTokens,
+    );
+    const timestamp = Date.now() - history.length;
+    history.forEach((message, index) => {
+      if (message.role === 'user') {
+        sessionManager.appendMessage({
+          content: message.content,
+          role: 'user',
+          timestamp: timestamp + index,
+        });
+      } else {
+        sessionManager.appendMessage({
+          api: model.api,
+          content: [{ text: message.content, type: 'text' }],
+          model: model.id,
+          provider: model.provider,
+          role: 'assistant',
+          stopReason: 'stop',
+          timestamp: timestamp + index,
+          usage: {
+            cacheRead: 0,
+            cacheWrite: 0,
+            cost: { cacheRead: 0, cacheWrite: 0, input: 0, output: 0, total: 0 },
+            input: 0,
+            output: 0,
+            totalTokens: 0,
+          },
+        });
+      }
+    });
     ({ session } = await createAgentSession({
       cwd: command.cwd,
       customTools,
       model,
       modelRuntime: runtime,
       resourceLoader: createDriftfieldResourceLoader(systemPrompt.prompt),
-      sessionManager: SessionManager.inMemory(command.cwd),
+      sessionManager,
       settingsManager: SettingsManager.inMemory(),
       thinkingLevel: command.thinkingLevel,
       tools: enabledToolNames,
@@ -190,6 +224,23 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
     activeRequests.delete(command.requestId);
     session?.dispose();
   }
+}
+
+function selectModelHistory(
+  history: AgentWorkerStartCommand['history'],
+  contextWindow: number,
+  maxOutputTokens: number,
+): AgentWorkerStartCommand['history'] {
+  const reservedTokens = Math.min(maxOutputTokens, 16_000) + 12_000;
+  const characterBudget = Math.max(0, contextWindow - reservedTokens) * 3;
+  const selected: AgentWorkerStartCommand['history'] = [];
+  let characters = 0;
+  for (const message of [...history].reverse()) {
+    if (characters + message.content.length > characterBudget) break;
+    selected.push(message);
+    characters += message.content.length;
+  }
+  return selected.reverse();
 }
 
 function createNovelTools(requestId: string) {

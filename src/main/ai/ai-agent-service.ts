@@ -15,6 +15,7 @@ import {
   type AgentWorkerMessage,
 } from '../../shared/contracts/agent-worker';
 import type { AgentToolDispatcher } from './agent-tool-dispatcher';
+import type { AgentHistoryMessage } from '../services/agent-conversation-service';
 
 const WORKER_START_TIMEOUT_MS = 15_000;
 
@@ -29,6 +30,7 @@ interface ActiveAgentRequest {
 interface StartAgentRequest {
   currentDocumentId?: string;
   draftSnapshot?: AgentDraftSnapshot;
+  history: AgentHistoryMessage[];
   ownerId: number;
   projectSessionId?: string;
   prompt: string;
@@ -87,6 +89,7 @@ export class AiAgentService {
       worker.postMessage({
         authPath: path.join(directory, 'auth.json'),
         cwd: directory,
+        history: request.history,
         modelsPath: path.join(directory, 'models.json'),
         modelId: request.model.modelId,
         prompt: request.prompt,

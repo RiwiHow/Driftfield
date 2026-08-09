@@ -25,6 +25,12 @@ type Handler = (event: unknown, value?: unknown) => unknown;
 const invocationChannels = [
   IPC_CHANNELS.applyAgentProposal,
   IPC_CHANNELS.cancelAgent,
+  IPC_CHANNELS.createAgentConversation,
+  IPC_CHANNELS.deleteAgentConversation,
+  IPC_CHANNELS.getAgentConversationState,
+  IPC_CHANNELS.renameAgentConversation,
+  IPC_CHANNELS.selectAgentConversation,
+  IPC_CHANNELS.updateAgentConversationMessage,
   IPC_CHANNELS.startAgentPrompt,
   IPC_CHANNELS.getAgentConfiguration,
   IPC_CHANNELS.removeAgentCredential,
@@ -76,6 +82,7 @@ describe("IPC handler composition", () => {
     if (start === undefined)
       throw new Error("Agent start handler was not registered");
     const request = {
+      conversationId: 'conversation-1',
       currentDocumentId: "chapter-1",
       draftSnapshot: {
         baseRevision: "b".repeat(64),
@@ -84,6 +91,7 @@ describe("IPC handler composition", () => {
       },
       prompt: "Review this",
       requestId: "request-1",
+      userMessageId: 'user-1',
     };
 
     await expect(start({}, request)).rejects.toThrow(
@@ -143,6 +151,17 @@ const createContext = (): IpcHandlerContext => {
     webContents,
   };
   return {
+    agentConversationService: {
+      abandonRequest: vi.fn(),
+      beginPrompt: vi.fn(() => []),
+      create: vi.fn(),
+      delete: vi.fn(),
+      getState: vi.fn(),
+      recordEvent: vi.fn(),
+      rename: vi.fn(),
+      select: vi.fn(),
+      updateAssistantMessage: vi.fn(),
+    },
     agentCredentialService: {
       getProviderStatuses: vi.fn(async () => [
         { configured: true, providerId: "anthropic" },
@@ -178,6 +197,7 @@ const createContext = (): IpcHandlerContext => {
       get: vi.fn(() => ({
         id: "session-1",
         project: {
+          projectId: 'project-1',
           documents: [{ id: "chapter-1", revision: "a".repeat(64) }],
         },
       })),

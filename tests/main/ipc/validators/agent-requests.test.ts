@@ -8,6 +8,7 @@ describe('Agent IPC request validation', () => {
   it('accepts a bounded current-document draft pair', () => {
     expect(
       isStartAgentPromptRequest({
+        conversationId: 'conversation-1',
         currentDocumentId: 'chapter-1',
         draftSnapshot: {
           baseRevision: revision,
@@ -16,6 +17,7 @@ describe('Agent IPC request validation', () => {
         },
         prompt: 'Review this',
         requestId: 'request-1',
+        userMessageId: 'user-1',
       }),
     ).toBe(true);
   });

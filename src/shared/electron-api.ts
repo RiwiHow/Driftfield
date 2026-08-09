@@ -33,6 +33,14 @@ import type {
   RejectAgentProposalRequest,
   RejectAgentProposalResult,
 } from "./contracts/agent-proposals";
+import type {
+  AgentConversationState,
+  CreateAgentConversationRequest,
+  DeleteAgentConversationRequest,
+  RenameAgentConversationRequest,
+  SelectAgentConversationRequest,
+  UpdateAgentConversationMessageRequest,
+} from './contracts/agent-conversations';
 
 export interface DriftfieldAPI {
   platform: string;
@@ -40,10 +48,17 @@ export interface DriftfieldAPI {
     request: ApplyAgentProposalRequest,
   ) => Promise<ApplyAgentProposalResult>;
   cancelAgent: (request: CancelAgentRequest) => Promise<CancelAgentResult>;
+  createAgentConversation: (
+    request: CreateAgentConversationRequest,
+  ) => Promise<AgentConversationState>;
+  deleteAgentConversation: (
+    request: DeleteAgentConversationRequest,
+  ) => Promise<AgentConversationState>;
   createProjectDirectory: () => Promise<SelectProjectDirectoryResult>;
   copyEditorSelection: () => Promise<void>;
   cutEditorSelection: () => Promise<void>;
   getAgentConfiguration: () => Promise<AgentConfiguration>;
+  getAgentConversationState: () => Promise<AgentConversationState>;
   getAppSettings: () => Promise<AppSettings>;
   confirmCloseUnsavedDocument: (
     documentTitle: string,
@@ -67,11 +82,17 @@ export interface DriftfieldAPI {
   rejectAgentProposal: (
     request: RejectAgentProposalRequest,
   ) => Promise<RejectAgentProposalResult>;
+  renameAgentConversation: (
+    request: RenameAgentConversationRequest,
+  ) => Promise<AgentConversationState>;
   saveProjectDocument: (
     request: SaveProjectDocumentRequest,
   ) => Promise<SaveProjectDocumentResult>;
   selectProjectDirectory: () => Promise<SelectProjectDirectoryResult>;
   selectAllEditorText: () => Promise<void>;
+  selectAgentConversation: (
+    request: SelectAgentConversationRequest,
+  ) => Promise<AgentConversationState>;
   setWindowDirty: (isDirty: boolean) => Promise<void>;
   setAgentApiKey: (
     request: SetAgentApiKeyRequest,
@@ -86,6 +107,9 @@ export interface DriftfieldAPI {
   updateAgentModelOverride: (
     request: UpdateAgentModelOverrideRequest,
   ) => Promise<AgentConfiguration>;
+  updateAgentConversationMessage: (
+    request: UpdateAgentConversationMessageRequest,
+  ) => Promise<AgentConversationState>;
   versions: {
     chrome: string;
     electron: string;

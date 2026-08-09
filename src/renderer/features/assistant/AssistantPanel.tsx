@@ -11,6 +11,7 @@ import {
   Sparkles,
   SquarePen,
   TriangleAlert,
+  Trash2,
   UserRound,
 } from 'lucide-react';
 import { useLayoutEffect, useRef, useState } from 'react';
@@ -43,6 +44,7 @@ interface AssistantPanelProps {
     result: Extract<ApplyAgentProposalResult, { status: 'saved' }>,
   ) => void;
   settings: AgentSettings;
+  projectId: string | null;
 }
 
 export function AssistantPanel({
@@ -52,6 +54,7 @@ export function AssistantPanel({
   configurationLoading,
   onOpenSettings,
   onProposalApplied,
+  projectId,
   settings,
 }: AssistantPanelProps) {
   const { t } = useTranslation('assistant');
@@ -61,24 +64,32 @@ export function AssistantPanel({
     'content' | 'id' | 'role'
   > | null>(null);
   const {
+    activeConversationId,
     applyProposal,
     cancel,
     clear,
+    conversations,
+    deleteConversation,
     editAssistantMessage,
     error,
+    historyLoading,
     isActive,
     messages,
     phase,
     rejectProposal,
+    renameConversation,
     resend,
     send,
-  } = useAgentConversation(activeChapter, onProposalApplied);
+    selectConversation,
+  } = useAgentConversation(activeChapter, onProposalApplied, projectId);
   const selectedModel = configuration.models.find(
     ({ id, providerId }) =>
       id === settings.defaultModel?.modelId &&
       providerId === settings.defaultModel?.providerId,
   );
   const isConfigured = selectedModel !== undefined;
+  const canSend =
+    isConfigured && activeConversationId !== null && !historyLoading;
   const activePhaseLabel = (
     currentPhase: AgentConversationPhase,
   ): string | undefined => {
@@ -89,7 +100,7 @@ export function AssistantPanel({
   };
 
   const submit = async (): Promise<void> => {
-    if (!isConfigured) return;
+    if (!canSend) return;
     if (await send(prompt)) setPrompt('');
   };
 
@@ -99,8 +110,32 @@ export function AssistantPanel({
       editingMessage.role === 'user'
         ? isConfigured &&
           (await resend(editingMessage.id, editingMessage.content))
-        : editAssistantMessage(editingMessage.id, editingMessage.content);
+        : await editAssistantMessage(editingMessage.id, editingMessage.content);
     if (saved) setEditingMessage(null);
+  };
+
+  const activeConversation = conversations.find(
+    ({ id }) => id === activeConversationId,
+  );
+
+  const renameSelectedConversation = async (): Promise<void> => {
+    if (activeConversation === undefined) return;
+    const title = window.prompt(
+      t('history.renamePrompt'),
+      activeConversation.title || t('history.untitled'),
+    );
+    if (title?.trim()) await renameConversation(activeConversation.id, title);
+  };
+
+  const deleteSelectedConversation = async (): Promise<void> => {
+    if (
+      activeConversation === undefined ||
+      !window.confirm(t('history.deleteConfirm', {
+        title: activeConversation.title || t('history.untitled'),
+      }))
+    ) return;
+    setEditingMessage(null);
+    await deleteConversation(activeConversation.id);
   };
 
   const modelStatus = configurationLoading
@@ -116,19 +151,54 @@ export function AssistantPanel({
   return (
     <aside className="assistant-pane">
       <div className="pane-heading assistant-heading">
-        <span>{t('title')}</span>
-        <Button
-          aria-label={t('actions.newConversation')}
-          disabled={isActive || messages.length === 0}
-          onClick={() => {
+        <select
+          aria-label={t('history.select')}
+          className="conversation-select"
+          disabled={isActive || historyLoading || activeConversationId === null}
+          onChange={(event) => {
             setEditingMessage(null);
-            clear();
+            void selectConversation(event.target.value);
           }}
-          size="icon"
-          variant="ghost"
+          value={activeConversationId ?? ''}
         >
-          <SquarePen size={14} />
-        </Button>
+          {conversations.map((conversation) => (
+            <option key={conversation.id} value={conversation.id}>
+              {conversation.title || t('history.untitled')}
+            </option>
+          ))}
+        </select>
+        <div className="conversation-actions">
+          <Button
+            aria-label={t('history.rename')}
+            disabled={isActive || activeConversationId === null}
+            onClick={() => void renameSelectedConversation()}
+            size="icon"
+            variant="ghost"
+          >
+            <Pencil size={13} />
+          </Button>
+          <Button
+            aria-label={t('history.delete')}
+            disabled={isActive || activeConversationId === null}
+            onClick={() => void deleteSelectedConversation()}
+            size="icon"
+            variant="ghost"
+          >
+            <Trash2 size={13} />
+          </Button>
+          <Button
+            aria-label={t('actions.newConversation')}
+            disabled={isActive || historyLoading || projectId === null}
+            onClick={() => {
+              setEditingMessage(null);
+              clear();
+            }}
+            size="icon"
+            variant="ghost"
+          >
+            <SquarePen size={14} />
+          </Button>
+        </div>
       </div>
 
       <div aria-label={t('title')} className="conversation">
@@ -219,8 +289,7 @@ export function AssistantPanel({
                     role={editingMessage.role}
                     value={editingMessage.content}
                   />
-                ) : message.role === 'assistant' &&
-                  message.terminal === undefined ? (
+                ) : message.role === 'assistant' ? (
                   <>
                     {(message.parts?.length ?? 0) > 0 ? (
                       <AgentResponseTimeline parts={message.parts!} />
@@ -239,12 +308,15 @@ export function AssistantPanel({
                         status={message.proposalStatus ?? 'pending'}
                       />
                     ) : null}
+                    {message.terminal !== undefined ? (
+                      <small className="agent-terminal">
+                        {t(`terminal.${message.terminal}`)}
+                      </small>
+                    ) : null}
                   </>
                 ) : (
                   <p>
-                    {message.terminal !== undefined
-                      ? t(`terminal.${message.terminal}`)
-                      : message.content}
+                    {message.content}
                   </p>
                 )}
               </div>
@@ -265,7 +337,7 @@ export function AssistantPanel({
       <div className="composer" data-disabled={!isConfigured || undefined}>
         <textarea
           aria-label={t('actions.send')}
-          disabled={!isConfigured || isActive}
+          disabled={!canSend || isActive}
           onChange={(event) => setPrompt(event.target.value)}
           onKeyDown={(event) => {
             if (
@@ -297,7 +369,7 @@ export function AssistantPanel({
             disabled={
               isActive
                 ? phase === 'cancelling'
-                : !isConfigured || !prompt.trim()
+                : !canSend || !prompt.trim()
             }
             onClick={() => void (isActive ? cancel() : submit())}
             size="icon"

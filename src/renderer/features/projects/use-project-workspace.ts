@@ -51,6 +51,7 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
   const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
   const [projectDirectory, setProjectDirectory] =
     useState<ProjectDirectory | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(null);
   const [projectTree, setProjectTree] = useState<ProjectTreeNode[]>([]);
   const [projectRootTitles, setProjectRootTitles] = useState<
     ProjectSnapshot['rootTitles'] | null
@@ -183,6 +184,7 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
         ++projectRevision.current,
       );
       setProjectDirectory(project.directory);
+      setProjectId(project.projectId);
       setProjectRootTitles(project.rootTitles ?? null);
       setProjectTree(project.tree);
       setChapters(next);
@@ -535,6 +537,7 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
     isSavingDocument,
     isSelectingProject,
     projectDirectory,
+    projectId,
     projectRootTitles,
     projectSelectionError: localizeMessage(projectSelectionMessage),
     projectTree,

@@ -6,6 +6,9 @@ project has one root manifest and lowercase manuscript and lorebook roots:
 ```text
 novel/
 ├── driftfield.yaml
+├── .driftfield/
+│   ├── .gitignore
+│   └── project.sqlite
 ├── manuscript/
 │   └── _index.yaml
 └── lorebook/
@@ -17,6 +20,12 @@ Selecting an empty folder initializes `driftfield.yaml`, `manuscript/`, and
 `lorebook/` in an existing project never prevents the manuscript from opening.
 Nonempty directories without a manifest remain available through temporary
 legacy scanning and are not rewritten implicitly.
+
+`.driftfield` is an optional, application-owned hidden data directory created
+when structured project state is first needed. It is ignored by manuscript
+scanning and watcher refresh decisions. Users and Agents do not edit it
+directly; credentials never enter it. Its SQLite database is excluded from Git
+by the nested `.gitignore` but travels with ordinary folder copies and backups.
 
 ## Physical names and metadata ownership
 
@@ -75,5 +84,5 @@ conflict-aware handlers. General `.mdx` and JSX files are unsupported.
 
 The last successfully opened project directory is persisted in application
 settings and restored at startup after main-owned path and project validation.
-Open documents, unsaved edits, and Agent conversations remain session-only and
-must not be described as restored or persisted.
+Open documents and unsaved edits remain session-only. Agent conversations and
+generation records are restored from the project database.

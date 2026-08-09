@@ -53,8 +53,10 @@ Split it only when targets genuinely require different behavior.
 
 ## Persistence and current limitations
 
-Persist application-owned generation records independently from Pi session
-formats so the SDK can be upgraded or replaced.
+Persist application-owned conversations and generation records in the project
+database independently from Pi session formats so the SDK can be upgraded or
+replaced. Each request receives a bounded Driftfield-owned active-branch
+transcript; Pi sessions remain temporary runtime objects.
 
 Driftfield owns Pi model overrides under its Agent data directory. Renderer UI
 edits typed model-level settings; main validates and atomically merges the

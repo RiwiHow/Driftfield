@@ -12,9 +12,15 @@ import {
   isSetAgentApiKeyRequest,
   isStartAgentPromptRequest,
   isRejectAgentProposalRequest,
+  isCreateAgentConversationRequest,
+  isDeleteAgentConversationRequest,
+  isRenameAgentConversationRequest,
+  isSelectAgentConversationRequest,
+  isUpdateAgentConversationMessageRequest,
 } from "./validators/agent-requests";
 
 export const registerAgentIpcHandlers = ({
+  agentConversationService,
   agentCredentialService,
   agentModelConfigService,
   agentProposalService,
@@ -23,6 +29,47 @@ export const registerAgentIpcHandlers = ({
   projectSessions,
   settingsService,
 }: IpcHandlerContext): void => {
+  const getProjectSession = (event: Electron.IpcMainInvokeEvent) => {
+    const window = getTrustedSenderWindow(event);
+    const session = projectSessions.get(window.webContents.id);
+    if (session === undefined) throw new Error('No project is open');
+    return { session, window };
+  };
+
+  ipcMain.handle(IPC_CHANNELS.getAgentConversationState, (event) => {
+    const { session } = getProjectSession(event);
+    return agentConversationService.getState(session);
+  });
+  ipcMain.handle(IPC_CHANNELS.createAgentConversation, (event, value: unknown) => {
+    const { session } = getProjectSession(event);
+    if (!isCreateAgentConversationRequest(value)) throw new Error('Invalid conversation create request');
+    return agentConversationService.create(session, value.title);
+  });
+  ipcMain.handle(IPC_CHANNELS.selectAgentConversation, (event, value: unknown) => {
+    const { session } = getProjectSession(event);
+    if (!isSelectAgentConversationRequest(value)) throw new Error('Invalid conversation selection');
+    return agentConversationService.select(session, value.conversationId);
+  });
+  ipcMain.handle(IPC_CHANNELS.renameAgentConversation, (event, value: unknown) => {
+    const { session } = getProjectSession(event);
+    if (!isRenameAgentConversationRequest(value)) throw new Error('Invalid conversation rename request');
+    return agentConversationService.rename(session, value.conversationId, value.title);
+  });
+  ipcMain.handle(IPC_CHANNELS.deleteAgentConversation, (event, value: unknown) => {
+    const { session } = getProjectSession(event);
+    if (!isDeleteAgentConversationRequest(value)) throw new Error('Invalid conversation delete request');
+    return agentConversationService.delete(session, value.conversationId);
+  });
+  ipcMain.handle(IPC_CHANNELS.updateAgentConversationMessage, (event, value: unknown) => {
+    const { session } = getProjectSession(event);
+    if (!isUpdateAgentConversationMessageRequest(value)) throw new Error('Invalid conversation message update');
+    return agentConversationService.updateAssistantMessage(
+      session,
+      value.conversationId,
+      value.messageId,
+      value.content,
+    );
+  });
   ipcMain.handle(
     IPC_CHANNELS.applyAgentProposal,
     async (event, value: unknown) => {
@@ -163,13 +210,17 @@ export const registerAgentIpcHandlers = ({
       }
       if (selectedModel === null)
         throw new Error("Agent model invariant failed");
+      if (session === undefined) throw new Error('No project is open');
+      const history = agentConversationService.beginPrompt(session, value);
       try {
         const requestId = await aiAgentService.start({
           ...value,
+          history,
           model: selectedModel,
           ownerId: window.webContents.id,
           projectSessionId: session?.id,
           sendEvent: (agentEvent) => {
+            agentConversationService.recordEvent(agentEvent);
             if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
               window.webContents.send(IPC_CHANNELS.agentEvent, agentEvent);
             }
@@ -178,6 +229,7 @@ export const registerAgentIpcHandlers = ({
         });
         return { requestId, status: "started" };
       } catch {
+        agentConversationService.abandonRequest(value.requestId);
         return { code: "runtime-unavailable", status: "error" };
       }
     },

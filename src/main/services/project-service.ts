@@ -317,6 +317,9 @@ export const createProjectSnapshot = async (
       path: directoryPath,
     },
     documents: state.documents,
+    projectId:
+      layout?.manifest.id ??
+      `legacy-${createHash('sha256').update(await realpath(directoryPath)).digest('hex')}`,
     revision: contentRevision(
       [
         ...(layout?.metadataSources ?? []),

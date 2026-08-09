@@ -87,3 +87,9 @@ interleaved with streamed assistant text at the point each call occurs, with
 calls and results collapsed by default. Activity payloads come from the typed
 worker protocol and remain bounded; the Renderer does not infer Tool state from
 model prose.
+
+The panel loads project-scoped conversations through narrow preload methods.
+Its history selector can create, switch, rename, and soft-delete conversations;
+Renderer state is only a cache of the active Main-owned database record. Editing
+an earlier user message creates a new active branch, while editing an assistant
+message updates the model-facing persisted transcript.

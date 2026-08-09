@@ -15,6 +15,7 @@ import { ProjectSessionService } from "./services/project-session-service";
 import { SettingsService } from "./services/settings-service";
 import { AgentCredentialService } from "./services/agent-credential-service";
 import { AgentModelConfigService } from "./services/agent-model-config-service";
+import { AgentConversationService } from './services/agent-conversation-service';
 import { initializeMainI18n } from "./i18n/main-i18n";
 import { createMainWindow } from "./windows/main-window";
 import type { RendererNavigationPolicy } from "./windows/navigation-policy";
@@ -29,6 +30,7 @@ const lifecycleStates = new WeakMap<BrowserWindow, WindowLifecycleState>();
 let isQuitting = false;
 let pendingQuit = false;
 let activeAiAgentService: AiAgentService | null = null;
+let activeAgentConversationService: AgentConversationService | null = null;
 
 interface WindowLifecycleState {
   allowClose: boolean;
@@ -145,7 +147,11 @@ void app.whenReady().then(async () => {
     const agentModelConfigService = new AgentModelConfigService(
       app.getPath("userData"),
     );
-    const agentProposalService = new AgentProposalService(projectSessions);
+    const agentConversationService = new AgentConversationService();
+    const agentProposalService = new AgentProposalService(
+      projectSessions,
+      agentConversationService,
+    );
     const agentToolDispatcher = new AgentToolDispatcher(
       new ProjectContextService(projectSessions),
       undefined,
@@ -158,7 +164,9 @@ void app.whenReady().then(async () => {
       agentToolDispatcher,
     );
     activeAiAgentService = aiAgentService;
+    activeAgentConversationService = agentConversationService;
     registerIpcHandlers({
+      agentConversationService,
       aiAgentService,
       agentCredentialService,
       agentModelConfigService,
@@ -204,4 +212,6 @@ app.on("window-all-closed", () => {
 app.on("will-quit", () => {
   activeAiAgentService?.dispose();
   activeAiAgentService = null;
+  activeAgentConversationService?.dispose();
+  activeAgentConversationService = null;
 });

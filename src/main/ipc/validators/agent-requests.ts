@@ -11,6 +11,54 @@ import type {
   RejectAgentProposalRequest,
 } from '../../../shared/contracts/agent-proposals';
 import { isAgentApiKeyProviderId } from '../../services/agent-credential-service';
+import type {
+  CreateAgentConversationRequest,
+  DeleteAgentConversationRequest,
+  RenameAgentConversationRequest,
+  SelectAgentConversationRequest,
+  UpdateAgentConversationMessageRequest,
+} from '../../../shared/contracts/agent-conversations';
+
+const isConversationId = (value: unknown): value is string =>
+  typeof value === 'string' && value.length > 0 && value.length <= 128;
+
+export const isCreateAgentConversationRequest = (
+  value: unknown,
+): value is CreateAgentConversationRequest =>
+  isRecord(value) &&
+  Object.keys(value).every((key) => key === 'title') &&
+  (value.title === undefined ||
+    (typeof value.title === 'string' && value.title.trim().length > 0 && value.title.length <= 200));
+
+export const isSelectAgentConversationRequest = (
+  value: unknown,
+): value is SelectAgentConversationRequest =>
+  isRecord(value) && Object.keys(value).length === 1 && isConversationId(value.conversationId);
+
+export const isDeleteAgentConversationRequest = (
+  value: unknown,
+): value is DeleteAgentConversationRequest => isSelectAgentConversationRequest(value);
+
+export const isRenameAgentConversationRequest = (
+  value: unknown,
+): value is RenameAgentConversationRequest =>
+  isRecord(value) &&
+  Object.keys(value).length === 2 &&
+  isConversationId(value.conversationId) &&
+  typeof value.title === 'string' &&
+  value.title.trim().length > 0 &&
+  value.title.length <= 200;
+
+export const isUpdateAgentConversationMessageRequest = (
+  value: unknown,
+): value is UpdateAgentConversationMessageRequest =>
+  isRecord(value) &&
+  Object.keys(value).length === 3 &&
+  isConversationId(value.conversationId) &&
+  isConversationId(value.messageId) &&
+  typeof value.content === 'string' &&
+  value.content.trim().length > 0 &&
+  Buffer.byteLength(value.content, 'utf8') <= 512 * 1024;
 
 export const isSetAgentApiKeyRequest = (
   value: unknown,
@@ -44,12 +92,15 @@ export const isStartAgentPromptRequest = (
       typeof value.draftSnapshot.markdown === 'string' &&
       Buffer.byteLength(value.draftSnapshot.markdown, 'utf8') <= 512 * 1024);
   return (
+    isConversationId(value.conversationId) &&
     typeof value.prompt === 'string' &&
     value.prompt.trim().length > 0 &&
     Buffer.byteLength(value.prompt, 'utf8') <= 32 * 1024 &&
     typeof value.requestId === 'string' &&
     value.requestId.length > 0 &&
     value.requestId.length <= 128 &&
+    isConversationId(value.userMessageId) &&
+    (value.editMessageId === undefined || isConversationId(value.editMessageId)) &&
     currentDocumentIsValid &&
     draftIsValid &&
     ((value.currentDocumentId === undefined && value.draftSnapshot === undefined) ||

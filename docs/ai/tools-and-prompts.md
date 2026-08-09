@@ -49,6 +49,11 @@ Canonical novel data, derived Agent memory or indexes, and generation audit
 records remain logically separate. Generated summaries are not canonical facts
 unless the application explicitly promotes them.
 
+Multi-turn dialogue is assembled from the active project conversation by Main
+and trimmed again in the worker against the selected model context window.
+Driftfield replays user and assistant text only; persisted Tool activity remains
+an audit/UI record and is not injected as dialogue.
+
 ## Tool definitions and prompt policy
 
 Each tool's `defineTool()` registration is the single source of truth for its

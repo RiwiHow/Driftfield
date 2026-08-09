@@ -20,6 +20,7 @@ const dirtyChapter: Chapter = {
 const emptySnapshot: ProjectSnapshot = {
   directory: { name: 'Novel', path: '/Novel' },
   documents: [],
+  projectId: 'project-1',
   revision: 'empty',
   tree: [],
 };

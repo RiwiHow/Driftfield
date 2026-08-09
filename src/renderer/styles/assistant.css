@@ -4,6 +4,31 @@
 
 .assistant-heading {
   background: var(--df-pane-header-background);
+  gap: 4px;
+}
+
+.conversation-select {
+  min-width: 0;
+  flex: 1;
+  height: 26px;
+  padding: 0 24px 0 7px;
+  color: var(--foreground);
+  font: inherit;
+  text-overflow: ellipsis;
+  background: var(--df-pane-header-background);
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+
+.conversation-select:hover,
+.conversation-select:focus-visible {
+  border-color: var(--border);
+  outline: none;
+}
+
+.conversation-actions {
+  display: flex;
+  flex: none;
 }
 
 .message-avatar {

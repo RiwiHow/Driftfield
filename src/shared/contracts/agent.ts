@@ -14,10 +14,13 @@ export type StartAgentErrorCode =
   | 'runtime-unavailable';
 
 export interface StartAgentPromptRequest {
+  conversationId: string;
   currentDocumentId?: string;
   draftSnapshot?: import('./agent-tools').AgentDraftSnapshot;
+  editMessageId?: string;
   prompt: string;
   requestId: string;
+  userMessageId: string;
 }
 
 export type StartAgentPromptResult =

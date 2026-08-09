@@ -30,6 +30,7 @@ export type ProjectTreeNode = ProjectFileNode | ProjectFolderNode;
 export interface ProjectSnapshot {
   directory: ProjectDirectory;
   documents: ProjectDocument[];
+  projectId: string;
   revision: string;
   rootTitles?: {
     lorebook?: string;

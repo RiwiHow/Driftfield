@@ -42,6 +42,7 @@ describe("Agent utility-process protocol", () => {
       isAgentWorkerCommand({
         authPath: "/app-data/auth.json",
         cwd: "/project",
+        history: [],
         modelId: "claude-sonnet",
         modelsPath: "/app-data/models.json",
         prompt: "Review this chapter",
