@@ -1,12 +1,11 @@
 # Project Format
 
 A Driftfield project is a portable, versioned directory. A newly initialized
-project has a user-editable root index, three project databases, and lowercase
-manuscript and lorebook roots:
+project has three project databases and lowercase manuscript and lorebook
+roots:
 
 ```text
 novel/
-├── _index.yaml
 ├── .driftfield/
 │   ├── project.sqlite
 │   ├── conversations.sqlite
@@ -19,8 +18,12 @@ novel/
 
 Selecting an empty folder initializes all of these entries. A missing
 `lorebook/` in an existing project never prevents the manuscript from opening.
-Nonempty directories without the current root metadata are rejected and never
-rewritten implicitly.
+Only a truly empty selected directory is initialized. A nonempty directory is
+recognized only when `.driftfield/project.sqlite` is a regular, non-symlink
+SQLite database containing Driftfield's fixed project marker, stable project
+ID, and a positive format version. A missing database is reported separately
+from a damaged database. Project format versions are recorded but are not yet
+used to reject a project; database schema compatibility remains fail-closed.
 
 `.driftfield` is an application-owned hidden data directory. It is ignored by
 manuscript scanning and watcher refresh decisions. Users and Agents do not edit
@@ -33,9 +36,8 @@ metadata.
 - Keep the physical roots exactly `manuscript` and `lorebook`. New projects
   create both; existing projects may omit `lorebook`. Lowercase spelling is part
   of the format.
-- `project.sqlite` owns stable project identity and its format/schema versions.
-- The root `_index.yaml` owns `kind`, user-editable `title`, and an optional
-  reviewed `icon` ID.
+- `project.sqlite` owns the fixed Driftfield marker, stable project identity,
+  project title, optional reviewed icon ID, and format/schema versions.
 - Each semantic directory `_index.yaml` owns that directory's stable ID, kind,
   title, optional reviewed icon ID, child order, and inherited child-label or
   numbering policy.
@@ -46,6 +48,11 @@ metadata.
 
 Icon values come from Driftfield's fixed Lucide-backed registry. YAML cannot
 inject SVG, HTML, URLs, filesystem paths, or executable icon definitions.
+
+Projects created by the preceding pre-release format may retain a root
+`_index.yaml`. On first open, Driftfield imports its title and icon into a
+migrated database when those database fields are absent. The legacy file is not
+authoritative afterward and is not deleted automatically.
 
 ## Ordering, numbering, and formatting
 

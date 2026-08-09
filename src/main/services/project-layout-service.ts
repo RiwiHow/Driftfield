@@ -15,6 +15,7 @@ import { parseDocument, stringify } from 'yaml';
 import {
   CHAPTER_NUMBERING_MODES,
   DRIFTFIELD_PROJECT_FORMAT_VERSION,
+  DRIFTFIELD_PROJECT_MARKER,
   MANUSCRIPT_DOCUMENT_KINDS,
   PROJECT_INDEX_NAME,
   PROJECT_ICON_IDS,
@@ -29,10 +30,12 @@ import {
   type ManuscriptRootChild,
   type ProjectManifest,
   type ProjectIconId,
-  type ProjectRootIndex,
   type VolumeIndex,
 } from '../../shared/contracts/project-layout';
-import { ProjectDatabase } from '../database/project-database';
+import {
+  inspectExistingProjectDatabase,
+  ProjectDatabase,
+} from '../database/project-database';
 import { ConversationDatabase } from '../database/conversation-database';
 import { SettingsDatabase } from '../database/settings-database';
 
@@ -73,6 +76,19 @@ export interface LoadedProjectLayout {
     volumes: Array<{ directory: string; index: VolumeIndex }>;
   };
   metadataSources: string[];
+}
+
+export type ProjectLayoutErrorCode =
+  'project-database-corrupt' | 'project-database-missing';
+
+export class ProjectLayoutError extends Error {
+  constructor(
+    readonly code: ProjectLayoutErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ProjectLayoutError';
+  }
 }
 
 const isRecord = (value: unknown): value is RecordValue =>
@@ -182,14 +198,14 @@ const parseNumbering = (value: unknown): ChapterNumberingPolicy => {
     throw new Error('Unknown chapter numbering mode');
   }
   return {
-    ...(value.format === undefined ? {} : { format: parseFormat(value.format) }),
+    ...(value.format === undefined
+      ? {}
+      : { format: parseFormat(value.format) }),
     mode: value.mode as ChapterNumberingPolicy['mode'],
   };
 };
 
-const parseManuscriptDocument = (
-  value: unknown,
-): ManuscriptDocumentEntry => {
+const parseManuscriptDocument = (value: unknown): ManuscriptDocumentEntry => {
   if (!isRecord(value)) throw new Error('Invalid manuscript child');
   assertExactKeys(value, ['file', 'id', 'kind', 'title'], ['label']);
   if (
@@ -245,10 +261,13 @@ const parseChildren = <T>(
   return value.map(parseChild);
 };
 
-const parseProjectRootIndex = (value: unknown): ProjectRootIndex => {
+const parseLegacyProjectRootIndex = (
+  value: unknown,
+): { icon?: ProjectIconId; kind: 'novel'; title: string } => {
   if (!isRecord(value)) throw new Error('Invalid Driftfield project index');
   assertExactKeys(value, ['kind', 'title'], ['icon']);
-  if (value.kind !== 'novel') throw new Error('Invalid Driftfield project root');
+  if (value.kind !== 'novel')
+    throw new Error('Invalid Driftfield project root');
   return {
     ...(value.icon === undefined ? {} : { icon: parseIcon(value.icon) }),
     kind: 'novel',
@@ -258,9 +277,11 @@ const parseProjectRootIndex = (value: unknown): ProjectRootIndex => {
 
 const parseManuscriptIndex = (value: unknown): ManuscriptIndex => {
   if (!isRecord(value)) throw new Error('Invalid manuscript index');
-  assertExactKeys(value, ['children', 'id', 'kind', 'title'], [
-    'chapterNumbering', 'icon',
-  ]);
+  assertExactKeys(
+    value,
+    ['children', 'id', 'kind', 'title'],
+    ['chapterNumbering', 'icon'],
+  );
   if (value.kind !== 'manuscript') throw new Error('Invalid manuscript root');
   return {
     ...(value.chapterNumbering === undefined
@@ -276,9 +297,11 @@ const parseManuscriptIndex = (value: unknown): ManuscriptIndex => {
 
 const parseVolumeIndex = (value: unknown): VolumeIndex => {
   if (!isRecord(value)) throw new Error('Invalid volume index');
-  assertExactKeys(value, ['children', 'id', 'kind', 'title'], [
-    'chapterNumbering', 'icon',
-  ]);
+  assertExactKeys(
+    value,
+    ['children', 'id', 'kind', 'title'],
+    ['chapterNumbering', 'icon'],
+  );
   if (value.kind !== 'volume') throw new Error('Invalid volume directory');
   return {
     ...(value.chapterNumbering === undefined
@@ -305,9 +328,7 @@ const parseLorebookIndex = (value: unknown): LorebookIndex => {
   };
 };
 
-const parseLorebookCategoryIndex = (
-  value: unknown,
-): LorebookCategoryIndex => {
+const parseLorebookCategoryIndex = (value: unknown): LorebookCategoryIndex => {
   if (!isRecord(value)) throw new Error('Invalid lorebook category index');
   assertExactKeys(value, ['children', 'id', 'kind', 'title'], ['icon']);
   if (value.kind !== 'category') throw new Error('Invalid lorebook category');
@@ -341,7 +362,9 @@ const assertBoundedValue = (value: unknown, depth = 0): void => {
   }
 };
 
-const readYaml = async (filePath: string): Promise<{ source: string; value: unknown }> => {
+const readYaml = async (
+  filePath: string,
+): Promise<{ source: string; value: unknown }> => {
   const fileStats = await lstat(filePath);
   if (!fileStats.isFile() || fileStats.isSymbolicLink()) {
     throw new Error('Project metadata is not a regular file');
@@ -363,19 +386,17 @@ const readYaml = async (filePath: string): Promise<{ source: string; value: unkn
 
 const assertExactRootEntries = async (
   projectPath: string,
-  metadataName: string,
 ): Promise<boolean> => {
   const names = await readdir(projectPath);
-  for (const expected of [
-    metadataName,
-    PROJECT_ROOT_DIRECTORIES.manuscript,
-  ]) {
+  for (const expected of [PROJECT_ROOT_DIRECTORIES.manuscript]) {
     const caseInsensitiveMatches = names.filter(
       (name) => name.toLowerCase() === expected.toLowerCase(),
     );
     if (!names.includes(expected) || caseInsensitiveMatches.length !== 1) {
       if (caseInsensitiveMatches.length > 0) {
-        throw new Error(`Project entry must use exact lowercase name: ${expected}`);
+        throw new Error(
+          `Project entry must use exact lowercase name: ${expected}`,
+        );
       }
       throw new Error(`Driftfield project is missing ${expected}`);
     }
@@ -388,9 +409,58 @@ const assertExactRootEntries = async (
     lorebookMatches.length > 0 &&
     (!names.includes(lorebookName) || lorebookMatches.length !== 1)
   ) {
-    throw new Error(`Project entry must use exact lowercase name: ${lorebookName}`);
+    throw new Error(
+      `Project entry must use exact lowercase name: ${lorebookName}`,
+    );
   }
   return names.includes(lorebookName);
+};
+
+const assertProjectDatabaseFile = async (
+  projectPath: string,
+): Promise<string> => {
+  const rootNames = await readdir(projectPath);
+  const dataDirectoryName = '.driftfield';
+  const matches = rootNames.filter(
+    (name) => name.toLowerCase() === dataDirectoryName,
+  );
+  if (!rootNames.includes(dataDirectoryName) || matches.length !== 1) {
+    throw new ProjectLayoutError(
+      'project-database-missing',
+      'Driftfield project database is missing',
+    );
+  }
+
+  const dataDirectoryPath = path.join(projectPath, dataDirectoryName);
+  const databasePath = path.join(dataDirectoryPath, 'project.sqlite');
+  let dataDirectoryStats;
+  let databaseStats;
+  try {
+    [dataDirectoryStats, databaseStats] = await Promise.all([
+      lstat(dataDirectoryPath),
+      lstat(databasePath),
+    ]);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new ProjectLayoutError(
+        'project-database-missing',
+        'Driftfield project database is missing',
+      );
+    }
+    throw error;
+  }
+  if (
+    !dataDirectoryStats.isDirectory() ||
+    dataDirectoryStats.isSymbolicLink() ||
+    !databaseStats.isFile() ||
+    databaseStats.isSymbolicLink()
+  ) {
+    throw new ProjectLayoutError(
+      'project-database-corrupt',
+      'Driftfield project database is damaged or invalid',
+    );
+  }
+  return databasePath;
 };
 
 const assertExactEntryName = async (
@@ -402,7 +472,9 @@ const assertExactEntryName = async (
     (name) => name.toLowerCase() === expected.toLowerCase(),
   );
   if (!names.includes(expected) || matches.length !== 1) {
-    throw new Error(`Project entry uses an invalid name or casing: ${expected}`);
+    throw new Error(
+      `Project entry uses an invalid name or casing: ${expected}`,
+    );
   }
 };
 
@@ -413,7 +485,10 @@ const assertDirectory = async (directoryPath: string): Promise<void> => {
   }
 };
 
-const assertMarkdownFile = async (directoryPath: string, file: string): Promise<void> => {
+const assertMarkdownFile = async (
+  directoryPath: string,
+  file: string,
+): Promise<void> => {
   const extension = path.extname(file).toLowerCase();
   if (extension !== '.md' && extension !== '.markdown') {
     throw new Error('Project metadata references an unsupported document');
@@ -433,27 +508,35 @@ export const loadProjectLayout = async (
   directoryPath: string,
 ): Promise<LoadedProjectLayout> => {
   const projectPath = await realpath(directoryPath);
-  const rootNames = await readdir(projectPath);
-  if (!rootNames.includes(PROJECT_INDEX_NAME)) {
-    if (
-      rootNames.some(
-        (name) => name.toLowerCase() === PROJECT_INDEX_NAME.toLowerCase(),
-      )
-    ) {
-      throw new Error(`Project metadata must use exact name: ${PROJECT_INDEX_NAME}`);
-    }
-    throw new Error('Driftfield project root index is missing');
+  const databasePath = await assertProjectDatabaseFile(projectPath);
+  let databaseKind: 'current' | 'legacy';
+  try {
+    databaseKind = inspectExistingProjectDatabase(databasePath);
+  } catch {
+    throw new ProjectLayoutError(
+      'project-database-corrupt',
+      'Driftfield project database is damaged or invalid',
+    );
   }
-  const hasLorebook = await assertExactRootEntries(
-    projectPath,
-    PROJECT_INDEX_NAME,
-  );
+  if (databaseKind === 'legacy') {
+    const rootNames = await readdir(projectPath);
+    if (!rootNames.includes(PROJECT_INDEX_NAME)) {
+      throw new ProjectLayoutError(
+        'project-database-corrupt',
+        'Legacy Driftfield project metadata is incomplete',
+      );
+    }
+  }
+  const hasLorebook = await assertExactRootEntries(projectPath);
 
   const manuscriptPath = path.join(
     projectPath,
     PROJECT_ROOT_DIRECTORIES.manuscript,
   );
-  const lorebookPath = path.join(projectPath, PROJECT_ROOT_DIRECTORIES.lorebook);
+  const lorebookPath = path.join(
+    projectPath,
+    PROJECT_ROOT_DIRECTORIES.lorebook,
+  );
   await assertDirectory(manuscriptPath);
   await assertExactEntryName(manuscriptPath, PROJECT_INDEX_NAME);
   if (hasLorebook) {
@@ -461,40 +544,77 @@ export const loadProjectLayout = async (
     await assertExactEntryName(lorebookPath, PROJECT_INDEX_NAME);
   }
 
-  const [projectYaml, manuscriptYaml] = await Promise.all([
-    readYaml(path.join(projectPath, PROJECT_INDEX_NAME)),
-    readYaml(path.join(manuscriptPath, PROJECT_INDEX_NAME)),
-  ]);
-  const rootIndex = parseProjectRootIndex(projectYaml.value);
-  const databasePath = path.join(projectPath, '.driftfield', 'project.sqlite');
-  const databaseStats = await lstat(databasePath).catch(() => null);
-  if (
-    databaseStats === null ||
-    !databaseStats.isFile() ||
-    databaseStats.isSymbolicLink()
-  ) {
-    throw new Error('Driftfield project database is missing or invalid');
+  const manuscriptYaml = await readYaml(
+    path.join(manuscriptPath, PROJECT_INDEX_NAME),
+  );
+  let database: ProjectDatabase;
+  try {
+    database = new ProjectDatabase(projectPath);
+  } catch {
+    throw new ProjectLayoutError(
+      'project-database-corrupt',
+      'Driftfield project database is damaged or invalid',
+    );
   }
-  const database = new ProjectDatabase(projectPath);
   let manifest: ProjectManifest & { icon?: ProjectIconId };
   try {
-    const metadata = database.getProjectMetadata();
+    let metadata = database.getProjectMetadata();
     if (
       metadata === null ||
-      metadata.formatVersion !== DRIFTFIELD_PROJECT_FORMAT_VERSION
+      metadata.marker !== DRIFTFIELD_PROJECT_MARKER ||
+      !Number.isSafeInteger(metadata.formatVersion) ||
+      metadata.formatVersion < 1
     ) {
-      throw new Error('Unsupported Driftfield project database format');
+      throw new ProjectLayoutError(
+        'project-database-corrupt',
+        'Driftfield project identity is missing or invalid',
+      );
     }
+    if (metadata.title === null) {
+      const rootIndexPath = path.join(projectPath, PROJECT_INDEX_NAME);
+      let legacyRoot;
+      try {
+        legacyRoot = parseLegacyProjectRootIndex(
+          (await readYaml(rootIndexPath)).value,
+        );
+      } catch {
+        throw new ProjectLayoutError(
+          'project-database-corrupt',
+          'Driftfield project metadata is incomplete',
+        );
+      }
+      database.setProjectPresentation(
+        legacyRoot.title,
+        legacyRoot.icon ?? null,
+      );
+      metadata = database.getProjectMetadata();
+      if (metadata === null) {
+        throw new ProjectLayoutError(
+          'project-database-corrupt',
+          'Driftfield project identity is missing or invalid',
+        );
+      }
+    }
+    const title = parseTitle(metadata.title);
+    const icon = metadata.icon === null ? undefined : parseIcon(metadata.icon);
     manifest = {
-      formatVersion: DRIFTFIELD_PROJECT_FORMAT_VERSION,
-      id: metadata.projectId,
-      ...rootIndex,
+      formatVersion: metadata.formatVersion,
+      id: parseId(metadata.projectId),
+      ...(icon === undefined ? {} : { icon }),
+      kind: 'novel',
+      title,
     };
+  } catch (error) {
+    if (error instanceof ProjectLayoutError) throw error;
+    throw new ProjectLayoutError(
+      'project-database-corrupt',
+      'Driftfield project database is damaged or invalid',
+    );
   } finally {
     database.close();
   }
   const manuscriptIndex = parseManuscriptIndex(manuscriptYaml.value);
-  const metadataSources = [projectYaml.source, manuscriptYaml.source];
+  const metadataSources = [JSON.stringify(manifest), manuscriptYaml.source];
 
   assertUnique(
     manuscriptIndex.children.map((child) =>
@@ -513,7 +633,9 @@ export const loadProjectLayout = async (
     await assertExactEntryName(manuscriptPath, child.directory);
     await assertDirectory(volumePath);
     await assertExactEntryName(volumePath, PROJECT_INDEX_NAME);
-    const volumeYaml = await readYaml(path.join(volumePath, PROJECT_INDEX_NAME));
+    const volumeYaml = await readYaml(
+      path.join(volumePath, PROJECT_INDEX_NAME),
+    );
     const index = parseVolumeIndex(volumeYaml.value);
     assertUnique(
       index.children.map(({ file }) => file),
@@ -622,11 +744,14 @@ export const initializeProjectLayout = async (
 ): Promise<LoadedProjectLayout> => {
   const projectPath = await realpath(directoryPath);
   const existingNames = await readdir(projectPath);
-  if (existingNames.some((name) => !name.startsWith('.'))) {
+  if (existingNames.length > 0) {
     throw new Error('Only an empty folder can become a new Driftfield project');
   }
 
-  const stagingPath = path.join(projectPath, `.driftfield-init-${randomUUID()}`);
+  const stagingPath = path.join(
+    projectPath,
+    `.driftfield-init-${randomUUID()}`,
+  );
   const manuscriptPath = path.join(
     stagingPath,
     PROJECT_ROOT_DIRECTORIES.manuscript,
@@ -636,10 +761,7 @@ export const initializeProjectLayout = async (
     PROJECT_ROOT_DIRECTORIES.lorebook,
   );
   const projectId = randomUUID();
-  const rootIndex: ProjectRootIndex = {
-    kind: 'novel',
-    title: path.basename(projectPath) || 'Untitled Novel',
-  };
+  const projectTitle = path.basename(projectPath) || 'Untitled Novel';
   const manuscript: ManuscriptIndex = {
     chapterNumbering: { format: '{number}. {title}', mode: 'continuous' },
     children: [],
@@ -661,11 +783,6 @@ export const initializeProjectLayout = async (
   try {
     await Promise.all([
       writeFile(
-        path.join(stagingPath, PROJECT_INDEX_NAME),
-        stringify(rootIndex),
-        { encoding: 'utf8', mode: 0o600 },
-      ),
-      writeFile(
         path.join(manuscriptPath, PROJECT_INDEX_NAME),
         stringify(manuscript),
         { encoding: 'utf8', mode: 0o600 },
@@ -681,6 +798,7 @@ export const initializeProjectLayout = async (
       database.initializeProjectMetadata(
         projectId,
         DRIFTFIELD_PROJECT_FORMAT_VERSION,
+        projectTitle,
       );
     } finally {
       database.close();
@@ -694,10 +812,6 @@ export const initializeProjectLayout = async (
     await rename(
       path.join(stagingPath, PROJECT_ROOT_DIRECTORIES.lorebook),
       path.join(projectPath, PROJECT_ROOT_DIRECTORIES.lorebook),
-    );
-    await rename(
-      path.join(stagingPath, PROJECT_INDEX_NAME),
-      path.join(projectPath, PROJECT_INDEX_NAME),
     );
     await rename(
       path.join(stagingPath, '.driftfield'),
@@ -715,7 +829,7 @@ export const openProjectLayout = async (
   directoryPath: string,
 ): Promise<LoadedProjectLayout> => {
   const names = await readdir(directoryPath);
-  if (names.every((name) => name.startsWith('.'))) {
+  if (names.length === 0) {
     return initializeProjectLayout(directoryPath);
   }
   return loadProjectLayout(directoryPath);

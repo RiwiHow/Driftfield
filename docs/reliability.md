@@ -30,6 +30,9 @@ Preserve these properties when changing affected subsystems.
 - Main strictly validates physical root/index casing, regular non-symlink files,
   stable-ID uniqueness, bounded YAML, explicit order, safe formatters, and
   referenced Markdown before exposing a snapshot.
+- Project recognition requires a regular `.driftfield/project.sqlite` with the
+  fixed Driftfield marker, stable project ID, and positive format version.
+  Missing and damaged project databases produce distinct internal error codes.
 - Sessions map stable document IDs to validated relative paths; IDs are never
   treated as paths.
 - Main responsibilities remain separated across windows, IPC, and services.

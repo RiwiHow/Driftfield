@@ -1,5 +1,6 @@
 import {
   mkdtemp,
+  mkdir,
   readFile,
   readdir,
   rename,
@@ -8,6 +9,7 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
 import { stringify } from 'yaml';
 
@@ -16,9 +18,8 @@ import {
   loadProjectLayout,
   openProjectLayout,
 } from '../../../src/main/services/project-layout-service';
-import {
-  PROJECT_INDEX_NAME,
-} from '../../../src/shared/contracts/project-layout';
+import { ProjectDatabase } from '../../../src/main/database/project-database';
+import { PROJECT_INDEX_NAME } from '../../../src/shared/contracts/project-layout';
 
 const temporaryDirectories: string[] = [];
 
@@ -30,9 +31,9 @@ const createTemporaryDirectory = async (): Promise<string> => {
 
 afterEach(async () => {
   await Promise.all(
-    temporaryDirectories.splice(0).map((directory) =>
-      rm(directory, { force: true, recursive: true }),
-    ),
+    temporaryDirectories
+      .splice(0)
+      .map((directory) => rm(directory, { force: true, recursive: true })),
   );
 });
 
@@ -48,8 +49,9 @@ describe('Driftfield project layout', () => {
       title: path.basename(directory),
     });
     expect(await readdir(directory)).toEqual(
-      expect.arrayContaining(['.driftfield', '_index.yaml', 'lorebook', 'manuscript']),
+      expect.arrayContaining(['.driftfield', 'lorebook', 'manuscript']),
     );
+    expect(await readdir(directory)).not.toContain(PROJECT_INDEX_NAME);
     expect(await readdir(path.join(directory, 'manuscript'))).toContain(
       PROJECT_INDEX_NAME,
     );
@@ -70,18 +72,19 @@ describe('Driftfield project layout', () => {
     });
   });
 
-  it('rejects a nonempty folder without current project metadata', async () => {
+  it('rejects a nonempty folder without the project database', async () => {
     const directory = await createTemporaryDirectory();
     await writeFile(path.join(directory, 'chapter.md'), '# Existing\n');
 
-    await expect(openProjectLayout(directory)).rejects.toThrow(
-      'project root index is missing',
-    );
-    await expect(readFile(path.join(directory, 'chapter.md'), 'utf8')).resolves.toBe(
-      '# Existing\n',
-    );
-    await expect(readFile(path.join(directory, PROJECT_INDEX_NAME), 'utf8'))
-      .rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(openProjectLayout(directory)).rejects.toMatchObject({
+      code: 'project-database-missing',
+    });
+    await expect(
+      readFile(path.join(directory, 'chapter.md'), 'utf8'),
+    ).resolves.toBe('# Existing\n');
+    await expect(
+      readFile(path.join(directory, PROJECT_INDEX_NAME), 'utf8'),
+    ).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('requires exact lowercase root names', async () => {
@@ -124,16 +127,80 @@ describe('Driftfield project layout', () => {
     );
   });
 
-  it('reads a reviewed icon ID from the root index', async () => {
+  it('reads project presentation metadata from the project database', async () => {
     const directory = await createTemporaryDirectory();
     await initializeProjectLayout(directory);
-    await writeFile(
-      path.join(directory, PROJECT_INDEX_NAME),
-      stringify({ icon: 'castle', kind: 'novel', title: 'Citadel' }),
-    );
+    const database = new ProjectDatabase(directory);
+    database.setProjectPresentation('Citadel', 'castle');
+    database.close();
 
     await expect(loadProjectLayout(directory)).resolves.toMatchObject({
       manifest: { icon: 'castle', title: 'Citadel' },
+    });
+  });
+
+  it('reports a missing project database explicitly', async () => {
+    const directory = await createTemporaryDirectory();
+    await initializeProjectLayout(directory);
+    await rm(path.join(directory, '.driftfield', 'project.sqlite'));
+
+    await expect(loadProjectLayout(directory)).rejects.toMatchObject({
+      code: 'project-database-missing',
+    });
+  });
+
+  it('reports a damaged project database explicitly', async () => {
+    const directory = await createTemporaryDirectory();
+    await initializeProjectLayout(directory);
+    await writeFile(
+      path.join(directory, '.driftfield', 'project.sqlite'),
+      'not a sqlite database',
+    );
+
+    await expect(loadProjectLayout(directory)).rejects.toMatchObject({
+      code: 'project-database-corrupt',
+    });
+  });
+
+  it('does not migrate an unrelated SQLite database', async () => {
+    const directory = await createTemporaryDirectory();
+    const dataDirectory = path.join(directory, '.driftfield');
+    await mkdir(dataDirectory);
+    const databasePath = path.join(dataDirectory, 'project.sqlite');
+    const unrelated = new DatabaseSync(databasePath);
+    unrelated.exec('CREATE TABLE unrelated(value TEXT) STRICT;');
+    unrelated.close();
+
+    await expect(loadProjectLayout(directory)).rejects.toMatchObject({
+      code: 'project-database-corrupt',
+    });
+
+    const reopened = new DatabaseSync(databasePath, { readOnly: true });
+    expect(
+      reopened
+        .prepare(`
+          SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name
+        `)
+        .all(),
+    ).toEqual([{ name: 'unrelated' }]);
+    reopened.close();
+  });
+
+  it('records but does not reject a different project format version', async () => {
+    const directory = await createTemporaryDirectory();
+    await initializeProjectLayout(directory);
+    const database = new ProjectDatabase(directory);
+    database.connection
+      .prepare(
+        `
+      UPDATE project_metadata SET format_version = 99 WHERE singleton = 1
+    `,
+      )
+      .run();
+    database.close();
+
+    await expect(loadProjectLayout(directory)).resolves.toMatchObject({
+      manifest: { formatVersion: 99 },
     });
   });
 
@@ -211,7 +278,10 @@ describe('Driftfield project layout', () => {
           title: 'Manuscript',
         }),
       ),
-      writeFile(path.join(directory, 'manuscript', 'chapter.md'), '# Chapter\n'),
+      writeFile(
+        path.join(directory, 'manuscript', 'chapter.md'),
+        '# Chapter\n',
+      ),
       writeFile(
         path.join(directory, 'lorebook', PROJECT_INDEX_NAME),
         stringify({

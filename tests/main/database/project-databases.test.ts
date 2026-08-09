@@ -1,6 +1,7 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { ConversationDatabase } from '../../../src/main/database/conversation-database';
@@ -11,22 +12,27 @@ const directories: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
-    directories.splice(0).map((directory) =>
-      rm(directory, { force: true, recursive: true }),
-    ),
+    directories
+      .splice(0)
+      .map((directory) => rm(directory, { force: true, recursive: true })),
   );
 });
 
 describe('project databases', () => {
   it('creates isolated current schemas without compatibility tables', async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'driftfield-databases-'));
+    const directory = await mkdtemp(
+      path.join(tmpdir(), 'driftfield-databases-'),
+    );
     directories.push(directory);
 
     const project = new ProjectDatabase(directory);
-    project.initializeProjectMetadata('project-1', 1);
+    project.initializeProjectMetadata('project-1', 1, 'Project One');
     expect(project.getProjectMetadata()).toEqual({
       formatVersion: 1,
+      icon: null,
+      marker: 'driftfield-project',
       projectId: 'project-1',
+      title: 'Project One',
     });
     expect(project.hasTable('conversations')).toBe(false);
     expect(project.hasTable('agent_settings')).toBe(false);
@@ -49,11 +55,54 @@ describe('project databases', () => {
     ]);
     settings.close();
   });
+
+  it('migrates pre-marker project metadata without inventing presentation data', async () => {
+    const directory = await mkdtemp(
+      path.join(tmpdir(), 'driftfield-databases-'),
+    );
+    directories.push(directory);
+    const dataDirectory = path.join(directory, '.driftfield');
+    await mkdir(dataDirectory);
+    const legacy = new DatabaseSync(
+      path.join(dataDirectory, 'project.sqlite'),
+    );
+    legacy.exec(`
+      CREATE TABLE schema_migrations (
+        version INTEGER PRIMARY KEY,
+        applied_at TEXT NOT NULL
+      ) STRICT;
+      CREATE TABLE project_metadata (
+        singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+        project_id TEXT NOT NULL UNIQUE,
+        format_version INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+      ) STRICT;
+      INSERT INTO schema_migrations VALUES (1, datetime('now'));
+      INSERT INTO project_metadata VALUES (1, 'legacy-project', 1, datetime('now'));
+    `);
+    legacy.close();
+
+    const migrated = new ProjectDatabase(directory);
+    expect(migrated.getProjectMetadata()).toEqual({
+      formatVersion: 1,
+      icon: null,
+      marker: 'driftfield-project',
+      projectId: 'legacy-project',
+      title: null,
+    });
+    migrated.close();
+  });
 });
 
 const listTables = (
   database: ProjectDatabase | ConversationDatabase | SettingsDatabase,
 ): string[] =>
-  (database.connection.prepare(`
+  (
+    database.connection
+      .prepare(
+        `
     SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name
-  `).all() as Array<{ name: string }>).map(({ name }) => name);
+  `,
+      )
+      .all() as Array<{ name: string }>
+  ).map(({ name }) => name);

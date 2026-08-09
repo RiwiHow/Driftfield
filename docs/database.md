@@ -67,8 +67,10 @@ guessed.
 
 ## Project settings
 
-`project_metadata` in `project.sqlite` owns stable project identity and project
-format version. `agent_settings` in `settings.sqlite` owns the selected
+`project_metadata` in `project.sqlite` owns the fixed Driftfield project marker,
+stable project identity, positive project format version, title, and optional
+reviewed icon ID. The format version is recorded but is not yet a compatibility
+gate. `agent_settings` in `settings.sqlite` owns the selected
 provider/model and thinking level. `agent_model_overrides` stores validated
 project-specific compatibility, routing, header, and thinking-map overrides.
 Credentials never enter these tables.

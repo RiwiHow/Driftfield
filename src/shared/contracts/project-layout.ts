@@ -1,4 +1,5 @@
 export const DRIFTFIELD_PROJECT_FORMAT_VERSION = 1 as const;
+export const DRIFTFIELD_PROJECT_MARKER = 'driftfield-project' as const;
 export const PROJECT_INDEX_NAME = '_index.yaml' as const;
 export const PROJECT_ICON_IDS = [
   'book-open',
@@ -28,8 +29,7 @@ export const CHAPTER_NUMBERING_MODES = [
   'none',
 ] as const;
 
-export type ChapterNumberingMode =
-  (typeof CHAPTER_NUMBERING_MODES)[number];
+export type ChapterNumberingMode = (typeof CHAPTER_NUMBERING_MODES)[number];
 
 export interface ChapterNumberingPolicy {
   format?: string;
@@ -44,18 +44,11 @@ export const MANUSCRIPT_DOCUMENT_KINDS = [
   'appendix',
 ] as const;
 
-export type ManuscriptDocumentKind =
-  (typeof MANUSCRIPT_DOCUMENT_KINDS)[number];
+export type ManuscriptDocumentKind = (typeof MANUSCRIPT_DOCUMENT_KINDS)[number];
 
 export interface ProjectManifest {
-  formatVersion: typeof DRIFTFIELD_PROJECT_FORMAT_VERSION;
+  formatVersion: number;
   id: string;
-  kind: 'novel';
-  title: string;
-}
-
-export interface ProjectRootIndex {
-  icon?: ProjectIconId;
   kind: 'novel';
   title: string;
 }
@@ -74,8 +67,7 @@ export interface VolumeDirectoryEntry {
 }
 
 export type ManuscriptRootChild =
-  | ManuscriptDocumentEntry
-  | VolumeDirectoryEntry;
+  ManuscriptDocumentEntry | VolumeDirectoryEntry;
 
 export interface ManuscriptIndex {
   chapterNumbering?: ChapterNumberingPolicy;
@@ -107,9 +99,7 @@ export interface LorebookCategoryDirectoryEntry {
   kind: 'category';
 }
 
-export type LorebookRootChild =
-  | LorebookCategoryDirectoryEntry
-  | LorebookEntry;
+export type LorebookRootChild = LorebookCategoryDirectoryEntry | LorebookEntry;
 
 export interface LorebookIndex {
   children: LorebookRootChild[];
@@ -128,7 +118,4 @@ export interface LorebookCategoryIndex {
 }
 
 export type ProjectDirectoryIndex =
-  | LorebookCategoryIndex
-  | LorebookIndex
-  | ManuscriptIndex
-  | VolumeIndex;
+  LorebookCategoryIndex | LorebookIndex | ManuscriptIndex | VolumeIndex;
