@@ -36,4 +36,23 @@ describe('SafeMarkdown', () => {
     expect(html).toContain('external');
     expect(html).toContain('remote image');
   });
+
+  it('wraps tables in a keyboard-scrollable container', () => {
+    const html = render('| Chapter | Title |\n| --- | --- |\n| 1 | Home |');
+
+    expect(html).toContain(
+      '<div class="agent-markdown-table" tabindex="0"><table>',
+    );
+    expect(html).toContain('<th>Chapter</th>');
+    expect(html).toContain('<td>Home</td>');
+  });
+
+  it('forces task-list checkboxes to remain read-only', () => {
+    const html = render('- [x] Reviewed\n- [ ] Pending');
+
+    expect(html).toContain('type="checkbox"');
+    expect(html).toContain('disabled=""');
+    expect(html).toContain('readOnly=""');
+    expect(html).toContain('tabindex="-1"');
+  });
 });

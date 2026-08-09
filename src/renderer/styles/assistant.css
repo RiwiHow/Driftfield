@@ -192,7 +192,10 @@
 }
 
 .agent-tool-activity {
-  border-top: 1px solid var(--border);
+  overflow: hidden;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 5px;
 }
 
 .agent-tool-activity summary {
@@ -200,13 +203,12 @@
   grid-template-columns: 11px 14px minmax(0, 1fr) auto;
   gap: 5px;
   align-items: center;
-  margin: 0 -4px;
-  padding: 7px 4px;
+  margin: 0;
+  padding: 7px 8px;
   color: var(--muted-foreground);
   font-size: 9px;
   cursor: pointer;
   list-style: none;
-  border-radius: 4px;
 }
 
 .agent-tool-activity summary:hover {
@@ -215,7 +217,7 @@
 
 .agent-tool-activity summary:focus-visible {
   outline: 2px solid var(--df-focus-ring);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 
 .agent-tool-activity summary::-webkit-details-marker {
@@ -256,7 +258,8 @@
 }
 
 .agent-tool-details {
-  padding: 1px 0 8px 19px;
+  padding: 2px 8px 8px 27px;
+  border-top: 1px solid var(--border);
 }
 
 .agent-tool-details > span {
@@ -432,6 +435,13 @@
   border: 1px solid var(--df-disabled-border);
   opacity: 1;
 }
+.agent-markdown {
+  color: var(--foreground);
+  font-size: 11px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
 .agent-markdown > :first-child {
   margin-top: 0;
 }
@@ -440,23 +450,166 @@
   margin-bottom: 0;
 }
 
+.agent-markdown p {
+  margin: 0 0 7px;
+  font-size: inherit;
+  line-height: inherit;
+  white-space: normal;
+}
+
+.agent-markdown h1,
+.agent-markdown h2,
+.agent-markdown h3,
+.agent-markdown h4,
+.agent-markdown h5,
+.agent-markdown h6 {
+  margin: 12px 0 5px;
+  color: var(--foreground);
+  line-height: 1.35;
+  font-weight: 650;
+}
+
+.agent-markdown h1 {
+  font-size: 13px;
+}
+
+.agent-markdown h2 {
+  font-size: 12px;
+}
+
+.agent-markdown h3,
+.agent-markdown h4,
+.agent-markdown h5,
+.agent-markdown h6 {
+  font-size: 11px;
+}
+
+.agent-markdown ul,
+.agent-markdown ol {
+  margin: 5px 0 8px;
+  padding-inline-start: 18px;
+}
+
+.agent-markdown li {
+  padding-inline-start: 1px;
+}
+
+.agent-markdown li + li {
+  margin-top: 2px;
+}
+
+.agent-markdown li > p {
+  margin-bottom: 2px;
+}
+
+.agent-markdown blockquote {
+  margin: 8px 0;
+  padding-inline-start: 9px;
+  color: var(--muted-foreground);
+  border-inline-start: 2px solid var(--border);
+}
+
+.agent-markdown blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.agent-markdown hr {
+  margin: 12px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.agent-markdown strong {
+  font-weight: 650;
+}
+
+.agent-markdown code {
+  padding: 1px 3px;
+  font: 9px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--secondary);
+  border-radius: 3px;
+}
+
 .agent-markdown pre {
   max-width: 100%;
+  margin: 8px 0;
+  padding: 8px;
   overflow-x: auto;
-}
-
-.agent-markdown table {
-  border-collapse: collapse;
-  display: block;
-  max-width: 100%;
-  overflow-x: auto;
-}
-
-.agent-markdown td,
-.agent-markdown th {
+  color: var(--foreground);
+  font: 9px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre;
+  background: var(--background);
   border: 1px solid var(--border);
-  padding: 0.25rem 0.4rem;
+  border-radius: 4px;
+}
+
+.agent-markdown pre code {
+  padding: 0;
+  font: inherit;
+  background: transparent;
+  border-radius: 0;
+}
+
+.agent-markdown-table {
+  max-width: 100%;
+  margin: 8px 0;
+  overflow-x: auto;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.agent-markdown-table:focus-visible {
+  outline: 2px solid var(--df-focus-ring);
+  outline-offset: 1px;
+}
+
+.agent-markdown-table table {
+  border-collapse: collapse;
+  min-width: 100%;
+  color: var(--foreground);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.agent-markdown-table td,
+.agent-markdown-table th {
+  padding: 5px 7px;
   text-align: start;
+  white-space: nowrap;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.agent-markdown-table th {
+  background: var(--secondary);
+  font-weight: 650;
+}
+
+.agent-markdown-table tr > :last-child {
+  border-right: 0;
+}
+
+.agent-markdown-table tbody tr:last-child > td {
+  border-bottom: 0;
+}
+
+.agent-markdown .contains-task-list {
+  padding-inline-start: 0;
+  list-style: none;
+}
+
+.agent-markdown .task-list-item {
+  list-style: none;
+}
+
+.agent-markdown .task-list-item input {
+  width: 11px;
+  height: 11px;
+  margin: 0 5px 0 0;
+  vertical-align: -1px;
+  accent-color: var(--primary);
+  opacity: 1;
 }
 
 .agent-markdown-link {
@@ -466,5 +619,6 @@
 
 .agent-markdown-image {
   color: var(--muted-foreground);
+  font-size: 9px;
   font-style: italic;
 }

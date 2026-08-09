@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -46,6 +46,22 @@ const OmittedImage = ({ alt }: { alt?: string }) => (
   </span>
 );
 
+const ReadOnlyTaskCheckbox = ({
+  node: _node,
+  ...props
+}: ComponentProps<'input'> & { node?: unknown }) => (
+  <input {...props} disabled readOnly tabIndex={-1} type="checkbox" />
+);
+
+const ScrollableTable = ({
+  node: _node,
+  ...props
+}: ComponentProps<'table'> & { node?: unknown }) => (
+  <div className="agent-markdown-table" tabIndex={0}>
+    <table {...props} />
+  </div>
+);
+
 export function SafeMarkdown({ children }: SafeMarkdownProps) {
   return (
     <Markdown
@@ -53,6 +69,8 @@ export function SafeMarkdown({ children }: SafeMarkdownProps) {
       components={{
         a: DisabledLink,
         img: OmittedImage,
+        input: ReadOnlyTaskCheckbox,
+        table: ScrollableTable,
       }}
       remarkPlugins={[remarkGfm]}
       skipHtml
