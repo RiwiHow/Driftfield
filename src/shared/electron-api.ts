@@ -2,7 +2,8 @@ import type {
   AgentConfiguration,
   RemoveAgentCredentialRequest,
   SetAgentApiKeyRequest,
-} from './contracts/agent-configuration';
+  UpdateAgentModelOverrideRequest,
+} from "./contracts/agent-configuration";
 import type {
   ProjectSnapshot,
   ProjectWatcherStatus,
@@ -10,28 +11,28 @@ import type {
   SaveProjectDocumentResult,
   SelectProjectDirectoryResult,
   CloseUnsavedDocumentDecision,
-} from './contracts/project';
+} from "./contracts/project";
 import type {
   AppSettings,
   UpdateAppSettingsRequest,
-} from './contracts/settings';
+} from "./contracts/settings";
 import type {
   CompleteWindowCloseRequest,
   WindowCloseRequest,
-} from './contracts/window-lifecycle';
+} from "./contracts/window-lifecycle";
 import type {
   AgentEvent,
   CancelAgentRequest,
   CancelAgentResult,
   StartAgentPromptRequest,
   StartAgentPromptResult,
-} from './contracts/agent';
+} from "./contracts/agent";
 import type {
   ApplyAgentProposalRequest,
   ApplyAgentProposalResult,
   RejectAgentProposalRequest,
   RejectAgentProposalResult,
-} from './contracts/agent-proposals';
+} from "./contracts/agent-proposals";
 
 export interface DriftfieldAPI {
   platform: string;
@@ -47,7 +48,9 @@ export interface DriftfieldAPI {
   confirmCloseUnsavedDocument: (
     documentTitle: string,
   ) => Promise<CloseUnsavedDocumentDecision>;
-  onProjectChanged: (listener: (project: ProjectSnapshot) => void) => () => void;
+  onProjectChanged: (
+    listener: (project: ProjectSnapshot) => void,
+  ) => () => void;
   onProjectWatcherStatusChanged: (
     listener: (status: ProjectWatcherStatus) => void,
   ) => () => void;
@@ -57,6 +60,7 @@ export interface DriftfieldAPI {
   onAgentEvent: (listener: (event: AgentEvent) => void) => () => void;
   pasteIntoEditor: () => Promise<void>;
   refreshProject: () => Promise<ProjectSnapshot | null>;
+  restoreLastProject: () => Promise<ProjectSnapshot | null>;
   removeAgentCredential: (
     request: RemoveAgentCredentialRequest,
   ) => Promise<AgentConfiguration>;
@@ -79,6 +83,9 @@ export interface DriftfieldAPI {
   updateAppSettings: (
     settings: UpdateAppSettingsRequest,
   ) => Promise<AppSettings>;
+  updateAgentModelOverride: (
+    request: UpdateAgentModelOverrideRequest,
+  ) => Promise<AgentConfiguration>;
   versions: {
     chrome: string;
     electron: string;

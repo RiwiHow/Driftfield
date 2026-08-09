@@ -38,8 +38,9 @@ implemented or authorized.
   Before adding session restoration or more document lifecycle states, move pure
   transitions into a reducer and separate project-session effects from document
   save/close effects without introducing a global state library by default.
-- `SettingsDialog.tsx` can be split into language, Agent provider/model,
-  appearance, and editor sections as a low-risk presentation cleanup.
+- The settings dialog now separates interface and model configuration. Continue
+  splitting model override editing into focused components if additional Pi
+  capabilities materially expand that panel.
 - `WorkspaceShell.tsx` can move panel transition mechanics into a focused hook if
   the shell grows further. Preserve the existing native View Transition behavior
   and do not refactor it solely to reduce line count.

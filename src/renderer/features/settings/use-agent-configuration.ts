@@ -1,16 +1,21 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import type {
   AgentApiKeyProviderId,
   AgentConfiguration,
-} from '../../../shared/contracts/agent-configuration';
+  AgentModelOverride,
+} from "../../../shared/contracts/agent-configuration";
 
-const EMPTY_CONFIGURATION: AgentConfiguration = { models: [], providers: [] };
-type AgentConfigurationErrorCode = 'load' | 'remove' | 'save';
+const EMPTY_CONFIGURATION: AgentConfiguration = {
+  models: [],
+  modelOverrides: [],
+  providers: [],
+};
+type AgentConfigurationErrorCode = "load" | "remove" | "save";
 
 export const useAgentConfiguration = () => {
-  const { t } = useTranslation('errors');
+  const { t } = useTranslation("errors");
   const [configuration, setConfiguration] =
     useState<AgentConfiguration>(EMPTY_CONFIGURATION);
   const [errorCode, setErrorCode] =
@@ -23,7 +28,7 @@ export const useAgentConfiguration = () => {
     try {
       setConfiguration(await window.driftfield.getAgentConfiguration());
     } catch {
-      setErrorCode('load');
+      setErrorCode("load");
     } finally {
       setIsLoading(false);
     }
@@ -44,7 +49,7 @@ export const useAgentConfiguration = () => {
         );
         return true;
       } catch {
-        setErrorCode('save');
+        setErrorCode("save");
         return false;
       } finally {
         setIsUpdating(false);
@@ -64,7 +69,27 @@ export const useAgentConfiguration = () => {
         );
         return true;
       } catch {
-        setErrorCode('remove');
+        setErrorCode("remove");
+        return false;
+      } finally {
+        setIsUpdating(false);
+      }
+    },
+    [isUpdating],
+  );
+
+  const updateModelOverride = useCallback(
+    async (override: AgentModelOverride) => {
+      if (isUpdating) return false;
+      setIsUpdating(true);
+      setErrorCode(null);
+      try {
+        setConfiguration(
+          await window.driftfield.updateAgentModelOverride({ override }),
+        );
+        return true;
+      } catch {
+        setErrorCode("save");
         return false;
       } finally {
         setIsUpdating(false);
@@ -79,15 +104,16 @@ export const useAgentConfiguration = () => {
       errorCode === null
         ? null
         : t(
-            errorCode === 'load'
-              ? 'agent.configurationLoad'
-              : errorCode === 'save'
-                ? 'agent.credentialSave'
-                : 'agent.credentialRemove',
+            errorCode === "load"
+              ? "agent.configurationLoad"
+              : errorCode === "save"
+                ? "agent.credentialSave"
+                : "agent.credentialRemove",
           ),
     isUpdating,
     isLoading,
     removeCredential,
     setApiKey,
+    updateModelOverride,
   };
 };

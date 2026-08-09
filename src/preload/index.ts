@@ -1,11 +1,12 @@
-import { contextBridge, ipcRenderer } from 'electron';
-import type { DriftfieldAPI } from '../shared/electron-api';
-import { IPC_CHANNELS } from '../shared/contracts/ipc-channels';
+import { contextBridge, ipcRenderer } from "electron";
+import type { DriftfieldAPI } from "../shared/electron-api";
+import { IPC_CHANNELS } from "../shared/contracts/ipc-channels";
 import type {
   AgentConfiguration,
   RemoveAgentCredentialRequest,
   SetAgentApiKeyRequest,
-} from '../shared/contracts/agent-configuration';
+  UpdateAgentModelOverrideRequest,
+} from "../shared/contracts/agent-configuration";
 import type {
   ProjectSnapshot,
   ProjectWatcherStatus,
@@ -13,28 +14,28 @@ import type {
   SelectProjectDirectoryResult,
   CloseUnsavedDocumentDecision,
   SaveProjectDocumentResult,
-} from '../shared/contracts/project';
+} from "../shared/contracts/project";
 import type {
   AppSettings,
   UpdateAppSettingsRequest,
-} from '../shared/contracts/settings';
+} from "../shared/contracts/settings";
 import type {
   CompleteWindowCloseRequest,
   WindowCloseRequest,
-} from '../shared/contracts/window-lifecycle';
+} from "../shared/contracts/window-lifecycle";
 import type {
   AgentEvent,
   CancelAgentRequest,
   CancelAgentResult,
   StartAgentPromptRequest,
   StartAgentPromptResult,
-} from '../shared/contracts/agent';
+} from "../shared/contracts/agent";
 import type {
   ApplyAgentProposalRequest,
   ApplyAgentProposalResult,
   RejectAgentProposalRequest,
   RejectAgentProposalResult,
-} from '../shared/contracts/agent-proposals';
+} from "../shared/contracts/agent-proposals";
 
 const api: DriftfieldAPI = {
   platform: process.platform,
@@ -44,7 +45,10 @@ const api: DriftfieldAPI = {
       request,
     ) as Promise<ApplyAgentProposalResult>,
   cancelAgent: (request: CancelAgentRequest) =>
-    ipcRenderer.invoke(IPC_CHANNELS.cancelAgent, request) as Promise<CancelAgentResult>,
+    ipcRenderer.invoke(
+      IPC_CHANNELS.cancelAgent,
+      request,
+    ) as Promise<CancelAgentResult>,
   createProjectDirectory: () =>
     ipcRenderer.invoke(
       IPC_CHANNELS.createProjectDirectory,
@@ -83,7 +87,8 @@ const api: DriftfieldAPI = {
       agentEvent: AgentEvent,
     ): void => listener(agentEvent);
     ipcRenderer.on(IPC_CHANNELS.agentEvent, handleAgentEvent);
-    return () => ipcRenderer.removeListener(IPC_CHANNELS.agentEvent, handleAgentEvent);
+    return () =>
+      ipcRenderer.removeListener(IPC_CHANNELS.agentEvent, handleAgentEvent);
   },
   onProjectWatcherStatusChanged: (listener) => {
     const handleStatus = (
@@ -112,9 +117,13 @@ const api: DriftfieldAPI = {
   pasteIntoEditor: () =>
     ipcRenderer.invoke(IPC_CHANNELS.pasteIntoEditor) as Promise<void>,
   refreshProject: () =>
-    ipcRenderer.invoke(IPC_CHANNELS.refreshProject) as Promise<
-      ProjectSnapshot | null
-    >,
+    ipcRenderer.invoke(
+      IPC_CHANNELS.refreshProject,
+    ) as Promise<ProjectSnapshot | null>,
+  restoreLastProject: () =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.restoreLastProject,
+    ) as Promise<ProjectSnapshot | null>,
   rejectAgentProposal: (request: RejectAgentProposalRequest) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.rejectAgentProposal,
@@ -126,9 +135,10 @@ const api: DriftfieldAPI = {
       request,
     ) as Promise<AgentConfiguration>,
   saveProjectDocument: (request: SaveProjectDocumentRequest) =>
-    ipcRenderer.invoke(IPC_CHANNELS.saveProjectDocument, request) as Promise<
-      SaveProjectDocumentResult
-    >,
+    ipcRenderer.invoke(
+      IPC_CHANNELS.saveProjectDocument,
+      request,
+    ) as Promise<SaveProjectDocumentResult>,
   selectAllEditorText: () =>
     ipcRenderer.invoke(IPC_CHANNELS.selectAllEditorText) as Promise<void>,
   setWindowDirty: (isDirty: boolean) =>
@@ -144,7 +154,10 @@ const api: DriftfieldAPI = {
       request,
     ) as Promise<StartAgentPromptResult>,
   completeWindowClose: (request: CompleteWindowCloseRequest) =>
-    ipcRenderer.invoke(IPC_CHANNELS.completeWindowClose, request) as Promise<void>,
+    ipcRenderer.invoke(
+      IPC_CHANNELS.completeWindowClose,
+      request,
+    ) as Promise<void>,
   selectProjectDirectory: () =>
     ipcRenderer.invoke(
       IPC_CHANNELS.selectProjectDirectory,
@@ -154,6 +167,11 @@ const api: DriftfieldAPI = {
       IPC_CHANNELS.updateAppSettings,
       settings,
     ) as Promise<AppSettings>,
+  updateAgentModelOverride: (request: UpdateAgentModelOverrideRequest) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.updateAgentModelOverride,
+      request,
+    ) as Promise<AgentConfiguration>,
   versions: {
     chrome: process.versions.chrome,
     electron: process.versions.electron,
@@ -161,4 +179,4 @@ const api: DriftfieldAPI = {
   },
 };
 
-contextBridge.exposeInMainWorld('driftfield', api);
+contextBridge.exposeInMainWorld("driftfield", api);

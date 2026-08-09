@@ -1,42 +1,49 @@
-import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
-import { WorkspaceShell } from '@/app/WorkspaceShell';
-import { Button } from '@/components/ui/button';
+import { WorkspaceShell } from "@/app/WorkspaceShell";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { useProjectWorkspace } from '@/features/projects/use-project-workspace';
-import { SettingsDialog } from '@/features/settings/SettingsDialog';
-import { useAppSettings } from '@/features/settings/use-app-settings';
-import { useAgentConfiguration } from '@/features/settings/use-agent-configuration';
-import type { AppSettings } from '../shared/contracts/settings';
+} from "@/components/ui/dialog";
+import { useProjectWorkspace } from "@/features/projects/use-project-workspace";
+import { SettingsDialog } from "@/features/settings/SettingsDialog";
+import { useAppSettings } from "@/features/settings/use-app-settings";
+import { useAgentConfiguration } from "@/features/settings/use-agent-configuration";
+import type { AppSettings } from "../shared/contracts/settings";
+import type { ProjectSnapshot } from "../shared/contracts/project";
 
 interface AppProps {
+  initialProject: ProjectSnapshot | null;
   initialSettings: AppSettings;
   settingsLoadFailed: boolean;
 }
 
-export function App({ initialSettings, settingsLoadFailed }: AppProps) {
-  const { t } = useTranslation('projects');
+export function App({
+  initialProject,
+  initialSettings,
+  settingsLoadFailed,
+}: AppProps) {
+  const { t } = useTranslation("projects");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { isSavingSettings, settings, settingsError, updateSettings } =
     useAppSettings(initialSettings, settingsLoadFailed);
   const agentConfiguration = useAgentConfiguration();
-  const project = useProjectWorkspace();
+  const project = useProjectWorkspace(initialProject);
 
   useEffect(() => {
     const openSettingsFromKeyboard = (event: KeyboardEvent): void => {
-      if ((event.metaKey || event.ctrlKey) && event.key === ',') {
+      if ((event.metaKey || event.ctrlKey) && event.key === ",") {
         event.preventDefault();
         setIsSettingsOpen(true);
       }
     };
-    window.addEventListener('keydown', openSettingsFromKeyboard);
-    return () => window.removeEventListener('keydown', openSettingsFromKeyboard);
+    window.addEventListener("keydown", openSettingsFromKeyboard);
+    return () =>
+      window.removeEventListener("keydown", openSettingsFromKeyboard);
   }, []);
 
   return (
@@ -68,7 +75,7 @@ export function App({ initialSettings, settingsLoadFailed }: AppProps) {
         projectTree={project.projectTree}
         projectWatcherError={project.projectWatcherError}
         recoveredChapters={project.chapters.filter(
-          (chapter) => chapter.backingFileStatus === 'missing',
+          (chapter) => chapter.backingFileStatus === "missing",
         )}
         theme={settings.theme}
       />
@@ -92,6 +99,7 @@ export function App({ initialSettings, settingsLoadFailed }: AppProps) {
           })();
         }}
         onSetApiKey={agentConfiguration.setApiKey}
+        onUpdateModelOverride={agentConfiguration.updateModelOverride}
         onUpdate={(update) => void updateSettings(update)}
         open={isSettingsOpen}
         settings={settings}
@@ -101,23 +109,23 @@ export function App({ initialSettings, settingsLoadFailed }: AppProps) {
         open={project.saveConflict !== null}
       >
         <DialogContent>
-          <DialogTitle>{t('conflict.title')}</DialogTitle>
-          <DialogDescription>{t('conflict.body')}</DialogDescription>
+          <DialogTitle>{t("conflict.title")}</DialogTitle>
+          <DialogDescription>{t("conflict.body")}</DialogDescription>
           <div className="save-conflict-actions">
             <Button
               onClick={project.reloadConflictedDocument}
               variant="outline"
             >
-              {t('conflict.reload')}
+              {t("conflict.reload")}
             </Button>
             <Button
               onClick={project.compareConflictedDocument}
               variant="outline"
             >
-              {t('conflict.compare')}
+              {t("conflict.compare")}
             </Button>
             <Button onClick={() => void project.saveActiveDocument(true)}>
-              {t('conflict.overwrite')}
+              {t("conflict.overwrite")}
             </Button>
           </div>
         </DialogContent>

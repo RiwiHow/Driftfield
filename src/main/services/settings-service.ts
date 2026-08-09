@@ -48,6 +48,14 @@ const isAgentThinkingLevel = (
 const isIdentifier = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= 255;
 
+const parseLastProjectDirectoryPath = (value: unknown): string | null =>
+  typeof value === 'string' &&
+  value.length > 0 &&
+  value.length <= 4096 &&
+  path.isAbsolute(value)
+    ? value
+    : null;
+
 const parseAgentModelSelection = (
   value: unknown,
 ): AgentModelSelection | null => {
@@ -85,11 +93,14 @@ export const parseStoredSettings = (value: unknown): AppSettings => {
     editorFontSize: isEditorFontSize(value.editorFontSize)
       ? value.editorFontSize
       : DEFAULT_APP_SETTINGS.editorFontSize,
+    lastProjectDirectoryPath: parseLastProjectDirectoryPath(
+      value.lastProjectDirectoryPath,
+    ),
     language: isAppLanguage(value.language)
       ? value.language
       : DEFAULT_APP_SETTINGS.language,
     theme: parseStoredTheme(value.theme),
-    version: 3,
+    version: 4,
   };
 };
 
@@ -204,6 +215,27 @@ export class SettingsService {
       () => undefined,
     );
 
+    return operation;
+  }
+
+  async setLastProjectDirectoryPath(directoryPath: string): Promise<void> {
+    if (parseLastProjectDirectoryPath(directoryPath) === null) {
+      throw new Error('Invalid last project directory path');
+    }
+    await this.updateInternal({ lastProjectDirectoryPath: directoryPath });
+  }
+
+  private async updateInternal(update: Partial<AppSettings>): Promise<void> {
+    const operation = this.updateQueue.then(async () => {
+      const nextSettings = { ...this.settings, ...update };
+      await this.persist(nextSettings);
+      this.settings = nextSettings;
+    });
+
+    this.updateQueue = operation.then(
+      () => undefined,
+      () => undefined,
+    );
     return operation;
   }
 

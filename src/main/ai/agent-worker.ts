@@ -2,7 +2,7 @@ import type {
   AgentSession,
   ModelRuntime,
   ResourceLoader,
-} from '@earendil-works/pi-coding-agent';
+} from "@earendil-works/pi-coding-agent";
 import {
   createAgentSession,
   createExtensionRuntime,
@@ -10,22 +10,22 @@ import {
   ModelRuntime as PiModelRuntime,
   SessionManager,
   SettingsManager,
-} from '@earendil-works/pi-coding-agent';
-import { Type } from 'typebox';
+} from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 
 import {
   isAgentWorkerCommand,
   type AgentWorkerCommand,
   type AgentWorkerMessage,
   type AgentWorkerStartCommand,
-} from '../../shared/contracts/agent-worker';
-import { buildAgentSystemPrompt } from './prompts/prompt-builder';
-import { AgentToolResultBridge } from './agent-tool-result-bridge';
+} from "../../shared/contracts/agent-worker";
+import { buildAgentSystemPrompt } from "./prompts/prompt-builder";
+import { AgentToolResultBridge } from "./agent-tool-result-bridge";
 import {
   isAgentToolName,
   type AgentToolContractMap,
   type AgentToolName,
-} from '../../shared/contracts/agent-tools';
+} from "../../shared/contracts/agent-tools";
 
 const TOOL_RESULT_TIMEOUT_MS = 30_000;
 
@@ -43,49 +43,54 @@ const send = (message: AgentWorkerMessage): void => {
 };
 
 const toolResults = new AgentToolResultBridge(
-  (request) => send({ ...request, type: 'tool-request' }),
+  (request) => send({ ...request, type: "tool-request" }),
   TOOL_RESULT_TIMEOUT_MS,
 );
 
-process.parentPort.on('message', (event) => {
+process.parentPort.on("message", (event) => {
   const command: unknown = event.data;
   if (!isAgentWorkerCommand(command)) return;
   void handleCommand(command);
 });
 
-send({ type: 'ready' });
+send({ type: "ready" });
 
 async function handleCommand(command: AgentWorkerCommand): Promise<void> {
-  if (command.type === 'list-models') {
+  if (command.type === "list-models") {
     try {
-      const runtime = await getModelRuntime(command.authPath, command.modelsPath);
+      const runtime = await getModelRuntime(
+        command.authPath,
+        command.modelsPath,
+      );
       const models = await runtime.getAvailable();
       send({
         models: models.map((model) => ({
+          api: model.api,
           contextWindow: model.contextWindow,
           id: model.id,
           maxOutputTokens: model.maxTokens,
           name: model.name,
           providerId: model.provider,
           reasoning: model.reasoning,
+          thinkingLevelMap: model.thinkingLevelMap ?? {},
         })),
         requestId: command.requestId,
-        type: 'models',
+        type: "models",
       });
     } catch {
       send({
-        code: 'model-list-failed',
+        code: "model-list-failed",
         requestId: command.requestId,
-        type: 'models-error',
+        type: "models-error",
       });
     }
     return;
   }
-  if (command.type === 'start') {
+  if (command.type === "start") {
     await startRequest(command);
     return;
   }
-  if (command.type === 'cancel') {
+  if (command.type === "cancel") {
     const active = activeRequests.get(command.requestId);
     if (active !== undefined) {
       active.cancelled = true;
@@ -93,12 +98,8 @@ async function handleCommand(command: AgentWorkerCommand): Promise<void> {
     }
     return;
   }
-  if (command.type === 'tool-result') {
-    toolResults.resolve(
-      command.requestId,
-      command.toolCallId,
-      command.result,
-    );
+  if (command.type === "tool-result") {
+    toolResults.resolve(command.requestId, command.toolCallId, command.result);
     return;
   }
   for (const active of activeRequests.values()) {
@@ -123,7 +124,7 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
         id === command.modelId && provider === command.providerId,
     );
     if (model === undefined) {
-      throw new Error('The configured model is not available');
+      throw new Error("The configured model is not available");
     }
     const customTools = createNovelTools(command.requestId);
     const enabledToolNames = customTools.map(({ name }) => {
@@ -150,18 +151,18 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
     active.session = session;
     if (active.cancelled) {
       await session.abort();
-      send({ requestId: command.requestId, type: 'cancelled' });
+      send({ requestId: command.requestId, type: "cancelled" });
       return;
     }
     const unsubscribe = session.subscribe((event) => {
       if (
-        event.type === 'message_update' &&
-        event.assistantMessageEvent.type === 'text_delta'
+        event.type === "message_update" &&
+        event.assistantMessageEvent.type === "text_delta"
       ) {
         send({
           delta: event.assistantMessageEvent.delta,
           requestId: command.requestId,
-          type: 'text-delta',
+          type: "text-delta",
         });
       }
     });
@@ -169,7 +170,7 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
       await session.prompt(command.prompt);
       send({
         requestId: command.requestId,
-        type: active.cancelled ? 'cancelled' : 'completed',
+        type: active.cancelled ? "cancelled" : "completed",
       });
     } finally {
       unsubscribe();
@@ -177,11 +178,11 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
   } catch {
     send({
       ...(active.cancelled
-        ? { requestId: command.requestId, type: 'cancelled' as const }
+        ? { requestId: command.requestId, type: "cancelled" as const }
         : {
-            code: 'request-failed',
+            code: "request-failed",
             requestId: command.requestId,
-            type: 'error' as const,
+            type: "error" as const,
           }),
     });
   } finally {
@@ -194,56 +195,74 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
 function createNovelTools(requestId: string) {
   return [
     defineTool({
-      description: 'Read the ordered novel, volume, chapter, and lorebook structure without loading document text.',
-      label: 'Read novel structure',
-      name: 'get_novel_structure',
+      description:
+        "Read the ordered novel, volume, chapter, and lorebook structure without loading document text.",
+      label: "Read novel structure",
+      name: "get_novel_structure",
       parameters: Type.Object({}, { additionalProperties: false }),
       execute: async (toolCallId, params) =>
-        textToolResult(await requestTool(
-          requestId,
-          toolCallId,
-          'get_novel_structure',
-          params as AgentToolContractMap['get_novel_structure']['arguments'],
-        )),
+        textToolResult(
+          await requestTool(
+            requestId,
+            toolCallId,
+            "get_novel_structure",
+            params as AgentToolContractMap["get_novel_structure"]["arguments"],
+          ),
+        ),
     }),
     defineTool({
-      description: 'Read the current manuscript draft selected by the user, including unsaved edits.',
-      label: 'Read current document',
-      name: 'get_current_document',
+      description:
+        "Read the current manuscript draft selected by the user, including unsaved edits.",
+      label: "Read current document",
+      name: "get_current_document",
       parameters: Type.Object({}, { additionalProperties: false }),
       execute: async (toolCallId, params) =>
-        textToolResult(await requestTool(
-          requestId,
-          toolCallId,
-          'get_current_document',
-          params as AgentToolContractMap['get_current_document']['arguments'],
-        )),
+        textToolResult(
+          await requestTool(
+            requestId,
+            toolCallId,
+            "get_current_document",
+            params as AgentToolContractMap["get_current_document"]["arguments"],
+          ),
+        ),
     }),
     defineTool({
-      description: 'Read one persisted manuscript or lorebook document by the stable ID returned by get_novel_structure.',
-      label: 'Read document',
-      name: 'get_document',
-      parameters: Type.Object({ documentId: Type.String({ maxLength: 128, minLength: 1 }) }, { additionalProperties: false }),
+      description:
+        "Read one persisted manuscript or lorebook document by the stable ID returned by get_novel_structure.",
+      label: "Read document",
+      name: "get_document",
+      parameters: Type.Object(
+        { documentId: Type.String({ maxLength: 128, minLength: 1 }) },
+        { additionalProperties: false },
+      ),
       execute: async (toolCallId, params) =>
-        textToolResult(await requestTool(requestId, toolCallId, 'get_document', params)),
+        textToolResult(
+          await requestTool(requestId, toolCallId, "get_document", params),
+        ),
     }),
     defineTool({
-      description: 'Submit a complete replacement for the current document as a reviewable proposal. This never writes the file; the user must explicitly accept it in Driftfield.',
-      label: 'Propose document edit',
-      name: 'propose_document_edit',
-      parameters: Type.Object({
-        baseContentRevision: Type.String({ pattern: '^[a-f0-9]{64}$' }),
-        baseRevision: Type.String({ pattern: '^[a-f0-9]{64}$' }),
-        documentId: Type.String({ maxLength: 128, minLength: 1 }),
-        markdown: Type.String({ maxLength: 512 * 1024 }),
-      }, { additionalProperties: false }),
+      description:
+        "Submit a complete replacement for the current document as a reviewable proposal. This never writes the file; the user must explicitly accept it in Driftfield.",
+      label: "Propose document edit",
+      name: "propose_document_edit",
+      parameters: Type.Object(
+        {
+          baseContentRevision: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+          baseRevision: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+          documentId: Type.String({ maxLength: 128, minLength: 1 }),
+          markdown: Type.String({ maxLength: 512 * 1024 }),
+        },
+        { additionalProperties: false },
+      ),
       execute: async (toolCallId, params) =>
-        textToolResult(await requestTool(
-          requestId,
-          toolCallId,
-          'propose_document_edit',
-          params,
-        )),
+        textToolResult(
+          await requestTool(
+            requestId,
+            toolCallId,
+            "propose_document_edit",
+            params,
+          ),
+        ),
     }),
   ];
 }
@@ -252,14 +271,14 @@ async function requestTool<Name extends AgentToolName>(
   requestId: string,
   toolCallId: string,
   toolName: Name,
-  args: AgentToolContractMap[Name]['arguments'],
+  args: AgentToolContractMap[Name]["arguments"],
 ): Promise<string> {
   send({
     input: serializeToolPayload(args),
     requestId,
     toolCallId,
     toolName,
-    type: 'tool-started',
+    type: "tool-started",
   });
   try {
     const result = await toolResults.request(
@@ -274,17 +293,17 @@ async function requestTool<Name extends AgentToolName>(
       requestId,
       toolCallId,
       toolName,
-      type: 'tool-completed',
+      type: "tool-completed",
     });
     return JSON.stringify(result);
   } catch (error) {
     send({
       failed: true,
-      output: serializeToolPayload({ error: 'tool-result-unavailable' }),
+      output: serializeToolPayload({ error: "tool-result-unavailable" }),
       requestId,
       toolCallId,
       toolName,
-      type: 'tool-completed',
+      type: "tool-completed",
     });
     throw error;
   }
@@ -294,12 +313,12 @@ const serializeToolPayload = (value: unknown): string => {
   let serialized: string;
   try {
     serialized = JSON.stringify(value, (key, entry: unknown) =>
-      key === 'markdown' && typeof entry === 'string'
+      key === "markdown" && typeof entry === "string"
         ? `[Markdown omitted: ${new TextEncoder().encode(entry).byteLength} bytes]`
         : entry,
     );
   } catch {
-    serialized = JSON.stringify({ error: 'unserializable-tool-payload' });
+    serialized = JSON.stringify({ error: "unserializable-tool-payload" });
   }
   return serialized.length <= 8_192
     ? serialized
@@ -323,7 +342,7 @@ async function getModelRuntime(
 }
 
 const textToolResult = (text: string) => ({
-  content: [{ text, type: 'text' as const }],
+  content: [{ text, type: "text" as const }],
   details: {},
 });
 

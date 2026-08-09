@@ -41,6 +41,7 @@ export const registerProjectIpcHandlers = ({
       const directoryPath = await resolveSelectedDirectory(selectedPath);
       const layout = await initializeProjectLayout(directoryPath);
       const project = await createProjectSnapshot(directoryPath, layout);
+      await settingsService.setLastProjectDirectoryPath(directoryPath);
       aiAgentService.disposeOwner(window.webContents.id);
       projectSessions.watch(window, directoryPath, project);
       return project;
@@ -50,6 +51,26 @@ export const registerProjectIpcHandlers = ({
   ipcMain.handle(IPC_CHANNELS.refreshProject, async (event) => {
     const window = getTrustedSenderWindow(event);
     return projectSessions.refresh(window.webContents.id);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.restoreLastProject, async (event) => {
+    const window = getTrustedSenderWindow(event);
+    const { lastProjectDirectoryPath } = settingsService.get();
+    if (lastProjectDirectoryPath === null) return null;
+
+    try {
+      const directoryPath = await resolveSelectedDirectory(
+        lastProjectDirectoryPath,
+      );
+      const layout = await openProjectLayout(directoryPath);
+      const project = await createProjectSnapshot(directoryPath, layout);
+      aiAgentService.disposeOwner(window.webContents.id);
+      projectSessions.watch(window, directoryPath, project);
+      return project;
+    } catch (error) {
+      console.error('Unable to restore the last project directory', error);
+      return null;
+    }
   });
 
   ipcMain.handle(
@@ -98,6 +119,7 @@ export const registerProjectIpcHandlers = ({
       const directoryPath = await resolveSelectedDirectory(selectedPath);
       const layout = await openProjectLayout(directoryPath);
       const project = await createProjectSnapshot(directoryPath, layout);
+      await settingsService.setLastProjectDirectoryPath(directoryPath);
       aiAgentService.disposeOwner(window.webContents.id);
       projectSessions.watch(window, directoryPath, project);
       return project;

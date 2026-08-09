@@ -30,12 +30,18 @@ export interface AppSettings {
   agent: AgentSettings;
   closeWindowBehavior: CloseWindowBehavior;
   editorFontSize: number;
+  lastProjectDirectoryPath: string | null;
   language: AppLanguage;
   theme: AppTheme;
-  version: 3;
+  version: 4;
 }
 
-export type UpdateAppSettingsRequest = Partial<Omit<AppSettings, 'version'>>;
+export type UpdateAppSettingsRequest = Partial<
+  Pick<
+    AppSettings,
+    'agent' | 'closeWindowBehavior' | 'editorFontSize' | 'language' | 'theme'
+  >
+>;
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   agent: {
@@ -44,7 +50,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   },
   closeWindowBehavior: 'quit',
   editorFontSize: 17,
+  lastProjectDirectoryPath: null,
   language: 'en',
   theme: 'github-light',
-  version: 3,
+  version: 4,
 };

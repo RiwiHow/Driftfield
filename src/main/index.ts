@@ -1,25 +1,29 @@
-import { app, BrowserWindow, type Event } from 'electron';
-import { randomUUID } from 'node:crypto';
+import { app, BrowserWindow, type Event } from "electron";
+import { randomUUID } from "node:crypto";
 
-import { IPC_CHANNELS } from '../shared/contracts/ipc-channels';
+import { IPC_CHANNELS } from "../shared/contracts/ipc-channels";
 import type {
   CompleteWindowCloseRequest,
   WindowCloseRequest,
-} from '../shared/contracts/window-lifecycle';
-import { registerIpcHandlers } from './ipc/register-ipc-handlers';
-import { AiAgentService } from './ai/ai-agent-service';
-import { AgentToolDispatcher } from './ai/agent-tool-dispatcher';
-import { ProjectContextService } from './ai/project-context-service';
-import { AgentProposalService } from './ai/agent-proposal-service';
-import { ProjectSessionService } from './services/project-session-service';
-import { SettingsService } from './services/settings-service';
-import { AgentCredentialService } from './services/agent-credential-service';
-import { initializeMainI18n } from './i18n/main-i18n';
-import { createMainWindow } from './windows/main-window';
-import type { RendererNavigationPolicy } from './windows/navigation-policy';
+} from "../shared/contracts/window-lifecycle";
+import { registerIpcHandlers } from "./ipc/register-ipc-handlers";
+import { AiAgentService } from "./ai/ai-agent-service";
+import { AgentToolDispatcher } from "./ai/agent-tool-dispatcher";
+import { ProjectContextService } from "./ai/project-context-service";
+import { AgentProposalService } from "./ai/agent-proposal-service";
+import { ProjectSessionService } from "./services/project-session-service";
+import { SettingsService } from "./services/settings-service";
+import { AgentCredentialService } from "./services/agent-credential-service";
+import { AgentModelConfigService } from "./services/agent-model-config-service";
+import { initializeMainI18n } from "./i18n/main-i18n";
+import { createMainWindow } from "./windows/main-window";
+import type { RendererNavigationPolicy } from "./windows/navigation-policy";
 
 const mainWindows = new Set<BrowserWindow>();
-const navigationPolicies = new WeakMap<BrowserWindow, RendererNavigationPolicy>();
+const navigationPolicies = new WeakMap<
+  BrowserWindow,
+  RendererNavigationPolicy
+>();
 const projectSessions = new ProjectSessionService();
 const lifecycleStates = new WeakMap<BrowserWindow, WindowLifecycleState>();
 let isQuitting = false;
@@ -34,17 +38,20 @@ interface WindowLifecycleState {
 
 const requestWindowClose = (
   window: BrowserWindow,
-  reason: WindowCloseRequest['reason'],
+  reason: WindowCloseRequest["reason"],
 ): void => {
   const state = lifecycleStates.get(window);
   if (state === undefined || state.closeRequest !== null) return;
   state.closeRequest = { reason, requestId: randomUUID() };
-  window.webContents.send(IPC_CHANNELS.windowCloseRequested, state.closeRequest);
+  window.webContents.send(
+    IPC_CHANNELS.windowCloseRequested,
+    state.closeRequest,
+  );
 };
 
 const setWindowDirty = (window: BrowserWindow, dirty: boolean): void => {
   const state = lifecycleStates.get(window);
-  if (state === undefined) throw new Error('Unknown application window');
+  if (state === undefined) throw new Error("Unknown application window");
   state.dirty = dirty;
 };
 
@@ -54,7 +61,7 @@ const completeWindowClose = (
 ): void => {
   const state = lifecycleStates.get(window);
   if (state?.closeRequest?.requestId !== request.requestId) {
-    throw new Error('Unknown close request');
+    throw new Error("Unknown close request");
   }
   const reason = state.closeRequest.reason;
   state.closeRequest = null;
@@ -64,7 +71,7 @@ const completeWindowClose = (
   }
   state.dirty = false;
   state.allowClose = true;
-  if (reason === 'quit') {
+  if (reason === "quit") {
     pendingQuit = false;
     isQuitting = true;
     app.quit();
@@ -83,7 +90,7 @@ const getTrustedSenderWindow = (
     event.senderFrame !== event.sender.mainFrame ||
     navigationPolicies.get(window)?.allows(event.senderFrame.url) !== true
   ) {
-    throw new Error('Unauthorized renderer request');
+    throw new Error("Unauthorized renderer request");
   }
   return window;
 };
@@ -98,13 +105,13 @@ const openMainWindow = (
       if (isQuitting || lifecycle?.allowClose) return;
       event.preventDefault();
       if (
-        process.platform !== 'darwin' &&
-        settingsService.get().closeWindowBehavior === 'minimize'
+        process.platform !== "darwin" &&
+        settingsService.get().closeWindowBehavior === "minimize"
       ) {
         window.minimize();
       } else if (lifecycle?.dirty) {
         pendingQuit = true;
-        requestWindowClose(window, 'quit');
+        requestWindowClose(window, "quit");
       } else {
         isQuitting = true;
         app.quit();
@@ -129,9 +136,14 @@ const openMainWindow = (
 void app.whenReady().then(async () => {
   try {
     await initializeMainI18n();
-    const settingsService = await SettingsService.create(app.getPath('userData'));
+    const settingsService = await SettingsService.create(
+      app.getPath("userData"),
+    );
     const agentCredentialService = new AgentCredentialService(
-      app.getPath('userData'),
+      app.getPath("userData"),
+    );
+    const agentModelConfigService = new AgentModelConfigService(
+      app.getPath("userData"),
     );
     const agentProposalService = new AgentProposalService(projectSessions);
     const agentToolDispatcher = new AgentToolDispatcher(
@@ -140,7 +152,7 @@ void app.whenReady().then(async () => {
       agentProposalService,
     );
     const aiAgentService = new AiAgentService(
-      app.getPath('userData'),
+      app.getPath("userData"),
       (ownerId, projectSessionId) =>
         projectSessions.get(ownerId)?.id === projectSessionId,
       agentToolDispatcher,
@@ -149,6 +161,7 @@ void app.whenReady().then(async () => {
     registerIpcHandlers({
       aiAgentService,
       agentCredentialService,
+      agentModelConfigService,
       agentProposalService,
       completeWindowClose,
       getTrustedSenderWindow,
@@ -157,18 +170,18 @@ void app.whenReady().then(async () => {
       settingsService,
     });
     openMainWindow(settingsService, aiAgentService);
-    app.on('activate', () => {
+    app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         openMainWindow(settingsService, aiAgentService);
       }
     });
   } catch (error) {
-    console.error('Failed to initialize application settings', error);
+    console.error("Failed to initialize application settings", error);
     app.quit();
   }
 });
 
-app.on('before-quit', (event) => {
+app.on("before-quit", (event) => {
   if (isQuitting) return;
   const dirtyWindows = [...mainWindows].filter(
     (window) => lifecycleStates.get(window)?.dirty,
@@ -180,15 +193,15 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   if (!pendingQuit) {
     pendingQuit = true;
-    for (const window of dirtyWindows) requestWindowClose(window, 'quit');
+    for (const window of dirtyWindows) requestWindowClose(window, "quit");
   }
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
 });
 
-app.on('will-quit', () => {
+app.on("will-quit", () => {
   activeAiAgentService?.dispose();
   activeAiAgentService = null;
 });

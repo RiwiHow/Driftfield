@@ -73,5 +73,7 @@ The project tree reads manuscript Markdown through narrow main-process IPC.
 Existing `.md` and `.markdown` documents can be saved through validated,
 conflict-aware handlers. General `.mdx` and JSX files are unsupported.
 
-Project selection, open documents, unsaved edits, and Agent conversations are
-currently session-only and must not be described as restored or persisted.
+The last successfully opened project directory is persisted in application
+settings and restored at startup after main-owned path and project validation.
+Open documents, unsaved edits, and Agent conversations remain session-only and
+must not be described as restored or persisted.

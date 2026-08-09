@@ -1,23 +1,16 @@
-import type { AgentModelOption } from './agent-configuration';
-import {
-  AGENT_ROLES,
-  type AgentErrorCode,
-  type AgentRole,
-} from './agent';
-import {
-  AGENT_THINKING_LEVELS,
-  type AgentThinkingLevel,
-} from './settings';
+import type { AgentModelOption } from "./agent-configuration";
+import { AGENT_ROLES, type AgentErrorCode, type AgentRole } from "./agent";
+import { AGENT_THINKING_LEVELS, type AgentThinkingLevel } from "./settings";
 import {
   isAgentToolName,
   isAgentToolExecutionResult,
   isAgentToolRequest,
   type AgentToolExecutionResult,
   type AgentToolRequest,
-} from './agent-tools';
+} from "./agent-tools";
 
 export interface AgentWorkerStartCommand {
-      authPath: string;
+  authPath: string;
   cwd: string;
   modelsPath: string;
   modelId: string;
@@ -26,7 +19,7 @@ export interface AgentWorkerStartCommand {
   requestId: string;
   role: AgentRole;
   thinkingLevel: AgentThinkingLevel;
-  type: 'start';
+  type: "start";
 }
 
 export type AgentWorkerCommand =
@@ -35,91 +28,90 @@ export type AgentWorkerCommand =
       authPath: string;
       modelsPath: string;
       requestId: string;
-      type: 'list-models';
+      type: "list-models";
     }
-  | { requestId: string; type: 'cancel' }
+  | { requestId: string; type: "cancel" }
   | {
       result: AgentToolExecutionResult;
       requestId: string;
       toolCallId: string;
-      type: 'tool-result';
+      type: "tool-result";
     }
-  | { type: 'shutdown' };
+  | { type: "shutdown" };
 
 export type AgentWorkerMessage =
-  | { type: 'ready' }
-  | { models: AgentModelOption[]; requestId: string; type: 'models' }
-  | { code: 'model-list-failed'; requestId: string; type: 'models-error' }
+  | { type: "ready" }
+  | { models: AgentModelOption[]; requestId: string; type: "models" }
+  | { code: "model-list-failed"; requestId: string; type: "models-error" }
   | (AgentToolRequest & {
       requestId: string;
       toolCallId: string;
-      type: 'tool-request';
+      type: "tool-request";
     })
-  | { delta: string; requestId: string; type: 'text-delta' }
+  | { delta: string; requestId: string; type: "text-delta" }
   | {
       input: string;
       requestId: string;
       toolCallId: string;
-      toolName: import('./agent-tools').AgentToolName;
-      type: 'tool-started';
+      toolName: import("./agent-tools").AgentToolName;
+      type: "tool-started";
     }
   | {
       failed: boolean;
       output: string;
       requestId: string;
       toolCallId: string;
-      toolName: import('./agent-tools').AgentToolName;
-      type: 'tool-completed';
+      toolName: import("./agent-tools").AgentToolName;
+      type: "tool-completed";
     }
-  | { requestId: string; type: 'completed' }
-  | { requestId: string; type: 'cancelled' }
-  | { code: AgentErrorCode; requestId: string; type: 'error' };
+  | { requestId: string; type: "completed" }
+  | { requestId: string; type: "cancelled" }
+  | { code: AgentErrorCode; requestId: string; type: "error" };
 
 export const isAgentWorkerMessage = (
   value: unknown,
 ): value is AgentWorkerMessage => {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
   }
   const message = value as Record<string, unknown>;
-  if (message.type === 'ready') return true;
-  if (typeof message.requestId !== 'string') return false;
-  if (message.type === 'models') {
+  if (message.type === "ready") return true;
+  if (typeof message.requestId !== "string") return false;
+  if (message.type === "models") {
     return Array.isArray(message.models) && message.models.every(isModelOption);
   }
-  if (message.type === 'models-error') {
-    return message.code === 'model-list-failed';
+  if (message.type === "models-error") {
+    return message.code === "model-list-failed";
   }
-  if (
-    message.type === 'completed' ||
-    message.type === 'cancelled'
-  ) {
+  if (message.type === "completed" || message.type === "cancelled") {
     return true;
   }
-  if (message.type === 'text-delta') return typeof message.delta === 'string';
-  if (message.type === 'tool-started') {
+  if (message.type === "text-delta") return typeof message.delta === "string";
+  if (message.type === "tool-started") {
     return (
       isToolCallId(message.toolCallId) &&
       isAgentToolName(message.toolName) &&
-      typeof message.input === 'string' &&
+      typeof message.input === "string" &&
       message.input.length <= 8_192
     );
   }
-  if (message.type === 'tool-completed') {
+  if (message.type === "tool-completed") {
     return (
       isToolCallId(message.toolCallId) &&
       isAgentToolName(message.toolName) &&
-      typeof message.failed === 'boolean' &&
-      typeof message.output === 'string' &&
+      typeof message.failed === "boolean" &&
+      typeof message.output === "string" &&
       message.output.length <= 8_192
     );
   }
-  if (message.type === 'error') {
-    return message.code === 'request-failed' || message.code === 'runtime-exited';
+  if (message.type === "error") {
+    return (
+      message.code === "request-failed" || message.code === "runtime-exited"
+    );
   }
   return (
-    message.type === 'tool-request' &&
-    typeof message.toolCallId === 'string' &&
+    message.type === "tool-request" &&
+    typeof message.toolCallId === "string" &&
     isAgentToolRequest(message)
   );
 };
@@ -127,58 +119,59 @@ export const isAgentWorkerMessage = (
 export const isAgentWorkerCommand = (
   value: unknown,
 ): value is AgentWorkerCommand => {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
   }
   const command = value as Record<string, unknown>;
-  if (command.type === 'shutdown') return true;
-  if (typeof command.requestId !== 'string') return false;
-  if (command.type === 'list-models') {
+  if (command.type === "shutdown") return true;
+  if (typeof command.requestId !== "string") return false;
+  if (command.type === "list-models") {
     return (
-      typeof command.authPath === 'string' &&
-      typeof command.modelsPath === 'string'
+      typeof command.authPath === "string" &&
+      typeof command.modelsPath === "string"
     );
   }
-  if (command.type === 'cancel') return true;
-  if (command.type === 'tool-result') {
+  if (command.type === "cancel") return true;
+  if (command.type === "tool-result") {
     return (
-      typeof command.toolCallId === 'string' &&
+      typeof command.toolCallId === "string" &&
       isAgentToolExecutionResult(command.result)
     );
   }
   return (
-    command.type === 'start' &&
-    typeof command.authPath === 'string' &&
-    typeof command.cwd === 'string' &&
-    typeof command.modelsPath === 'string' &&
-    typeof command.modelId === 'string' &&
-    typeof command.prompt === 'string' &&
-    typeof command.providerId === 'string' &&
-    typeof command.role === 'string' &&
+    command.type === "start" &&
+    typeof command.authPath === "string" &&
+    typeof command.cwd === "string" &&
+    typeof command.modelsPath === "string" &&
+    typeof command.modelId === "string" &&
+    typeof command.prompt === "string" &&
+    typeof command.providerId === "string" &&
+    typeof command.role === "string" &&
     AGENT_ROLES.includes(command.role as AgentRole) &&
-    typeof command.thinkingLevel === 'string' &&
-    AGENT_THINKING_LEVELS.includes(
-      command.thinkingLevel as AgentThinkingLevel,
-    )
+    typeof command.thinkingLevel === "string" &&
+    AGENT_THINKING_LEVELS.includes(command.thinkingLevel as AgentThinkingLevel)
   );
 };
 
 const isModelOption = (value: unknown): value is AgentModelOption => {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
   }
   const model = value as Partial<AgentModelOption>;
   return (
-    typeof model.contextWindow === 'number' &&
+    typeof model.api === "string" &&
+    typeof model.contextWindow === "number" &&
     Number.isFinite(model.contextWindow) &&
-    typeof model.id === 'string' &&
-    typeof model.maxOutputTokens === 'number' &&
+    typeof model.id === "string" &&
+    typeof model.maxOutputTokens === "number" &&
     Number.isFinite(model.maxOutputTokens) &&
-    typeof model.name === 'string' &&
-    typeof model.providerId === 'string' &&
-    typeof model.reasoning === 'boolean'
+    typeof model.name === "string" &&
+    typeof model.providerId === "string" &&
+    typeof model.reasoning === "boolean" &&
+    typeof model.thinkingLevelMap === "object" &&
+    model.thinkingLevelMap !== null
   );
 };
 
 const isToolCallId = (value: unknown): value is string =>
-  typeof value === 'string' && value.length > 0 && value.length <= 128;
+  typeof value === "string" && value.length > 0 && value.length <= 128;

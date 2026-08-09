@@ -44,7 +44,7 @@ interface SaveDocumentsMessages {
   missing: LocalizedWorkspaceMessage;
 }
 
-export const useProjectWorkspace = () => {
+export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
   const { t } = useTranslation('projects');
   const { t: tErrors } = useTranslation('errors');
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -73,6 +73,7 @@ export const useProjectWorkspace = () => {
   const chaptersRef = useRef<Chapter[]>([]);
   chaptersRef.current = chapters;
   const isSelectingProject = projectPickerAction !== null;
+  const didApplyInitialProject = useRef(false);
 
   const localizeMessage = useCallback(
     (message: LocalizedWorkspaceMessage | null): string | null => {
@@ -195,6 +196,12 @@ export const useProjectWorkspace = () => {
     },
     [],
   );
+
+  useEffect(() => {
+    if (initialProject === null || didApplyInitialProject.current) return;
+    didApplyInitialProject.current = true;
+    applyProjectSnapshot(initialProject, false);
+  }, [applyProjectSnapshot, initialProject]);
 
   useEffect(() => {
     void window.driftfield

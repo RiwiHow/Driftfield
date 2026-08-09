@@ -7,6 +7,7 @@ import type { IpcHandlerContext } from './ipc-handler-context';
 
 export const registerSettingsIpcHandlers = ({
   agentCredentialService,
+  agentModelConfigService,
   aiAgentService,
   getTrustedSenderWindow,
   settingsService,
@@ -23,6 +24,7 @@ export const registerSettingsIpcHandlers = ({
       const { models } = await getAgentConfiguration(
         aiAgentService,
         agentCredentialService,
+        agentModelConfigService,
       );
       const selection = update.agent.defaultModel;
       if (

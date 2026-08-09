@@ -56,10 +56,29 @@ Split it only when targets genuinely require different behavior.
 Persist application-owned generation records independently from Pi session
 formats so the SDK can be upgraded or replaced.
 
+Driftfield owns Pi model overrides under its Agent data directory. Renderer UI
+edits typed model-level settings; main validates and atomically merges the
+approved subset into `models.json`, then restarts the idle worker and reloads
+the effective catalogue. The exposed subset includes OpenRouter routing,
+thinking-level maps, selected compatibility flags, and literal non-credential
+headers.
+
+- OpenRouter upstream-provider selection uses model-level
+  `compat.openRouterRouting`, not request headers.
+- Thinking-level maps may hide unsupported levels and the ordinary thinking
+  selector reflects the effective map returned by Pi.
+- Renderer never receives a model-file path or a generic JSON/file mutation
+  operation.
+- Driftfield rejects Pi shell-command and environment interpolation in UI-owned
+  values. API keys and sensitive authorization headers remain in the dedicated
+  credential flow.
+- Model configuration cannot change while an Agent request is active.
+
 The Pi subsystem is not production-ready yet:
 
-- API-key credentials, explicit model selection, and thinking level have UI,
-  validated IPC, and main-owned persistence; OAuth flows are not implemented.
+- API-key credentials, explicit model selection, thinking level, and bounded Pi
+  model overrides have UI, validated IPC, and main-owned persistence; OAuth
+  flows are not implemented.
 - Read-tool calls and returned context are bounded, but streamed output, total
   model input context, and monetary cost lack complete application-owned budgets
   and typed terminal reasons.
