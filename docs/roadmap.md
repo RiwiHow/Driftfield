@@ -5,12 +5,22 @@ implemented or authorized.
 
 ## Projects and persistence
 
-- Project selection, open tabs, and unsaved drafts are not restored after
-  relaunch. Agent conversations are project-scoped and persisted through the
-  main-owned conversation database.
+- The last successfully opened project is restored after relaunch. Open tabs,
+  the active document, editor position, and unsaved drafts remain session-only.
+  Agent conversations are project-scoped and persisted through the main-owned
+  conversation database.
 - Watcher retry and close/quit behavior have unit coverage but not complete
   packaged Electron end-to-end coverage on every supported platform.
 - YAML comment and exact-format round-trip preservation remains undecided.
+- Project databases have transactional migrations, strict schemas, and bounded
+  access, but there is no application-owned integrity check, corruption-recovery
+  workflow, coordinated three-database backup, or packaged database smoke test.
+  Define these before project databases become irreplaceable released user data.
+- Driftfield does not currently claim an application-wide single-instance lock
+  or a project-level writer lease. Before supporting multiple application
+  instances, define how concurrent access to the same manuscript and its three
+  SQLite databases is detected and resolved; otherwise enforce single-instance
+  ownership explicitly.
 - `project-layout-service.ts` still combines pure YAML parsing, filesystem
   validation, complete layout loading, and project initialization. Before adding
   migration or structural-write workflows, separate parser, reader, and
@@ -35,11 +45,22 @@ implemented or authorized.
   transitions into a reducer and separate project-session effects from document
   save/close effects without introducing a global state library by default.
 - The settings dialog now separates interface and model configuration. Continue
-  splitting model override editing into focused components if additional Pi
-  capabilities materially expand that panel.
+  splitting model override editing into focused components. `SettingsDialog.tsx`
+  and `AgentModelAdvancedSettings.tsx` already combine substantial form,
+  validation, provider-specific, and save-state behavior; additional Pi
+  capabilities should not expand those components without first extracting
+  focused sections and pure form transitions.
 - `WorkspaceShell.tsx` can move panel transition mechanics into a focused hook if
   the shell grows further. Preserve the existing native View Transition behavior
   and do not refactor it solely to reduce line count.
+- Agent conversation history load, refresh, rename, selection, and deletion
+  failures do not yet have complete typed, user-visible error states. Do not
+  represent a failed history load as an empty history, and keep persisted Main
+  state authoritative when an optimistic Renderer operation fails.
+- Renderer tests cover conversation reducers and timeline helpers, but not the
+  complete asynchronous `use-agent-conversation.ts` lifecycle or the settings
+  dialog's project-switch, explicit-save, and failure paths. Add focused hook or
+  component integration coverage before these workflows expand further.
 
 ## Agent and Pi
 
@@ -52,6 +73,10 @@ implemented or authorized.
 - Pi's SDK public entry bundles provider adapters beyond those exposed by the
   product. Optimize only through a supported narrower entry or reliable
   tree-shaking while preserving exposed providers and packaged smoke tests.
+- Conversation limits bound active lists and model context, but soft-deleted
+  conversations and inactive edit branches remain retained for audit. Define
+  export, permanent deletion, retention, and database-compaction semantics before
+  long-lived projects depend on unbounded conversation history.
 - Do not enable Pi extensions, untrusted resource discovery, module-relative
   assets, or broader tools before corresponding packaged and security coverage.
 - `ProjectContextService` and `AiAgentService` remain intentionally cohesive for
@@ -63,6 +88,10 @@ implemented or authorized.
 
 - Review every new `allowBuilds` entry; never approve transitive lifecycle
   scripts merely because pnpm prompts during installation.
+- Distribution currently targets macOS DMG and ZIP only. Before a public
+  release, define supported operating systems and complete the corresponding
+  signing, notarization, update, and release-channel policy instead of implying
+  that a local Forge artifact is a production-ready installer.
 - Before the first public release, reset the settings schema instead of adding
   compatibility branches for discarded development formats. After release,
   incompatible changes require an explicit migration.

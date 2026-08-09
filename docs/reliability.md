@@ -60,6 +60,11 @@ Preserve these properties when changing affected subsystems.
   bounded, and reloaded through a per-project generated runtime cache only while
   the worker is idle. UI-authored values cannot invoke shell commands
   or environment interpolation, and sensitive authorization headers are denied.
+- Project-scoped conversations survive relaunch independently from Pi session
+  formats. Streaming output is periodically flushed, terminal state is
+  immediate, and unfinished runs restore as interrupted.
+- Recovered proposals remain actionable only while project/document identity,
+  disk revision, and base Markdown still match; otherwise they become stale.
 
 ## Coverage
 
@@ -70,8 +75,3 @@ cancellation races, project invalidation, credentials, worker restart, tool
 timeouts and budgets, targeted reads, path-free structure, safe Markdown,
 locale parity and switching, native dialogs, and MDXEditor initialization and
 translation.
-- Project-scoped conversations survive relaunch independently from Pi session
-  formats. Streaming output is periodically flushed, terminal state is
-  immediate, and unfinished runs restore as interrupted.
-- Recovered proposals remain actionable only while project/document identity,
-  disk revision, and base Markdown still match; otherwise they become stale.
