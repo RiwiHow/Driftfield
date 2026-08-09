@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import type { AgentConfiguration } from '../../../shared/contracts/agent-configuration';
 import type { AgentSettings } from '../../../shared/contracts/settings';
 import type { AgentConversationPhase } from './agent-conversation-state';
+import { SafeMarkdown } from './SafeMarkdown';
 import { useAgentConversation } from './use-agent-conversation';
 
 interface AssistantPanelProps {
@@ -151,14 +152,20 @@ export function AssistantPanel({
                     ? t('author.assistant')
                     : t('author.user')}
                 </div>
-                <p>
-                  {message.terminal !== undefined
-                    ? t(`terminal.${message.terminal}`)
-                    : message.content ||
-                    (message.role === 'assistant' && isActive
-                      ? activePhaseLabel(phase)
-                      : '')}
-                </p>
+                {message.role === 'assistant' && message.terminal === undefined ? (
+                  <div className="agent-markdown">
+                    <SafeMarkdown>
+                      {message.content ||
+                        (isActive ? activePhaseLabel(phase) ?? '' : '')}
+                    </SafeMarkdown>
+                  </div>
+                ) : (
+                  <p>
+                    {message.terminal !== undefined
+                      ? t(`terminal.${message.terminal}`)
+                      : message.content}
+                  </p>
+                )}
               </div>
             </div>
           ))

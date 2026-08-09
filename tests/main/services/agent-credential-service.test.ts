@@ -1,4 +1,4 @@
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -23,4 +23,36 @@ describe('AgentCredentialService', () => {
       providerId: 'anthropic',
     });
   });
+
+  it('treats malformed credential JSON as unconfigured', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'driftfield-auth-'));
+    const service = new AgentCredentialService(directory);
+    await mkdir(path.dirname(service.authPath), { recursive: true });
+    await writeFile(service.authPath, '{not valid json', 'utf8');
+
+    expect(await service.getProviderStatuses()).toEqual(
+      expect.arrayContaining([
+        { configured: false, providerId: 'anthropic' },
+        { configured: false, providerId: 'openai' },
+      ]),
+    );
+  });
+
+  it.runIf(process.platform !== 'win32')(
+    'surfaces credential storage read failures without exposing file contents',
+    async () => {
+      const directory = await mkdtemp(path.join(os.tmpdir(), 'driftfield-auth-'));
+      const service = new AgentCredentialService(directory);
+      await mkdir(service.authPath, { recursive: true });
+      await chmod(service.authPath, 0o000);
+
+      try {
+        await expect(service.getProviderStatuses()).rejects.toMatchObject({
+          code: expect.stringMatching(/EISDIR|EACCES|EPERM/),
+        });
+      } finally {
+        await chmod(service.authPath, 0o700);
+      }
+    },
+  );
 });

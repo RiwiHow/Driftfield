@@ -20,6 +20,7 @@ import {
   type AgentWorkerStartCommand,
 } from '../../shared/contracts/agent-worker';
 import { buildAgentSystemPrompt } from './prompts/prompt-builder';
+import { AgentToolResultBridge } from './agent-tool-result-bridge';
 
 const TOOL_RESULT_TIMEOUT_MS = 30_000;
 
@@ -28,20 +29,19 @@ interface ActiveRequest {
   session: AgentSession | null;
 }
 
-interface PendingToolResult {
-  reject: (error: Error) => void;
-  resolve: (content: string) => void;
-  timeout: ReturnType<typeof setTimeout>;
-}
-
 const activeRequests = new Map<string, ActiveRequest>();
-const pendingToolResults = new Map<string, PendingToolResult>();
 let modelRuntime: ModelRuntime | null = null;
 let modelRuntimePaths: { authPath: string; modelsPath: string } | null = null;
 
 const send = (message: AgentWorkerMessage): void => {
   process.parentPort.postMessage(message);
 };
+
+const toolResults = new AgentToolResultBridge(
+  ({ requestId, toolCallId }) =>
+    send({ requestId, toolCallId, type: 'tool-request' }),
+  TOOL_RESULT_TIMEOUT_MS,
+);
 
 process.parentPort.on('message', (event) => {
   const command: unknown = event.data;
@@ -90,13 +90,11 @@ async function handleCommand(command: AgentWorkerCommand): Promise<void> {
     return;
   }
   if (command.type === 'tool-result') {
-    const key = toolResultKey(command.requestId, command.toolCallId);
-    const pending = pendingToolResults.get(key);
-    if (pending !== undefined) {
-      clearTimeout(pending.timeout);
-      pendingToolResults.delete(key);
-      pending.resolve(command.content);
-    }
+    toolResults.resolve(
+      command.requestId,
+      command.toolCallId,
+      command.content,
+    );
     return;
   }
   for (const active of activeRequests.values()) {
@@ -176,7 +174,7 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
           }),
     });
   } finally {
-    rejectPendingToolResults(command.requestId);
+    toolResults.rejectRequest(command.requestId);
     activeRequests.delete(command.requestId);
     session?.dispose();
   }
@@ -198,28 +196,7 @@ function requestCurrentDocument(
   requestId: string,
   toolCallId: string,
 ): Promise<string> {
-  const key = toolResultKey(requestId, toolCallId);
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      pendingToolResults.delete(key);
-      reject(new Error('Current document tool timed out'));
-    }, TOOL_RESULT_TIMEOUT_MS);
-    pendingToolResults.set(key, { reject, resolve, timeout });
-    send({ requestId, toolCallId, type: 'tool-request' });
-  });
-}
-
-function rejectPendingToolResults(requestId: string): void {
-  for (const [key, pending] of pendingToolResults) {
-    if (!key.startsWith(`${requestId}:`)) continue;
-    clearTimeout(pending.timeout);
-    pending.reject(new Error('Agent request ended'));
-    pendingToolResults.delete(key);
-  }
-}
-
-function toolResultKey(requestId: string, toolCallId: string): string {
-  return `${requestId}:${toolCallId}`;
+  return toolResults.request(requestId, toolCallId);
 }
 
 async function getModelRuntime(

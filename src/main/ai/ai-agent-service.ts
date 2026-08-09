@@ -23,6 +23,7 @@ interface ActiveAgentRequest {
   currentDocumentId?: string;
   ownerId: number;
   projectDirectory?: string;
+  projectSessionId?: string;
   sendEvent: (event: AgentEvent) => void;
 }
 
@@ -30,6 +31,7 @@ interface StartAgentRequest {
   currentDocumentId?: string;
   ownerId: number;
   projectDirectory?: string;
+  projectSessionId?: string;
   prompt: string;
   model: AgentModelSelection;
   requestId: string;
@@ -49,7 +51,13 @@ export class AiAgentService {
   private worker: UtilityProcess | null = null;
   private workerReady: Promise<UtilityProcess> | null = null;
 
-  constructor(private readonly userDataPath: string) {}
+  constructor(
+    private readonly userDataPath: string,
+    private readonly isProjectSessionActive: (
+      ownerId: number,
+      projectSessionId: string,
+    ) => boolean = () => true,
+  ) {}
 
   async start(request: StartAgentRequest): Promise<string> {
     if (
@@ -66,6 +74,7 @@ export class AiAgentService {
       currentDocumentId: request.currentDocumentId,
       ownerId: request.ownerId,
       projectDirectory: request.projectDirectory,
+      projectSessionId: request.projectSessionId,
       sendEvent: request.sendEvent,
     };
     this.activeRequests.set(request.requestId, active);
@@ -215,6 +224,24 @@ export class AiAgentService {
     }
     const active = this.activeRequests.get(message.requestId);
     if (active === undefined) return;
+    if (!this.requestHasActiveProjectSession(active)) {
+      active.cancelled = true;
+      this.worker?.postMessage({ requestId: message.requestId, type: 'cancel' });
+      active.sendEvent({ requestId: message.requestId, type: 'cancelled' });
+      this.activeRequests.delete(message.requestId);
+      return;
+    }
+    if (active.cancelled) {
+      if (
+        message.type === 'completed' ||
+        message.type === 'cancelled' ||
+        message.type === 'error'
+      ) {
+        active.sendEvent({ requestId: message.requestId, type: 'cancelled' });
+        this.activeRequests.delete(message.requestId);
+      }
+      return;
+    }
 
     if (message.type === 'tool-request') {
       const content = await this.readCurrentDocument(active).catch(
@@ -291,5 +318,12 @@ export class AiAgentService {
       return 'The current document is too large to load into this request.';
     }
     return `Document: ${document.relativePath}\nRevision: ${document.revision}\n\n${document.markdown}`;
+  }
+
+  private requestHasActiveProjectSession(request: ActiveAgentRequest): boolean {
+    return (
+      request.projectSessionId === undefined ||
+      this.isProjectSessionActive(request.ownerId, request.projectSessionId)
+    );
   }
 }

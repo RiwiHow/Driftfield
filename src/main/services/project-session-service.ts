@@ -1,4 +1,5 @@
 import type { BrowserWindow } from 'electron';
+import { randomUUID } from 'node:crypto';
 import { watch, type FSWatcher } from 'node:fs';
 
 import { IPC_CHANNELS } from '../../shared/contracts/ipc-channels';
@@ -11,6 +12,7 @@ import { createProjectSnapshot } from './project-service';
 interface ProjectSession {
   directoryPath: string;
   documentIds: Set<string>;
+  id: string;
   lastRevision: string;
   refreshTimer: ReturnType<typeof setTimeout> | null;
   restartTimer: ReturnType<typeof setTimeout> | null;
@@ -52,6 +54,7 @@ export class ProjectSessionService {
     const session: ProjectSession = {
       directoryPath,
       documentIds: new Set(project.documents.map((document) => document.id)),
+      id: randomUUID(),
       lastRevision: project.revision,
       refreshTimer: null,
       restartTimer: null,

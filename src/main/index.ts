@@ -130,7 +130,11 @@ void app.whenReady().then(async () => {
     const agentCredentialService = new AgentCredentialService(
       app.getPath('userData'),
     );
-    const aiAgentService = new AiAgentService(app.getPath('userData'));
+    const aiAgentService = new AiAgentService(
+      app.getPath('userData'),
+      (ownerId, projectSessionId) =>
+        projectSessions.get(ownerId)?.id === projectSessionId,
+    );
     activeAiAgentService = aiAgentService;
     registerIpcHandlers({
       aiAgentService,

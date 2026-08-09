@@ -258,3 +258,39 @@
   width: 27px;
   height: 27px;
 }
+.agent-markdown > :first-child {
+  margin-top: 0;
+}
+
+.agent-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.agent-markdown pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.agent-markdown table {
+  border-collapse: collapse;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.agent-markdown td,
+.agent-markdown th {
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.4rem;
+  text-align: start;
+}
+
+.agent-markdown-link {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.agent-markdown-image {
+  color: var(--muted-foreground);
+  font-style: italic;
+}

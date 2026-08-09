@@ -27,6 +27,7 @@ import {
   parseSettingsUpdate,
 } from '../services/settings-service';
 import type { AiAgentService } from '../ai/ai-agent-service';
+import { getAgentStartConfigurationError } from '../ai/agent-start-policy';
 import {
   createCloseUnsavedDialogOptions,
   createOpenProjectDialogOptions,
@@ -137,22 +138,22 @@ export const registerIpcHandlers = ({
       throw new Error('Unknown project document');
     }
     const agentSettings = settingsService.get().agent;
-    if (agentSettings.defaultModel === null) {
-      return { code: 'model-not-configured', status: 'error' };
+    const selectedModel = agentSettings.defaultModel;
+    const configurationError = getAgentStartConfigurationError(
+      agentSettings,
+      await agentCredentialService.getProviderStatuses(),
+    );
+    if (configurationError !== null) {
+      return { code: configurationError, status: 'error' };
     }
-    const providerStatus = (await agentCredentialService.getProviderStatuses())
-      .find(({ providerId }) =>
-        providerId === agentSettings.defaultModel?.providerId,
-      );
-    if (providerStatus?.configured !== true) {
-      return { code: 'credential-missing', status: 'error' };
-    }
+    if (selectedModel === null) throw new Error('Agent model invariant failed');
     try {
       const requestId = await aiAgentService.start({
         ...value,
-        model: agentSettings.defaultModel,
+        model: selectedModel,
         ownerId: window.webContents.id,
         projectDirectory: session?.directoryPath,
+        projectSessionId: session?.id,
         sendEvent: (agentEvent) => {
           if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
             window.webContents.send(IPC_CHANNELS.agentEvent, agentEvent);
