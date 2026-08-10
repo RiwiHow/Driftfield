@@ -20,7 +20,7 @@ export const zhCN = {
     empty: { action: '打开本地项目', hint: '点击小说目录右上角的加号按钮打开本地项目', hintPrefix: '点击小说目录右上角的', title: '没有打开的 Markdown 文档' },
     mdx: { blockType: '段落样式', blockTypeTooltip: '选择段落样式', bold: '粗体', bulletedList: '无序列表', diff: '对比修改', heading: '标题 {{level}}', italic: '斜体', link: '插入链接', numberedList: '有序列表', paragraph: '正文', quote: '引用', redo: '重做 {{shortcut}}', removeBold: '取消粗体', removeItalic: '取消斜体', richText: '所见即所得', source: 'Markdown 源码', undo: '撤销 {{shortcut}}' },
     placeholder: '从这里开始写作……',
-    status: { characterCount_one: '{{count}} 字', characterCount_other: '{{count}} 字', dirty: '当前会话修改', missing: '磁盘文件已移动或删除；修改已保留', parseError: '格式解析失败', saving: '正在保存…', plainText: '纯文本', unsavedTitle: '仅保存在当前内存中' },
+    status: { dirty: '当前会话修改', missing: '磁盘文件已移动或删除；修改已保留', parseError: '格式解析失败', saving: '正在保存…', plainText: '纯文本', unsavedTitle: '仅保存在当前内存中', wordCount_one: '{{count}} 字', wordCount_other: '{{count}} 字' },
   },
   errors: {
     agent: { cancelEnded: 'Agent 请求已经结束，无法取消。', cancelFailed: '取消 Agent 请求失败。', configurationLoad: '无法读取 Agent 模型配置。', credentialMissing: '默认模型的服务商凭据已被移除，请重新连接。', credentialRemove: '无法移除 Agent 凭据。', credentialSave: '无法保存凭据或读取模型，请检查 API Key。', modelConfigSave: '无法保存 Pi 模型配置，请检查配置值后重试。', modelNotConfigured: '请先连接模型服务并选择默认模型。', requestFailed: 'Agent 请求未能完成，请检查模型配置后重试。', resetFailed: '无法重置模型设置。', runtimeExited: 'Agent 运行进程意外退出，请重试。', startFailed: '无法启动 Agent 请求。' },

@@ -23,6 +23,9 @@ does not duplicate those effects or introduce a global state store.
 - `react-resizable-panels` owns the fixed library/editor/Agents layout.
 - MDXEditor owns Markdown rich-text, source, and diff editing modes. Markdown is
   the manuscript interchange format.
+- The editor status bar derives its writing count from reader-visible Markdown
+  text rather than source length: each Han character and each non-Han word or
+  number counts as one unit, while syntax and link targets do not count.
 - Keep raw HTML processing disabled unless CSP and sanitization are explicitly
   reviewed.
 - General MDX/JSX manuscript files are unsupported.

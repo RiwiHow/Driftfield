@@ -33,7 +33,7 @@ import {
   Save,
   X,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { WorkspaceDocument } from '@/app/types';
@@ -44,6 +44,7 @@ import { isDarkAppTheme } from '../../../shared/theme-contract';
 import { shouldApplyEditorChange } from './editor-change';
 import { EditorContextMenu } from './EditorContextMenu';
 import { createMdxEditorTranslation } from './mdx-editor-translation';
+import { countManuscriptWords } from './manuscript-word-count';
 
 import '@mdxeditor/editor/style.css';
 
@@ -139,6 +140,11 @@ function LoadedManuscriptEditor({
   const { t } = useTranslation('editor');
   const [parseError, setParseError] = useState<string | null>(null);
   const translateEditor = useMemo(() => createMdxEditorTranslation(t), [t]);
+  const deferredMarkdown = useDeferredValue(document.markdown);
+  const wordCount = useMemo(
+    () => countManuscriptWords(deferredMarkdown),
+    [deferredMarkdown],
+  );
 
   const plugins = useMemo(
     () => [
@@ -182,8 +188,6 @@ function LoadedManuscriptEditor({
     ],
     [document.previousMarkdown, t],
   );
-
-  const characterCount = document.markdown.replace(/\s|[#>*_`\-[\]()]/g, '').length;
 
   return (
     <section className="editor-pane">
@@ -274,8 +278,7 @@ function LoadedManuscriptEditor({
           </span>
         </div>
         <div>
-          <span>{t('status.characterCount', { count: characterCount })}</span>
-          <span>UTF-8</span>
+          <span>{t('status.wordCount', { count: wordCount })}</span>
         </div>
       </footer>
     </section>
