@@ -17,11 +17,20 @@ The initial Agent data surface contains only:
 The bounded direct-maintenance surface contains:
 
 - `maintain_story_records`, which applies one typed additive or linking change
-  to Personae, Chronicle, or Threads within the user's explicit request. It
+  to Personae, Chronicle, or Threads within the user's explicit request or
+  when unambiguously evidenced by accepted persisted prose. It
   requires the current story revision and stable IDs. Main validates and
   applies the operation transactionally, records it in the project ledger, and
   returns the new revision. It does not expose SQL and cannot delete, merge,
   reorder, or edit Manuscript/Lore documents.
+- `record_story_question`, which records a deduplicated unresolved ambiguity
+  without changing canonical story records or their revision. Questions carry
+  a bounded kind, author-facing wording, optional answer choices, request
+  identity, and optional exact manuscript evidence.
+- `resolve_story_question`, which closes an open question only after an
+  explicit user answer. Resolution does not itself mutate canonical story
+  records; any resulting clear additive/linking fact is a separate Maintain
+  operation with its own audit entry.
 
 The provider-facing Maintain schema keeps Chronicle event lifecycle and Thread
 lifecycle distinct: `create_event` uses `eventStatus` (`planned` or
@@ -47,12 +56,13 @@ The reviewed mutation surface additionally contains:
   document revision; manuscript documents cannot be moved into lore or vice
   versa.
 - `propose_story_operation`, the reviewed protocol for additive or linking
-  story mutations that should not use direct Maintain. The worker uses it to
-  reconcile accepted generated prose with Personae, Chronicle, and Threads.
-  Reconciliation rereads the exact persisted document and current story state,
-  proposes one change at a time, and waits for review before writing canonical
-  records. Chronicle events may carry validated manuscript source identity,
-  revision, relation, and a bounded evidence anchor.
+  story mutations when the user explicitly requests review before application.
+  Routine reconciliation of clear facts from accepted generated prose uses
+  bounded Maintain instead and does not interrupt the user. Main applies an
+  accepted set atomically and
+  rebases its individual ledger entries inside that transaction. Chronicle
+  events may carry validated manuscript source identity, revision, relation,
+  and a bounded evidence anchor.
 
 Calling a reviewed mutation tool stores a reviewable proposal; it does not
 write the novel. Main generates created document and directory IDs, owns
@@ -71,7 +81,20 @@ one transaction. Each ledger row carries the originating Agent request ID, so a
 multi-step run remains auditable even though it does not interrupt the user for
 each additive step. Renderer receives a bounded `story-changed` notification
 and refreshes its story snapshot. Maintain currently applies one operation per
-tool call; batch changesets and user-facing undo are not yet implemented.
+tool call. Concurrent reviewed story proposals from the same request and base
+revision are grouped in the UI and applied atomically with one decision.
+Symbolic references between newly created records and user-facing undo are not
+yet implemented, so dependent changes may require a later grouped set after
+rereading stable IDs.
+
+Story reconciliation follows a risk split rather than universal approval:
+clear, low-risk, additive or linking facts from accepted persisted prose are
+maintained automatically; possible aliases, uncertain time, unclear
+relationships, contradictions, and other author judgments become open story
+questions and never enter canonical records; destructive or high-impact story
+mutations remain unavailable until a dedicated reviewed operation exists. The
+Agent raises newly recorded questions concisely in its response and avoids
+duplicating questions already returned by `get_story_state`.
 
 A mutation tool call remains pending after the proposal is shown. Accepting or
 rejecting the proposal settles that exact tool call with a typed terminal result,

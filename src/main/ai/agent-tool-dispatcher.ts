@@ -133,6 +133,24 @@ export class AgentToolDispatcher {
         toolName: request.toolName,
       };
     }
+    if (request.toolName === 'record_story_question') {
+      const data = this.context.recordStoryQuestion(
+        contextScope,
+        scope.requestId,
+        request.arguments,
+      );
+      scope.storyChanged?.(data.revision);
+      return { data, ok: true, toolName: request.toolName };
+    }
+    if (request.toolName === 'resolve_story_question') {
+      const data = this.context.resolveStoryQuestion(
+        contextScope,
+        request.arguments.questionId,
+        request.arguments.answer,
+      );
+      scope.storyChanged?.(data.revision);
+      return { data, ok: true, toolName: request.toolName };
+    }
     if (request.toolName === 'get_current_document') {
       return {
         data: await this.context.getCurrentDocument(contextScope),

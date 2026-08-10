@@ -98,9 +98,9 @@ export interface AgentProposalOutcome {
   status: AgentProposalOutcomeStatus;
 }
 
-export interface ApplyAgentProposalRequest {
-  proposalId: string;
-}
+export type ApplyAgentProposalRequest =
+  | { proposalId: string }
+  | { proposalIds: string[] };
 
 export type ApplyAgentProposalResult =
   | {
@@ -124,6 +124,7 @@ export type ApplyAgentProposalResult =
     }
   | {
       proposalId: string;
+      proposalIds?: string[];
       status: 'story-updated';
       story: import('./project-story').ProjectStorySnapshot;
     }

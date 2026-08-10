@@ -124,6 +124,34 @@ export interface ThreadEventLink {
   threadBeatId: string;
 }
 
+export type StoryQuestionKind =
+  | 'possible_alias'
+  | 'uncertain_time'
+  | 'unclear_relationship'
+  | 'contradiction'
+  | 'other';
+
+export interface StoryQuestionEvidence {
+  anchor: string;
+  documentId: string;
+  documentRevision: string;
+  sourceKind: 'manuscript';
+}
+
+export interface StoryQuestion {
+  answer: string | null;
+  context: string;
+  createdAt: string;
+  evidence: StoryQuestionEvidence | null;
+  id: string;
+  kind: StoryQuestionKind;
+  options: string[];
+  originRequestId: string;
+  question: string;
+  resolvedAt: string | null;
+  status: 'open' | 'resolved';
+}
+
 export interface ProjectStoryState {
   revision: number;
 }
@@ -136,6 +164,7 @@ export interface ProjectStorySnapshot extends ProjectStoryState {
   events: ChronicleEvent[];
   moments: ChronicleMoment[];
   personae: Persona[];
+  questions: StoryQuestion[];
   threads: StoryThread[];
   timelines: ChronicleTimeline[];
 }
@@ -289,7 +318,7 @@ export const isProjectStorySnapshot = (
 ): value is ProjectStorySnapshot => {
   if (
     !isRecord(value) ||
-    Object.keys(value).length !== 10 ||
+    Object.keys(value).length !== 11 ||
     !Number.isSafeInteger(value.revision) ||
     (value.revision as number) < 0
   ) return false;
@@ -301,6 +330,7 @@ export const isProjectStorySnapshot = (
     value.events,
     value.moments,
     value.personae,
+    value.questions,
     value.threads,
     value.timelines,
   ];
@@ -309,6 +339,7 @@ export const isProjectStorySnapshot = (
   }
   return (
     (value.personae as unknown[]).every(isPersona) &&
+    (value.questions as unknown[]).every(isStoryQuestion) &&
     (value.timelines as unknown[]).every(isTimeline) &&
     (value.moments as unknown[]).every(isMoment) &&
     (value.events as unknown[]).every(isEvent) &&
@@ -385,8 +416,29 @@ const isBeat = (value: unknown): boolean =>
 const isEventLink = (value: unknown): boolean =>
   isRecord(value) && isId(value.threadBeatId) && isId(value.eventId) &&
   typeof value.relation === 'string' &&
-  ['plans', 'realizes', 'reveals', 'foreshadows', 'resolves']
-    .includes(value.relation);
+    ['plans', 'realizes', 'reveals', 'foreshadows', 'resolves']
+      .includes(value.relation);
+
+const isStoryQuestion = (value: unknown): boolean =>
+  isRecord(value) && isId(value.id) &&
+  typeof value.kind === 'string' &&
+  ['possible_alias', 'uncertain_time', 'unclear_relationship', 'contradiction', 'other']
+    .includes(value.kind) &&
+  isText(value.question, 2_000, false) && isText(value.context, 10_000, true) &&
+  Array.isArray(value.options) && value.options.length <= 6 &&
+  value.options.every((option) => isText(option, 500, false)) &&
+  isId(value.originRequestId) &&
+  (value.status === 'open' || value.status === 'resolved') &&
+  (value.answer === null || isText(value.answer, 2_000, false)) &&
+  typeof value.createdAt === 'string' &&
+  (value.resolvedAt === null || typeof value.resolvedAt === 'string') &&
+  (value.evidence === null || (
+    isRecord(value.evidence) &&
+    value.evidence.sourceKind === 'manuscript' &&
+    isId(value.evidence.documentId) &&
+    isText(value.evidence.documentRevision, 128, false) &&
+    isText(value.evidence.anchor, 10_000, false)
+  ));
 
 const isParticipant = (value: unknown): boolean =>
   isRecord(value) && Object.keys(value).length === 3 &&

@@ -50,8 +50,10 @@ import type { AgentConfiguration } from '../../../shared/contracts/agent-configu
 import type { AgentSettings } from '../../../shared/contracts/settings';
 import type {
   AgentProposal,
+  AgentStoryProposal,
   SuccessfulApplyAgentProposalResult,
 } from '../../../shared/contracts/agent-proposals';
+import type { AgentProposalStatus } from '../../../shared/contracts/agent-conversations';
 import {
   type AgentConversationPhase,
   isAgentConversationNearBottom,
@@ -114,6 +116,7 @@ export function AssistantPanel({
   const {
     activeConversationId,
     applyProposal,
+    applyStoryProposals,
     cancel,
     clear,
     conversations,
@@ -125,6 +128,7 @@ export function AssistantPanel({
     messages,
     phase,
     rejectProposal,
+    rejectStoryProposals,
     renameConversation,
     resend,
     send,
@@ -535,7 +539,9 @@ export function AssistantPanel({
                     {(message.parts?.length ?? 0) > 0 ? (
                       <AgentResponseTimeline
                         onApplyProposal={applyProposal}
+                        onApplyStoryProposals={applyStoryProposals}
                         onRejectProposal={rejectProposal}
+                        onRejectStoryProposals={rejectStoryProposals}
                         parts={message.parts!}
                       />
                     ) : (
@@ -719,26 +725,69 @@ function MessageEditor({
 
 function AgentResponseTimeline({
   onApplyProposal,
+  onApplyStoryProposals,
   onRejectProposal,
+  onRejectStoryProposals,
   parts,
 }: {
   onApplyProposal: (proposal: AgentProposal) => Promise<void>;
+  onApplyStoryProposals: (proposals: AgentProposal[]) => Promise<void>;
   onRejectProposal: (proposalId: string) => Promise<void>;
+  onRejectStoryProposals: (proposals: AgentProposal[]) => Promise<void>;
   parts: AgentConversationPart[];
 }) {
+  const storyGroups = new Map<number, StoryProposalPart[]>();
+  for (const part of parts) {
+    if (
+      part.type !== 'proposal' ||
+      !('operation' in part.proposal) ||
+      part.proposal.operation !== 'story'
+    ) continue;
+    const group = storyGroups.get(part.proposal.storyRevision) ?? [];
+    group.push(part as StoryProposalPart);
+    storyGroups.set(part.proposal.storyRevision, group);
+  }
   return (
     <div className="agent-response-timeline">
-      {parts.map((part, index) =>
-        part.type === 'text' ? (
-          <div className="agent-markdown" key={`text-${index}`}>
-            <SafeMarkdown>{part.content}</SafeMarkdown>
-          </div>
-        ) : part.type === 'tool' ? (
-          <ToolActivityRow
-            activity={part.activity}
-            key={part.activity.toolCallId}
-          />
-        ) : (
+      {parts.map((part, index) => {
+        if (part.type === 'text') {
+          return (
+            <div className="agent-markdown" key={`text-${index}`}>
+              <SafeMarkdown>{part.content}</SafeMarkdown>
+            </div>
+          );
+        }
+        if (part.type === 'tool') {
+          if (
+            part.activity.toolName === 'propose_story_operation' &&
+            !part.activity.failed &&
+            storyGroups.size > 0
+          ) return null;
+          return (
+            <ToolActivityRow
+              activity={part.activity}
+              key={part.activity.toolCallId}
+            />
+          );
+        }
+        if ('operation' in part.proposal && part.proposal.operation === 'story') {
+          const group = storyGroups.get(part.proposal.storyRevision) ?? [];
+          if (group[0]?.proposal.proposalId !== part.proposal.proposalId) return null;
+          const pending = group.filter(({ status }) => status === 'pending');
+          return (
+            <StoryProposalGroupCard
+              key={`story-proposal-group-${part.proposal.storyRevision}`}
+              onApply={() => void onApplyStoryProposals(
+                pending.map(({ proposal }) => proposal),
+              )}
+              onReject={() => void onRejectStoryProposals(
+                pending.map(({ proposal }) => proposal),
+              )}
+              parts={group}
+            />
+          );
+        }
+        return (
           <ProposalCard
             key={part.proposal.proposalId}
             onApply={() => void onApplyProposal(part.proposal)}
@@ -746,11 +795,17 @@ function AgentResponseTimeline({
             proposal={part.proposal}
             status={part.status}
           />
-        ),
-      )}
+        );
+      })}
     </div>
   );
 }
+
+type StoryProposalPart = {
+  proposal: AgentStoryProposal;
+  status: AgentProposalStatus;
+  type: 'proposal';
+};
 
 function ToolActivityRow({ activity }: { activity: AgentToolActivity }) {
   const { t } = useTranslation('assistant');
@@ -818,6 +873,60 @@ const formatToolPayload = (payload: string): string => {
     return payload;
   }
 };
+
+function StoryProposalGroupCard({
+  onApply,
+  onReject,
+  parts,
+}: {
+  onApply: () => void;
+  onReject: () => void;
+  parts: StoryProposalPart[];
+}) {
+  const { t } = useTranslation('assistant');
+  const pending = parts.filter(({ status }) => status === 'pending');
+  const statuses = new Set(parts.map(({ status }) => status));
+  const status: AgentProposalStatus = statuses.has('applying')
+    ? 'applying'
+    : pending.length > 0
+      ? 'pending'
+      : statuses.size === 1
+        ? parts[0].status
+        : 'failed';
+  const statusKey = status === 'saved'
+    ? 'storyUpdated'
+    : status === 'pending'
+      ? 'failed'
+      : status;
+  return (
+    <div className="agent-proposal">
+      <strong>{t('proposal.storyBatchTitle', { count: parts.length })}</strong>
+      <details>
+        <summary>{t('proposal.preview')}</summary>
+        <div className="agent-proposal-comparison">
+          {parts.map(({ proposal }) => (
+            <section key={proposal.proposalId}>
+              <span>{proposal.title}</span>
+              <pre>{JSON.stringify(proposal.change, null, 2)}</pre>
+            </section>
+          ))}
+        </div>
+      </details>
+      {pending.length > 0 ? (
+        <div className="agent-proposal-actions">
+          <Button onClick={onReject} size="sm" variant="outline">
+            {t('proposal.rejectAll')}
+          </Button>
+          <Button onClick={onApply} size="sm">
+            {t('proposal.accept.storyBatch')}
+          </Button>
+        </div>
+      ) : (
+        <small>{t(`proposal.status.${statusKey}`)}</small>
+      )}
+    </div>
+  );
+}
 
 function ProposalCard({
   onApply,

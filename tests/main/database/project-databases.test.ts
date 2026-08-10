@@ -47,6 +47,7 @@ describe('project databases', () => {
       'project_story_state',
       'schema_migrations',
       'story_operations',
+      'story_questions',
       'thread_beats',
       'thread_event_links',
       'threads',
@@ -55,7 +56,7 @@ describe('project databases', () => {
       project.connection.prepare(`
         SELECT version FROM schema_migrations ORDER BY version
       `).all(),
-    ).toEqual([{ version: 1 }]);
+    ).toEqual([{ version: 1 }, { version: 2 }]);
     project.close();
 
     const conversations = new ConversationDatabase(directory);
@@ -163,13 +164,34 @@ describe('project databases', () => {
     current.initializeProjectMetadata('project-1', 2, 'Project One');
     current.connection.prepare(`
       INSERT INTO schema_migrations(version, applied_at)
-      VALUES (2, datetime('now'))
+      VALUES (3, datetime('now'))
     `).run();
     current.close();
 
     expect(() => new ProjectDatabase(directory)).toThrow(
       'Project database was created by a newer Driftfield version',
     );
+  });
+
+  it('migrates version-one project databases with open story questions', async () => {
+    const directory = await mkdtemp(
+      path.join(tmpdir(), 'driftfield-databases-'),
+    );
+    directories.push(directory);
+    const legacy = new ProjectDatabase(directory);
+    legacy.initializeProjectMetadata('project-1', 1, 'Project One');
+    legacy.connection.exec(`
+      DROP TABLE story_questions;
+      DELETE FROM schema_migrations WHERE version = 2;
+    `);
+    legacy.close();
+
+    const migrated = new ProjectDatabase(directory);
+    expect(migrated.hasTable('story_questions')).toBe(true);
+    expect(migrated.connection.prepare(`
+      SELECT version FROM schema_migrations ORDER BY version
+    `).all()).toEqual([{ version: 1 }, { version: 2 }]);
+    migrated.close();
   });
 
 });

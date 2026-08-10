@@ -1,6 +1,7 @@
 import {
   ChevronRight,
   ChevronDown,
+  CircleHelp,
   FileText,
   FolderPlus,
   FolderOpen,
@@ -238,6 +239,14 @@ export function LibraryPanel({
         >
           <GitBranch aria-hidden="true" size={14} />
           <span>{t('labels.threads')}</span>
+        </button>
+        <button
+          disabled={projectDirectory === null}
+          onClick={() => onOpenStory('questions')}
+          type="button"
+        >
+          <CircleHelp aria-hidden="true" size={14} />
+          <span>{t('labels.questions')}</span>
         </button>
       </nav>
 

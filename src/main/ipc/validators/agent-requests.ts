@@ -118,7 +118,15 @@ export const isCancelAgentRequest = (
 
 export const isApplyAgentProposalRequest = (
   value: unknown,
-): value is ApplyAgentProposalRequest => isProposalRequest(value);
+): value is ApplyAgentProposalRequest =>
+  isProposalRequest(value) ||
+  (isRecord(value) &&
+    Object.keys(value).length === 1 &&
+    Array.isArray(value.proposalIds) &&
+    value.proposalIds.length > 0 &&
+    value.proposalIds.length <= 24 &&
+    new Set(value.proposalIds).size === value.proposalIds.length &&
+    value.proposalIds.every(isProposalId));
 
 export const isRejectAgentProposalRequest = (
   value: unknown,
@@ -134,9 +142,10 @@ export const isRejectAgentProposalRequest = (
 const isProposalRequest = (value: unknown): value is { proposalId: string } =>
   isRecord(value) &&
   Object.keys(value).length === 1 &&
-  typeof value.proposalId === 'string' &&
-  value.proposalId.length > 0 &&
-  value.proposalId.length <= 128;
+  isProposalId(value.proposalId);
+
+const isProposalId = (value: unknown): value is string =>
+  typeof value === 'string' && value.length > 0 && value.length <= 128;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);

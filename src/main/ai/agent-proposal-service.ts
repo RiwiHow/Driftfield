@@ -396,6 +396,79 @@ export class AgentProposalService {
     }
   }
 
+  async applyStoryBatch(
+    ownerId: number,
+    proposalIds: string[],
+  ): Promise<ApplyAgentProposalResult> {
+    const session = this.sessions.get(ownerId);
+    if (session === undefined || this.stories === undefined) {
+      return { proposalId: proposalIds[0], status: 'not-found' };
+    }
+    const stored = proposalIds.map((proposalId) => this.proposals.get(proposalId));
+    if (stored.some((entry) =>
+      entry === undefined ||
+      entry.ownerId !== ownerId ||
+      entry.projectSessionId !== session.id ||
+      !('operation' in entry.proposal) ||
+      entry.proposal.operation !== 'story'
+    )) {
+      return { proposalId: proposalIds[0], status: 'not-found' };
+    }
+    const proposals = stored.map((entry) => entry!.proposal as AgentStoryProposal);
+    const requestId = proposals[0].requestId;
+    const storyRevision = proposals[0].storyRevision;
+    if (proposals.some((proposal) =>
+      proposal.requestId !== requestId || proposal.storyRevision !== storyRevision
+    )) {
+      return { proposalId: proposalIds[0], status: 'not-found' };
+    }
+    try {
+      const story = this.stories.applyProposalBatch(
+        session,
+        storyRevision,
+        proposals.map((proposal) => ({
+          audit: {
+            operationId: proposal.proposalId,
+            operationKind: proposal.change.operation,
+            originRequestId: proposal.requestId,
+            payload: proposal.change,
+          },
+          operation: proposal.change,
+        })),
+      );
+      for (const proposalId of proposalIds) {
+        this.conversations?.setProposalStatus(session, proposalId, 'saved');
+        this.resolveDecision(ownerId, proposalId, 'accepted');
+      }
+      return {
+        proposalId: proposalIds[0],
+        proposalIds,
+        status: 'story-updated',
+        story,
+      };
+    } catch (error) {
+      const conflict = error instanceof ProjectStoryRevisionConflictError;
+      for (const proposalId of proposalIds) {
+        this.conversations?.setProposalStatus(
+          session,
+          proposalId,
+          conflict ? 'stale' : 'failed',
+        );
+        this.stories.settleProposal(
+          session,
+          proposalId,
+          conflict ? 'conflict' : 'failed',
+          conflict ? null : 'apply-failed',
+        );
+        this.resolveDecision(ownerId, proposalId, conflict ? 'stale' : 'failed');
+      }
+      if (conflict) {
+        return { proposalId: proposalIds[0], status: 'stale' };
+      }
+      throw error;
+    }
+  }
+
   private async applyProposal(
     ownerId: number,
     proposalId: string,

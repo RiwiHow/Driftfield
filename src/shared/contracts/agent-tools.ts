@@ -66,6 +66,12 @@ export interface AgentStoryMaintenanceToolResult {
   status: 'applied';
 }
 
+export interface AgentStoryQuestionToolResult {
+  questionId: string;
+  revision: number;
+  status: 'recorded' | 'resolved';
+}
+
 export type AgentDocumentFileOperationArguments =
   | {
       kind:
@@ -114,6 +120,20 @@ export interface AgentToolContractMap {
     };
     result: AgentStoryMaintenanceToolResult;
   };
+  record_story_question: {
+    arguments: {
+      context: string;
+      evidence: import('./project-story').StoryQuestionEvidence | null;
+      kind: import('./project-story').StoryQuestionKind;
+      options: string[];
+      question: string;
+    };
+    result: AgentStoryQuestionToolResult;
+  };
+  resolve_story_question: {
+    arguments: { answer: string; questionId: string };
+    result: AgentStoryQuestionToolResult;
+  };
   get_current_document: {
     arguments: Record<string, never>;
     result: AgentDocumentToolResult;
@@ -160,6 +180,8 @@ export const AGENT_TOOL_NAMES = [
   'get_document',
   'get_story_state',
   'maintain_story_records',
+  'record_story_question',
+  'resolve_story_question',
   'propose_document_edit',
   'propose_document_file_operation',
   'propose_project_structure_operation',
@@ -304,6 +326,21 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
       isProjectStoryOperation(value.change)
     );
   }
+  if (toolName === 'record_story_question') {
+    return Object.keys(value).length === 5 &&
+      typeof value.kind === 'string' &&
+      ['possible_alias', 'uncertain_time', 'unclear_relationship', 'contradiction', 'other']
+        .includes(value.kind) &&
+      isBoundedText(value.question, 2_000, false) &&
+      isBoundedText(value.context, 10_000, true) &&
+      Array.isArray(value.options) && value.options.length <= 6 &&
+      value.options.every((option) => isBoundedText(option, 500, false)) &&
+      (value.evidence === null || isQuestionEvidence(value.evidence));
+  }
+  if (toolName === 'resolve_story_question') {
+    return Object.keys(value).length === 2 &&
+      isDocumentId(value.questionId) && isBoundedText(value.answer, 2_000, false);
+  }
   if (toolName !== 'get_document') return Object.keys(value).length === 0;
   return (
     Object.keys(value).length === 1 &&
@@ -337,6 +374,8 @@ const isToolData = (toolName: AgentToolName, value: unknown): boolean =>
       ? isProjectStorySnapshot(value)
     : toolName === 'maintain_story_records'
       ? isStoryMaintenanceResult(value)
+    : toolName === 'record_story_question' || toolName === 'resolve_story_question'
+      ? isStoryQuestionResult(value)
     : toolName === 'propose_document_edit' ||
         toolName === 'propose_document_file_operation' ||
         toolName === 'propose_project_structure_operation' ||
@@ -361,6 +400,25 @@ const isStoryMaintenanceResult = (value: unknown): boolean =>
   value.operationId.length <= 128 &&
   Number.isSafeInteger(value.revision) &&
   (value.revision as number) > 0;
+
+const isStoryQuestionResult = (value: unknown): boolean =>
+  isRecord(value) && Object.keys(value).length === 3 &&
+  (value.status === 'recorded' || value.status === 'resolved') &&
+  isDocumentId(value.questionId) && Number.isSafeInteger(value.revision) &&
+  (value.revision as number) >= 0;
+
+const isQuestionEvidence = (value: unknown): boolean =>
+  isRecord(value) && Object.keys(value).length === 4 &&
+  value.sourceKind === 'manuscript' &&
+  isDocumentId(value.documentId) && isRevision(value.documentRevision) &&
+  isBoundedText(value.anchor, 10_000, false);
+
+const isBoundedText = (
+  value: unknown,
+  maxLength: number,
+  allowEmpty: boolean,
+): value is string => typeof value === 'string' && value.length <= maxLength &&
+  (allowEmpty || value.trim().length > 0) && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value);
 
 const isDocumentId = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= 128;

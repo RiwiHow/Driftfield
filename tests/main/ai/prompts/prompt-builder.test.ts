@@ -39,7 +39,8 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain('continue the same Agent run');
     expect(built.prompt).toContain('outside the user’s requested scope');
     expect(built.prompt).toContain('reconcile the exact accepted persisted prose');
-    expect(built.prompt).toContain('reviewable story proposals');
+    expect(built.prompt).toContain('automatically apply only clearly evidenced');
+    expect(built.prompt).toContain('structured story question');
     expect(built.prompt).not.toContain('get_current_document:');
     expect(built.prompt).not.toContain('get_novel_structure:');
     expect(built.prompt).not.toContain('get_document:');

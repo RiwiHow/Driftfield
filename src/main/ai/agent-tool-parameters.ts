@@ -205,6 +205,53 @@ export const STORY_OPERATION_PARAMETERS = Type.Object(
   { additionalProperties: false },
 );
 
+export const STORY_QUESTION_PARAMETERS = Type.Object(
+  {
+    context: Type.String({ maxLength: 10_000 }),
+    evidence: Type.Unsafe<{
+      anchor: string;
+      documentId: string;
+      documentRevision: string;
+      sourceKind: 'manuscript';
+    } | null>({
+      anyOf: [
+        {
+          additionalProperties: false,
+          properties: {
+            anchor: { maxLength: 10_000, minLength: 1, type: 'string' },
+            documentId: { maxLength: 128, minLength: 1, type: 'string' },
+            documentRevision: { pattern: '^[a-f0-9]{64}$', type: 'string' },
+            sourceKind: { enum: ['manuscript'], type: 'string' },
+          },
+          required: ['anchor', 'documentId', 'documentRevision', 'sourceKind'],
+          type: 'object',
+        },
+        { type: 'null' },
+      ],
+    }),
+    kind: stringEnum([
+      'possible_alias',
+      'uncertain_time',
+      'unclear_relationship',
+      'contradiction',
+      'other',
+    ] as const),
+    options: Type.Array(Type.String({ maxLength: 500, minLength: 1 }), {
+      maxItems: 6,
+    }),
+    question: Type.String({ maxLength: 2_000, minLength: 1 }),
+  },
+  { additionalProperties: false },
+);
+
+export const RESOLVE_STORY_QUESTION_PARAMETERS = Type.Object(
+  {
+    answer: Type.String({ maxLength: 2_000, minLength: 1 }),
+    questionId: Type.String({ maxLength: 128, minLength: 1 }),
+  },
+  { additionalProperties: false },
+);
+
 export const normalizeStoryMaintenanceArguments = (
   value: {
     change: Record<string, unknown> & {

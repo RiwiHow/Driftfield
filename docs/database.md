@@ -69,6 +69,14 @@ The ledger is not an authorization mechanism: all validation, revision checks,
 transactions, and application remain Main-owned, and neither Renderer nor the
 worker receives SQL access.
 
+`story_questions` stores unresolved author judgments separately from canonical
+Personae, Chronicle, and Threads. A question may retain exact manuscript
+evidence and suggested answer options, but neither recording nor resolving it
+changes the canonical story revision. Open questions are returned with the
+story snapshot so Agents can avoid duplicate prompts. Only an explicit user
+answer may resolve a question; any resulting canonical fact is applied through
+a separately validated and audited story operation.
+
 ## Ownership and access
 
 - Electron main exclusively owns database paths, connections, migrations, SQL,

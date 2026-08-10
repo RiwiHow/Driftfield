@@ -89,6 +89,113 @@ describe('AgentProposalService', () => {
     database.close();
   });
 
+  it('applies concurrent reviewed story proposals atomically with one decision', async () => {
+    const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-story-batch-'));
+    await initializeProjectLayout(directoryPath);
+    const session = {
+      directoryPath,
+      documentPaths: new Map<string, string>(),
+      id: 'session-story-batch',
+      project: await createProjectSnapshot(directoryPath),
+    };
+    const sessions = { get: () => session } as unknown as ProjectSessionService;
+    const stories = new ProjectStoryService();
+    const service = new AgentProposalService(sessions, undefined, stories);
+    const scope = {
+      ownerId: 7,
+      projectSessionId: session.id,
+      requestId: 'request-story-batch',
+    };
+    const persona = service.createStoryOperation(scope, {
+      change: {
+        name: 'Mara',
+        operation: 'create_persona',
+        role: 'Student',
+        summary: '',
+      },
+      storyRevision: 0,
+    });
+    const timeline = service.createStoryOperation(scope, {
+      change: {
+        isPrimary: true,
+        operation: 'create_timeline',
+        summary: '',
+        title: 'Primary Chronicle',
+      },
+      storyRevision: 0,
+    });
+    const personaDecision = service.waitForDecision(scope.requestId, persona.proposalId);
+    const timelineDecision = service.waitForDecision(scope.requestId, timeline.proposalId);
+
+    await expect(service.applyStoryBatch(7, [
+      persona.proposalId,
+      timeline.proposalId,
+    ])).resolves.toMatchObject({
+      proposalIds: [persona.proposalId, timeline.proposalId],
+      status: 'story-updated',
+      story: {
+        personae: [{ name: 'Mara' }],
+        revision: 2,
+        timelines: [{ title: 'Primary Chronicle' }],
+      },
+    });
+    await expect(personaDecision).resolves.toMatchObject({ status: 'accepted' });
+    await expect(timelineDecision).resolves.toMatchObject({ status: 'accepted' });
+    const database = new ProjectDatabase(directoryPath);
+    expect(database.connection.prepare(`
+      SELECT base_revision, applied_revision, status
+      FROM story_operations ORDER BY applied_revision
+    `).all()).toEqual([
+      { applied_revision: 1, base_revision: 0, status: 'applied' },
+      { applied_revision: 2, base_revision: 1, status: 'applied' },
+    ]);
+    database.close();
+  });
+
+  it('rolls back the whole reviewed story batch when one change fails', async () => {
+    const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-story-batch-'));
+    await initializeProjectLayout(directoryPath);
+    const session = {
+      directoryPath,
+      documentPaths: new Map<string, string>(),
+      id: 'session-story-batch-failure',
+      project: await createProjectSnapshot(directoryPath),
+    };
+    const sessions = { get: () => session } as unknown as ProjectSessionService;
+    const stories = new ProjectStoryService();
+    const service = new AgentProposalService(sessions, undefined, stories);
+    const scope = {
+      ownerId: 7,
+      projectSessionId: session.id,
+      requestId: 'request-story-batch-failure',
+    };
+    const persona = service.createStoryOperation(scope, {
+      change: { name: 'Mara', operation: 'create_persona', role: null, summary: '' },
+      storyRevision: 0,
+    });
+    const invalidMoment = service.createStoryOperation(scope, {
+      change: {
+        displayTime: 'Unknown',
+        note: '',
+        operation: 'create_moment',
+        orderKey: 1,
+        precision: 'unknown',
+        timelineId: 'missing-timeline',
+      },
+      storyRevision: 0,
+    });
+
+    await expect(service.applyStoryBatch(7, [
+      persona.proposalId,
+      invalidMoment.proposalId,
+    ])).rejects.toThrow();
+    expect(stories.getSnapshot(session as unknown as ProjectSession)).toMatchObject({
+      personae: [],
+      questions: [],
+      revision: 0,
+    });
+  });
+
   it('binds a reviewed Chronicle event to the exact accepted manuscript revision', async () => {
     const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-story-source-'));
     await initializeProjectLayout(directoryPath);

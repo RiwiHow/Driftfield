@@ -55,6 +55,40 @@ describe('AgentToolDispatcher', () => {
     expect(storyChanged).toHaveBeenCalledWith(1);
   });
 
+  it('records an ambiguity without applying a canonical story operation', async () => {
+    const context = {
+      recordStoryQuestion: vi.fn(() => ({
+        questionId: 'question-1',
+        revision: 4,
+        status: 'recorded' as const,
+      })),
+    } as unknown as ProjectContextService;
+    const storyChanged = vi.fn();
+    const dispatcher = new AgentToolDispatcher(context);
+    const arguments_ = {
+      context: 'Lin already exists.',
+      evidence: null,
+      kind: 'possible_alias' as const,
+      options: ['Alias', 'New person'],
+      question: 'Is Little Lin the same person as Lin?',
+    };
+
+    await expect(dispatcher.execute({ ...scope, storyChanged }, {
+      arguments: arguments_,
+      toolName: 'record_story_question',
+    })).resolves.toEqual({
+      data: { questionId: 'question-1', revision: 4, status: 'recorded' },
+      ok: true,
+      toolName: 'record_story_question',
+    });
+    expect(context.recordStoryQuestion).toHaveBeenCalledWith(
+      { ownerId: 7, projectSessionId: 'session-1' },
+      'request-1',
+      arguments_,
+    );
+    expect(storyChanged).toHaveBeenCalledWith(4);
+  });
+
   it('reads story state and emits a reviewed story proposal', async () => {
     const story = {
       beats: [],
@@ -64,6 +98,7 @@ describe('AgentToolDispatcher', () => {
       events: [],
       moments: [],
       personae: [],
+      questions: [],
       revision: 0,
       threads: [],
       timelines: [],

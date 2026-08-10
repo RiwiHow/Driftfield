@@ -7,5 +7,5 @@ export const researchPrompt: AgentPromptDescriptor = {
     'State uncertainty and distinguish verified information from general knowledge or inference.',
     'Network research tools are not currently available. Do not claim to have searched or verified external sources.',
   ],
-  version: 8,
+  version: 10,
 };

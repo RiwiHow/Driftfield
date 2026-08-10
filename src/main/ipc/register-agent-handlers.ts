@@ -79,10 +79,15 @@ export const registerAgentIpcHandlers = ({
       if (!isApplyAgentProposalRequest(value)) {
         throw new Error("Invalid Agent proposal apply request");
       }
-      return agentProposalService.apply(
-        window.webContents.id,
-        value.proposalId,
-      );
+      return 'proposalIds' in value
+        ? agentProposalService.applyStoryBatch(
+            window.webContents.id,
+            value.proposalIds,
+          )
+        : agentProposalService.apply(
+            window.webContents.id,
+            value.proposalId,
+          );
     },
   );
 

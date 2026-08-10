@@ -56,11 +56,18 @@ Preserve these properties when changing affected subsystems.
   current story revision, validates the active project session and references,
   and commits the canonical change, revision, and applied audit row atomically.
   Renderer refreshes story state after each successful write.
+- Clear low-risk facts from accepted persisted prose use Maintain without a
+  second approval. Ambiguous aliases, time, relationships, contradictions, and
+  other author judgments are stored as deduplicated open questions instead;
+  recording or resolving a question never mutates canonical story rows or
+  advances their revision.
 - `propose_story_operation` records a pending reviewed operation in
-  `project.sqlite`. The worker uses this reviewed path after accepted generated
-  prose, while explicit user requests may still use direct Maintain for bounded
-  additive/linking changes. Chronicle sources bind accepted manuscript identity
-  and disk revision, which Main revalidates before applying the story mutation.
+  `project.sqlite` only when the user explicitly requests structured review.
+  Concurrent proposals from one request and base
+  revision are presented as one review set and applied inside one transaction;
+  each operation retains its own rebased ledger entry. Chronicle sources bind
+  accepted manuscript identity and disk revision, which Main revalidates before
+  applying the story mutation.
 - `propose_document_edit` can submit a bounded whole-document replacement for
   the request-start current draft. Main retains the proposal, Renderer previews
   it, and only an explicit proposal-ID acceptance can trigger a revision-checked

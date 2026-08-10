@@ -25,7 +25,9 @@ import {
   DOCUMENT_FILE_OPERATION_PARAMETERS,
   normalizeStoryMaintenanceArguments,
   PROJECT_STRUCTURE_OPERATION_PARAMETERS,
+  RESOLVE_STORY_QUESTION_PARAMETERS,
   STORY_OPERATION_PARAMETERS,
+  STORY_QUESTION_PARAMETERS,
 } from "./agent-tool-parameters";
 import { didAssistantResponseFail } from './agent-response-status';
 import {
@@ -312,7 +314,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Read the current Personae character registry, Chronicle timelines and events, and Threads plot structure with stable IDs and the current story revision.",
+        "Read the current Personae character registry, Chronicle timelines and events, Threads plot structure, and open story questions with stable IDs and the current story revision.",
       label: "Read story records",
       name: "get_story_state",
       parameters: Type.Object({}, { additionalProperties: false }),
@@ -384,7 +386,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Directly maintain one additive or linking change in Personae, Chronicle, or Threads when it is within the user's explicit request. Read get_story_state first and use its current storyRevision and stable IDs. Use exactly the operation-specific fields described by the change schema; do not invent generic fields. Create dependencies before records that refer to them, and reread story state after every change before making a dependent change. Driftfield validates and records every applied operation. This tool cannot delete, merge, reorder, edit manuscript text, or execute SQL.",
+        "Directly maintain one low-risk additive or linking change in Personae, Chronicle, or Threads when it is explicitly requested by the user or unambiguously evidenced by accepted persisted prose. Read get_story_state first and use its current storyRevision and stable IDs. Never use this tool for a possible alias, uncertain time, unclear relationship, contradiction, or other inference requiring author judgment; record a story question instead. Use exactly the operation-specific fields described by the change schema. Create dependencies before records that refer to them, and reread story state after every change before making a dependent change. Driftfield validates and records every applied operation. This tool cannot delete, merge, reorder, edit manuscript text, or execute SQL.",
       label: "Maintain story records",
       name: "maintain_story_records",
       parameters: STORY_OPERATION_PARAMETERS,
@@ -400,7 +402,29 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Submit one additive or linking Personae, Chronicle, or Threads change for explicit review. Use this to reconcile canonical story records after the user accepts generated manuscript prose. First reread the accepted persisted document and get_story_state, use their current revisions and stable IDs, avoid duplicates, and bind a created Chronicle event to manuscript evidence through sources when applicable. The tool waits for acceptance and never writes story state before review. After an accepted change, reread story state before proposing a dependent change.",
+        "Record one unresolved author question without changing canonical Personae, Chronicle, or Threads. Use this for possible aliases, uncertain fictional time, unclear relationships, contradictions, or any other ambiguity that requires author judgment. Read get_story_state first, do not duplicate an existing open question, attach exact persisted-document evidence when available, and also ask the question concisely in your response. Options are suggestions, not decisions.",
+      label: "Record story question",
+      name: "record_story_question",
+      parameters: STORY_QUESTION_PARAMETERS,
+      execute: async (toolCallId, params) =>
+        textToolResult(
+          await requestTool(requestId, toolCallId, "record_story_question", params),
+        ),
+    }),
+    defineTool({
+      description:
+        "Resolve an existing open story question only from the user's explicit answer. Read get_story_state first and pass the stable question ID and a concise faithful answer. Resolving the question does not itself mutate Personae, Chronicle, or Threads; apply any now-unambiguous low-risk record change separately with maintain_story_records.",
+      label: "Resolve story question",
+      name: "resolve_story_question",
+      parameters: RESOLVE_STORY_QUESTION_PARAMETERS,
+      execute: async (toolCallId, params) =>
+        textToolResult(
+          await requestTool(requestId, toolCallId, "resolve_story_question", params),
+        ),
+    }),
+    defineTool({
+      description:
+        "Submit one additive or linking Personae, Chronicle, or Threads change for explicit human review when the user asks to inspect a structured change before it is applied. Do not use this for routine synchronization of clear facts from accepted prose; use maintain_story_records for those. Do not turn ambiguity into a proposal; record a story question instead. The tool waits for the decision and never writes story state before review.",
       label: "Propose story record change",
       name: "propose_story_operation",
       parameters: STORY_OPERATION_PARAMETERS,

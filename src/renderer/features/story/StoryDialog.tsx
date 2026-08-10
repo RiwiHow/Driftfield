@@ -1,4 +1,4 @@
-import { Clock3, GitBranch, RefreshCw, Users } from 'lucide-react';
+import { CircleHelp, Clock3, GitBranch, RefreshCw, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import type { ProjectStorySnapshot } from '../../../shared/contracts/project-story';
 
-export type StorySection = 'chronicle' | 'threads' | 'personae';
+export type StorySection = 'chronicle' | 'threads' | 'personae' | 'questions';
 
 interface StoryDialogProps {
   error: boolean;
@@ -71,6 +71,12 @@ export function StoryDialog({
             label={t('sections.threads')}
             onClick={() => onSectionChange('threads')}
           />
+          <StoryNavigationButton
+            active={section === 'questions'}
+            icon={<CircleHelp aria-hidden="true" size={14} />}
+            label={t('sections.questions')}
+            onClick={() => onSectionChange('questions')}
+          />
         </nav>
         <div className="story-content">
           {error ? (
@@ -81,6 +87,8 @@ export function StoryDialog({
             <PersonaeView story={story} />
           ) : section === 'chronicle' ? (
             <ChronicleView story={story} />
+          ) : section === 'questions' ? (
+            <QuestionsView story={story} />
           ) : (
             <ThreadsView story={story} />
           )}
@@ -90,6 +98,31 @@ export function StoryDialog({
         ) : null}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function QuestionsView({ story }: { story: ProjectStorySnapshot }) {
+  const { t } = useTranslation('story');
+  const questions = story.questions.filter(({ status }) => status === 'open');
+  if (questions.length === 0) {
+    return <p className="story-message">{t('questions.empty')}</p>;
+  }
+  return (
+    <div className="story-list">
+      {questions.map((item) => (
+        <article className="story-record" key={item.id}>
+          <div>
+            <strong>{item.question}</strong>
+            <span>{t(`questionKind.${item.kind}`)}</span>
+          </div>
+          {item.context ? <p>{item.context}</p> : null}
+          {item.options.length > 0 ? (
+            <small>{t('questions.options', { options: item.options.join(' · ') })}</small>
+          ) : null}
+          {item.evidence !== null ? <small>{item.evidence.anchor}</small> : null}
+        </article>
+      ))}
+    </div>
   );
 }
 

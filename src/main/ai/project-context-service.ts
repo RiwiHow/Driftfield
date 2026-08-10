@@ -6,7 +6,9 @@ import type {
   AgentDraftSnapshot,
   AgentNovelStructureToolResult,
   AgentStoryMaintenanceToolResult,
+  AgentStoryQuestionToolResult,
   AgentStructureNode,
+  AgentToolContractMap,
   AgentToolErrorCode,
 } from '../../shared/contracts/agent-tools';
 import type {
@@ -79,6 +81,36 @@ export class ProjectContextService {
       }
       throw error;
     }
+  }
+
+  recordStoryQuestion(
+    scope: ProjectContextScope,
+    requestId: string,
+    input: AgentToolContractMap['record_story_question']['arguments'],
+  ): AgentStoryQuestionToolResult {
+    const session = this.requireSession(scope);
+    if (this.stories === undefined) throw new ProjectContextError('internal-error');
+    const question = this.stories.recordQuestion(session, requestId, input);
+    return {
+      questionId: question.id,
+      revision: this.stories.getSnapshot(session).revision,
+      status: 'recorded',
+    };
+  }
+
+  resolveStoryQuestion(
+    scope: ProjectContextScope,
+    questionId: string,
+    answer: string,
+  ): AgentStoryQuestionToolResult {
+    const session = this.requireSession(scope);
+    if (this.stories === undefined) throw new ProjectContextError('internal-error');
+    const question = this.stories.resolveQuestion(session, questionId, answer);
+    return {
+      questionId: question.id,
+      revision: this.stories.getSnapshot(session).revision,
+      status: 'resolved',
+    };
   }
 
   async getCurrentDocument(

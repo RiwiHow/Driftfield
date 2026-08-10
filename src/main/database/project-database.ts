@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { ProjectSqliteDatabase } from './project-sqlite-database';
 import { DRIFTFIELD_PROJECT_MARKER } from '../../shared/contracts/project-layout';
 
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 
 export interface ProjectMetadataRecord {
   formatVersion: number;
@@ -323,11 +323,56 @@ export class ProjectDatabase extends ProjectSqliteDatabase {
             error_code TEXT CHECK(error_code IS NULL OR length(error_code) <= 100)
           ) STRICT;
 
+          CREATE TABLE story_questions (
+            question_id TEXT PRIMARY KEY CHECK(length(question_id) BETWEEN 1 AND 128),
+            kind TEXT NOT NULL CHECK(kind IN (
+              'possible_alias', 'uncertain_time', 'unclear_relationship',
+              'contradiction', 'other'
+            )),
+            question TEXT NOT NULL CHECK(length(question) BETWEEN 1 AND 2000),
+            context TEXT NOT NULL CHECK(length(context) <= 10000),
+            options_json TEXT NOT NULL CHECK(length(options_json) <= 4000),
+            evidence_json TEXT CHECK(evidence_json IS NULL OR length(evidence_json) <= 12000),
+            status TEXT NOT NULL CHECK(status IN ('open', 'resolved')),
+            answer TEXT CHECK(answer IS NULL OR length(answer) BETWEEN 1 AND 2000),
+            origin_request_id TEXT NOT NULL CHECK(length(origin_request_id) BETWEEN 1 AND 128),
+            created_at TEXT NOT NULL,
+            resolved_at TEXT
+          ) STRICT;
+          CREATE INDEX story_questions_by_status
+            ON story_questions(status, created_at, question_id);
+
           INSERT INTO schema_migrations(version, applied_at)
-          VALUES (1, datetime('now'));
+          VALUES (1, datetime('now')), (2, datetime('now'));
         `);
       });
       return;
+    }
+    if (row.version === 1) {
+      this.transaction(() => {
+        this.connection.exec(`
+          CREATE TABLE story_questions (
+            question_id TEXT PRIMARY KEY CHECK(length(question_id) BETWEEN 1 AND 128),
+            kind TEXT NOT NULL CHECK(kind IN (
+              'possible_alias', 'uncertain_time', 'unclear_relationship',
+              'contradiction', 'other'
+            )),
+            question TEXT NOT NULL CHECK(length(question) BETWEEN 1 AND 2000),
+            context TEXT NOT NULL CHECK(length(context) <= 10000),
+            options_json TEXT NOT NULL CHECK(length(options_json) <= 4000),
+            evidence_json TEXT CHECK(evidence_json IS NULL OR length(evidence_json) <= 12000),
+            status TEXT NOT NULL CHECK(status IN ('open', 'resolved')),
+            answer TEXT CHECK(answer IS NULL OR length(answer) BETWEEN 1 AND 2000),
+            origin_request_id TEXT NOT NULL CHECK(length(origin_request_id) BETWEEN 1 AND 128),
+            created_at TEXT NOT NULL,
+            resolved_at TEXT
+          ) STRICT;
+          CREATE INDEX story_questions_by_status
+            ON story_questions(status, created_at, question_id);
+          INSERT INTO schema_migrations(version, applied_at)
+          VALUES (2, datetime('now'));
+        `);
+      });
     }
     this.assertCurrentSchema();
   }
@@ -359,6 +404,7 @@ export class ProjectDatabase extends ProjectSqliteDatabase {
       'personae',
       'project_story_state',
       'story_operations',
+      'story_questions',
       'thread_beats',
       'thread_event_links',
       'threads',

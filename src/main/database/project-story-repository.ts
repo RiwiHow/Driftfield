@@ -13,6 +13,9 @@ import type {
   ChronicleTimeline,
   Persona,
   ProjectStorySnapshot,
+  StoryQuestion,
+  StoryQuestionEvidence,
+  StoryQuestionKind,
   StoryThread,
   ThreadBeat,
   ThreadBeatKind,
@@ -106,6 +109,10 @@ export interface StoryOperationAudit {
 export class ProjectStoryRepository {
   constructor(private readonly database: ProjectDatabase) {}
 
+  transaction<T>(operation: () => T): T {
+    return this.database.transaction(operation);
+  }
+
   getRevision(): number {
     const row = this.database.connection.prepare(`
       SELECT revision FROM project_story_state WHERE singleton = 1
@@ -123,10 +130,98 @@ export class ProjectStoryRepository {
       events: this.listEvents(),
       moments: this.listMoments(),
       personae: this.listPersonae(),
+      questions: this.listQuestions(),
       revision: this.getRevision(),
       threads: this.listThreads(),
       timelines: this.listTimelines(),
     };
+  }
+
+  createQuestion(input: {
+    context: string;
+    evidence: StoryQuestionEvidence | null;
+    kind: StoryQuestionKind;
+    options: string[];
+    originRequestId: string;
+    question: string;
+  }): StoryQuestion {
+    const existing = this.database.connection.prepare(`
+      SELECT question_id FROM story_questions
+      WHERE status = 'open' AND kind = ? AND question = ?
+      ORDER BY created_at LIMIT 1
+    `).get(input.kind, input.question) as { question_id: string } | undefined;
+    if (existing !== undefined) {
+      return this.getQuestion(existing.question_id);
+    }
+    const id = randomUUID();
+    const createdAt = new Date().toISOString();
+    this.database.connection.prepare(`
+      INSERT INTO story_questions(
+        question_id, kind, question, context, options_json, evidence_json,
+        status, answer, origin_request_id, created_at, resolved_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 'open', NULL, ?, ?, NULL)
+    `).run(
+      id,
+      input.kind,
+      input.question,
+      input.context,
+      JSON.stringify(input.options),
+      input.evidence === null ? null : JSON.stringify(input.evidence),
+      input.originRequestId,
+      createdAt,
+    );
+    return this.getQuestion(id);
+  }
+
+  resolveQuestion(questionId: string, answer: string): StoryQuestion {
+    const result = this.database.connection.prepare(`
+      UPDATE story_questions SET status = 'resolved', answer = ?, resolved_at = ?
+      WHERE question_id = ? AND status = 'open'
+    `).run(answer, new Date().toISOString(), questionId);
+    if (result.changes !== 1) throw new Error('Open story question is missing');
+    return this.getQuestion(questionId);
+  }
+
+  private getQuestion(questionId: string): StoryQuestion {
+    const question = this.listQuestions().find(({ id }) => id === questionId);
+    if (question === undefined) throw new Error('Story question is missing');
+    return question;
+  }
+
+  private listQuestions(): StoryQuestion[] {
+    const rows = this.database.connection.prepare(`
+      SELECT question_id, kind, question, context, options_json, evidence_json,
+             status, answer, origin_request_id, created_at, resolved_at
+      FROM story_questions
+      ORDER BY CASE status WHEN 'open' THEN 0 ELSE 1 END, created_at, question_id
+    `).all() as Array<{
+      answer: string | null;
+      context: string;
+      created_at: string;
+      evidence_json: string | null;
+      kind: StoryQuestionKind;
+      options_json: string;
+      origin_request_id: string;
+      question: string;
+      question_id: string;
+      resolved_at: string | null;
+      status: 'open' | 'resolved';
+    }>;
+    return rows.map((row) => ({
+      answer: row.answer,
+      context: row.context,
+      createdAt: row.created_at,
+      evidence: row.evidence_json === null
+        ? null
+        : JSON.parse(row.evidence_json) as StoryQuestionEvidence,
+      id: row.question_id,
+      kind: row.kind,
+      options: JSON.parse(row.options_json) as string[],
+      originRequestId: row.origin_request_id,
+      question: row.question,
+      resolvedAt: row.resolved_at,
+      status: row.status,
+    }));
   }
 
   createPendingOperation(
@@ -171,6 +266,20 @@ export class ProjectStoryRepository {
       WHERE operation_id = ? AND status = 'pending'
     `).run(status, new Date().toISOString(), errorCode, operationId);
     return result.changes === 1;
+  }
+
+  rebasePendingOperation(
+    operationId: string,
+    expectedRevision: number,
+    nextRevision: number,
+  ): void {
+    const result = this.database.connection.prepare(`
+      UPDATE story_operations SET base_revision = ?
+      WHERE operation_id = ? AND status = 'pending' AND base_revision = ?
+    `).run(nextRevision, operationId, expectedRevision);
+    if (result.changes !== 1) {
+      throw new Error('Pending project story operation is missing');
+    }
   }
 
   createPersona(expectedRevision: number, input: CreatePersonaInput, audit?: StoryOperationAudit): Persona {

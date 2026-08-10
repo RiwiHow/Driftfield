@@ -10,6 +10,7 @@ import { DatabaseSync } from 'node:sqlite';
 export class ProjectSqliteDatabase {
   readonly connection: DatabaseSync;
   readonly databasePath: string;
+  private transactionDepth = 0;
 
   constructor(projectDirectory: string, filename: string) {
     const dataDirectory = path.join(projectDirectory, '.driftfield');
@@ -52,14 +53,31 @@ export class ProjectSqliteDatabase {
   }
 
   transaction<T>(operation: () => T): T {
-    this.connection.exec('BEGIN IMMEDIATE');
+    const depth = this.transactionDepth;
+    const savepoint = `driftfield_nested_${depth}`;
+    this.transactionDepth += 1;
+    let started = false;
     try {
+      this.connection.exec(depth === 0
+        ? 'BEGIN IMMEDIATE'
+        : `SAVEPOINT ${savepoint}`);
+      started = true;
       const result = operation();
-      this.connection.exec('COMMIT');
+      this.connection.exec(depth === 0
+        ? 'COMMIT'
+        : `RELEASE SAVEPOINT ${savepoint}`);
       return result;
     } catch (error) {
-      this.connection.exec('ROLLBACK');
+      if (!started) throw error;
+      if (depth === 0) {
+        this.connection.exec('ROLLBACK');
+      } else {
+        this.connection.exec(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+        this.connection.exec(`RELEASE SAVEPOINT ${savepoint}`);
+      }
       throw error;
+    } finally {
+      this.transactionDepth -= 1;
     }
   }
 }

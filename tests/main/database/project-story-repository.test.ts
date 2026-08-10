@@ -231,6 +231,33 @@ describe('ProjectStoryRepository', () => {
     expect(repository.getRevision()).toBe(3);
     database.close();
   });
+
+  it('records, deduplicates, and resolves questions without changing canon revision', async () => {
+    const { database, repository } = await createRepository();
+    const input = {
+      context: 'Lin is already a known character.',
+      evidence: null,
+      kind: 'possible_alias' as const,
+      options: ['Alias of Lin', 'A different character'],
+      originRequestId: 'request-1',
+      question: 'Is Little Lin an alias of Lin?',
+    };
+
+    const first = repository.createQuestion(input);
+    const duplicate = repository.createQuestion({ ...input, originRequestId: 'request-2' });
+    expect(duplicate.id).toBe(first.id);
+    expect(repository.getSnapshot()).toMatchObject({
+      questions: [{ id: first.id, status: 'open' }],
+      revision: 0,
+    });
+
+    repository.resolveQuestion(first.id, 'It is an alias of Lin.');
+    expect(repository.getSnapshot()).toMatchObject({
+      questions: [{ answer: 'It is an alias of Lin.', status: 'resolved' }],
+      revision: 0,
+    });
+    database.close();
+  });
 });
 
 const createRepository = async (): Promise<{

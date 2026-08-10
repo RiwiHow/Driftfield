@@ -166,6 +166,26 @@ describe("IPC handler composition", () => {
     );
   });
 
+  it('routes one reviewed story set through the bounded batch apply path', async () => {
+    const context = createContext();
+    registerIpcHandlers(context);
+    const apply = handlers.get(IPC_CHANNELS.applyAgentProposal);
+    if (apply === undefined) throw new Error('Proposal apply handler was not registered');
+    vi.mocked(context.agentProposalService.applyStoryBatch).mockResolvedValue({
+      proposalId: 'story-1',
+      proposalIds: ['story-1', 'story-2'],
+      status: 'story-updated',
+      story: { revision: 2 } as never,
+    });
+
+    await apply({}, { proposalIds: ['story-1', 'story-2'] });
+
+    expect(context.agentProposalService.applyStoryBatch).toHaveBeenCalledWith(
+      7,
+      ['story-1', 'story-2'],
+    );
+  });
+
   it('resets credentials and the current project model state', async () => {
     const context = createContext();
     registerIpcHandlers(context);
@@ -194,6 +214,7 @@ describe("IPC handler composition", () => {
       events: [],
       moments: [],
       personae: [],
+      questions: [],
       revision: 0,
       threads: [],
       timelines: [],
@@ -260,6 +281,7 @@ const createContext = (): IpcHandlerContext => {
     },
     agentProposalService: {
       apply: vi.fn(),
+      applyStoryBatch: vi.fn(),
       reject: vi.fn(),
     },
     completeWindowClose: vi.fn(),

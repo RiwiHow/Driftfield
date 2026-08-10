@@ -109,6 +109,14 @@ interleaved with streamed assistant text at the point each call occurs, with
 calls and results collapsed by default. Activity payloads come from the typed
 worker protocol and remain bounded; the Renderer does not infer Tool state from
 model prose.
+Concurrent reviewed story-operation calls sharing one request and story
+revision render as one story-sync review card instead of repeating one activity
+row and proposal card per record. Their individual calls remain persisted in
+the conversation audit.
+Open story questions have a separate story-panel section. They are not approval
+cards because no canonical mutation is pending: the Agent asks the author in
+conversation, while the panel preserves unresolved context, suggested answers,
+and manuscript evidence until an explicit answer is recorded.
 
 The panel loads project-scoped conversations through narrow preload methods.
 Its history selector can create, switch, rename, and soft-delete conversations;

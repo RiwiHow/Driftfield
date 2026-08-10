@@ -395,6 +395,19 @@ export function useAgentConversation(
     [],
   );
 
+  const setProposalStatuses = useCallback(
+    (proposalIds: string[], status: AgentProposalStatus) => {
+      setMessages((current) =>
+        proposalIds.reduce(
+          (messages, proposalId) =>
+            setProposalStatusInMessages(messages, proposalId, status),
+          current,
+        ),
+      );
+    },
+    [],
+  );
+
   const applyProposal = useCallback(async (proposal: AgentProposal) => {
     if (!canApplyAgentProposal(activeChapter, proposal, chapters)) {
       try {
@@ -443,6 +456,50 @@ export function useAgentConversation(
     }
   }, []);
 
+  const applyStoryProposals = useCallback(async (proposals: AgentProposal[]) => {
+    const proposalIds = proposals
+      .filter((proposal) => 'operation' in proposal && proposal.operation === 'story')
+      .map(({ proposalId }) => proposalId);
+    if (proposalIds.length === 0) return;
+    setProposalStatuses(proposalIds, 'applying');
+    try {
+      const result = await window.driftfield.applyAgentProposal({ proposalIds });
+      if (result.status === 'story-updated') {
+        onProposalApplied(result);
+        setProposalStatuses(proposalIds, 'saved');
+      } else {
+        const status: AgentProposalStatus =
+          result.status === 'conflict' ||
+          result.status === 'missing' ||
+          result.status === 'stale'
+            ? result.status
+            : result.status === 'not-found'
+              ? 'stale'
+              : 'failed';
+        setProposalStatuses(
+          proposalIds,
+          status,
+        );
+      }
+    } catch {
+      setProposalStatuses(proposalIds, 'failed');
+    }
+  }, [onProposalApplied, setProposalStatuses]);
+
+  const rejectStoryProposals = useCallback(async (proposals: AgentProposal[]) => {
+    const proposalIds = proposals
+      .filter((proposal) => 'operation' in proposal && proposal.operation === 'story')
+      .map(({ proposalId }) => proposalId);
+    try {
+      await Promise.all(proposalIds.map((proposalId) =>
+        window.driftfield.rejectAgentProposal({ proposalId }),
+      ));
+      setProposalStatuses(proposalIds, 'rejected');
+    } catch {
+      setProposalStatuses(proposalIds, 'failed');
+    }
+  }, [setProposalStatuses]);
+
   const clear = useCallback(() => {
     if (!isAgentConversationActive(run.phase)) {
       void window.driftfield.createAgentConversation({}).then(applyConversationState);
@@ -479,6 +536,7 @@ export function useAgentConversation(
     cancel,
     activeConversationId,
     applyProposal,
+    applyStoryProposals,
     clear,
     conversations,
     deleteConversation,
@@ -492,6 +550,7 @@ export function useAgentConversation(
     messages,
     phase: run.phase,
     rejectProposal,
+    rejectStoryProposals,
     renameConversation,
     resend,
     send,

@@ -151,4 +151,26 @@ describe('Agent proposal tool contract', () => {
       },
     })).toBe(false);
   });
+
+  it('validates structured story questions and resolutions', () => {
+    expect(isAgentToolRequest({
+      arguments: {
+        context: 'Lin already exists.',
+        evidence: null,
+        kind: 'possible_alias',
+        options: ['Alias', 'New person'],
+        question: 'Is Little Lin the same person as Lin?',
+      },
+      toolName: 'record_story_question',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: { answer: '', questionId: 'question-1' },
+      toolName: 'resolve_story_question',
+    })).toBe(false);
+    expect(isAgentToolExecutionResult({
+      data: { questionId: 'question-1', revision: 0, status: 'recorded' },
+      ok: true,
+      toolName: 'record_story_question',
+    })).toBe(true);
+  });
 });
