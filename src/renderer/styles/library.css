@@ -68,7 +68,7 @@
 }
 
 .tree-parent-row,
-.chapter-row {
+.document-row {
   display: flex;
   width: 100%;
   align-items: center;
@@ -88,7 +88,7 @@
 }
 
 .tree-parent-row span,
-.chapter-row span {
+.document-row span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -109,7 +109,7 @@
   content: "";
 }
 
-.chapter-row {
+.document-row {
   gap: 7px;
   height: 30px;
   padding: 0 8px;
@@ -120,18 +120,18 @@
   border-radius: 5px;
 }
 
-.chapter-row:hover,
+.document-row:hover,
 .tree-parent-row:hover {
   color: var(--foreground);
   background: var(--df-hover);
 }
 
-.chapter-row.is-active {
+.document-row.is-active {
   color: var(--foreground);
   background: var(--df-active);
 }
 
-.chapter-row.is-active svg {
+.document-row.is-active svg {
   color: var(--primary);
 }
 

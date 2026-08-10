@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 
 import type {
   AgentProposal,
-  AgentDocumentProposal,
   AgentCreateDocumentProposal,
   AgentDeleteDocumentProposal,
   AgentCreateDirectoryProposal,

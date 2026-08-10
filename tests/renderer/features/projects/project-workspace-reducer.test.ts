@@ -1,20 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Chapter } from '../../../../src/renderer/app/types';
+import type { WorkspaceDocument } from '../../../../src/renderer/app/types';
 import {
   initialProjectWorkspaceState,
   projectWorkspaceReducer,
 } from '../../../../src/renderer/features/projects/project-workspace-reducer';
 import type { ProjectSnapshot } from '../../../../src/shared/contracts/project';
 
-const chapter: Chapter = {
+const document: WorkspaceDocument = {
   backingFileStatus: 'available',
-  id: 'chapter-1',
+  id: 'document-1',
   isDirty: false,
   markdown: '# Chapter',
   order: 0,
   previousMarkdown: '# Chapter',
-  relativePath: 'manuscript/chapter.md',
+  relativePath: 'manuscript/document.md',
   revision: 'revision-1',
   sourceRevision: 1,
   title: 'Chapter',
@@ -24,11 +24,11 @@ const snapshot: ProjectSnapshot = {
   directory: { name: 'Novel', path: '/novel' },
   documents: [
     {
-      id: chapter.id,
-      markdown: chapter.markdown,
-      name: chapter.title,
-      relativePath: chapter.relativePath,
-      revision: chapter.revision,
+      id: document.id,
+      markdown: document.markdown,
+      name: document.title,
+      relativePath: document.relativePath,
+      revision: document.revision,
     },
   ],
   projectId: 'project-1',
@@ -46,34 +46,34 @@ describe('projectWorkspaceReducer', () => {
     });
 
     expect(state).toMatchObject({
-      activeChapterId: 'chapter-1',
+      activeDocumentId: 'document-1',
       projectDirectory: snapshot.directory,
       projectId: 'project-1',
     });
-    expect(state.chapters).toHaveLength(1);
+    expect(state.documents).toHaveLength(1);
   });
 
   it('keeps editor changes dirty until the matching content is committed', () => {
     const loaded = {
       ...initialProjectWorkspaceState,
-      activeChapterId: chapter.id,
-      chapters: [chapter],
+      activeDocumentId: document.id,
+      documents: [document],
     };
     const edited = projectWorkspaceReducer(loaded, {
       markdown: '# Edited',
-      type: 'update-active-chapter',
+      type: 'update-active-document',
     });
     const saved = projectWorkspaceReducer(edited, {
-      chapter: edited.chapters[0],
+      document: edited.documents[0],
       revision: 'revision-2',
-      type: 'commit-saved-chapter',
+      type: 'commit-saved-document',
     });
 
-    expect(edited.chapters[0]).toMatchObject({
+    expect(edited.documents[0]).toMatchObject({
       isDirty: true,
       markdown: '# Edited',
     });
-    expect(saved.chapters[0]).toMatchObject({
+    expect(saved.documents[0]).toMatchObject({
       isDirty: false,
       previousMarkdown: '# Edited',
       revision: 'revision-2',
@@ -83,17 +83,17 @@ describe('projectWorkspaceReducer', () => {
   it('moves a conflict into comparison state without losing local text', () => {
     const state = {
       ...initialProjectWorkspaceState,
-      activeChapterId: chapter.id,
-      chapters: [{ ...chapter, isDirty: true, markdown: '# Local' }],
+      activeDocumentId: document.id,
+      documents: [{ ...document, isDirty: true, markdown: '# Local' }],
       saveConflict: {
         diskDocument: {
-          id: chapter.id,
+          id: document.id,
           markdown: '# Disk',
-          name: chapter.title,
-          relativePath: chapter.relativePath,
+          name: document.title,
+          relativePath: document.relativePath,
           revision: 'revision-disk',
         },
-        documentId: chapter.id,
+        documentId: document.id,
       },
     };
     const compared = projectWorkspaceReducer(state, {
@@ -101,7 +101,7 @@ describe('projectWorkspaceReducer', () => {
       type: 'compare-conflict',
     });
 
-    expect(compared.chapters[0]).toMatchObject({
+    expect(compared.documents[0]).toMatchObject({
       isDirty: true,
       markdown: '# Local',
       previousMarkdown: '# Disk',

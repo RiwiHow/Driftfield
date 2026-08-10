@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Chapter } from '../../../../src/renderer/app/types';
+import type { WorkspaceDocument } from '../../../../src/renderer/app/types';
 import { canApplyAgentProposal } from '../../../../src/renderer/features/assistant/use-agent-conversation';
 import type {
   AgentDeleteDocumentProposal,
@@ -8,14 +8,14 @@ import type {
   AgentMoveDocumentProposal,
 } from '../../../../src/shared/contracts/agent-proposals';
 
-const chapter: Chapter = {
+const document: WorkspaceDocument = {
   backingFileStatus: 'available',
-  id: 'chapter-1',
+  id: 'document-1',
   isDirty: true,
   markdown: '# Request-start draft',
   order: 0,
   previousMarkdown: '# Disk',
-  relativePath: 'chapter.md',
+  relativePath: 'document.md',
   revision: 'a'.repeat(64),
   sourceRevision: 1,
   title: 'Chapter',
@@ -23,27 +23,27 @@ const chapter: Chapter = {
 
 const proposal: AgentEditProposal = {
   baseContentRevision: 'b'.repeat(64),
-  baseMarkdown: chapter.markdown,
-  baseRevision: chapter.revision,
-  documentId: chapter.id,
+  baseMarkdown: document.markdown,
+  baseRevision: document.revision,
+  documentId: document.id,
   markdown: '# Proposed',
   proposalId: 'proposal-1',
   requestId: 'request-1',
-  title: chapter.title,
+  title: document.title,
 };
 
 describe('Agent proposal state', () => {
   it('only applies to the unchanged request-start renderer draft', () => {
-    expect(canApplyAgentProposal(chapter, proposal)).toBe(true);
-    expect(canApplyAgentProposal({ ...chapter, markdown: '# Later edit' }, proposal)).toBe(false);
-    expect(canApplyAgentProposal({ ...chapter, revision: 'c'.repeat(64) }, proposal)).toBe(false);
+    expect(canApplyAgentProposal(document, proposal)).toBe(true);
+    expect(canApplyAgentProposal({ ...document, markdown: '# Later edit' }, proposal)).toBe(false);
+    expect(canApplyAgentProposal({ ...document, revision: 'c'.repeat(64) }, proposal)).toBe(false);
     expect(canApplyAgentProposal(null, proposal)).toBe(false);
   });
 
   it('does not move a document with unsaved renderer changes', () => {
     const move: AgentMoveDocumentProposal = {
-      baseRevision: chapter.revision,
-      documentId: chapter.id,
+      baseRevision: document.revision,
+      documentId: document.id,
       operation: 'move_document',
       projectRevision: 'c'.repeat(64),
       proposalId: 'proposal-move',
@@ -52,32 +52,32 @@ describe('Agent proposal state', () => {
       sourceParentTitle: 'Manuscript',
       targetParentId: 'volume-2',
       targetParentTitle: 'Volume Two',
-      title: chapter.title,
+      title: document.title,
     };
-    expect(canApplyAgentProposal(chapter, move, [chapter])).toBe(false);
+    expect(canApplyAgentProposal(document, move, [document])).toBe(false);
     expect(canApplyAgentProposal(
-      { ...chapter, isDirty: false },
+      { ...document, isDirty: false },
       move,
-      [{ ...chapter, isDirty: false }],
+      [{ ...document, isDirty: false }],
     )).toBe(true);
   });
 
   it('does not delete a document with unsaved renderer changes', () => {
     const deletion: AgentDeleteDocumentProposal = {
-      baseMarkdown: chapter.previousMarkdown,
-      baseRevision: chapter.revision,
-      documentId: chapter.id,
+      baseMarkdown: document.previousMarkdown,
+      baseRevision: document.revision,
+      documentId: document.id,
       operation: 'delete',
       projectRevision: 'c'.repeat(64),
       proposalId: 'proposal-delete',
       requestId: 'request-1',
-      title: chapter.title,
+      title: document.title,
     };
-    expect(canApplyAgentProposal(chapter, deletion, [chapter])).toBe(false);
+    expect(canApplyAgentProposal(document, deletion, [document])).toBe(false);
     expect(canApplyAgentProposal(
-      { ...chapter, isDirty: false, markdown: chapter.previousMarkdown },
+      { ...document, isDirty: false, markdown: document.previousMarkdown },
       deletion,
-      [{ ...chapter, isDirty: false, markdown: chapter.previousMarkdown }],
+      [{ ...document, isDirty: false, markdown: document.previousMarkdown }],
     )).toBe(true);
   });
 });

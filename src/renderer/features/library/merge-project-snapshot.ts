@@ -1,14 +1,14 @@
-import type { Chapter } from '@/app/types';
+import type { WorkspaceDocument } from '@/app/types';
 import type { ProjectSnapshot } from '../../../shared/contracts/project';
 
 export const mergeProjectSnapshot = (
-  current: Chapter[],
+  current: WorkspaceDocument[],
   project: ProjectSnapshot,
   preserveDirtyDocuments: boolean,
   sourceRevision: number,
-): Chapter[] => {
-  const currentById = new Map(current.map((chapter) => [chapter.id, chapter]));
-  const next = project.documents.map((document, index): Chapter => {
+): WorkspaceDocument[] => {
+  const currentById = new Map(current.map((document) => [document.id, document]));
+  const next = project.documents.map((document, index): WorkspaceDocument => {
     const existing = currentById.get(document.id);
 
     if (preserveDirtyDocuments && existing?.isDirty) {
@@ -49,10 +49,10 @@ export const mergeProjectSnapshot = (
 
   if (preserveDirtyDocuments) {
     const diskIds = new Set(project.documents.map((document) => document.id));
-    for (const chapter of current) {
-      if (chapter.isDirty && !diskIds.has(chapter.id)) {
+    for (const document of current) {
+      if (document.isDirty && !diskIds.has(document.id)) {
         next.push({
-          ...chapter,
+          ...document,
           backingFileStatus: 'missing',
           order: next.length + 1,
         });

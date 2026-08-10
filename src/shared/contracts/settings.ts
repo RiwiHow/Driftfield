@@ -1,8 +1,5 @@
 import type { AppLanguage } from '../i18n/languages';
-import {
-  APP_THEME_PREFERENCES,
-  type AppThemePreference,
-} from '../theme-contract';
+import type { AppThemePreference } from '../theme-contract';
 
 export {
   APP_THEMES,

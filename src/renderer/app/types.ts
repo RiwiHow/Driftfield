@@ -1,4 +1,4 @@
-export interface Chapter {
+export interface WorkspaceDocument {
   backingFileStatus: 'available' | 'missing';
   id: string;
   isDirty: boolean;

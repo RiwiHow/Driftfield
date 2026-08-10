@@ -240,16 +240,6 @@ export type ProjectStoryOperation =
       relation: ThreadEventRelation;
     };
 
-export const PROJECT_STORY_OPERATION_NAMES = [
-  'create_persona',
-  'create_timeline',
-  'create_moment',
-  'create_event',
-  'create_thread',
-  'create_beat',
-  'link_beat_event',
-] as const;
-
 export const isProjectStoryOperation = (
   value: unknown,
 ): value is ProjectStoryOperation => {

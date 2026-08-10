@@ -240,8 +240,8 @@ remain future work.
   application-owned structured replacements or a patch against that revision.
 - Prefer exact-text anchors or ranges in the base snapshot over bare line
   numbers.
-- Render a diff or equivalent preview. The user can accept, reject, selectively
-  apply, or cancel.
+- Render a diff or equivalent preview. The current whole-document workflow lets
+  the user accept, reject, or cancel; selective application remains future work.
 - Apply accepted changes through `ProjectService` so revision checks,
   serialization, atomic writes, conflicts, and recovery remain intact.
 - If the disk revision changed, stop and enter the conflict workflow or request

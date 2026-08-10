@@ -1,6 +1,6 @@
 import { useEffect, type Dispatch, type RefObject } from 'react';
 
-import type { Chapter } from '../../app/types';
+import type { WorkspaceDocument } from '../../app/types';
 import type {
   LocalizedWorkspaceMessage,
   ProjectWorkspaceAction,
@@ -13,20 +13,20 @@ export interface SaveDocumentsMessages {
 }
 
 interface DocumentLifecycleEffectsOptions {
-  chapters: Chapter[];
-  chaptersRef: RefObject<Chapter[]>;
+  documents: WorkspaceDocument[];
+  documentsRef: RefObject<WorkspaceDocument[]>;
   dirtyDocumentsLabel: (count: number) => string;
   dispatch: Dispatch<ProjectWorkspaceAction>;
   saveActiveDocument: () => Promise<boolean>;
   saveDocuments: (
-    documents: Chapter[],
+    documents: WorkspaceDocument[],
     messages: SaveDocumentsMessages,
   ) => Promise<boolean>;
 }
 
 export const useDocumentLifecycleEffects = ({
-  chapters,
-  chaptersRef,
+  documents,
+  documentsRef,
   dirtyDocumentsLabel,
   dispatch,
   saveActiveDocument,
@@ -34,23 +34,23 @@ export const useDocumentLifecycleEffects = ({
 }: DocumentLifecycleEffectsOptions): void => {
   useEffect(() => {
     void window.driftfield
-      .setWindowDirty(chapters.some((chapter) => chapter.isDirty))
+      .setWindowDirty(documents.some((document) => document.isDirty))
       .catch(() => {
         dispatch({
           type: 'set-save-message',
           value: { catalog: 'errors', key: 'projects.dirtySync' },
         });
       });
-  }, [chapters, dispatch]);
+  }, [documents, dispatch]);
 
   useEffect(
     () =>
       window.driftfield.onWindowCloseRequested((request) => {
         void (async () => {
-          const dirtyChapters = chaptersRef.current.filter(
-            (chapter) => chapter.isDirty,
+          const dirtyDocuments = documentsRef.current.filter(
+            (document) => document.isDirty,
           );
-          if (dirtyChapters.length === 0) {
+          if (dirtyDocuments.length === 0) {
             await window.driftfield.completeWindowClose({
               proceed: true,
               requestId: request.requestId,
@@ -59,11 +59,11 @@ export const useDocumentLifecycleEffects = ({
           }
           dispatch({ type: 'set-confirming-close', value: true });
           const decision = await window.driftfield.confirmCloseUnsavedDocument(
-            dirtyDocumentsLabel(dirtyChapters.length),
+            dirtyDocumentsLabel(dirtyDocuments.length),
           );
           let proceed = decision === 'discard';
           if (decision === 'save') {
-            proceed = await saveDocuments(dirtyChapters, {
+            proceed = await saveDocuments(dirtyDocuments, {
               conflict: {
                 catalog: 'projects',
                 key: 'errors.conflictBeforeQuit',
@@ -85,7 +85,7 @@ export const useDocumentLifecycleEffects = ({
           });
         })();
       }),
-    [chaptersRef, dirtyDocumentsLabel, dispatch, saveDocuments],
+    [documentsRef, dirtyDocumentsLabel, dispatch, saveDocuments],
   );
 
   useEffect(() => {

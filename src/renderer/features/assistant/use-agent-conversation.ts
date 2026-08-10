@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { Chapter } from '@/app/types';
+import type { WorkspaceDocument } from '@/app/types';
 import type {
   AgentProposal,
   SuccessfulApplyAgentProposalResult,
@@ -40,8 +40,8 @@ type ConversationUpdate = (
 ) => ConversationMessage[];
 
 export function useAgentConversation(
-  activeChapter: Chapter | null,
-  chapters: Chapter[],
+  activeDocument: WorkspaceDocument | null,
+  documents: WorkspaceDocument[],
   onProposalApplied: (
     result: SuccessfulApplyAgentProposalResult,
   ) => void,
@@ -250,14 +250,14 @@ export function useAgentConversation(
         const started = await window.driftfield.startAgentPrompt({
           conversationId: activeConversationId,
           ...(editMessageId === undefined ? {} : { editMessageId }),
-          currentDocumentId: activeChapter?.id,
-          ...(activeChapter === null
+          currentDocumentId: activeDocument?.id,
+          ...(activeDocument === null
             ? {}
             : {
                 draftSnapshot: {
-                  baseRevision: activeChapter.revision,
-                  documentId: activeChapter.id,
-                  markdown: activeChapter.markdown,
+                  baseRevision: activeDocument.revision,
+                  documentId: activeDocument.id,
+                  markdown: activeDocument.markdown,
                 },
               }),
           prompt: trimmedPrompt,
@@ -295,7 +295,7 @@ export function useAgentConversation(
         return false;
       }
     },
-    [activeChapter, activeConversationId, applyConversationState],
+    [activeDocument, activeConversationId, applyConversationState],
   );
 
   const send = useCallback(
@@ -409,7 +409,7 @@ export function useAgentConversation(
   );
 
   const applyProposal = useCallback(async (proposal: AgentProposal) => {
-    if (!canApplyAgentProposal(activeChapter, proposal, chapters)) {
+    if (!canApplyAgentProposal(activeDocument, proposal, documents)) {
       try {
         await window.driftfield.rejectAgentProposal({
           proposalId: proposal.proposalId,
@@ -445,7 +445,7 @@ export function useAgentConversation(
     } catch {
       setProposalStatus(proposal.proposalId, 'failed');
     }
-  }, [activeChapter, chapters, onProposalApplied]);
+  }, [activeDocument, documents, onProposalApplied]);
 
   const rejectProposal = useCallback(async (proposalId: string) => {
     try {
@@ -607,9 +607,9 @@ function rejectPendingProposals(messages: ConversationMessage[]): void {
 }
 
 export function canApplyAgentProposal(
-  chapter: Chapter | null,
+  document: WorkspaceDocument | null,
   proposal: AgentProposal,
-  chapters: Chapter[] = chapter === null ? [] : [chapter],
+  documents: WorkspaceDocument[] = document === null ? [] : [document],
 ): boolean {
   if ('operation' in proposal && proposal.operation === 'story') return true;
   if ('operation' in proposal) {
@@ -619,7 +619,7 @@ export function canApplyAgentProposal(
       proposal.operation === 'create_lore_category'
     ) return true;
     if (!('documentId' in proposal) || !('baseRevision' in proposal)) return false;
-    const target = chapters.find(({ id }) => id === proposal.documentId);
+    const target = documents.find(({ id }) => id === proposal.documentId);
     if (target === undefined) return true;
     if (target.isDirty || target.revision !== proposal.baseRevision) return false;
     return proposal.operation === 'delete'
@@ -627,10 +627,10 @@ export function canApplyAgentProposal(
       : true;
   }
   return (
-    chapter !== null &&
-    chapter.id === proposal.documentId &&
-    chapter.revision === proposal.baseRevision &&
-    chapter.markdown === proposal.baseMarkdown
+    document !== null &&
+    document.id === proposal.documentId &&
+    document.revision === proposal.baseRevision &&
+    document.markdown === proposal.baseMarkdown
   );
 }
 

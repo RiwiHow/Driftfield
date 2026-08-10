@@ -17,7 +17,7 @@ import {
 import { useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { Chapter } from '@/app/types';
+import type { WorkspaceDocument } from '@/app/types';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -67,8 +67,8 @@ import {
 } from './use-agent-conversation';
 
 interface AssistantPanelProps {
-  activeChapter: Chapter | null;
-  chapters: Chapter[];
+  activeDocument: WorkspaceDocument | null;
+  documents: WorkspaceDocument[];
   configuration: AgentConfiguration;
   configurationError: string | null;
   configurationLoading: boolean;
@@ -82,8 +82,8 @@ interface AssistantPanelProps {
 }
 
 export function AssistantPanel({
-  activeChapter,
-  chapters,
+  activeDocument,
+  documents,
   configuration,
   configurationError,
   configurationLoading,
@@ -134,8 +134,8 @@ export function AssistantPanel({
     send,
     selectConversation,
   } = useAgentConversation(
-    activeChapter,
-    chapters,
+    activeDocument,
+    documents,
     onProposalApplied,
     onStoryChanged,
     projectId,
@@ -604,8 +604,8 @@ export function AssistantPanel({
           value={prompt}
         />
         <div className="composer-footer">
-          <span className="composer-document" title={activeChapter?.title}>
-            {activeChapter?.title ?? t('composer.noChapter')}
+          <span className="composer-document" title={activeDocument?.title}>
+            {activeDocument?.title ?? t('composer.noChapter')}
           </span>
           <Button
             aria-label={isActive ? t('actions.stop') : t('actions.send')}

@@ -12,7 +12,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 
-import type { Chapter } from '@/app/types';
+import type { WorkspaceDocument } from '@/app/types';
 import { Button } from '@/components/ui/button';
 import {
   Tooltip,
@@ -39,8 +39,8 @@ import {
 import { useWorkspacePanelTransitions } from './use-workspace-panel-transitions';
 
 interface WorkspaceShellProps {
-  activeChapter: Chapter | null;
-  chapters: Chapter[];
+  activeDocument: WorkspaceDocument | null;
+  documents: WorkspaceDocument[];
   agentConfiguration: AgentConfiguration;
   agentConfigurationError: string | null;
   agentConfigurationLoading: boolean;
@@ -51,12 +51,12 @@ interface WorkspaceShellProps {
   isSelectingProject: boolean;
   isRefreshingProject: boolean;
   isSavingDocument: boolean;
-  onChapterChange: (chapterId: string) => void;
+  onDocumentChange: (documentId: string) => void;
   onAgentProposalApplied: (
     result: SuccessfulApplyAgentProposalResult,
   ) => void;
   onAgentStoryChanged: (revision: number) => void;
-  onCloseChapter: () => void;
+  onCloseDocument: () => void;
   onContentChange: (markdown: string) => void;
   onCreateProject: () => void;
   onOpenSettings: () => void;
@@ -71,13 +71,13 @@ interface WorkspaceShellProps {
   projectSelectionError: string | null;
   projectTree: ProjectTreeNode[];
   projectWatcherError: string | null;
-  recoveredChapters: Chapter[];
+  recoveredDocuments: WorkspaceDocument[];
   theme: AppTheme;
 }
 
 export function WorkspaceShell({
-  activeChapter,
-  chapters,
+  activeDocument,
+  documents,
   agentConfiguration,
   agentConfigurationError,
   agentConfigurationLoading,
@@ -88,10 +88,10 @@ export function WorkspaceShell({
   isSelectingProject,
   isRefreshingProject,
   isSavingDocument,
-  onChapterChange,
+  onDocumentChange,
   onAgentProposalApplied,
   onAgentStoryChanged,
-  onCloseChapter,
+  onCloseDocument,
   onContentChange,
   onCreateProject,
   onOpenSettings,
@@ -106,7 +106,7 @@ export function WorkspaceShell({
   projectSelectionError,
   projectTree,
   projectWatcherError,
-  recoveredChapters,
+  recoveredDocuments,
   theme,
 }: WorkspaceShellProps) {
   const { t } = useTranslation('workspace');
@@ -216,11 +216,11 @@ export function WorkspaceShell({
             panelRef={libraryPanelRef}
           >
             <LibraryPanel
-              activeChapterId={activeChapter?.id ?? null}
+              activeDocumentId={activeDocument?.id ?? null}
               isCreatingProject={isCreatingProject}
               isSelectingProject={isSelectingProject}
               isRefreshingProject={isRefreshingProject}
-              onChapterChange={onChapterChange}
+              onDocumentChange={onDocumentChange}
               onCreateProject={onCreateProject}
               onOpenSettings={onOpenSettings}
               onOpenStory={onOpenStory}
@@ -232,7 +232,7 @@ export function WorkspaceShell({
               projectSelectionError={projectSelectionError}
               projectTree={projectTree}
               projectWatcherError={projectWatcherError}
-              recoveredChapters={recoveredChapters}
+              recoveredDocuments={recoveredDocuments}
             />
           </Panel>
 
@@ -247,9 +247,9 @@ export function WorkspaceShell({
             minSize={WORKSPACE_PANEL_MIN_WIDTHS.editor}
           >
             <ManuscriptEditor
-              chapter={activeChapter}
+              document={activeDocument}
               isSaving={isSavingDocument}
-              onClose={onCloseChapter}
+              onClose={onCloseDocument}
               onChange={onContentChange}
               onSave={onSaveDocument}
               saveError={documentSaveError}
@@ -275,8 +275,8 @@ export function WorkspaceShell({
             panelRef={assistantPanelRef}
           >
             <AssistantPanel
-              activeChapter={activeChapter}
-              chapters={chapters}
+              activeDocument={activeDocument}
+              documents={documents}
               configuration={agentConfiguration}
               configurationError={agentConfigurationError}
               configurationLoading={agentConfigurationLoading}

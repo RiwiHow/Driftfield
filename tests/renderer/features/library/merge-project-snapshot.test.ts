@@ -1,20 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Chapter } from '../../../../src/renderer/app/types';
+import type { WorkspaceDocument } from '../../../../src/renderer/app/types';
 import { mergeProjectSnapshot } from '../../../../src/renderer/features/library/merge-project-snapshot';
 import type { ProjectSnapshot } from '../../../../src/shared/contracts/project';
 
-const dirtyChapter: Chapter = {
+const dirtyDocument: WorkspaceDocument = {
   backingFileStatus: 'available',
-  id: 'chapter.md',
+  id: 'document.md',
   isDirty: true,
   markdown: 'unsaved text',
   order: 1,
   previousMarkdown: 'old disk text',
-  relativePath: 'chapter.md',
+  relativePath: 'document.md',
   revision: 'old-revision',
   sourceRevision: 1,
-  title: 'chapter',
+  title: 'document',
 };
 
 const emptySnapshot: ProjectSnapshot = {
@@ -27,15 +27,15 @@ const emptySnapshot: ProjectSnapshot = {
 
 describe('project snapshot merge', () => {
   it('preserves a dirty document deleted outside Driftfield', () => {
-    expect(mergeProjectSnapshot([dirtyChapter], emptySnapshot, true, 2)).toEqual([
-      { ...dirtyChapter, backingFileStatus: 'missing' },
+    expect(mergeProjectSnapshot([dirtyDocument], emptySnapshot, true, 2)).toEqual([
+      { ...dirtyDocument, backingFileStatus: 'missing' },
     ]);
   });
 
   it('drops a missing clean document', () => {
     expect(
       mergeProjectSnapshot(
-        [{ ...dirtyChapter, isDirty: false }],
+        [{ ...dirtyDocument, isDirty: false }],
         emptySnapshot,
         true,
         2,
@@ -48,16 +48,16 @@ describe('project snapshot merge', () => {
       ...emptySnapshot,
       documents: [
         {
-          id: 'chapter.md',
+          id: 'document.md',
           markdown: 'external edit',
-          name: 'chapter',
-          relativePath: 'chapter.md',
+          name: 'document',
+          relativePath: 'document.md',
           revision: 'new-revision',
         },
       ],
     };
 
-    expect(mergeProjectSnapshot([dirtyChapter], snapshot, true, 2)[0]).toMatchObject({
+    expect(mergeProjectSnapshot([dirtyDocument], snapshot, true, 2)[0]).toMatchObject({
       isDirty: true,
       markdown: 'unsaved text',
       revision: 'old-revision',

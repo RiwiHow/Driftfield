@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useReducer, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { Chapter } from '@/app/types';
+import type { WorkspaceDocument } from '@/app/types';
 import type { SuccessfulApplyAgentProposalResult } from '../../../shared/contracts/agent-proposals';
 import type { ProjectSnapshot } from '../../../shared/contracts/project';
 import {
@@ -23,8 +23,8 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
     initialProjectWorkspaceState,
   );
   const projectRevision = useRef(0);
-  const chaptersRef = useRef<Chapter[]>([]);
-  chaptersRef.current = state.chapters;
+  const documentsRef = useRef<WorkspaceDocument[]>([]);
+  documentsRef.current = state.documents;
 
   const localizeMessage = useCallback(
     (message: LocalizedWorkspaceMessage | null): string | null => {
@@ -36,55 +36,55 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
     [t, tErrors],
   );
 
-  const activeChapter = useMemo(
-    () => state.chapters.find(({ id }) => id === state.activeChapterId) ?? null,
-    [state.activeChapterId, state.chapters],
+  const activeDocument = useMemo(
+    () => state.documents.find(({ id }) => id === state.activeDocumentId) ?? null,
+    [state.activeDocumentId, state.documents],
   );
 
-  const commitSavedChapter = useCallback(
-    (chapter: Chapter, revision: string): void => {
-      dispatch({ chapter, revision, type: 'commit-saved-chapter' });
+  const commitSavedDocument = useCallback(
+    (document: WorkspaceDocument, revision: string): void => {
+      dispatch({ document, revision, type: 'commit-saved-document' });
     },
     [],
   );
 
   const saveDocuments = useCallback(
     async (
-      documents: Chapter[],
+      documents: WorkspaceDocument[],
       messages: SaveDocumentsMessages,
     ): Promise<boolean> => {
       dispatch({ type: 'set-saving', value: true });
       dispatch({ type: 'set-save-message', value: null });
       try {
-        for (const chapter of documents) {
-          if (chapter.backingFileStatus === 'missing') {
-            dispatch({ type: 'select-chapter', chapterId: chapter.id });
+        for (const document of documents) {
+          if (document.backingFileStatus === 'missing') {
+            dispatch({ type: 'select-document', documentId: document.id });
             dispatch({ type: 'set-save-message', value: messages.missing });
             return false;
           }
           const result = await window.driftfield.saveProjectDocument({
-            documentId: chapter.id,
-            expectedRevision: chapter.revision,
-            markdown: chapter.markdown,
+            documentId: document.id,
+            expectedRevision: document.revision,
+            markdown: document.markdown,
           });
           if (result.status === 'conflict') {
-            dispatch({ type: 'select-chapter', chapterId: chapter.id });
+            dispatch({ type: 'select-document', documentId: document.id });
             dispatch({
               type: 'set-save-conflict',
               value: {
                 diskDocument: result.diskDocument,
-                documentId: chapter.id,
+                documentId: document.id,
               },
             });
             dispatch({ type: 'set-save-message', value: messages.conflict });
             return false;
           }
           if (result.status === 'missing') {
-            dispatch({ type: 'select-chapter', chapterId: chapter.id });
+            dispatch({ type: 'select-document', documentId: document.id });
             dispatch({ type: 'set-save-message', value: messages.missing });
             return false;
           }
-          commitSavedChapter(chapter, result.revision);
+          commitSavedDocument(document, result.revision);
         }
         return true;
       } catch {
@@ -94,7 +94,7 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
         dispatch({ type: 'set-saving', value: false });
       }
     },
-    [commitSavedChapter],
+    [commitSavedDocument],
   );
 
   const applyProjectSnapshot = useCallback(
@@ -131,20 +131,20 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
     initialProject,
   });
 
-  const updateActiveChapter = useCallback((markdown: string): void => {
-    dispatch({ markdown, type: 'update-active-chapter' });
+  const updateActiveDocument = useCallback((markdown: string): void => {
+    dispatch({ markdown, type: 'update-active-document' });
   }, []);
 
   const saveActiveDocument = useCallback(
     async (overwrite = false): Promise<boolean> => {
       if (
-        activeChapter === null ||
-        !activeChapter.isDirty ||
+        activeDocument === null ||
+        !activeDocument.isDirty ||
         state.isSavingDocument
       ) {
-        return activeChapter !== null;
+        return activeDocument !== null;
       }
-      const { id: documentId, markdown } = activeChapter;
+      const { id: documentId, markdown } = activeDocument;
       dispatch({ type: 'set-saving', value: true });
       dispatch({ type: 'set-save-message', value: null });
       try {
@@ -153,7 +153,7 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
           expectedRevision:
             overwrite && state.saveConflict?.documentId === documentId
               ? state.saveConflict.diskDocument.revision
-              : activeChapter.revision,
+              : activeDocument.revision,
           markdown,
           overwrite,
         });
@@ -175,7 +175,7 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
           });
           return false;
         }
-        commitSavedChapter(activeChapter, result.revision);
+        commitSavedDocument(activeDocument, result.revision);
         dispatch({ type: 'set-save-conflict', value: null });
         return true;
       } catch {
@@ -189,8 +189,8 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
       }
     },
     [
-      activeChapter,
-      commitSavedChapter,
+      activeDocument,
+      commitSavedDocument,
       state.isSavingDocument,
       state.saveConflict,
     ],
@@ -202,8 +202,8 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
   );
 
   useDocumentLifecycleEffects({
-    chapters: state.chapters,
-    chaptersRef,
+    documents: state.documents,
+    documentsRef,
     dirtyDocumentsLabel,
     dispatch,
     saveActiveDocument,
@@ -212,23 +212,23 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
 
   const closeActiveDocument = useCallback(async (): Promise<void> => {
     if (
-      activeChapter === null ||
+      activeDocument === null ||
       state.isConfirmingClose ||
       state.isSavingDocument
     ) {
       return;
     }
-    if (!activeChapter.isDirty) {
-      dispatch({ type: 'select-chapter', chapterId: null });
+    if (!activeDocument.isDirty) {
+      dispatch({ type: 'select-document', documentId: null });
       return;
     }
     dispatch({ type: 'set-confirming-close', value: true });
     try {
       const decision = await window.driftfield.confirmCloseUnsavedDocument(
-        activeChapter.title,
+        activeDocument.title,
       );
       if (decision === 'save' && (await saveActiveDocument())) {
-        dispatch({ type: 'select-chapter', chapterId: null });
+        dispatch({ type: 'select-document', documentId: null });
       } else if (decision === 'discard') {
         dispatch({ type: 'discard-active-changes' });
       }
@@ -236,7 +236,7 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
       dispatch({ type: 'set-confirming-close', value: false });
     }
   }, [
-    activeChapter,
+    activeDocument,
     saveActiveDocument,
     state.isConfirmingClose,
     state.isSavingDocument,
@@ -249,17 +249,17 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
       pickerAction: 'create' | 'open',
     ): Promise<void> => {
       if (state.projectPickerAction !== null || state.isSavingDocument) return;
-      const dirtyChapters = chaptersRef.current.filter(
-        (chapter) => chapter.isDirty,
+      const dirtyDocuments = documentsRef.current.filter(
+        (document) => document.isDirty,
       );
-      if (dirtyChapters.length > 0) {
+      if (dirtyDocuments.length > 0) {
         const decision = await window.driftfield.confirmCloseUnsavedDocument(
-          dirtyDocumentsLabel(dirtyChapters.length),
+          dirtyDocumentsLabel(dirtyDocuments.length),
         );
         if (decision === 'cancel') return;
         if (
           decision === 'save' &&
-          !(await saveDocuments(dirtyChapters, {
+          !(await saveDocuments(dirtyDocuments, {
             conflict: {
               catalog: 'projects',
               key: 'errors.conflictBeforeSwitch',
@@ -363,8 +363,8 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
         );
 
   return {
-    activeChapter,
-    chapters: state.chapters,
+    activeDocument,
+    documents: state.documents,
     commitAgentProposal,
     closeActiveDocument,
     compareConflictedDocument,
@@ -387,9 +387,9 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
     reloadConflictedDocument,
     saveActiveDocument,
     saveConflict: state.saveConflict,
-    selectChapter: (chapterId: string | null) =>
-      dispatch({ type: 'select-chapter', chapterId }),
+    selectDocument: (documentId: string | null) =>
+      dispatch({ type: 'select-document', documentId }),
     selectProjectDirectory,
-    updateActiveChapter,
+    updateActiveDocument,
   };
 };

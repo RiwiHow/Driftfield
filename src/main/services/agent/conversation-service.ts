@@ -275,7 +275,7 @@ export class AgentConversationService {
     if (event.type === 'text-delta') {
       message.content += event.delta;
       message.parts = appendText(message.parts ?? [], event.delta);
-      this.scheduleFlush(event.requestId, active);
+      this.scheduleFlush(active);
       return;
     }
     if (event.type === 'tool-started') {
@@ -291,7 +291,7 @@ export class AgentConversationService {
           type: 'tool',
         },
       ];
-      this.scheduleFlush(event.requestId, active);
+      this.scheduleFlush(active);
       return;
     }
     if (event.type === 'tool-completed') {
@@ -308,7 +308,7 @@ export class AgentConversationService {
             }
           : part,
       );
-      this.scheduleFlush(event.requestId, active);
+      this.scheduleFlush(active);
       return;
     }
     if (event.type === 'proposal') {
@@ -531,7 +531,7 @@ export class AgentConversationService {
       .slice(-50);
   }
 
-  private scheduleFlush(requestId: string, active: ActiveRequest): void {
+  private scheduleFlush(active: ActiveRequest): void {
     if (active.timer !== null) return;
     active.timer = setTimeout(() => {
       active.timer = null;

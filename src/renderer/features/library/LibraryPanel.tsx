@@ -22,7 +22,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import type { Chapter } from '@/app/types';
+import type { WorkspaceDocument } from '@/app/types';
 import { cn } from '@/lib/utils';
 import type {
   ProjectDirectory,
@@ -33,12 +33,12 @@ import { ProjectIcon } from './ProjectIcon';
 import type { StorySection } from '../story/StoryDialog';
 
 interface LibraryPanelProps {
-  activeChapterId: string | null;
+  activeDocumentId: string | null;
   isCreatingProject: boolean;
   isSelectingProject: boolean;
   isRefreshingProject: boolean;
   manuscriptTitle: string | null;
-  onChapterChange: (chapterId: string) => void;
+  onDocumentChange: (documentId: string) => void;
   onCreateProject: () => void;
   onOpenSettings: () => void;
   onOpenStory: (section: StorySection) => void;
@@ -49,16 +49,16 @@ interface LibraryPanelProps {
   projectSelectionError: string | null;
   projectTree: ProjectTreeNode[];
   projectWatcherError: string | null;
-  recoveredChapters: Chapter[];
+  recoveredDocuments: WorkspaceDocument[];
 }
 
 export function LibraryPanel({
-  activeChapterId,
+  activeDocumentId,
   isCreatingProject,
   isSelectingProject,
   isRefreshingProject,
   manuscriptTitle,
-  onChapterChange,
+  onDocumentChange,
   onCreateProject,
   onOpenSettings,
   onOpenStory,
@@ -69,7 +69,7 @@ export function LibraryPanel({
   projectSelectionError,
   projectTree,
   projectWatcherError,
-  recoveredChapters,
+  recoveredDocuments,
 }: LibraryPanelProps) {
   const { t } = useTranslation('library');
   const { t: tSettings } = useTranslation('settings');
@@ -177,36 +177,36 @@ export function LibraryPanel({
             <Plus aria-hidden="true" size={12} strokeWidth={2} />
             <span aria-hidden="true">{t('empty.action')}</span>
           </p>
-        ) : projectTree.length === 0 && recoveredChapters.length === 0 ? (
+        ) : projectTree.length === 0 && recoveredDocuments.length === 0 ? (
           <p className="tree-empty-state">{t('empty.noMarkdown')}</p>
         ) : (
           <>
             <ProjectTree
-              activeChapterId={activeChapterId}
+              activeDocumentId={activeDocumentId}
               key={projectDirectory.path}
               nodes={projectTree}
-              onChapterChange={onChapterChange}
+              onDocumentChange={onDocumentChange}
             />
-            {recoveredChapters.length > 0 && (
+            {recoveredDocuments.length > 0 && (
               <div className="recovered-documents">
                 <div className="tree-section-label">
                   {t('labels.recovery')}
                 </div>
-                {recoveredChapters.map((chapter) => (
+                {recoveredDocuments.map((document) => (
                   <button
                     className={cn(
-                      'chapter-row is-missing',
-                      chapter.id === activeChapterId && 'is-active',
+                      'document-row is-missing',
+                      document.id === activeDocumentId && 'is-active',
                     )}
-                    key={chapter.id}
-                    onClick={() => onChapterChange(chapter.id)}
+                    key={document.id}
+                    onClick={() => onDocumentChange(document.id)}
                     title={t('missingTitle', {
-                      path: chapter.relativePath,
+                      path: document.relativePath,
                     })}
                     type="button"
                   >
                     <FileText aria-hidden="true" size={14} />
-                    <span>{chapter.title}</span>
+                    <span>{document.title}</span>
                   </button>
                 ))}
               </div>
@@ -268,17 +268,17 @@ export function LibraryPanel({
 }
 
 interface ProjectTreeProps {
-  activeChapterId: string | null;
+  activeDocumentId: string | null;
   depth?: number;
   nodes: ProjectTreeNode[];
-  onChapterChange: (chapterId: string) => void;
+  onDocumentChange: (documentId: string) => void;
 }
 
 function ProjectTree({
-  activeChapterId,
+  activeDocumentId,
   depth = 0,
   nodes,
-  onChapterChange,
+  onDocumentChange,
 }: ProjectTreeProps) {
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(
     () => new Set(),
@@ -327,10 +327,10 @@ function ProjectTree({
 
               {!isCollapsed && (
                 <ProjectTree
-                  activeChapterId={activeChapterId}
+                  activeDocumentId={activeDocumentId}
                   depth={depth + 1}
                   nodes={node.children}
-                  onChapterChange={onChapterChange}
+                  onDocumentChange={onDocumentChange}
                 />
               )}
             </div>
@@ -340,11 +340,11 @@ function ProjectTree({
         return (
           <button
             className={cn(
-              'chapter-row',
-              node.documentId === activeChapterId && 'is-active',
+              'document-row',
+              node.documentId === activeDocumentId && 'is-active',
             )}
             key={node.relativePath}
-            onClick={() => onChapterChange(node.documentId)}
+            onClick={() => onDocumentChange(node.documentId)}
             title={node.relativePath}
             type="button"
           >

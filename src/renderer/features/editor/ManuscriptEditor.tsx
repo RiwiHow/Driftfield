@@ -36,7 +36,7 @@ import {
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { Chapter } from '@/app/types';
+import type { WorkspaceDocument } from '@/app/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { AppTheme } from '../../../shared/contracts/settings';
@@ -48,7 +48,7 @@ import { createMdxEditorTranslation } from './mdx-editor-translation';
 import '@mdxeditor/editor/style.css';
 
 interface ManuscriptEditorProps {
-  chapter: Chapter | null;
+  document: WorkspaceDocument | null;
   isSaving: boolean;
   onClose: () => void;
   onChange: (markdown: string) => void;
@@ -71,7 +71,7 @@ function editorIcon(name: IconKey) {
 }
 
 export function ManuscriptEditor({
-  chapter,
+  document,
   isSaving,
   onClose,
   onChange,
@@ -79,13 +79,13 @@ export function ManuscriptEditor({
   saveError,
   theme,
 }: ManuscriptEditorProps) {
-  if (chapter === null) {
+  if (document === null) {
     return <EmptyManuscriptEditor />;
   }
 
   return (
     <LoadedManuscriptEditor
-      chapter={chapter}
+      document={document}
       isSaving={isSaving}
       onClose={onClose}
       onChange={onChange}
@@ -120,7 +120,7 @@ function EmptyManuscriptEditor() {
 }
 
 function LoadedManuscriptEditor({
-  chapter,
+  document,
   isSaving,
   onChange,
   onClose,
@@ -128,7 +128,7 @@ function LoadedManuscriptEditor({
   saveError,
   theme,
 }: {
-  chapter: Chapter;
+  document: WorkspaceDocument;
   isSaving: boolean;
   onChange: (markdown: string) => void;
   onClose: () => void;
@@ -162,7 +162,7 @@ function LoadedManuscriptEditor({
       linkDialogPlugin(),
       markdownShortcutPlugin(),
       diffSourcePlugin({
-        diffMarkdown: chapter.previousMarkdown,
+        diffMarkdown: document.previousMarkdown,
         viewMode: 'rich-text',
         readOnlyDiff: true,
       }),
@@ -180,22 +180,22 @@ function LoadedManuscriptEditor({
         ),
       }),
     ],
-    [chapter.previousMarkdown, t],
+    [document.previousMarkdown, t],
   );
 
-  const characterCount = chapter.markdown.replace(/\s|[#>*_`\-[\]()]/g, '').length;
+  const characterCount = document.markdown.replace(/\s|[#>*_`\-[\]()]/g, '').length;
 
   return (
     <section className="editor-pane">
       <div className="editor-tabs">
         <div className="editor-tab is-active">
           <FileText aria-hidden="true" size={13} />
-          <span>{chapter.title}</span>
-          {chapter.isDirty && (
+          <span>{document.title}</span>
+          {document.isDirty && (
             <span className="unsaved-dot" title={t('status.unsavedTitle')} />
           )}
           <button
-            aria-label={t('actions.closeNamed', { title: chapter.title })}
+            aria-label={t('actions.closeNamed', { title: document.title })}
             className="editor-tab-close"
             onClick={onClose}
             title={t('actions.closeFile')}
@@ -207,7 +207,7 @@ function LoadedManuscriptEditor({
         <div className="editor-tab-actions">
           <Button
             aria-label={t('actions.save')}
-            disabled={!chapter.isDirty || isSaving}
+            disabled={!document.isDirty || isSaving}
             onClick={onSave}
             size="icon"
             title={t('actions.saveShortcut')}
@@ -234,8 +234,8 @@ function LoadedManuscriptEditor({
             )}
             contentEditableClassName="manuscript-prose"
             iconComponentFor={editorIcon}
-            key={`${chapter.id}:${chapter.sourceRevision}`}
-            markdown={chapter.markdown}
+            key={`${document.id}:${document.sourceRevision}`}
+            markdown={document.markdown}
             onChange={(markdown, initialMarkdownNormalize) => {
               if (!shouldApplyEditorChange(initialMarkdownNormalize)) {
                 return;
@@ -262,15 +262,15 @@ function LoadedManuscriptEditor({
           <span>
             {saveError
               ? saveError
-              : chapter.backingFileStatus === 'missing'
+              : document.backingFileStatus === 'missing'
                 ? t('status.missing')
               : isSaving
                 ? t('status.saving')
                 : parseError
               ? t('status.parseError')
-              : chapter.isDirty
+              : document.isDirty
                 ? t('status.dirty')
-                : chapter.relativePath}
+                : document.relativePath}
           </span>
         </div>
         <div>

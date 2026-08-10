@@ -1,4 +1,4 @@
-import type { Chapter } from '../../app/types';
+import type { WorkspaceDocument } from '../../app/types';
 import { mergeProjectSnapshot } from '../library/merge-project-snapshot';
 import type { ApplyAgentProposalResult } from '../../../shared/contracts/agent-proposals';
 import type {
@@ -36,8 +36,8 @@ export type LocalizedWorkspaceMessage =
   | { catalog: 'errors'; key: ErrorMessageKey };
 
 export interface ProjectWorkspaceState {
-  activeChapterId: string | null;
-  chapters: Chapter[];
+  activeDocumentId: string | null;
+  documents: WorkspaceDocument[];
   documentSaveMessage: LocalizedWorkspaceMessage | null;
   isConfirmingClose: boolean;
   isRefreshingProject: boolean;
@@ -54,8 +54,8 @@ export interface ProjectWorkspaceState {
 }
 
 export const initialProjectWorkspaceState: ProjectWorkspaceState = {
-  activeChapterId: null,
-  chapters: [],
+  activeDocumentId: null,
+  documents: [],
   documentSaveMessage: null,
   isConfirmingClose: false,
   isRefreshingProject: false,
@@ -78,14 +78,14 @@ export type ProjectWorkspaceAction =
       sourceRevision: number;
       type: 'apply-snapshot';
     }
-  | { chapter: Chapter; revision: string; type: 'commit-saved-chapter' }
+  | { document: WorkspaceDocument; revision: string; type: 'commit-saved-document' }
   | {
       result: Extract<ApplyAgentProposalResult, { status: 'saved' }>;
       sourceRevision: number;
       type: 'commit-agent-proposal';
     }
-  | { markdown: string; type: 'update-active-chapter' }
-  | { chapterId: string | null; type: 'select-chapter' }
+  | { markdown: string; type: 'update-active-document' }
+  | { documentId: string | null; type: 'select-document' }
   | {
       value: boolean;
       type: 'set-saving' | 'set-confirming-close' | 'set-refreshing';
@@ -107,23 +107,23 @@ export const projectWorkspaceReducer = (
 ): ProjectWorkspaceState => {
   switch (action.type) {
     case 'apply-snapshot': {
-      const chapters = mergeProjectSnapshot(
-        state.chapters,
+      const documents = mergeProjectSnapshot(
+        state.documents,
         action.project,
         action.preserveDirtyDocuments,
         action.sourceRevision,
       );
-      const activeChapterId =
-        action.preserveDirtyDocuments && state.activeChapterId === null
+      const activeDocumentId =
+        action.preserveDirtyDocuments && state.activeDocumentId === null
           ? null
-          : state.activeChapterId !== null &&
-              chapters.some(({ id }) => id === state.activeChapterId)
-            ? state.activeChapterId
-            : (chapters[0]?.id ?? null);
+          : state.activeDocumentId !== null &&
+              documents.some(({ id }) => id === state.activeDocumentId)
+            ? state.activeDocumentId
+            : (documents[0]?.id ?? null);
       return {
         ...state,
-        activeChapterId,
-        chapters,
+        activeDocumentId,
+        documents,
         projectDirectory: action.project.directory,
         projectIcon: action.project.projectIcon,
         projectId: action.project.projectId,
@@ -131,48 +131,48 @@ export const projectWorkspaceReducer = (
         projectTree: action.project.tree,
       };
     }
-    case 'commit-saved-chapter':
+    case 'commit-saved-document':
       return {
         ...state,
-        chapters: state.chapters.map((chapter) =>
-          chapter.id === action.chapter.id
+        documents: state.documents.map((document) =>
+          document.id === action.document.id
             ? {
-                ...chapter,
-                isDirty: chapter.markdown !== action.chapter.markdown,
-                previousMarkdown: action.chapter.markdown,
+                ...document,
+                isDirty: document.markdown !== action.document.markdown,
+                previousMarkdown: action.document.markdown,
                 revision: action.revision,
               }
-            : chapter,
+            : document,
         ),
       };
     case 'commit-agent-proposal':
       return {
         ...state,
-        chapters: state.chapters.map((chapter) =>
-          chapter.id === action.result.documentId
+        documents: state.documents.map((document) =>
+          document.id === action.result.documentId
             ? {
-                ...chapter,
+                ...document,
                 isDirty: false,
                 markdown: action.result.markdown,
                 previousMarkdown: action.result.markdown,
                 revision: action.result.revision,
                 sourceRevision: action.sourceRevision,
               }
-            : chapter,
+            : document,
         ),
       };
-    case 'update-active-chapter':
+    case 'update-active-document':
       return {
         ...state,
-        chapters: state.chapters.map((chapter) =>
-          chapter.id === state.activeChapterId &&
-          chapter.markdown !== action.markdown
-            ? { ...chapter, isDirty: true, markdown: action.markdown }
-            : chapter,
+        documents: state.documents.map((document) =>
+          document.id === state.activeDocumentId &&
+          document.markdown !== action.markdown
+            ? { ...document, isDirty: true, markdown: action.markdown }
+            : document,
         ),
       };
-    case 'select-chapter':
-      return { ...state, activeChapterId: action.chapterId };
+    case 'select-document':
+      return { ...state, activeDocumentId: action.documentId };
     case 'set-saving':
       return { ...state, isSavingDocument: action.value };
     case 'set-confirming-close':
@@ -194,17 +194,17 @@ export const projectWorkspaceReducer = (
       const { diskDocument, documentId } = state.saveConflict;
       return {
         ...state,
-        chapters: state.chapters.map((chapter) =>
-          chapter.id === documentId
+        documents: state.documents.map((document) =>
+          document.id === documentId
             ? {
-                ...chapter,
+                ...document,
                 isDirty: false,
                 markdown: diskDocument.markdown,
                 previousMarkdown: diskDocument.markdown,
                 revision: diskDocument.revision,
                 sourceRevision: action.sourceRevision,
               }
-            : chapter,
+            : document,
         ),
         documentSaveMessage: null,
         saveConflict: null,
@@ -215,15 +215,15 @@ export const projectWorkspaceReducer = (
       const { diskDocument, documentId } = state.saveConflict;
       return {
         ...state,
-        chapters: state.chapters.map((chapter) =>
-          chapter.id === documentId
+        documents: state.documents.map((document) =>
+          document.id === documentId
             ? {
-                ...chapter,
+                ...document,
                 previousMarkdown: diskDocument.markdown,
                 revision: diskDocument.revision,
                 sourceRevision: action.sourceRevision,
               }
-            : chapter,
+            : document,
         ),
         documentSaveMessage: {
           catalog: 'projects',
@@ -235,15 +235,15 @@ export const projectWorkspaceReducer = (
     case 'discard-active-changes':
       return {
         ...state,
-        activeChapterId: null,
-        chapters: state.chapters.map((chapter) =>
-          chapter.id === state.activeChapterId
+        activeDocumentId: null,
+        documents: state.documents.map((document) =>
+          document.id === state.activeDocumentId
             ? {
-                ...chapter,
+                ...document,
                 isDirty: false,
-                markdown: chapter.previousMarkdown,
+                markdown: document.previousMarkdown,
               }
-            : chapter,
+            : document,
         ),
       };
   }

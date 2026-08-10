@@ -68,8 +68,8 @@ export function App({
   return (
     <>
       <WorkspaceShell
-        activeChapter={project.activeChapter}
-        chapters={project.chapters}
+        activeDocument={project.activeDocument}
+        documents={project.documents}
         agentConfiguration={agentConfiguration.configuration}
         agentConfigurationError={agentConfiguration.error}
         agentConfigurationLoading={agentConfiguration.isLoading}
@@ -80,7 +80,7 @@ export function App({
         isSelectingProject={project.isSelectingProject}
         isRefreshingProject={project.isRefreshingProject}
         isSavingDocument={project.isSavingDocument}
-        onChapterChange={project.selectChapter}
+        onDocumentChange={project.selectDocument}
         onAgentProposalApplied={(result) => {
           if (result.status === 'story-updated') {
             projectStory.replace(result.story);
@@ -89,9 +89,9 @@ export function App({
           }
         }}
         onAgentStoryChanged={projectStory.refresh}
-        onContentChange={project.updateActiveChapter}
+        onContentChange={project.updateActiveDocument}
         onCreateProject={() => void project.createProjectDirectory()}
-        onCloseChapter={() => void project.closeActiveDocument()}
+        onCloseDocument={() => void project.closeActiveDocument()}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenStory={setStorySection}
         onRefreshProject={() => void project.refreshProject()}
@@ -104,8 +104,8 @@ export function App({
         projectSelectionError={project.projectSelectionError}
         projectTree={project.projectTree}
         projectWatcherError={project.projectWatcherError}
-        recoveredChapters={project.chapters.filter(
-          (chapter) => chapter.backingFileStatus === "missing",
+        recoveredDocuments={project.documents.filter(
+          (document) => document.backingFileStatus === "missing",
         )}
         theme={resolvedTheme}
       />

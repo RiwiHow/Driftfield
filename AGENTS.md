@@ -168,9 +168,9 @@ See [Project Format](docs/project-format.md).
   packaged-worker tests appropriate to the changed capability.
 
 The current read-only surface is `get_novel_structure`,
-`get_current_document`, and `get_document`. It returns stable-ID-based,
-path-free context through main-owned services. Do not broaden this surface with
-generic filesystem or database access.
+`get_current_document`, `get_document`, and `get_story_state`. It returns
+stable-ID-based, path-free context through main-owned services. Do not broaden
+this surface with generic filesystem or database access.
 
 See [Agent Tools and Prompts](docs/ai/tools-and-prompts.md) and
 [Pi Worker Integration](docs/ai/pi-worker.md).
