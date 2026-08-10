@@ -31,8 +31,17 @@ button,
 [role="button"] {
   -webkit-app-region: no-drag;
 }
+
 /* Large dialogs fade and travel a few pixels instead of scaling their entire
    surface, which keeps text-heavy content smooth at workspace-sized bounds. */
+.adaptive-dialog {
+  inset: max(24px, 5vh) max(24px, 5vw);
+  width: auto;
+  height: auto;
+  max-width: none;
+  translate: none;
+}
+
 .adaptive-dialog[data-state="open"] {
   --tw-enter-scale: 1;
   --tw-enter-translate-y: 6px;

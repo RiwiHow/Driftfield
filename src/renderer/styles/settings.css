@@ -15,13 +15,6 @@
 }
 
 .settings-dialog {
-  inset: max(24px, 5vh) max(24px, 5vw);
-  width: auto;
-  height: auto;
-  max-width: none;
-  max-height: none;
-  translate: none;
-  contain: layout;
   grid-template-rows: auto minmax(0, 1fr) auto;
   font-size: 11px;
   overflow: hidden;
