@@ -23,10 +23,12 @@ import { buildAgentSystemPrompt } from "./prompts/prompt-builder";
 import { AgentToolResultBridge } from "./agent-tool-result-bridge";
 import {
   DOCUMENT_FILE_OPERATION_PARAMETERS,
+  normalizeStoryMaintenanceBatchArguments,
   normalizeStoryMaintenanceArguments,
   PROJECT_STRUCTURE_OPERATION_PARAMETERS,
   RESOLVE_STORY_QUESTION_PARAMETERS,
   STORY_OPERATION_PARAMETERS,
+  STORY_MAINTENANCE_PARAMETERS,
   STORY_QUESTION_PARAMETERS,
 } from "./agent-tool-parameters";
 import { didAssistantResponseFail } from './agent-response-status';
@@ -386,17 +388,17 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Directly maintain one low-risk additive or linking change in Personae, Chronicle, or Threads when it is explicitly requested by the user or unambiguously evidenced by accepted persisted prose. Read get_story_state first and use its current storyRevision and stable IDs. Never use this tool for a possible alias, uncertain time, unclear relationship, contradiction, or other inference requiring author judgment; record a story question instead. Use exactly the operation-specific fields described by the change schema. Create dependencies before records that refer to them, and reread story state after every change before making a dependent change. Driftfield validates and records every applied operation. This tool cannot delete, merge, reorder, edit manuscript text, or execute SQL.",
+        "Atomically maintain one changeset of 1 to 24 independent, low-risk additive or linking changes in Personae, Chronicle, or Threads when explicitly requested by the user or unambiguously evidenced by accepted persisted prose. Read get_story_state first and use its current storyRevision. Put all independent changes based on that revision in one call; Driftfield applies all or none and advances the story revision once. Never include a possible alias, uncertain time, unclear relationship, contradiction, or other inference requiring author judgment; record a story question instead. Changes that depend on newly generated stable IDs belong in a later changeset after rereading story state. This tool cannot delete, merge, reorder, edit manuscript text, or execute SQL.",
       label: "Maintain story records",
       name: "maintain_story_records",
-      parameters: STORY_OPERATION_PARAMETERS,
+      parameters: STORY_MAINTENANCE_PARAMETERS,
       execute: async (toolCallId, params) =>
         textToolResult(
           await requestTool(
             requestId,
             toolCallId,
             "maintain_story_records",
-            normalizeStoryMaintenanceArguments(params),
+            normalizeStoryMaintenanceBatchArguments(params),
           ),
         ),
     }),

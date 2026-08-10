@@ -16,12 +16,13 @@ The initial Agent data surface contains only:
 
 The bounded direct-maintenance surface contains:
 
-- `maintain_story_records`, which applies one typed additive or linking change
+- `maintain_story_records`, which applies one changeset of 1 to 24 independent
+  typed additive or linking changes
   to Personae, Chronicle, or Threads within the user's explicit request or
   when unambiguously evidenced by accepted persisted prose. It
   requires the current story revision and stable IDs. Main validates and
-  applies the operation transactionally, records it in the project ledger, and
-  returns the new revision. It does not expose SQL and cannot delete, merge,
+  applies the changeset transactionally, records each item in the project
+  ledger, and returns the new revision. It does not expose SQL and cannot delete, merge,
   reorder, or edit Manuscript/Lore documents.
 - `record_story_question`, which records a deduplicated unresolved ambiguity
   without changing canonical story records or their revision. Questions carry
@@ -80,8 +81,11 @@ canonical change, revision increment, and applied `story_operations` row share
 one transaction. Each ledger row carries the originating Agent request ID, so a
 multi-step run remains auditable even though it does not interrupt the user for
 each additive step. Renderer receives a bounded `story-changed` notification
-and refreshes its story snapshot. Maintain currently applies one operation per
-tool call. Concurrent reviewed story proposals from the same request and base
+and refreshes its story snapshot. Maintain applies one atomic changeset per
+tool call: all items share the original base revision and resulting revision,
+and any item failure rolls the entire set back. Changes requiring IDs generated
+by an earlier set are submitted only after rereading story state. Concurrent
+reviewed story proposals from the same request and base
 revision are grouped in the UI and applied atomically with one decision.
 Symbolic references between newly created records and user-facing undo are not
 yet implemented, so dependent changes may require a later grouped set after

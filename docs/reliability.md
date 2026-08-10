@@ -51,10 +51,12 @@ Preserve these properties when changing affected subsystems.
 - Current read tools are `get_novel_structure`, `get_current_document`,
   `get_document`, and `get_story_state`; they are typed, bounded, path-free,
   and main-owned.
-- `maintain_story_records` applies one bounded additive or linking Personae,
-  Chronicle, or Threads operation without per-step approval. It requires the
+- `maintain_story_records` applies a bounded changeset of 1 to 24 independent
+  additive or linking Personae, Chronicle, or Threads operations without
+  per-step approval. It requires the
   current story revision, validates the active project session and references,
-  and commits the canonical change, revision, and applied audit row atomically.
+  and commits every canonical change, one revision increment, and individual
+  applied audit rows atomically. Any item failure rolls back the whole set.
   Renderer refreshes story state after each successful write.
 - Clear low-risk facts from accepted persisted prose use Maintain without a
   second approval. Ambiguous aliases, time, relationships, contradictions, and

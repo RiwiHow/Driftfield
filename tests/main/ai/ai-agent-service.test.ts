@@ -233,7 +233,7 @@ describe('AiAgentService', () => {
       execute: vi.fn(async (scope) => {
         scope.storyChanged?.(4);
         return {
-          data: { operationId: 'operation-1', revision: 4, status: 'applied' as const },
+          data: { operationIds: ['operation-1'], revision: 4, status: 'applied' as const },
           ok: true as const,
           toolName: 'maintain_story_records' as const,
         };
@@ -248,12 +248,12 @@ describe('AiAgentService', () => {
 
     workers[0].emit('message', {
       arguments: {
-        change: {
+        changes: [{
           name: 'Lin',
           operation: 'create_persona',
           role: 'Protagonist',
           summary: '',
-        },
+        }],
         storyRevision: 3,
       },
       requestId: 'request-1',

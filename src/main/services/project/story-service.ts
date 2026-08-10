@@ -124,15 +124,57 @@ export class ProjectStoryService {
     operation: ProjectStoryOperation,
     requestId: string,
   ): { operationId: string; snapshot: ProjectStorySnapshot } {
-    const operationId = randomUUID();
-    const snapshot = this.applyOperation(session, expectedRevision, operation, {
-      mode: 'direct',
-      operationId,
-      operationKind: operation.operation,
-      originRequestId: requestId,
-      payload: operation,
-    });
-    return { operationId, snapshot };
+    const result = this.maintainOperations(
+      session,
+      expectedRevision,
+      [operation],
+      requestId,
+    );
+    return { operationId: result.operationIds[0], snapshot: result.snapshot };
+  }
+
+  maintainOperations(
+    session: ProjectSession,
+    expectedRevision: number,
+    operations: ProjectStoryOperation[],
+    requestId: string,
+  ): { operationIds: string[]; snapshot: ProjectStorySnapshot } {
+    if (operations.length === 0 || operations.length > 24) {
+      throw new Error('Invalid story maintenance batch');
+    }
+    for (const operation of operations) this.assertOperationSources(session, operation);
+    const entries = operations.map((operation) => ({
+      audit: {
+        mode: 'direct' as const,
+        operationId: randomUUID(),
+        operationKind: operation.operation,
+        originRequestId: requestId,
+        payload: operation,
+      },
+      operation,
+    }));
+    const snapshot = this.withRepository(session, (repository) =>
+      repository.transaction(() => {
+        entries.forEach((entry, index) => {
+          this.applyWithRepository(
+            repository,
+            expectedRevision + index,
+            entry.operation,
+            entry.audit,
+          );
+        });
+        repository.collapseAppliedOperations(
+          entries.map(({ audit }) => audit.operationId),
+          expectedRevision,
+          expectedRevision + entries.length,
+        );
+        return repository.getSnapshot();
+      }),
+    );
+    return {
+      operationIds: entries.map(({ audit }) => audit.operationId),
+      snapshot,
+    };
   }
 
   private withRepository<T>(

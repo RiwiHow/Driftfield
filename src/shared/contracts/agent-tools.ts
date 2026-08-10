@@ -61,7 +61,7 @@ export interface AgentProposalToolResult {
 }
 
 export interface AgentStoryMaintenanceToolResult {
-  operationId: string;
+  operationIds: string[];
   revision: number;
   status: 'applied';
 }
@@ -115,7 +115,7 @@ export interface AgentToolContractMap {
   };
   maintain_story_records: {
     arguments: {
-      change: import('./project-story').ProjectStoryOperation;
+      changes: import('./project-story').ProjectStoryOperation[];
       storyRevision: number;
     };
     result: AgentStoryMaintenanceToolResult;
@@ -323,7 +323,8 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
       Object.keys(value).length === 2 &&
       Number.isSafeInteger(value.storyRevision) &&
       (value.storyRevision as number) >= 0 &&
-      isProjectStoryOperation(value.change)
+      Array.isArray(value.changes) && value.changes.length >= 1 &&
+      value.changes.length <= 24 && value.changes.every(isProjectStoryOperation)
     );
   }
   if (toolName === 'record_story_question') {
@@ -395,9 +396,10 @@ const isStoryMaintenanceResult = (value: unknown): boolean =>
   isRecord(value) &&
   Object.keys(value).length === 3 &&
   value.status === 'applied' &&
-  typeof value.operationId === 'string' &&
-  value.operationId.length > 0 &&
-  value.operationId.length <= 128 &&
+  Array.isArray(value.operationIds) && value.operationIds.length >= 1 &&
+  value.operationIds.length <= 24 && value.operationIds.every((operationId) =>
+    typeof operationId === 'string' && operationId.length > 0 &&
+    operationId.length <= 128) &&
   Number.isSafeInteger(value.revision) &&
   (value.revision as number) > 0;
 

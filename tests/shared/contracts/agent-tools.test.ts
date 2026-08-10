@@ -6,6 +6,28 @@ import {
 } from '../../../src/shared/contracts/agent-tools';
 
 describe('Agent proposal tool contract', () => {
+  it('validates bounded atomic story-maintenance changesets', () => {
+    expect(isAgentToolRequest({
+      arguments: {
+        changes: [
+          { name: 'Mara', operation: 'create_persona', role: null, summary: '' },
+          { name: 'Teacher Zhou', operation: 'create_persona', role: 'Teacher', summary: '' },
+        ],
+        storyRevision: 0,
+      },
+      toolName: 'maintain_story_records',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: { changes: [], storyRevision: 0 },
+      toolName: 'maintain_story_records',
+    })).toBe(false);
+    expect(isAgentToolExecutionResult({
+      data: { operationIds: ['operation-1', 'operation-2'], revision: 1, status: 'applied' },
+      ok: true,
+      toolName: 'maintain_story_records',
+    })).toBe(true);
+  });
+
   it('correlates validated proposal arguments and results', () => {
     expect(isAgentToolRequest({
       arguments: {

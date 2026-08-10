@@ -29,6 +29,67 @@ const createFixture = async () => {
 };
 
 describe('AgentProposalService', () => {
+  it('applies a direct maintenance changeset atomically with one story revision', async () => {
+    const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-maintain-batch-'));
+    await initializeProjectLayout(directoryPath);
+    const session = {
+      directoryPath,
+      documentPaths: new Map<string, string>(),
+      id: 'session-maintain-batch',
+      project: await createProjectSnapshot(directoryPath),
+    } as unknown as ProjectSession;
+    const stories = new ProjectStoryService();
+
+    const result = stories.maintainOperations(session, 0, [
+      { name: 'Mara', operation: 'create_persona', role: 'Student', summary: '' },
+      { name: 'Teacher Zhou', operation: 'create_persona', role: 'Teacher', summary: '' },
+    ], 'request-maintain-batch');
+
+    expect(result.snapshot).toMatchObject({
+      personae: [{ name: 'Mara' }, { name: 'Teacher Zhou' }],
+      revision: 1,
+    });
+    expect(result.operationIds).toHaveLength(2);
+    const database = new ProjectDatabase(directoryPath);
+    expect(database.connection.prepare(`
+      SELECT base_revision, applied_revision, status
+      FROM story_operations ORDER BY created_at, operation_id
+    `).all()).toEqual([
+      { applied_revision: 1, base_revision: 0, status: 'applied' },
+      { applied_revision: 1, base_revision: 0, status: 'applied' },
+    ]);
+    database.close();
+  });
+
+  it('rolls back every direct maintenance change when one item fails', async () => {
+    const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-maintain-batch-'));
+    await initializeProjectLayout(directoryPath);
+    const session = {
+      directoryPath,
+      documentPaths: new Map<string, string>(),
+      id: 'session-maintain-batch-failure',
+      project: await createProjectSnapshot(directoryPath),
+    } as unknown as ProjectSession;
+    const stories = new ProjectStoryService();
+
+    expect(() => stories.maintainOperations(session, 0, [
+      { name: 'Mara', operation: 'create_persona', role: null, summary: '' },
+      {
+        displayTime: 'Unknown',
+        note: '',
+        operation: 'create_moment',
+        orderKey: 1,
+        precision: 'unknown',
+        timelineId: 'missing-timeline',
+      },
+    ], 'request-maintain-batch-failure')).toThrow();
+    expect(stories.getSnapshot(session)).toMatchObject({ personae: [], revision: 0 });
+    const database = new ProjectDatabase(directoryPath);
+    expect(database.connection.prepare(`SELECT COUNT(*) AS count FROM story_operations`).get())
+      .toEqual({ count: 0 });
+    database.close();
+  });
+
   it('applies an approved story proposal and records its audit operation', async () => {
     const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-story-proposal-'));
     await initializeProjectLayout(directoryPath);

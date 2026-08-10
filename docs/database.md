@@ -61,8 +61,9 @@ fictional occurrence separate from authorial plot function and from where an
 event is depicted in the documents.
 
 `story_operations` is the project-owned mutation ledger for Agent story
-operations. Maintain inserts an applied ledger row alongside the canonical
-additive/linking change and revision increment in one transaction; rows share
+operations. Maintain inserts one applied ledger row per changeset item alongside
+the canonical additive/linking changes and single revision increment in one
+transaction; rows share the changeset's base and applied revision and
 the originating Agent request ID for audit grouping. Reviewed operations are
 inserted as pending before display, then applied or settled after a decision.
 The ledger is not an authorization mechanism: all validation, revision checks,

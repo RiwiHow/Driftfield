@@ -111,9 +111,7 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
   { additionalProperties: false },
 );
 
-export const STORY_OPERATION_PARAMETERS = Type.Object(
-  {
-    change: Type.Object(
+const STORY_CHANGE_PARAMETERS = Type.Object(
       {
         beatId: Type.Optional(Type.String({ maxLength: 128, minLength: 1 })),
         causes: Type.Optional(Type.String({ maxLength: 20_000 })),
@@ -199,7 +197,19 @@ export const STORY_OPERATION_PARAMETERS = Type.Object(
         title: Type.Optional(Type.String({ maxLength: 500, minLength: 1 })),
       },
       { additionalProperties: false },
-    ),
+);
+
+export const STORY_OPERATION_PARAMETERS = Type.Object(
+  {
+    change: STORY_CHANGE_PARAMETERS,
+    storyRevision: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+
+export const STORY_MAINTENANCE_PARAMETERS = Type.Object(
+  {
+    changes: Type.Array(STORY_CHANGE_PARAMETERS, { maxItems: 24, minItems: 1 }),
     storyRevision: Type.Integer({ minimum: 0 }),
   },
   { additionalProperties: false },
@@ -261,22 +271,39 @@ export const normalizeStoryMaintenanceArguments = (
     };
     storyRevision: number;
   },
-): AgentToolContractMap['maintain_story_records']['arguments'] => {
+): AgentToolContractMap['propose_story_operation']['arguments'] => {
   const { eventStatus, threadStatus, ...change } = value.change;
   if (change.operation === 'create_event') {
     return {
-      change: { ...change, status: eventStatus } as AgentToolContractMap['maintain_story_records']['arguments']['change'],
+      change: { ...change, status: eventStatus } as AgentToolContractMap['propose_story_operation']['arguments']['change'],
       storyRevision: value.storyRevision,
     };
   }
   if (change.operation === 'create_thread' || change.operation === 'create_beat') {
     return {
-      change: { ...change, status: threadStatus } as AgentToolContractMap['maintain_story_records']['arguments']['change'],
+      change: { ...change, status: threadStatus } as AgentToolContractMap['propose_story_operation']['arguments']['change'],
       storyRevision: value.storyRevision,
     };
   }
   return {
-    change: change as AgentToolContractMap['maintain_story_records']['arguments']['change'],
+    change: change as AgentToolContractMap['propose_story_operation']['arguments']['change'],
     storyRevision: value.storyRevision,
   };
 };
+
+export const normalizeStoryMaintenanceBatchArguments = (
+  value: {
+    changes: Array<{
+      eventStatus?: unknown;
+      operation?: unknown;
+      threadStatus?: unknown;
+      [key: string]: unknown;
+    }>;
+    storyRevision: number;
+  },
+): AgentToolContractMap['maintain_story_records']['arguments'] => ({
+  changes: value.changes.map((change) =>
+    normalizeStoryMaintenanceArguments({ change, storyRevision: value.storyRevision }).change,
+  ),
+  storyRevision: value.storyRevision,
+});

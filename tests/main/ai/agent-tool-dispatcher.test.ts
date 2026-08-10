@@ -27,7 +27,7 @@ describe('AgentToolDispatcher', () => {
     };
     const context = {
       maintainStoryRecords: vi.fn(() => ({
-        operationId: 'operation-1',
+        operationIds: ['operation-1'],
         revision: 1,
         status: 'applied' as const,
       })),
@@ -38,11 +38,11 @@ describe('AgentToolDispatcher', () => {
     await expect(dispatcher.execute(
       { ...scope, storyChanged },
       {
-        arguments: { change, storyRevision: 0 },
+        arguments: { changes: [change], storyRevision: 0 },
         toolName: 'maintain_story_records',
       },
     )).resolves.toEqual({
-      data: { operationId: 'operation-1', revision: 1, status: 'applied' },
+      data: { operationIds: ['operation-1'], revision: 1, status: 'applied' },
       ok: true,
       toolName: 'maintain_story_records',
     });
@@ -50,7 +50,7 @@ describe('AgentToolDispatcher', () => {
       { ownerId: 7, projectSessionId: 'session-1' },
       'request-1',
       0,
-      change,
+      [change],
     );
     expect(storyChanged).toHaveBeenCalledWith(1);
   });

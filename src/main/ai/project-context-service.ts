@@ -59,19 +59,19 @@ export class ProjectContextService {
     scope: ProjectContextScope,
     requestId: string,
     storyRevision: number,
-    change: ProjectStoryOperation,
+    changes: ProjectStoryOperation[],
   ): AgentStoryMaintenanceToolResult {
     const session = this.requireSession(scope);
     if (this.stories === undefined) throw new ProjectContextError('internal-error');
     try {
-      const result = this.stories.maintainOperation(
+      const result = this.stories.maintainOperations(
         session,
         storyRevision,
-        change,
+        changes,
         requestId,
       );
       return {
-        operationId: result.operationId,
+        operationIds: result.operationIds,
         revision: result.snapshot.revision,
         status: 'applied',
       };

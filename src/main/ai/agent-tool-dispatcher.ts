@@ -124,7 +124,7 @@ export class AgentToolDispatcher {
         contextScope,
         scope.requestId,
         request.arguments.storyRevision,
-        request.arguments.change,
+        request.arguments.changes,
       );
       scope.storyChanged?.(data.revision);
       return {
@@ -304,7 +304,13 @@ const storyOperationShapeHint = (
     (toolName !== 'maintain_story_records' && toolName !== 'propose_story_operation') ||
     typeof args !== 'object' || args === null
   ) return undefined;
-  const change = (args as { change?: unknown }).change;
+  const change = toolName === 'maintain_story_records'
+    ? (args as { changes?: unknown }).changes instanceof Array
+      ? (args as { changes: unknown[] }).changes.find((item) =>
+          typeof item === 'object' && item !== null,
+        )
+      : undefined
+    : (args as { change?: unknown }).change;
   if (typeof change !== 'object' || change === null) return undefined;
   const operation = (change as { operation?: unknown }).operation;
   if (typeof operation !== 'string') return undefined;

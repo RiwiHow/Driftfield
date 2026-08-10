@@ -282,6 +282,30 @@ export class ProjectStoryRepository {
     }
   }
 
+  collapseAppliedOperations(
+    operationIds: string[],
+    expectedRevision: number,
+    intermediateRevision: number,
+  ): void {
+    if (operationIds.length === 0) throw new Error('Story operation batch is empty');
+    const finalRevision = expectedRevision + 1;
+    const revisionUpdate = this.database.connection.prepare(`
+      UPDATE project_story_state SET revision = ?
+      WHERE singleton = 1 AND revision = ?
+    `).run(finalRevision, intermediateRevision);
+    if (revisionUpdate.changes !== 1) {
+      throw new Error('Project story batch revision is invalid');
+    }
+    const placeholders = operationIds.map(() => '?').join(', ');
+    const ledgerUpdate = this.database.connection.prepare(`
+      UPDATE story_operations SET base_revision = ?, applied_revision = ?
+      WHERE status = 'applied' AND operation_id IN (${placeholders})
+    `).run(expectedRevision, finalRevision, ...operationIds);
+    if (ledgerUpdate.changes !== operationIds.length) {
+      throw new Error('Applied project story operation is missing');
+    }
+  }
+
   createPersona(expectedRevision: number, input: CreatePersonaInput, audit?: StoryOperationAudit): Persona {
     return this.mutate(expectedRevision, () => {
       const id = randomUUID();
