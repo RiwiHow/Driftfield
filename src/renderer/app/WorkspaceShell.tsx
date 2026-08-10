@@ -1,9 +1,13 @@
 import {
   BookOpenText,
+  CircleHelp,
+  Clock3,
+  GitBranch,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
+  Users,
 } from 'lucide-react';
 import {
   type CSSProperties,
@@ -111,6 +115,7 @@ export function WorkspaceShell({
 }: WorkspaceShellProps) {
   const { t } = useTranslation('workspace');
   const { t: tCommon } = useTranslation('common');
+  const { t: tLibrary } = useTranslation('library');
   const {
     assistantElementRef,
     assistantPanelRef,
@@ -166,6 +171,35 @@ export function WorkspaceShell({
                   : t('collapseLibrary')}
               </TooltipContent>
             </Tooltip>
+            <nav
+              aria-label={tLibrary('storyNavigation')}
+              className="titlebar-story-navigation"
+            >
+              <StoryShortcut
+                disabled={projectDirectory === null}
+                icon={<Users aria-hidden="true" size={14} />}
+                label={tLibrary('labels.personae')}
+                onClick={() => onOpenStory('personae')}
+              />
+              <StoryShortcut
+                disabled={projectDirectory === null}
+                icon={<Clock3 aria-hidden="true" size={14} />}
+                label={tLibrary('labels.chronicle')}
+                onClick={() => onOpenStory('chronicle')}
+              />
+              <StoryShortcut
+                disabled={projectDirectory === null}
+                icon={<GitBranch aria-hidden="true" size={14} />}
+                label={tLibrary('labels.threads')}
+                onClick={() => onOpenStory('threads')}
+              />
+              <StoryShortcut
+                disabled={projectDirectory === null}
+                icon={<CircleHelp aria-hidden="true" size={14} />}
+                label={tLibrary('labels.questions')}
+                onClick={() => onOpenStory('questions')}
+              />
+            </nav>
           </div>
 
           <div className="titlebar-brand">
@@ -223,7 +257,6 @@ export function WorkspaceShell({
               onDocumentChange={onDocumentChange}
               onCreateProject={onCreateProject}
               onOpenSettings={onOpenSettings}
-              onOpenStory={onOpenStory}
               onRefreshProject={onRefreshProject}
               onSelectProject={onSelectProject}
               projectDirectory={projectDirectory}
@@ -290,6 +323,35 @@ export function WorkspaceShell({
         </Group>
       </main>
     </TooltipProvider>
+  );
+}
+
+function StoryShortcut({
+  disabled,
+  icon,
+  label,
+  onClick,
+}: {
+  disabled: boolean;
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          aria-label={label}
+          disabled={disabled}
+          onClick={onClick}
+          size="icon"
+          variant="ghost"
+        >
+          {icon}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }
 

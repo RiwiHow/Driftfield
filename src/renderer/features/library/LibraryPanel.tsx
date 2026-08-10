@@ -1,7 +1,6 @@
 import {
   ChevronRight,
   ChevronDown,
-  CircleHelp,
   FileText,
   FolderPlus,
   FolderOpen,
@@ -9,9 +8,6 @@ import {
   Plus,
   RefreshCw,
   Settings2,
-  Clock3,
-  GitBranch,
-  Users,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -30,7 +26,6 @@ import type {
 } from '../../../shared/contracts/project';
 import type { ProjectIconId } from '../../../shared/contracts/project-layout';
 import { ProjectIcon } from './ProjectIcon';
-import type { StorySection } from '../story/StoryDialog';
 
 interface LibraryPanelProps {
   activeDocumentId: string | null;
@@ -41,7 +36,6 @@ interface LibraryPanelProps {
   onDocumentChange: (documentId: string) => void;
   onCreateProject: () => void;
   onOpenSettings: () => void;
-  onOpenStory: (section: StorySection) => void;
   onRefreshProject: () => void;
   onSelectProject: () => void;
   projectDirectory: ProjectDirectory | null;
@@ -61,7 +55,6 @@ export function LibraryPanel({
   onDocumentChange,
   onCreateProject,
   onOpenSettings,
-  onOpenStory,
   onRefreshProject,
   onSelectProject,
   projectDirectory,
@@ -213,41 +206,6 @@ export function LibraryPanel({
             )}
           </>
         )}
-      </nav>
-
-      <nav aria-label={t('storyNavigation')} className="library-story-navigation">
-        <button
-          disabled={projectDirectory === null}
-          onClick={() => onOpenStory('personae')}
-          type="button"
-        >
-          <Users aria-hidden="true" size={14} />
-          <span>{t('labels.personae')}</span>
-        </button>
-        <button
-          disabled={projectDirectory === null}
-          onClick={() => onOpenStory('chronicle')}
-          type="button"
-        >
-          <Clock3 aria-hidden="true" size={14} />
-          <span>{t('labels.chronicle')}</span>
-        </button>
-        <button
-          disabled={projectDirectory === null}
-          onClick={() => onOpenStory('threads')}
-          type="button"
-        >
-          <GitBranch aria-hidden="true" size={14} />
-          <span>{t('labels.threads')}</span>
-        </button>
-        <button
-          disabled={projectDirectory === null}
-          onClick={() => onOpenStory('questions')}
-          type="button"
-        >
-          <CircleHelp aria-hidden="true" size={14} />
-          <span>{t('labels.questions')}</span>
-        </button>
       </nav>
 
       <div className="library-footer">
