@@ -43,7 +43,10 @@ The bounded collaboration surface contains:
   read-only novel tools and returns Markdown to Curator; it cannot delegate,
   propose, maintain story state, or persist content. Curator must review the
   artifact and use the ordinary reviewed proposal workflow before any novel
-  text changes.
+  text changes. New-document writing delegates before creation and submits the
+  complete returned Markdown in one creation proposal; it must never create a
+  placeholder and then replace it. Existing-document writing likewise uses one
+  replacement proposal after delegation, with no persisted intermediate draft.
 
 The provider-facing Maintain schema keeps Chronicle event lifecycle and Thread
 lifecycle distinct: `create_event` uses `eventStatus` (`planned` or
