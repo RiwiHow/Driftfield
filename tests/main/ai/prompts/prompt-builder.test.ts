@@ -30,10 +30,11 @@ describe('Agent prompt registry', () => {
 
   it('adds cross-tool policy without duplicating registered tool descriptions', () => {
     const built = buildAgentSystemPrompt({
-      availableTools: ['get_current_document'],
+      availableTools: ['read_novel_context'],
       role: 'curator',
     });
     expect(built.prompt).toContain('native tool calling');
+    expect(built.prompt).toContain('request all already-known required sections');
     expect(built.prompt).toContain('stable document identities');
     expect(built.prompt).toContain('create or delete a document');
     expect(built.prompt).toContain('continue the same Agent run');
@@ -57,6 +58,7 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).not.toContain('get_current_document:');
     expect(built.prompt).not.toContain('get_novel_structure:');
     expect(built.prompt).not.toContain('get_document:');
+    expect(built.prompt).not.toContain('read_novel_context:');
     expect(built.prompt).not.toContain('No application tools are available');
   });
 

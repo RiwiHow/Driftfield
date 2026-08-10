@@ -69,10 +69,10 @@ describe('Agent conversation persistence', () => {
     service.recordEvent({ delta: 'I will remember it.', requestId: 'assistant-1', type: 'text-delta' });
     service.recordEvent({
       agentRole: 'scribe',
-      input: '{}',
+      input: '{"documentIds":[],"include":["structure"]}',
       requestId: 'assistant-1',
       toolCallId: 'tool-1',
-      toolName: 'get_novel_structure',
+      toolName: 'read_novel_context',
       type: 'tool-started',
     });
     service.recordEvent({
@@ -81,7 +81,7 @@ describe('Agent conversation persistence', () => {
       output: '{"ok":true}',
       requestId: 'assistant-1',
       toolCallId: 'tool-1',
-      toolName: 'get_novel_structure',
+      toolName: 'read_novel_context',
       type: 'tool-completed',
     });
     service.recordEvent({ requestId: 'assistant-1', type: 'completed' });

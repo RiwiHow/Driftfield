@@ -64,6 +64,22 @@ export interface AgentNovelStructureToolResult {
   };
 }
 
+export const AGENT_NOVEL_CONTEXT_SECTIONS = [
+  'structure',
+  'current_document',
+  'story_state',
+] as const;
+
+export type AgentNovelContextSection =
+  (typeof AGENT_NOVEL_CONTEXT_SECTIONS)[number];
+
+export interface AgentNovelContextToolResult {
+  currentDocument?: AgentDocumentToolResult;
+  documents: AgentDocumentToolResult[];
+  storyState?: import('./project-story').ProjectStorySnapshot;
+  structure?: AgentNovelStructureToolResult;
+}
+
 export interface AgentProposalToolResult {
   proposalId: string;
   status: 'accepted' | 'rejected' | 'conflict' | 'missing' | 'stale' | 'failed';
@@ -146,9 +162,12 @@ export interface AgentToolContractMap {
     arguments: AgentWritingAssignment;
     result: AgentWritingAssignmentToolResult;
   };
-  get_story_state: {
-    arguments: Record<string, never>;
-    result: import('./project-story').ProjectStorySnapshot;
+  read_novel_context: {
+    arguments: {
+      documentIds: string[];
+      include: AgentNovelContextSection[];
+    };
+    result: AgentNovelContextToolResult;
   };
   maintain_story_records: {
     arguments: {
@@ -170,18 +189,6 @@ export interface AgentToolContractMap {
   resolve_story_question: {
     arguments: { answer: string; questionId: string };
     result: AgentStoryQuestionToolResult;
-  };
-  get_current_document: {
-    arguments: Record<string, never>;
-    result: AgentDocumentToolResult;
-  };
-  get_document: {
-    arguments: { documentId: string };
-    result: AgentDocumentToolResult;
-  };
-  get_novel_structure: {
-    arguments: Record<string, never>;
-    result: AgentNovelStructureToolResult;
   };
   propose_document_edit: {
     arguments: {
@@ -213,10 +220,7 @@ export type AgentToolName = keyof AgentToolContractMap;
 
 export const AGENT_TOOL_NAMES = [
   'delegate_writing',
-  'get_novel_structure',
-  'get_current_document',
-  'get_document',
-  'get_story_state',
+  'read_novel_context',
   'maintain_story_records',
   'record_story_question',
   'resolve_story_question',
@@ -225,6 +229,16 @@ export const AGENT_TOOL_NAMES = [
   'propose_project_structure_operation',
   'propose_story_operation',
 ] as const satisfies readonly AgentToolName[];
+
+export const LEGACY_AGENT_TOOL_NAMES = [
+  'get_novel_structure',
+  'get_current_document',
+  'get_document',
+  'get_story_state',
+] as const;
+
+export type LegacyAgentToolName = (typeof LEGACY_AGENT_TOOL_NAMES)[number];
+export type AgentToolAuditName = AgentToolName | LegacyAgentToolName;
 
 const LONG_RUNNING_AGENT_TOOL_NAMES = new Set<AgentToolName>([
   'delegate_writing',
@@ -294,6 +308,13 @@ export type AgentToolExecutionResult<
 export const isAgentToolName = (value: unknown): value is AgentToolName =>
   typeof value === 'string' &&
   AGENT_TOOL_NAMES.includes(value as AgentToolName);
+
+export const isAgentToolAuditName = (
+  value: unknown,
+): value is AgentToolAuditName =>
+  isAgentToolName(value) ||
+  (typeof value === 'string' &&
+    LEGACY_AGENT_TOOL_NAMES.includes(value as LegacyAgentToolName));
 
 export const isAgentToolArguments = <Name extends AgentToolName>(
   toolName: Name,
@@ -424,11 +445,19 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
     return Object.keys(value).length === 2 &&
       isDocumentId(value.questionId) && isBoundedText(value.answer, 2_000, false);
   }
-  if (toolName !== 'get_document') return Object.keys(value).length === 0;
-  return (
-    Object.keys(value).length === 1 &&
-    isDocumentId(value.documentId)
-  );
+  if (toolName === 'read_novel_context') {
+    return Object.keys(value).length === 2 &&
+      Array.isArray(value.include) && value.include.length <= 3 &&
+      value.include.every((section) =>
+        typeof section === 'string' &&
+        AGENT_NOVEL_CONTEXT_SECTIONS.includes(section as AgentNovelContextSection)) &&
+      new Set(value.include).size === value.include.length &&
+      Array.isArray(value.documentIds) && value.documentIds.length <= 4 &&
+      value.documentIds.every(isDocumentId) &&
+      new Set(value.documentIds).size === value.documentIds.length &&
+      (value.include.length > 0 || value.documentIds.length > 0);
+  }
+  return Object.keys(value).length === 0;
 };
 
 export const isAgentToolRequest = (value: unknown): value is AgentToolRequest => {
@@ -453,10 +482,8 @@ export const isAgentToolExecutionResult = (
 const isToolData = (toolName: AgentToolName, value: unknown): boolean =>
   toolName === 'delegate_writing'
     ? isWritingAssignmentResult(value)
-    : toolName === 'get_novel_structure'
-    ? isNovelStructureResult(value)
-    : toolName === 'get_story_state'
-      ? isProjectStorySnapshot(value)
+    : toolName === 'read_novel_context'
+      ? isNovelContextResult(value)
     : toolName === 'maintain_story_records'
       ? isStoryMaintenanceResult(value)
     : toolName === 'record_story_question' || toolName === 'resolve_story_question'
@@ -466,7 +493,21 @@ const isToolData = (toolName: AgentToolName, value: unknown): boolean =>
         toolName === 'propose_project_structure_operation' ||
         toolName === 'propose_story_operation'
       ? isEditProposalResult(value)
-    : isDocumentResult(value);
+    : false;
+
+const isNovelContextResult = (
+  value: unknown,
+): value is AgentNovelContextToolResult =>
+  isRecord(value) &&
+  Object.keys(value).every((key) =>
+    ['currentDocument', 'documents', 'storyState', 'structure'].includes(key)) &&
+  Array.isArray(value.documents) && value.documents.length <= 4 &&
+  value.documents.every(isDocumentResult) &&
+  (value.currentDocument === undefined || isDocumentResult(value.currentDocument)) &&
+  (value.storyState === undefined || isProjectStorySnapshot(value.storyState)) &&
+  (value.structure === undefined || isNovelStructureResult(value.structure)) &&
+  (value.documents.length > 0 || value.currentDocument !== undefined ||
+    value.storyState !== undefined || value.structure !== undefined);
 
 const isWritingAssignmentResult = (value: unknown): boolean =>
   isRecord(value) &&

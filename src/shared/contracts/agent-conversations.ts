@@ -1,6 +1,6 @@
 import type { AgentProposal } from './agent-proposals';
 import type { AgentRole } from './agent';
-import type { AgentToolName } from './agent-tools';
+import type { AgentToolAuditName } from './agent-tools';
 
 export type AgentProposalStatus =
   | 'pending'
@@ -19,7 +19,7 @@ export interface AgentToolActivity {
   output?: string;
   status: 'running' | 'completed' | 'cancelled';
   toolCallId: string;
-  toolName: AgentToolName;
+  toolName: AgentToolAuditName;
 }
 
 export type AgentConversationPart =

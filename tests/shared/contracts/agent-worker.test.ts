@@ -9,10 +9,10 @@ describe("Agent utility-process protocol", () => {
   it("accepts bounded correlated tool activity events", () => {
     expect(
       isAgentWorkerMessage({
-        input: '{"documentId":"chapter-1"}',
+        input: '{"documentIds":["chapter-1"],"include":[]}',
         requestId: "request-1",
         toolCallId: "tool-1",
-        toolName: "get_document",
+        toolName: "read_novel_context",
         type: "tool-started",
       }),
     ).toBe(true);
@@ -22,7 +22,7 @@ describe("Agent utility-process protocol", () => {
         output: '{"ok":true}',
         requestId: "request-1",
         toolCallId: "tool-1",
-        toolName: "get_document",
+        toolName: "read_novel_context",
         type: "tool-completed",
       }),
     ).toBe(true);
@@ -31,7 +31,7 @@ describe("Agent utility-process protocol", () => {
         input: "x".repeat(8_193),
         requestId: "request-1",
         toolCallId: "tool-1",
-        toolName: "get_document",
+        toolName: "read_novel_context",
         type: "tool-started",
       }),
     ).toBe(false);
@@ -42,7 +42,7 @@ describe("Agent utility-process protocol", () => {
       isAgentWorkerCommand({
         authPath: "/app-data/auth.json",
         cwd: "/project",
-        enabledTools: ["get_current_document"],
+        enabledTools: ["read_novel_context"],
         history: [],
         proposalOutcomes: [],
         modelId: "claude-sonnet",
@@ -67,7 +67,7 @@ describe("Agent utility-process protocol", () => {
       isAgentWorkerCommand({
         requestId: "request-1",
         result: {
-          data: {
+          data: { documents: [], structure: {
             availableIcons: [
               'book-open',
               'book-marked',
@@ -103,9 +103,9 @@ describe("Agent utility-process protocol", () => {
               revision: "revision-1",
               title: "Novel",
             },
-          },
+          } },
           ok: true,
-          toolName: "get_novel_structure",
+          toolName: "read_novel_context",
         },
         toolCallId: "tool-structure",
         type: "tool-result",
@@ -115,16 +115,16 @@ describe("Agent utility-process protocol", () => {
       isAgentWorkerCommand({
         requestId: "request-1",
         result: {
-          data: {
+          data: { documents: [{
             baseRevision: "revision",
             contentRevision: "revision",
             documentId: "chapter-1",
             markdown: "Chapter text",
             source: "disk",
             title: "Chapter",
-          },
+          }] },
           ok: true,
-          toolName: "get_document",
+          toolName: "read_novel_context",
         },
         toolCallId: "tool-1",
         type: "tool-result",
@@ -152,7 +152,7 @@ describe("Agent utility-process protocol", () => {
             title: "Chapter",
           },
           ok: true,
-          toolName: "get_novel_structure",
+          toolName: "read_novel_context",
         },
         toolCallId: "tool-1",
         type: "tool-result",
@@ -204,10 +204,10 @@ describe("Agent utility-process protocol", () => {
     ).toBe(true);
     expect(
       isAgentWorkerMessage({
-        arguments: { documentId: "chapter-1" },
+        arguments: { documentIds: ["chapter-1"], include: [] },
         requestId: "request-1",
         toolCallId: "tool-1",
-        toolName: "get_document",
+        toolName: "read_novel_context",
         type: "tool-request",
       }),
     ).toBe(true);
@@ -234,7 +234,7 @@ describe("Agent utility-process protocol", () => {
         arguments: { documentId: "not-allowed" },
         requestId: "request-1",
         toolCallId: "tool-1",
-        toolName: "get_current_document",
+        toolName: "read_novel_context",
         type: "tool-request",
       }),
     ).toBe(true);

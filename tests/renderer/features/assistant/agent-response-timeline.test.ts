@@ -7,6 +7,7 @@ import {
   replaceAssistantMessage,
   startToolActivity,
 } from '../../../../src/renderer/features/assistant/use-agent-conversation';
+import { groupConsecutiveReadTools } from '../../../../src/renderer/features/assistant/agent-tool-activity';
 import type {
   AgentConversationMessage,
   AgentConversationPart,
@@ -53,6 +54,77 @@ describe('Agent response timeline', () => {
     expect(parts).toHaveLength(3);
     expect(parts[0]).toEqual({ content: 'First sentence.', type: 'text' });
     expect(parts[2]).toEqual({ content: 'Second sentence.', type: 'text' });
+  });
+
+  it('groups consecutive reads by the same Agent without losing audit payloads', () => {
+    const parts: AgentConversationPart[] = [
+      {
+        activity: {
+          agentRole: 'scribe',
+          input: '{}',
+          output: '{"data":{"project":{"id":"project-1"}},"ok":true}',
+          status: 'completed',
+          toolCallId: 'tool-structure',
+          toolName: 'get_novel_structure',
+        },
+        type: 'tool',
+      },
+      {
+        activity: {
+          agentRole: 'scribe',
+          input: '{}',
+          output: '{"data":{"revision":4},"ok":true}',
+          status: 'completed',
+          toolCallId: 'tool-story',
+          toolName: 'get_story_state',
+        },
+        type: 'tool',
+      },
+    ];
+
+    expect(groupConsecutiveReadTools(parts)).toEqual([
+      {
+        activities: parts.map((part) =>
+          part.type === 'tool' ? part.activity : undefined,
+        ),
+        type: 'tool-group',
+      },
+    ]);
+  });
+
+  it('does not group reads across text, mutations, or Agent boundaries', () => {
+    const read = (
+      toolCallId: string,
+      agentRole: 'curator' | 'scribe',
+    ): AgentConversationPart => ({
+      activity: {
+        agentRole,
+        input: '{}',
+        status: 'completed',
+        toolCallId,
+        toolName: 'get_story_state',
+      },
+      type: 'tool',
+    });
+    const parts: AgentConversationPart[] = [
+      read('scribe-read', 'scribe'),
+      read('curator-read', 'curator'),
+      { content: 'Context loaded.', type: 'text' },
+      read('read-after-text', 'curator'),
+      {
+        activity: {
+          agentRole: 'curator',
+          input: '{"changes":[]}',
+          status: 'completed',
+          toolCallId: 'maintain',
+          toolName: 'maintain_story_records',
+        },
+        type: 'tool',
+      },
+      read('read-after-maintain', 'curator'),
+    ];
+
+    expect(groupConsecutiveReadTools(parts)).toEqual(parts);
   });
 
   it('branches from an edited user message and discards the old continuation', () => {

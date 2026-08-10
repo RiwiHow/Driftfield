@@ -123,16 +123,31 @@ export class AgentToolDispatcher {
         toolName: request.toolName,
       };
     }
-    if (request.toolName === 'get_novel_structure') {
+    if (request.toolName === 'read_novel_context') {
+      const { documentIds, include } = request.arguments;
+      const includeSet = new Set(include);
+      const [structure, currentDocument, storyState, documents] =
+        await Promise.all([
+          includeSet.has('structure')
+            ? this.context.getNovelStructure(contextScope)
+            : undefined,
+          includeSet.has('current_document')
+            ? this.context.getCurrentDocument(contextScope)
+            : undefined,
+          includeSet.has('story_state')
+            ? this.context.getStoryState(contextScope)
+            : undefined,
+          Promise.all(documentIds.map((documentId) =>
+            this.context.getDocument(contextScope, documentId),
+          )),
+        ]);
       return {
-        data: await this.context.getNovelStructure(contextScope),
-        ok: true,
-        toolName: request.toolName,
-      };
-    }
-    if (request.toolName === 'get_story_state') {
-      return {
-        data: await this.context.getStoryState(contextScope),
+        data: {
+          ...(currentDocument === undefined ? {} : { currentDocument }),
+          documents,
+          ...(storyState === undefined ? {} : { storyState }),
+          ...(structure === undefined ? {} : { structure }),
+        },
         ok: true,
         toolName: request.toolName,
       };
@@ -168,13 +183,6 @@ export class AgentToolDispatcher {
       );
       scope.storyChanged?.(data.revision);
       return { data, ok: true, toolName: request.toolName };
-    }
-    if (request.toolName === 'get_current_document') {
-      return {
-        data: await this.context.getCurrentDocument(contextScope),
-        ok: true,
-        toolName: request.toolName,
-      };
     }
     if (request.toolName === 'propose_document_edit') {
       if (this.proposals === undefined) {
@@ -263,14 +271,7 @@ export class AgentToolDispatcher {
         toolName: request.toolName,
       };
     }
-    return {
-      data: await this.context.getDocument(
-        contextScope,
-        request.arguments.documentId,
-      ),
-      ok: true,
-      toolName: request.toolName,
-    };
+    throw new ProjectContextError('internal-error');
   }
 
   disposeOwner(ownerId: number): void {

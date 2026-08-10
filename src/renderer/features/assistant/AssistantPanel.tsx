@@ -63,6 +63,7 @@ import {
   type AgentConversationPhase,
   isAgentConversationNearBottom,
 } from './agent-conversation-state';
+import { groupConsecutiveReadTools } from './agent-tool-activity';
 import { SafeMarkdown } from './SafeMarkdown';
 import { useAgentConversation } from './use-agent-conversation';
 
@@ -747,9 +748,10 @@ function AgentResponseTimeline({
     group.push(part as StoryProposalPart);
     storyGroups.set(part.proposal.storyRevision, group);
   }
+  const timelineParts = groupConsecutiveReadTools(parts);
   return (
     <div className="agent-response-timeline">
-      {parts.map((part, index) => {
+      {timelineParts.map((part, index) => {
         if (part.type === 'text') {
           return (
             <div className="agent-markdown" key={`text-${index}`}>
@@ -767,6 +769,14 @@ function AgentResponseTimeline({
             <ToolActivityRow
               activity={part.activity}
               key={part.activity.toolCallId}
+            />
+          );
+        }
+        if (part.type === 'tool-group') {
+          return (
+            <ToolActivityGroup
+              activities={part.activities}
+              key={`tool-group-${part.activities[0].toolCallId}`}
             />
           );
         }
@@ -862,17 +872,127 @@ function ToolActivityRow({ activity }: { activity: AgentToolActivity }) {
           </span>
         </small>
       </summary>
-      <div className="agent-tool-details">
-        <span>{t('tools.input')}</span>
-        <pre>{formatToolPayload(activity.input)}</pre>
-        {activity.output !== undefined ? (
-          <>
-            <span>{t('tools.output')}</span>
-            <pre>{formatToolPayload(activity.output)}</pre>
-          </>
-        ) : null}
+      <ToolPayloadDetails activity={activity} />
+    </details>
+  );
+}
+
+function ToolActivityGroup({
+  activities,
+}: {
+  activities: AgentToolActivity[];
+}) {
+  const { t } = useTranslation('assistant');
+  const running = activities.some(({ status }) => status === 'running');
+  const failed = activities.some((activity) => activity.failed);
+  const cancelled = !running && !failed && activities.some(
+    ({ status }) => status === 'cancelled',
+  );
+  const agentRole = activities[0]?.agentRole;
+  return (
+    <details className="agent-tool-group">
+      <summary>
+        <ChevronRight
+          aria-hidden="true"
+          className="agent-tool-disclosure"
+          size={11}
+        />
+        {running ? (
+          <LoaderCircle
+            aria-hidden="true"
+            className="agent-tool-spinner"
+            size={12}
+          />
+        ) : cancelled ? (
+          <CircleStop aria-hidden="true" size={12} />
+        ) : failed ? (
+          <TriangleAlert aria-hidden="true" size={12} />
+        ) : (
+          <Check aria-hidden="true" size={12} />
+        )}
+        <span className="agent-tool-title">
+          {agentRole === 'scribe' ? (
+            <span
+              className="agent-tool-actor"
+              title={t('tools.calledBy', { agent: 'Scribe' })}
+            >
+              Scribe
+            </span>
+          ) : null}
+          <span>{t('tools.readGroup', { count: activities.length })}</span>
+        </span>
+        <small>
+          <span>
+            {t(
+              running
+                ? 'tools.status.running'
+                : cancelled
+                  ? 'tools.status.cancelled'
+                  : failed
+                    ? 'tools.status.failed'
+                    : 'tools.status.completed',
+            )}
+          </span>
+          <span aria-hidden="true"> · </span>
+          <span className="agent-tool-show-details">
+            {t('tools.showDetails')}
+          </span>
+          <span className="agent-tool-hide-details">
+            {t('tools.hideDetails')}
+          </span>
+        </small>
+      </summary>
+      <div className="agent-tool-group-details">
+        {activities.map((activity) => (
+          <section className="agent-tool-group-item" key={activity.toolCallId}>
+            <div className="agent-tool-group-item-title">
+              {activity.status === 'running' ? (
+                <LoaderCircle
+                  aria-hidden="true"
+                  className="agent-tool-spinner"
+                  size={12}
+                />
+              ) : activity.status === 'cancelled' ? (
+                <CircleStop aria-hidden="true" size={12} />
+              ) : activity.failed ? (
+                <TriangleAlert aria-hidden="true" size={12} />
+              ) : (
+                <Check aria-hidden="true" size={12} />
+              )}
+              <span>{t(`tools.names.${activity.toolName}`)}</span>
+              <small>
+                {t(
+                  activity.status === 'running'
+                    ? 'tools.status.running'
+                    : activity.status === 'cancelled'
+                      ? 'tools.status.cancelled'
+                      : activity.failed
+                        ? 'tools.status.failed'
+                        : 'tools.status.completed',
+                )}
+              </small>
+            </div>
+            <ToolPayloadDetails activity={activity} />
+          </section>
+        ))}
       </div>
     </details>
+  );
+}
+
+function ToolPayloadDetails({ activity }: { activity: AgentToolActivity }) {
+  const { t } = useTranslation('assistant');
+  return (
+    <div className="agent-tool-details">
+      <span>{t('tools.input')}</span>
+      <pre>{formatToolPayload(activity.input)}</pre>
+      {activity.output !== undefined ? (
+        <>
+          <span>{t('tools.output')}</span>
+          <pre>{formatToolPayload(activity.output)}</pre>
+        </>
+      ) : null}
+    </div>
   );
 }
 

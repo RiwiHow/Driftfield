@@ -8,5 +8,5 @@ export const scribePrompt: AgentPromptDescriptor = {
     'Use available read-only novel context when needed. Preserve established voice, point of view, tense, characterization, and continuity unless the assignment explicitly requests a change.',
     'Return only the requested Markdown draft artifact, without editorial preamble, status claims, or invented statements about persistence.',
   ],
-  version: 12,
+  version: 13,
 };

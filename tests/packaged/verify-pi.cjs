@@ -55,8 +55,8 @@ assert.match(
 );
 assert.match(
   workerBundle,
-  /get_story_state/,
-  'The packaged Pi worker is missing the story read tool.',
+  /read_novel_context/,
+  'The packaged Pi worker is missing the unified novel-context read tool.',
 );
 assert.match(
   workerBundle,

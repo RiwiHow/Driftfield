@@ -23,6 +23,7 @@ import { buildAgentSystemPrompt } from "./prompts/prompt-builder";
 import { AgentToolResultBridge } from "./agent-tool-result-bridge";
 import {
   DOCUMENT_FILE_OPERATION_PARAMETERS,
+  NOVEL_CONTEXT_PARAMETERS,
   normalizeStoryMaintenanceBatchArguments,
   normalizeStoryMaintenanceArguments,
   PROJECT_STRUCTURE_OPERATION_PARAMETERS,
@@ -289,63 +290,17 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Read the ordered novel, volume, chapter, and lore structure without loading document text.",
-      label: "Read novel structure",
-      name: "get_novel_structure",
-      parameters: Type.Object({}, { additionalProperties: false }),
+        "Read one bounded batch of novel context. include may contain structure, current_document (the immutable request-start draft, including unsaved edits), and story_state (Personae, Chronicle, Threads, and open questions). documentIds reads persisted manuscript or lore documents by stable ID. Request only the context needed; use structure first when stable IDs or the project revision are unknown.",
+      label: "Read novel context",
+      name: "read_novel_context",
+      parameters: NOVEL_CONTEXT_PARAMETERS,
       execute: async (toolCallId, params) =>
         textToolResult(
           await requestTool(
             requestId,
             toolCallId,
-            "get_novel_structure",
-            params as AgentToolContractMap["get_novel_structure"]["arguments"],
-          ),
-        ),
-    }),
-    defineTool({
-      description:
-        "Read the current manuscript draft selected by the user, including unsaved edits.",
-      label: "Read current document",
-      name: "get_current_document",
-      parameters: Type.Object({}, { additionalProperties: false }),
-      execute: async (toolCallId, params) =>
-        textToolResult(
-          await requestTool(
-            requestId,
-            toolCallId,
-            "get_current_document",
-            params as AgentToolContractMap["get_current_document"]["arguments"],
-          ),
-        ),
-    }),
-    defineTool({
-      description:
-        "Read one persisted manuscript or lore document by the stable ID returned by get_novel_structure.",
-      label: "Read document",
-      name: "get_document",
-      parameters: Type.Object(
-        { documentId: Type.String({ maxLength: 128, minLength: 1 }) },
-        { additionalProperties: false },
-      ),
-      execute: async (toolCallId, params) =>
-        textToolResult(
-          await requestTool(requestId, toolCallId, "get_document", params),
-        ),
-    }),
-    defineTool({
-      description:
-        "Read the current Personae character registry, Chronicle timelines and events, Threads plot structure, and open story questions with stable IDs and the current story revision.",
-      label: "Read story records",
-      name: "get_story_state",
-      parameters: Type.Object({}, { additionalProperties: false }),
-      execute: async (toolCallId, params) =>
-        textToolResult(
-          await requestTool(
-            requestId,
-            toolCallId,
-            "get_story_state",
-            params as AgentToolContractMap["get_story_state"]["arguments"],
+            "read_novel_context",
+            params as AgentToolContractMap["read_novel_context"]["arguments"],
           ),
         ),
     }),
@@ -375,7 +330,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Submit a reviewable proposal to create a Markdown document under a stable directory ID or delete a document by stable ID. Read get_novel_structure first and use its current project revision. Creating chooses a document kind and complete Markdown. Before deleting, call get_document for the target and provide its persisted baseRevision. This never changes files without explicit acceptance. The tool call waits for the user's decision; after acceptance, continue only the user's existing requested scope.",
+        "Submit a reviewable proposal to create a Markdown document under a stable directory ID or delete a document by stable ID. Read structure with read_novel_context first and use its current project revision. Creating chooses a document kind and complete Markdown. Before deleting, read the target with read_novel_context.documentIds and provide its persisted baseRevision. This never changes files without explicit acceptance. The tool call waits for the user's decision; after acceptance, continue only the user's existing requested scope.",
       label: "Propose document creation or deletion",
       name: "propose_document_file_operation",
       parameters: DOCUMENT_FILE_OPERATION_PARAMETERS,
@@ -391,7 +346,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Submit a reviewable proposal to create a manuscript volume, create a lore category with an icon from get_novel_structure.availableIcons, delete an empty lore category, or move a document between compatible stable directory IDs. Read get_novel_structure first and use its current project revision. Before moving, call get_document and provide the persisted baseRevision. Delete lore documents with propose_document_file_operation before deleting their now-empty category. This never changes project structure without explicit acceptance. The tool call waits for the user's decision; after acceptance, continue only the user's existing requested scope.",
+        "Submit a reviewable proposal to create a manuscript volume, create a lore category with an icon from read_novel_context.structure.availableIcons, delete an empty lore category, or move a document between compatible stable directory IDs. Read structure with read_novel_context first and use its current project revision. Before moving, read the document with read_novel_context.documentIds and provide its persisted baseRevision. Delete lore documents with propose_document_file_operation before deleting their now-empty category. This never changes project structure without explicit acceptance. The tool call waits for the user's decision; after acceptance, continue only the user's existing requested scope.",
       label: "Propose project structure change",
       name: "propose_project_structure_operation",
       parameters: PROJECT_STRUCTURE_OPERATION_PARAMETERS,
@@ -407,7 +362,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Atomically maintain one changeset of 1 to 24 independent, low-risk additive or linking changes in Personae, Chronicle, or Threads when explicitly requested by the user or unambiguously evidenced by accepted persisted prose. Read get_story_state first and use its current storyRevision. Put all independent changes based on that revision in one call; Driftfield applies all or none and advances the story revision once. Never include a possible alias, uncertain time, unclear relationship, contradiction, or other inference requiring author judgment; record a story question instead. Changes that depend on newly generated stable IDs belong in a later changeset after rereading story state. This tool cannot delete, merge, reorder, edit manuscript text, or execute SQL.",
+        "Atomically maintain one changeset of 1 to 24 independent, low-risk additive or linking changes in Personae, Chronicle, or Threads when explicitly requested by the user or unambiguously evidenced by accepted persisted prose. Read story_state with read_novel_context first and use its current revision. Put all independent changes based on that revision in one call; Driftfield applies all or none and advances the story revision once. Never include a possible alias, uncertain time, unclear relationship, contradiction, or other inference requiring author judgment; record a story question instead. Changes that depend on newly generated stable IDs belong in a later changeset after rereading story state. This tool cannot delete, merge, reorder, edit manuscript text, or execute SQL.",
       label: "Maintain story records",
       name: "maintain_story_records",
       parameters: STORY_MAINTENANCE_PARAMETERS,
@@ -423,7 +378,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Record one unresolved author question without changing canonical Personae, Chronicle, or Threads. Use this for possible aliases, uncertain fictional time, unclear relationships, contradictions, or any other ambiguity that requires author judgment. Read get_story_state first, do not duplicate an existing open question, attach exact persisted-document evidence when available, and also ask the question concisely in your response. Options are suggestions, not decisions.",
+        "Record one unresolved author question without changing canonical Personae, Chronicle, or Threads. Use this for possible aliases, uncertain fictional time, unclear relationships, contradictions, or any other ambiguity that requires author judgment. Read story_state with read_novel_context first, do not duplicate an existing open question, attach exact persisted-document evidence when available, and also ask the question concisely in your response. Options are suggestions, not decisions.",
       label: "Record story question",
       name: "record_story_question",
       parameters: STORY_QUESTION_PARAMETERS,
@@ -434,7 +389,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Resolve an existing open story question only from the user's explicit answer. Read get_story_state first and pass the stable question ID and a concise faithful answer. Resolving the question does not itself mutate Personae, Chronicle, or Threads; apply any now-unambiguous low-risk record change separately with maintain_story_records.",
+        "Resolve an existing open story question only from the user's explicit answer. Read story_state with read_novel_context first and pass the stable question ID and a concise faithful answer. Resolving the question does not itself mutate Personae, Chronicle, or Threads; apply any now-unambiguous low-risk record change separately with maintain_story_records.",
       label: "Resolve story question",
       name: "resolve_story_question",
       parameters: RESOLVE_STORY_QUESTION_PARAMETERS,

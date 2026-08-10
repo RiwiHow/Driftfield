@@ -116,6 +116,12 @@ calls and results collapsed by default. Activity payloads come from the typed
 worker protocol and remain bounded; the Renderer does not infer Tool state from
 model prose. Tool rows originating from a delegated Scribe task carry an
 explicit Scribe marker supplied by Main, including after conversation restore.
+The unified novel-context reader reports its selected sections and document IDs
+as one actual Tool call. Two or more consecutive context reads from the same
+Agent may additionally render as one collapsed group. Expanding a row or group
+preserves each actual tool name, status, bounded input audit payload, and
+bounded output audit payload; persisted audit order is unchanged. Historical
+conversations using the former individual read tools remain renderable.
 Concurrent reviewed story-operation calls sharing one request and story
 revision render as one story-sync review card instead of repeating one activity
 row and proposal card per record. Their individual calls remain persisted in

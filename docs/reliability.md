@@ -53,9 +53,9 @@ Preserve these properties when changing affected subsystems.
   and cancels it with its parent or project session. Scribe output is an
   untrusted artifact and cannot write or propose changes directly.
 - Cancellation remains terminal when it races with completion or output.
-- Current read tools are `get_novel_structure`, `get_current_document`,
-  `get_document`, and `get_story_state`; they are typed, bounded, path-free,
-  and main-owned.
+- The current `read_novel_context` tool batches only fixed typed sections and
+  up to four stable document IDs; every result is bounded, path-free, and
+  main-owned.
 - `maintain_story_records` applies a bounded changeset of 1 to 24 independent
   additive or linking Personae, Chronicle, or Threads operations without
   per-step approval. It requires the

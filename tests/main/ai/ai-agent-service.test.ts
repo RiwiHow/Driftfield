@@ -229,7 +229,7 @@ describe('AiAgentService', () => {
       input: '{}',
       requestId: child.requestId,
       toolCallId: 'tool-child-read',
-      toolName: 'get_novel_structure',
+      toolName: 'read_novel_context',
       type: 'tool-started',
     });
     workers[0].emit('message', {
@@ -237,7 +237,7 @@ describe('AiAgentService', () => {
       output: '{"ok":true}',
       requestId: child.requestId,
       toolCallId: 'tool-child-read',
-      toolName: 'get_novel_structure',
+      toolName: 'read_novel_context',
       type: 'tool-completed',
     });
     workers[0].emit('message', {
@@ -255,10 +255,7 @@ describe('AiAgentService', () => {
 
     expect(workers[0].messages).toContainEqual(expect.objectContaining({
       enabledTools: [
-        'get_novel_structure',
-        'get_current_document',
-        'get_document',
-        'get_story_state',
+        'read_novel_context',
       ],
       role: 'scribe',
       type: 'start',
@@ -341,7 +338,7 @@ describe('AiAgentService', () => {
       input: '{}',
       requestId: 'request-1',
       toolCallId: 'tool-1',
-      toolName: 'get_current_document',
+      toolName: 'read_novel_context',
       type: 'tool-started',
     });
     workers[0].emit('message', {
@@ -349,7 +346,7 @@ describe('AiAgentService', () => {
       output: '{"ok":true}',
       requestId: 'request-1',
       toolCallId: 'tool-1',
-      toolName: 'get_current_document',
+      toolName: 'read_novel_context',
       type: 'tool-completed',
     });
     workers[0].emit('message', {

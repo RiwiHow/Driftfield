@@ -1,11 +1,54 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  isAgentToolAuditName,
   isAgentToolExecutionResult,
+  isAgentToolName,
   isAgentToolRequest,
 } from '../../../src/shared/contracts/agent-tools';
 
 describe('Agent proposal tool contract', () => {
+  it('keeps former read names only for historical conversation audit', () => {
+    expect(isAgentToolName('get_novel_structure')).toBe(false);
+    expect(isAgentToolAuditName('get_novel_structure')).toBe(true);
+    expect(isAgentToolName('read_novel_context')).toBe(true);
+  });
+
+  it('validates bounded batched novel-context reads', () => {
+    expect(isAgentToolRequest({
+      arguments: {
+        documentIds: ['chapter-1', 'lore-1'],
+        include: ['structure', 'story_state'],
+      },
+      toolName: 'read_novel_context',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: { documentIds: [], include: [] },
+      toolName: 'read_novel_context',
+    })).toBe(false);
+    expect(isAgentToolRequest({
+      arguments: {
+        documentIds: ['chapter-1', 'chapter-1'],
+        include: ['structure'],
+      },
+      toolName: 'read_novel_context',
+    })).toBe(false);
+    expect(isAgentToolExecutionResult({
+      data: {
+        documents: [{
+          baseRevision: 'a'.repeat(64),
+          contentRevision: 'b'.repeat(64),
+          documentId: 'chapter-1',
+          markdown: '# Chapter',
+          source: 'disk',
+          title: 'Chapter One',
+        }],
+      },
+      ok: true,
+      toolName: 'read_novel_context',
+    })).toBe(true);
+  });
+
   it('validates bounded Curator-to-Scribe assignments and artifacts', () => {
     expect(isAgentToolRequest({
       arguments: {

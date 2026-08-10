@@ -4,15 +4,19 @@ Agents receive novel data only through bounded, application-owned domain tools.
 Main-process services and repositories remain authoritative for files, metadata,
 future databases, permissions, and persistence.
 
-## Current read-only tools
+## Current read-only tool
 
-The initial Agent data surface contains only:
-
-- `get_novel_structure`
-- `get_current_document`
-- `get_document`
-- `get_story_state`, which returns the bounded, path-free Personae, Chronicle,
-  and Threads snapshot with its numeric story revision.
+The Agent data surface contains one bounded `read_novel_context` tool. One call
+may request any combination of the fixed `structure`, `current_document`, and
+`story_state` sections plus up to four persisted documents by stable ID. Main
+validates every requested section and document independently, preserves the
+requested document order, and returns only path-free application-owned data.
+The current-document section is the immutable request-start editor draft,
+including unsaved edits; explicit document IDs deliberately read persisted
+content. The story-state section contains Personae, Chronicle, Threads, open
+questions, and the numeric story revision. Empty and duplicate requests are
+rejected. Agents batch already-known requirements but use a later call when an
+earlier structure result is needed to discover stable IDs.
 
 The bounded direct-maintenance surface contains:
 
@@ -69,7 +73,7 @@ The reviewed mutation surface additionally contains:
 - `propose_project_structure_operation`, which proposes creating a manuscript
   volume, creating an icon-bearing lore category, deleting an empty lore
   category, or moving a document between compatible stable directory IDs.
-  `get_novel_structure` returns both each directory's selected icon and the
+  `read_novel_context.structure` returns both each directory's selected icon and the
   complete fixed icon allow-list. Category creation accepts only an icon from
   that list. Category deletion is rejected until every contained document has
   been separately reviewed and deleted. Moves bind to both the project revision
@@ -117,7 +121,7 @@ relationships, contradictions, and other author judgments become open story
 questions and never enter canonical records; destructive or high-impact story
 mutations remain unavailable until a dedicated reviewed operation exists. The
 Agent raises newly recorded questions concisely in its response and avoids
-duplicating questions already returned by `get_story_state`.
+duplicating questions already returned by `read_novel_context.storyState`.
 
 Before finishing reconciliation, Curator explicitly checks Personae, Chronicle,
 Threads, and open questions in turn. Thread reconciliation first tests whether
@@ -144,7 +148,7 @@ Results do not expose physical project paths or raw YAML.
 Maintain execution, proposal construction, and validation remain time-bounded,
 while the subsequent human review wait is intentionally excluded from the
 ordinary tool timeout.
-`get_novel_structure` exposes the optional knowledge root as `lore` with
+`read_novel_context.structure` exposes the optional knowledge root as `lore` with
 directory kind `lore`, matching the project format and application domain. Its
 path-free result includes directory icons and the fixed `availableIcons` list;
 it never exposes YAML or physical metadata paths.
@@ -165,8 +169,8 @@ enabled Pi tool-name list from the actual `defineTool()` collection instead of
 maintaining separate prompt and session arrays.
 
 Agent requests capture a size-bounded immutable editor draft with its stable
-document ID and disk base revision. `get_current_document` returns that snapshot,
-including unsaved edits. `get_document` deliberately reads persisted content.
+document ID and disk base revision. The `current_document` section returns that
+snapshot, while `documentIds` deliberately read persisted content.
 
 Prefer future domain operations such as chapter summaries, context search,
 characters, timelines, and outlines over generic database, filesystem, shell, or

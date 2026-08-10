@@ -1,6 +1,7 @@
 import { Type } from 'typebox';
 
 import type { AgentToolContractMap } from '../../shared/contracts/agent-tools';
+import { AGENT_NOVEL_CONTEXT_SECTIONS } from '../../shared/contracts/agent-tools';
 import { PROJECT_ICON_IDS } from '../../shared/contracts/project-layout';
 
 const stringEnum = <Values extends readonly string[]>(
@@ -14,6 +15,34 @@ const stringEnum = <Values extends readonly string[]>(
       ? {}
       : { description: options.description }),
   });
+
+export const NOVEL_CONTEXT_PARAMETERS = Type.Object(
+  {
+    documentIds: Type.Array(
+      Type.String({ maxLength: 128, minLength: 1 }),
+      {
+        description:
+          'Stable IDs of persisted manuscript or lore documents to read. Use an empty array when none are needed.',
+        maxItems: 4,
+        uniqueItems: true,
+      },
+    ),
+    include: Type.Array(
+      stringEnum(AGENT_NOVEL_CONTEXT_SECTIONS),
+      {
+        description:
+          'Additional context sections to read. current_document is the immutable request-start editor draft, including unsaved edits.',
+        maxItems: AGENT_NOVEL_CONTEXT_SECTIONS.length,
+        uniqueItems: true,
+      },
+    ),
+  },
+  {
+    additionalProperties: false,
+    description:
+      'Request at least one include section or document ID. Results remain path-free and bounded.',
+  },
+);
 
 export const WRITING_ASSIGNMENT_PARAMETERS = Type.Object(
   {
@@ -39,13 +68,13 @@ export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
   {
     baseRevision: Type.Optional(
       Type.String({
-        description: 'Required for delete: persisted revision returned by get_document.',
+        description: 'Required for delete: persisted revision returned by read_novel_context.',
         pattern: '^[a-f0-9]{64}$',
       }),
     ),
     documentId: Type.Optional(
       Type.String({
-        description: 'Required for delete: stable document ID from get_novel_structure.',
+        description: 'Required for delete: stable document ID from read_novel_context.structure.',
         maxLength: 128,
         minLength: 1,
       }),
@@ -72,13 +101,13 @@ export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
     operation: stringEnum(['create', 'delete'] as const),
     parentId: Type.Optional(
       Type.String({
-        description: 'Required for create: stable parent directory ID from get_novel_structure.',
+        description: 'Required for create: stable parent directory ID from read_novel_context.structure.',
         maxLength: 128,
         minLength: 1,
       }),
     ),
     projectRevision: Type.String({
-      description: 'Current project revision returned by get_novel_structure.',
+      description: 'Current project revision returned by read_novel_context.structure.',
       pattern: '^[a-f0-9]{64}$',
     }),
     title: Type.Optional(
@@ -96,7 +125,7 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
   {
     baseRevision: Type.Optional(
       Type.String({
-        description: 'Required for move_document: persisted revision returned by get_document.',
+        description: 'Required for move_document: persisted revision returned by read_novel_context.',
         pattern: '^[a-f0-9]{64}$',
       }),
     ),
@@ -128,7 +157,7 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
       ] as const,
     ),
     projectRevision: Type.String({
-      description: 'Current project revision returned by get_novel_structure.',
+      description: 'Current project revision returned by read_novel_context.structure.',
       pattern: '^[a-f0-9]{64}$',
     }),
     targetParentId: Type.Optional(

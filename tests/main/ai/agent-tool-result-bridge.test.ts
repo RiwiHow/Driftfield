@@ -12,8 +12,8 @@ describe('AgentToolResultBridge', () => {
     const result = bridge.request(
       'request-1',
       'tool-1',
-      'get_current_document',
-      {},
+      'read_novel_context',
+      { documentIds: [], include: ['current_document'] },
     );
     const rejection = expect(result).rejects.toThrow(
       'Agent tool timed out',
@@ -22,8 +22,8 @@ describe('AgentToolResultBridge', () => {
     expect(sendRequest).toHaveBeenCalledWith({
       requestId: 'request-1',
       toolCallId: 'tool-1',
-      toolName: 'get_current_document',
-      arguments: {},
+      toolName: 'read_novel_context',
+      arguments: { documentIds: [], include: ['current_document'] },
     });
     await vi.advanceTimersByTimeAsync(30_000);
     await rejection;
@@ -31,7 +31,7 @@ describe('AgentToolResultBridge', () => {
       bridge.resolve('request-1', 'tool-1', {
         error: { code: 'internal-error' },
         ok: false,
-        toolName: 'get_current_document',
+        toolName: 'read_novel_context',
       }),
     ).toBe(false);
   });
@@ -41,8 +41,8 @@ describe('AgentToolResultBridge', () => {
     const result = bridge.request(
       'request-1',
       'tool-1',
-      'get_current_document',
-      {},
+      'read_novel_context',
+      { documentIds: [], include: ['current_document'] },
     );
 
     bridge.rejectRequest('request-1');
@@ -85,15 +85,15 @@ describe('AgentToolResultBridge', () => {
     const result = bridge.request(
       'request-1',
       'tool-1',
-      'get_current_document',
-      {},
+      'read_novel_context',
+      { documentIds: [], include: ['current_document'] },
     );
 
     expect(
       bridge.resolve('request-1', 'tool-1', {
         error: { code: 'document-not-found' },
         ok: false,
-        toolName: 'get_document',
+        toolName: 'maintain_story_records',
       }),
     ).toBe(false);
     await expect(result).rejects.toThrow('identity mismatch');

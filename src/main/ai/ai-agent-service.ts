@@ -28,10 +28,7 @@ const WORKER_START_TIMEOUT_MS = 15_000;
 const WRITING_TASK_TIMEOUT_MS = 5 * 60_000;
 const MAX_WRITING_ARTIFACT_BYTES = 512 * 1024;
 const SCRIBE_READ_TOOLS = [
-  'get_novel_structure',
-  'get_current_document',
-  'get_document',
-  'get_story_state',
+  'read_novel_context',
 ] as const satisfies readonly AgentToolName[];
 
 interface ActiveAgentRequest {

@@ -18,6 +18,47 @@ const documentResult = {
 const scope = { ownerId: 7, projectSessionId: 'session-1', requestId: 'request-1' };
 
 describe('AgentToolDispatcher', () => {
+  it('reads selected novel context and persisted documents in one bounded call', async () => {
+    const structure = { format: 'driftfield', project: { id: 'project-1' } };
+    const currentDocument = { ...documentResult, source: 'draft' as const };
+    const storyState = { revision: 4 };
+    const context = {
+      getCurrentDocument: vi.fn().mockResolvedValue(currentDocument),
+      getDocument: vi.fn().mockImplementation(async (_scope, documentId) => ({
+        ...documentResult,
+        documentId,
+      })),
+      getNovelStructure: vi.fn().mockResolvedValue(structure),
+      getStoryState: vi.fn().mockResolvedValue(storyState),
+    } as unknown as ProjectContextService;
+    const dispatcher = new AgentToolDispatcher(context);
+
+    await expect(dispatcher.execute(scope, {
+      arguments: {
+        documentIds: ['chapter-1', 'lore-1'],
+        include: ['structure', 'current_document', 'story_state'],
+      },
+      toolName: 'read_novel_context',
+    })).resolves.toEqual({
+      data: {
+        currentDocument,
+        documents: [
+          documentResult,
+          { ...documentResult, documentId: 'lore-1' },
+        ],
+        storyState,
+        structure,
+      },
+      ok: true,
+      toolName: 'read_novel_context',
+    });
+    expect(context.getDocument).toHaveBeenCalledTimes(2);
+    expect(context.getNovelStructure).toHaveBeenCalledWith({
+      ownerId: 7,
+      projectSessionId: 'session-1',
+    });
+  });
+
   it('routes a bounded writing assignment through the Main-owned task callback', async () => {
     const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
     const delegateWriting = vi.fn(async () => ({
@@ -164,9 +205,12 @@ describe('AgentToolDispatcher', () => {
     const dispatcher = new AgentToolDispatcher(context, undefined, proposals);
 
     await expect(dispatcher.execute(scope, {
-      arguments: {},
-      toolName: 'get_story_state',
-    })).resolves.toMatchObject({ data: story, ok: true });
+      arguments: { documentIds: [], include: ['story_state'] },
+      toolName: 'read_novel_context',
+    })).resolves.toMatchObject({
+      data: { documents: [], storyState: story },
+      ok: true,
+    });
     await expect(dispatcher.execute({ ...scope, sendProposal }, {
       arguments: { change, storyRevision: 0 },
       toolName: 'propose_story_operation',
@@ -406,20 +450,20 @@ describe('AgentToolDispatcher', () => {
     });
 
     await expect(dispatcher.execute(scope, {
-      arguments: { path: '/tmp/book.md' },
-      toolName: 'get_document',
+      arguments: { documentIds: [], include: [], path: '/tmp/book.md' },
+      toolName: 'read_novel_context',
     })).resolves.toEqual({
       error: { code: 'invalid-arguments' },
       ok: false,
-      toolName: 'get_document',
+      toolName: 'read_novel_context',
     });
     await expect(dispatcher.execute(scope, {
-      arguments: { documentId: 'chapter-1' },
-      toolName: 'get_document',
+      arguments: { documentIds: ['chapter-1'], include: [] },
+      toolName: 'read_novel_context',
     })).resolves.toEqual({
       error: { code: 'tool-budget-exceeded' },
       ok: false,
-      toolName: 'get_document',
+      toolName: 'read_novel_context',
     });
     expect(context.getDocument).not.toHaveBeenCalled();
   });
@@ -436,8 +480,8 @@ describe('AgentToolDispatcher', () => {
       timeoutMs: 25,
     });
     const result = dispatcher.execute(scope, {
-      arguments: { documentId: 'chapter-1' },
-      toolName: 'get_document',
+      arguments: { documentIds: ['chapter-1'], include: [] },
+      toolName: 'read_novel_context',
     });
 
     await vi.advanceTimersByTimeAsync(25);
@@ -445,7 +489,7 @@ describe('AgentToolDispatcher', () => {
     await expect(result).resolves.toEqual({
       error: { code: 'tool-timeout' },
       ok: false,
-      toolName: 'get_document',
+      toolName: 'read_novel_context',
     });
   });
 
@@ -460,24 +504,24 @@ describe('AgentToolDispatcher', () => {
       timeoutMs: 1_000,
     });
     const first = await dispatcher.execute(scope, {
-      arguments: { documentId: 'chapter-1' },
-      toolName: 'get_document',
+      arguments: { documentIds: ['chapter-1'], include: [] },
+      toolName: 'read_novel_context',
     });
     const second = await dispatcher.execute(scope, {
-      arguments: { documentId: 'chapter-1' },
-      toolName: 'get_document',
+      arguments: { documentIds: ['chapter-1'], include: [] },
+      toolName: 'read_novel_context',
     });
 
     expect(first.ok).toBe(true);
     expect(second).toEqual({
       error: { code: 'tool-budget-exceeded' },
       ok: false,
-      toolName: 'get_document',
+      toolName: 'read_novel_context',
     });
     dispatcher.release(scope.requestId);
     await expect(dispatcher.execute(scope, {
-      arguments: { documentId: 'chapter-1' },
-      toolName: 'get_document',
+      arguments: { documentIds: ['chapter-1'], include: [] },
+      toolName: 'read_novel_context',
     })).resolves.toMatchObject({ ok: true });
   });
 
