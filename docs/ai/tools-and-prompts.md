@@ -71,6 +71,13 @@ name, description, and parameter schema. Native model Tool Calling communicates
 those definitions to the model. Do not copy individual tool descriptions into
 the system prompt.
 
+Keep model-facing parameter schemas portable across supported providers. Use a
+top-level object schema and plain `{ type: 'string', enum: [...] }` schemas for
+string enums; do not use root `Type.Union` or `Type.Literal` unions for
+operation variants. Express provider-sensitive conditional requirements
+through descriptions and enforce the exact discriminated shape again in
+Driftfield's shared runtime validator.
+
 System prompts live under `src/main/ai/prompts/` as versioned,
 application-owned role profiles. The prompt registry composes:
 

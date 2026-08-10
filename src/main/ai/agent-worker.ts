@@ -21,6 +21,7 @@ import {
 } from "../../shared/contracts/agent-worker";
 import { buildAgentSystemPrompt } from "./prompts/prompt-builder";
 import { AgentToolResultBridge } from "./agent-tool-result-bridge";
+import { DOCUMENT_FILE_OPERATION_PARAMETERS } from "./agent-tool-parameters";
 import { didAssistantResponseFail } from './agent-response-status';
 import {
   isAgentToolName,
@@ -332,42 +333,14 @@ function createNovelTools(requestId: string) {
         "Submit a reviewable proposal to create a Markdown document under a stable directory ID or delete a document by stable ID. Read get_novel_structure first and use its current project revision. Creating chooses a document kind and complete Markdown. Before deleting, call get_document for the target and provide its persisted baseRevision. This never changes files until the user explicitly accepts it in Driftfield.",
       label: "Propose document creation or deletion",
       name: "propose_document_file_operation",
-      parameters: Type.Union([
-        Type.Object(
-          {
-            kind: Type.Union([
-              Type.Literal("chapter"),
-              Type.Literal("prologue"),
-              Type.Literal("interlude"),
-              Type.Literal("epilogue"),
-              Type.Literal("appendix"),
-              Type.Literal("entry"),
-            ]),
-            markdown: Type.String({ maxLength: 512 * 1024 }),
-            operation: Type.Literal("create"),
-            parentId: Type.String({ maxLength: 128, minLength: 1 }),
-            projectRevision: Type.String({ pattern: "^[a-f0-9]{64}$" }),
-            title: Type.String({ maxLength: 500, minLength: 1 }),
-          },
-          { additionalProperties: false },
-        ),
-        Type.Object(
-          {
-            baseRevision: Type.String({ pattern: "^[a-f0-9]{64}$" }),
-            documentId: Type.String({ maxLength: 128, minLength: 1 }),
-            operation: Type.Literal("delete"),
-            projectRevision: Type.String({ pattern: "^[a-f0-9]{64}$" }),
-          },
-          { additionalProperties: false },
-        ),
-      ]),
+      parameters: DOCUMENT_FILE_OPERATION_PARAMETERS,
       execute: async (toolCallId, params) =>
         textToolResult(
           await requestTool(
             requestId,
             toolCallId,
             "propose_document_file_operation",
-            params,
+            params as AgentToolContractMap["propose_document_file_operation"]["arguments"],
           ),
         ),
     }),
