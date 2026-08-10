@@ -14,12 +14,19 @@ import {
   DRIFTFIELD_PROJECT_FORMAT_VERSION,
   PROJECT_INDEX_NAME,
   PROJECT_ROOT_DIRECTORIES,
+  type LoreCategoryIndex,
   type LoreIndex,
   type ManuscriptIndex,
 } from '../../../shared/contracts/project-layout';
 import { ConversationDatabase } from '../../database/conversation-database';
 import { ProjectDatabase } from '../../database/project-database';
 import { SettingsDatabase } from '../../database/settings-database';
+
+const INITIAL_LORE_CATEGORIES = [
+  { directory: 'Personae', icon: 'users', title: 'Personae' },
+  { directory: 'Locations', icon: 'map', title: 'Locations' },
+  { directory: 'World', icon: 'earth', title: 'World' },
+] as const;
 
 export const initializeProjectLayoutFiles = async (
   directoryPath: string,
@@ -49,15 +56,34 @@ export const initializeProjectLayoutFiles = async (
     title: 'Manuscript',
   };
   const lore: LoreIndex = {
-    children: [],
+    children: INITIAL_LORE_CATEGORIES.map(({ directory }) => ({
+      directory,
+      kind: 'category',
+    })),
     id: randomUUID(),
     kind: 'lore',
     title: 'Lore',
   };
+  const loreCategories: Array<{
+    directory: string;
+    index: LoreCategoryIndex;
+  }> = INITIAL_LORE_CATEGORIES.map(({ directory, icon, title }) => ({
+    directory,
+    index: {
+      children: [],
+      icon,
+      id: randomUUID(),
+      kind: 'category',
+      title,
+    },
+  }));
 
   await Promise.all([
     mkdir(manuscriptPath, { recursive: true }),
     mkdir(lorePath, { recursive: true }),
+    ...loreCategories.map(({ directory }) =>
+      mkdir(path.join(lorePath, directory), { recursive: true }),
+    ),
   ]);
   try {
     await Promise.all([
@@ -70,6 +96,13 @@ export const initializeProjectLayoutFiles = async (
         encoding: 'utf8',
         mode: 0o600,
       }),
+      ...loreCategories.map(({ directory, index }) =>
+        writeFile(
+          path.join(lorePath, directory, PROJECT_INDEX_NAME),
+          stringify(index),
+          { encoding: 'utf8', mode: 0o600 },
+        ),
+      ),
     ]);
     const database = new ProjectDatabase(stagingPath);
     try {

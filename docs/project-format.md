@@ -13,7 +13,13 @@ novel/
 ├── manuscript/
 │   └── _index.yaml
 └── lore/
-    └── _index.yaml
+    ├── _index.yaml
+    ├── Personae/
+    │   └── _index.yaml
+    ├── Locations/
+    │   └── _index.yaml
+    └── World/
+        └── _index.yaml
 ```
 
 Selecting an empty folder initializes all of these entries. A missing
@@ -37,6 +43,11 @@ Threads is plot structure, and Personae is the character registry. Manuscript
 and Lore are the two document roots shown above. Chronicle, Threads, and
 Personae are structured domains owned by `project.sqlite`; they are not sibling
 filesystem roots.
+
+New projects seed the Lore root with the ordered `Personae`, `Locations`, and
+`World` categories. These are ordinary Lore document categories, not additional
+database-backed domain roots. Existing projects are not silently migrated when
+opened.
 
 ## Physical names and metadata ownership
 

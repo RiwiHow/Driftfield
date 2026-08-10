@@ -38,7 +38,7 @@ afterEach(async () => {
 });
 
 describe('Driftfield project layout', () => {
-  it('initializes an empty folder with manuscript and lore roots', async () => {
+  it('initializes an empty folder with manuscript and default lore categories', async () => {
     const directory = await createTemporaryDirectory();
 
     const layout = await openProjectLayout(directory);
@@ -55,8 +55,13 @@ describe('Driftfield project layout', () => {
     expect(await readdir(path.join(directory, 'manuscript'))).toContain(
       PROJECT_INDEX_NAME,
     );
-    expect(await readdir(path.join(directory, 'lore'))).toContain(
-      PROJECT_INDEX_NAME,
+    expect(await readdir(path.join(directory, 'lore'))).toEqual(
+      expect.arrayContaining([
+        PROJECT_INDEX_NAME,
+        'Locations',
+        'Personae',
+        'World',
+      ]),
     );
     expect(await readdir(path.join(directory, '.driftfield'))).toEqual(
       expect.arrayContaining([
@@ -66,10 +71,23 @@ describe('Driftfield project layout', () => {
       ]),
     );
     expect(layout?.lore?.index).toMatchObject({
-      children: [],
+      children: [
+        { directory: 'Personae', kind: 'category' },
+        { directory: 'Locations', kind: 'category' },
+        { directory: 'World', kind: 'category' },
+      ],
       kind: 'lore',
       title: 'Lore',
     });
+    expect(layout?.lore?.categories.map(({ directory, index }) => ({
+      directory,
+      icon: index.icon,
+      title: index.title,
+    }))).toEqual([
+      { directory: 'Personae', icon: 'users', title: 'Personae' },
+      { directory: 'Locations', icon: 'map', title: 'Locations' },
+      { directory: 'World', icon: 'earth', title: 'World' },
+    ]);
   });
 
   it('rejects a nonempty folder without the project database', async () => {
