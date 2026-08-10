@@ -66,6 +66,7 @@ export const useAppSettings = (
     isSavingSettings,
     resolvedTheme,
     settings,
+    replaceSettings: setSettings,
     settingsError:
       settingsErrorCode === null
         ? null

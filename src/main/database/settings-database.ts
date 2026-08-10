@@ -1,6 +1,6 @@
 import { ProjectSqliteDatabase } from './project-sqlite-database';
 
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 
 export class SettingsDatabase extends ProjectSqliteDatabase {
   constructor(projectDirectory: string) {
@@ -21,31 +21,46 @@ export class SettingsDatabase extends ProjectSqliteDatabase {
     if (row.version > DATABASE_VERSION) {
       throw new Error('Settings database was created by a newer Driftfield version');
     }
-    if (row.version !== 0) return;
-    this.transaction(() => {
-      this.connection.exec(`
-        CREATE TABLE agent_settings (
-          singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
-          provider_id TEXT CHECK(provider_id IS NULL OR length(provider_id) BETWEEN 1 AND 255),
-          model_id TEXT CHECK(model_id IS NULL OR length(model_id) BETWEEN 1 AND 255),
-          thinking_level TEXT NOT NULL CHECK(thinking_level IN (
-            'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'
-          )),
-          CHECK((provider_id IS NULL) = (model_id IS NULL))
-        ) STRICT;
-        INSERT INTO agent_settings(singleton, provider_id, model_id, thinking_level)
-        VALUES (1, NULL, NULL, 'medium');
-        CREATE TABLE agent_model_overrides (
-          provider_id TEXT NOT NULL CHECK(length(provider_id) BETWEEN 1 AND 255),
-          model_id TEXT NOT NULL CHECK(length(model_id) BETWEEN 1 AND 255),
-          override_json TEXT NOT NULL CHECK(length(override_json) <= 65536),
-          updated_at TEXT NOT NULL,
-          PRIMARY KEY(provider_id, model_id)
-        ) STRICT;
-        INSERT INTO schema_migrations(version, applied_at)
-        VALUES (1, datetime('now'));
-      `);
-    });
+    if (row.version === 0) {
+      this.transaction(() => {
+        this.connection.exec(`
+          CREATE TABLE agent_settings (
+            singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+            provider_id TEXT CHECK(provider_id IS NULL OR length(provider_id) BETWEEN 1 AND 255),
+            model_id TEXT CHECK(model_id IS NULL OR length(model_id) BETWEEN 1 AND 255),
+            thinking_level TEXT NOT NULL CHECK(thinking_level IN (
+              'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'
+            )),
+            use_global INTEGER NOT NULL CHECK(use_global IN (0, 1)),
+            CHECK((provider_id IS NULL) = (model_id IS NULL))
+          ) STRICT;
+          INSERT INTO agent_settings(singleton, provider_id, model_id, thinking_level, use_global)
+          VALUES (1, NULL, NULL, 'medium', 1);
+          CREATE TABLE agent_model_overrides (
+            provider_id TEXT NOT NULL CHECK(length(provider_id) BETWEEN 1 AND 255),
+            model_id TEXT NOT NULL CHECK(length(model_id) BETWEEN 1 AND 255),
+            override_json TEXT NOT NULL CHECK(length(override_json) <= 65536),
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY(provider_id, model_id)
+          ) STRICT;
+          INSERT INTO schema_migrations(version, applied_at)
+          VALUES (2, datetime('now'));
+        `);
+      });
+      return;
+    }
+    if (row.version === 1) {
+      this.transaction(() => {
+        this.connection.exec(`
+          ALTER TABLE agent_settings ADD COLUMN use_global INTEGER NOT NULL
+            DEFAULT 0 CHECK(use_global IN (0, 1));
+          UPDATE agent_settings SET use_global = 1
+          WHERE provider_id IS NULL AND model_id IS NULL;
+          INSERT INTO schema_migrations(version, applied_at)
+          VALUES (2, datetime('now'));
+        `);
+      });
+    }
   }
 
 }

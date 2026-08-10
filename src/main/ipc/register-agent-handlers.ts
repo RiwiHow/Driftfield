@@ -1,6 +1,7 @@
 import { ipcMain } from "electron";
 
 import { IPC_CHANNELS } from "../../shared/contracts/ipc-channels";
+import { DEFAULT_APP_SETTINGS, resolveProjectAgentSettings } from "../../shared/contracts/settings";
 import { getAgentStartConfigurationError } from "../ai/agent-start-policy";
 import { getAgentConfiguration } from "../ai/get-agent-configuration";
 import type { IpcHandlerContext } from "./ipc-handler-context";
@@ -28,6 +29,7 @@ export const registerAgentIpcHandlers = ({
   getTrustedSenderWindow,
   projectSessions,
   projectSettingsService,
+  settingsService,
 }: IpcHandlerContext): void => {
   const getProjectSession = (event: Electron.IpcMainInvokeEvent) => {
     const window = getTrustedSenderWindow(event);
@@ -150,7 +152,11 @@ export const registerAgentIpcHandlers = ({
     await agentCredentialService.reset();
     await agentModelConfigService.reset(session);
     const projectSettings = projectSettingsService.reset(session);
+    const appSettings = await settingsService.update({
+      agent: DEFAULT_APP_SETTINGS.agent,
+    });
     return {
+      appSettings,
       configuration: await getAgentConfiguration(
         aiAgentService,
         agentCredentialService,
@@ -177,7 +183,10 @@ export const registerAgentIpcHandlers = ({
       ) {
         throw new Error("Unknown Agent model override target");
       }
-      const agentSettings = projectSettingsService.get(session);
+      const agentSettings = resolveProjectAgentSettings(
+        projectSettingsService.get(session),
+        settingsService.get().agent,
+      );
       if (
         agentSettings.defaultModel?.providerId === override.providerId &&
         agentSettings.defaultModel.modelId === override.modelId &&
@@ -226,7 +235,10 @@ export const registerAgentIpcHandlers = ({
         throw new Error("Stale Agent document snapshot");
       }
       if (session === undefined) throw new Error('No project is open');
-      const agentSettings = projectSettingsService.get(session);
+      const agentSettings = resolveProjectAgentSettings(
+        projectSettingsService.get(session),
+        settingsService.get().agent,
+      );
       const selectedModel = agentSettings.defaultModel;
       const configurationError = getAgentStartConfigurationError(
         agentSettings,

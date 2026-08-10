@@ -141,6 +141,31 @@ describe("IPC handler composition", () => {
     );
   });
 
+  it('uses global Agent settings when the project inherits them', async () => {
+    const context = createContext();
+    vi.mocked(context.projectSettingsService.get).mockReturnValue({
+      defaultModel: null,
+      thinkingLevel: 'off',
+      useGlobal: true,
+    });
+    registerIpcHandlers(context);
+    const start = handlers.get(IPC_CHANNELS.startAgentPrompt);
+    if (start === undefined) throw new Error('Agent start handler was not registered');
+
+    await expect(start({}, {
+      conversationId: 'conversation-1',
+      prompt: 'Continue',
+      requestId: 'request-global',
+      userMessageId: 'user-global',
+    })).resolves.toMatchObject({ status: 'started' });
+    expect(context.aiAgentService.start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: { modelId: 'model-1', providerId: 'anthropic' },
+        thinkingLevel: 'medium',
+      }),
+    );
+  });
+
   it('resets credentials and the current project model state', async () => {
     const context = createContext();
     registerIpcHandlers(context);
@@ -148,7 +173,7 @@ describe("IPC handler composition", () => {
     if (reset === undefined) throw new Error('Agent reset handler was not registered');
 
     await expect(reset({})).resolves.toMatchObject({
-      projectSettings: { defaultModel: null, thinkingLevel: 'medium' },
+      projectSettings: { defaultModel: null, thinkingLevel: 'medium', useGlobal: true },
     });
     expect(context.aiAgentService.reloadConfiguration).toHaveBeenCalledOnce();
     expect(context.agentCredentialService.reset).toHaveBeenCalledOnce();
@@ -252,8 +277,9 @@ const createContext = (): IpcHandlerContext => {
       get: vi.fn(() => ({
         defaultModel: { modelId: 'model-1', providerId: 'anthropic' },
         thinkingLevel: 'medium',
+        useGlobal: false,
       })),
-      reset: vi.fn(() => ({ defaultModel: null, thinkingLevel: 'medium' })),
+      reset: vi.fn(() => ({ defaultModel: null, thinkingLevel: 'medium', useGlobal: true })),
       update: vi.fn((_session, settings) => settings),
     },
     projectStoryService: {
@@ -266,6 +292,9 @@ const createContext = (): IpcHandlerContext => {
           defaultModel: { modelId: "model-1", providerId: "anthropic" },
           thinkingLevel: "medium",
         },
+      })),
+      update: vi.fn(async () => ({
+        agent: { defaultModel: null, thinkingLevel: 'medium' },
       })),
     },
   } as unknown as IpcHandlerContext;

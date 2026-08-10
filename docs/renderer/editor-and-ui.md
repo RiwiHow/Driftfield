@@ -121,21 +121,25 @@ returns to the bottom or sends a new prompt.
 
 ## Model settings
 
-Project model selection uses two controls: first a configured provider, then a
-model filtered to that provider. Do not combine provider and model identity into
-one long option label. Changing providers clears the current project model
-before a replacement is selected, so reasoning and advanced override controls
-cannot silently target the previous provider.
+Global and project model selection each use two controls: first a configured
+provider, then a model filtered to that provider. Do not combine provider and
+model identity into one long option label. New projects inherit the global model
+and thinking level by default; an explicit project override switches them to
+project-owned values. Changing providers clears the selected model before a
+replacement is selected, so reasoning and advanced override controls cannot
+silently target the previous provider.
 
-Project model selection and thinking level save immediately. Pi model overrides,
+Global defaults, project inheritance/selection, and thinking level save
+immediately. Pi model overrides,
 including OpenRouter routing, remain an explicit-save form. The settings footer
 must report unsaved advanced changes and save failures instead of describing the
 whole model page as automatically saved.
 
 Settings UI ownership is organized under `features/settings/` by responsibility:
 `dialog/` composes the category navigation and panels, `interface/` owns global
-appearance and behavior controls, `models/` owns credentials and project model
-selection, and `model-overrides/` owns the explicit-save override form. Keep
+appearance and behavior controls, `models/` owns credentials plus global and
+project model selection, and `model-overrides/` owns the explicit-save override
+form. Keep
 provider routing, thinking-map, compatibility, and header sections isolated under
 `model-overrides/sections/`, with reusable fields and pure form transitions kept
 separate from those views. New model capabilities should extend the focused owner

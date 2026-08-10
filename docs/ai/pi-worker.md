@@ -58,8 +58,9 @@ database independently from Pi session formats so the SDK can be upgraded or
 replaced. Each request receives a bounded Driftfield-owned active-branch
 transcript; Pi sessions remain temporary runtime objects.
 
-Driftfield stores Pi model overrides in the active project's
-`.driftfield/settings.sqlite` database.
+Driftfield stores global model defaults in application settings and project
+inheritance/selection in `.driftfield/settings.sqlite`. Pi model overrides also
+remain in the active project's settings database.
 Renderer UI edits typed model-level settings; main validates them and generates
 a project-keyed `models.json` runtime cache under application data, then
 restarts the idle worker and reloads the effective catalogue. The exposed subset includes OpenRouter routing,

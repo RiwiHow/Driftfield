@@ -99,6 +99,7 @@ export interface AgentConfiguration {
 }
 
 export interface ResetAgentSettingsResult {
+  appSettings: import('./settings').AppSettings;
   configuration: AgentConfiguration;
   projectSettings: import('./settings').ProjectAgentSettings;
 }

@@ -3,11 +3,16 @@ import { useTranslation } from 'react-i18next';
 
 import {
   DEFAULT_PROJECT_AGENT_SETTINGS,
+  resolveProjectAgentSettings,
+  type AgentSettings,
   type ProjectAgentSettings,
   type UpdateProjectAgentSettingsRequest,
 } from '../../../shared/contracts/settings';
 
-export const useProjectAgentSettings = (projectId: string | null) => {
+export const useProjectAgentSettings = (
+  projectId: string | null,
+  globalSettings: AgentSettings,
+) => {
   const { t } = useTranslation('errors');
   const [settings, setSettings] = useState<ProjectAgentSettings | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -54,7 +59,10 @@ export const useProjectAgentSettings = (projectId: string | null) => {
   );
 
   return {
-    effectiveSettings: settings ?? DEFAULT_PROJECT_AGENT_SETTINGS,
+    effectiveSettings: resolveProjectAgentSettings(
+      settings ?? DEFAULT_PROJECT_AGENT_SETTINGS,
+      globalSettings,
+    ),
     error:
       errorCode === null ? null : t(`settings.${errorCode}`),
     isSaving,

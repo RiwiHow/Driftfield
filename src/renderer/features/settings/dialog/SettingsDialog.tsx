@@ -18,6 +18,7 @@ import type {
   AgentSettings,
   AppSettings,
   AppTheme,
+  ProjectAgentSettings,
   UpdateAppSettingsRequest,
   UpdateProjectAgentSettingsRequest,
 } from "../../../../shared/contracts/settings";
@@ -30,6 +31,7 @@ import {
 
 interface SettingsDialogProps {
   agentConfiguration: AgentConfiguration;
+  globalAgentSettings: AgentSettings;
   error: string | null;
   isSaving: boolean;
   onOpenChange: (open: boolean) => void;
@@ -45,13 +47,14 @@ interface SettingsDialogProps {
     override: AgentModelOverride,
   ) => Promise<boolean>;
   open: boolean;
-  projectAgentSettings: AgentSettings | null;
+  projectAgentSettings: ProjectAgentSettings | null;
   resolvedTheme: AppTheme;
   settings: AppSettings;
 }
 
 export function SettingsDialog({
   agentConfiguration,
+  globalAgentSettings,
   error,
   isSaving,
   onOpenChange,
@@ -73,7 +76,6 @@ export function SettingsDialog({
   const [credentialProvider, setCredentialProvider] =
     useState<AgentApiKeyProviderId>("anthropic");
   const [isModelOverrideDirty, setIsModelOverrideDirty] = useState(false);
-  const [modelProviderId, setModelProviderId] = useState("");
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -102,17 +104,17 @@ export function SettingsDialog({
           ) : (
             <AgentModelSettingsPanel
               agentConfiguration={agentConfiguration}
+              globalAgentSettings={globalAgentSettings}
               credentialProvider={credentialProvider}
               isSaving={isSaving}
-              modelProviderId={modelProviderId}
               onCredentialProviderChange={setCredentialProvider}
               onDirtyChange={setIsModelOverrideDirty}
-              onModelProviderChange={setModelProviderId}
               onRemoveCredential={onRemoveCredential}
               onResetModelSettings={onResetModelSettings}
               onSetApiKey={onSetApiKey}
               onUpdateModelOverride={onUpdateModelOverride}
               onUpdateProjectAgent={onUpdateProjectAgent}
+              onUpdateGlobalAgent={(agent) => onUpdate({ agent })}
               projectAgentSettings={projectAgentSettings}
             />
           )}

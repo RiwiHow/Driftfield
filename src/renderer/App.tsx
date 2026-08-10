@@ -39,6 +39,7 @@ export function App({
   const {
     isSavingSettings,
     resolvedTheme,
+    replaceSettings,
     settings,
     settingsError,
     updateSettings,
@@ -46,7 +47,10 @@ export function App({
     useAppSettings(initialSettings, settingsLoadFailed);
   const project = useProjectWorkspace(initialProject);
   const agentConfiguration = useAgentConfiguration(project.projectId);
-  const projectAgentSettings = useProjectAgentSettings(project.projectId);
+  const projectAgentSettings = useProjectAgentSettings(
+    project.projectId,
+    settings.agent,
+  );
   const projectStory = useProjectStory(project.projectId);
 
   useEffect(() => {
@@ -124,8 +128,14 @@ export function App({
           void (async () => {
             const removed =
               await agentConfiguration.removeCredential(providerId);
+            if (removed && settings.agent.defaultModel?.providerId === providerId) {
+              await updateSettings({
+                agent: { ...settings.agent, defaultModel: null },
+              });
+            }
             if (
               removed &&
+              !projectAgentSettings.settings?.useGlobal &&
               projectAgentSettings.settings?.defaultModel?.providerId === providerId
             ) {
               await projectAgentSettings.update({
@@ -138,12 +148,14 @@ export function App({
         onResetModelSettings={async () => {
           const result = await agentConfiguration.resetSettings();
           if (result === null) return false;
+          replaceSettings(result.appSettings);
           projectAgentSettings.replaceSettings(result.projectSettings);
           return true;
         }}
         onSetApiKey={agentConfiguration.setApiKey}
         onUpdateModelOverride={agentConfiguration.updateModelOverride}
         onUpdate={(update) => void updateSettings(update)}
+        globalAgentSettings={settings.agent}
         onUpdateProjectAgent={(update) => void projectAgentSettings.update(update)}
         open={isSettingsOpen}
         projectAgentSettings={projectAgentSettings.settings}

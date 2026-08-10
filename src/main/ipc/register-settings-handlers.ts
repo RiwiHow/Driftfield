@@ -31,6 +31,19 @@ export const registerSettingsIpcHandlers = ({
   ipcMain.handle(IPC_CHANNELS.updateAppSettings, async (event, value) => {
     const window = getTrustedSenderWindow(event);
     const update = parseSettingsUpdate(value);
+    if (update.agent !== undefined && update.agent.defaultModel !== null) {
+      const session = projectSessions.get(window.webContents.id);
+      const { models } = await getAgentConfiguration(
+        aiAgentService,
+        agentCredentialService,
+        agentModelConfigService,
+        session,
+      );
+      const selection = update.agent.defaultModel;
+      if (!models.some(({ id, providerId }) =>
+        id === selection.modelId && providerId === selection.providerId
+      )) throw new Error('Selected global Agent model is not available');
+    }
     const settings = await settingsService.update(update);
     if (update.theme !== undefined) {
       updateMainWindowTheme(window, settings.theme);
@@ -43,7 +56,7 @@ export const registerSettingsIpcHandlers = ({
     const session = projectSessions.get(window.webContents.id);
     if (session === undefined) throw new Error('No project is open');
     const update = parseProjectAgentSettingsUpdate(value);
-    if (update.defaultModel !== null) {
+    if (!update.useGlobal && update.defaultModel !== null) {
       const { models } = await getAgentConfiguration(
         aiAgentService,
         agentCredentialService,

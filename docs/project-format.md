@@ -102,7 +102,8 @@ conflict-aware handlers. General `.mdx` and JSX files are unsupported.
 
 The last successfully opened project directory is persisted in global
 application settings and restored at startup after main-owned validation. Open
-documents and unsaved edits remain session-only. Project Agent settings are
-restored from `settings.sqlite`; conversations and generation records are
+documents and unsaved edits remain session-only. Project Agent inheritance and
+optional overrides are restored from `settings.sqlite`; global Agent defaults
+come from application settings. Conversations and generation records are
 restored from `conversations.sqlite`. Future approved world and plot state
 belongs in `project.sqlite`.

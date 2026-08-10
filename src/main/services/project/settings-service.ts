@@ -19,10 +19,11 @@ export const parseProjectAgentSettingsUpdate = (
   if (
     !isRecord(value) ||
     Object.keys(value).some(
-      (key) => key !== 'defaultModel' && key !== 'thinkingLevel',
+      (key) => key !== 'defaultModel' && key !== 'thinkingLevel' && key !== 'useGlobal',
     ) ||
     !('defaultModel' in value) ||
     !('thinkingLevel' in value) ||
+    typeof value.useGlobal !== 'boolean' ||
     typeof value.thinkingLevel !== 'string' ||
     !AGENT_THINKING_LEVELS.includes(
       value.thinkingLevel as ProjectAgentSettings['thinkingLevel'],
@@ -48,6 +49,7 @@ export const parseProjectAgentSettingsUpdate = (
         ? null
         : { modelId: selection.modelId as string, providerId: selection.providerId as string },
     thinkingLevel: value.thinkingLevel as ProjectAgentSettings['thinkingLevel'],
+    useGlobal: value.useGlobal,
   };
 };
 
@@ -56,12 +58,13 @@ export class ProjectSettingsService {
 
   get(session: ProjectSession): ProjectAgentSettings {
     const row = this.getDatabase(session).connection.prepare(`
-      SELECT provider_id, model_id, thinking_level
+      SELECT provider_id, model_id, thinking_level, use_global
       FROM agent_settings WHERE singleton = 1
     `).get() as {
       model_id: string | null;
       provider_id: string | null;
       thinking_level: ProjectAgentSettings['thinkingLevel'];
+      use_global: number;
     };
     return {
       defaultModel:
@@ -69,6 +72,7 @@ export class ProjectSettingsService {
           ? null
           : { modelId: row.model_id, providerId: row.provider_id },
       thinkingLevel: row.thinking_level,
+      useGlobal: row.use_global === 1,
     };
   }
 
@@ -78,12 +82,13 @@ export class ProjectSettingsService {
   ): ProjectAgentSettings {
     this.getDatabase(session).connection.prepare(`
       UPDATE agent_settings
-      SET provider_id = ?, model_id = ?, thinking_level = ?
+      SET provider_id = ?, model_id = ?, thinking_level = ?, use_global = ?
       WHERE singleton = 1
     `).run(
       settings.defaultModel?.providerId ?? null,
       settings.defaultModel?.modelId ?? null,
       settings.thinkingLevel,
+      settings.useGlobal ? 1 : 0,
     );
     return this.get(session);
   }

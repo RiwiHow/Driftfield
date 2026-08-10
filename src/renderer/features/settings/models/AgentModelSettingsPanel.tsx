@@ -1,5 +1,5 @@
 import { RotateCcw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -17,6 +17,7 @@ import type {
 } from "../../../../shared/contracts/agent-configuration";
 import type {
   AgentSettings,
+  ProjectAgentSettings,
   UpdateProjectAgentSettingsRequest,
 } from "../../../../shared/contracts/settings";
 import { AgentModelAdvancedSettings } from "../model-overrides/AgentModelAdvancedSettings";
@@ -25,12 +26,11 @@ import { ProjectModelSettingsSection } from "./sections/ProjectModelSettingsSect
 
 interface AgentModelSettingsPanelProps {
   agentConfiguration: AgentConfiguration;
+  globalAgentSettings: AgentSettings;
   credentialProvider: AgentApiKeyProviderId;
   isSaving: boolean;
-  modelProviderId: string;
   onCredentialProviderChange: (providerId: AgentApiKeyProviderId) => void;
   onDirtyChange: (dirty: boolean) => void;
-  onModelProviderChange: (providerId: string) => void;
   onRemoveCredential: (providerId: AgentApiKeyProviderId) => void;
   onResetModelSettings: () => Promise<boolean>;
   onSetApiKey: (
@@ -41,22 +41,23 @@ interface AgentModelSettingsPanelProps {
     override: AgentModelOverride,
   ) => Promise<boolean>;
   onUpdateProjectAgent: (update: UpdateProjectAgentSettingsRequest) => void;
-  projectAgentSettings: AgentSettings | null;
+  onUpdateGlobalAgent: (update: AgentSettings) => void;
+  projectAgentSettings: ProjectAgentSettings | null;
 }
 
 export function AgentModelSettingsPanel({
   agentConfiguration,
+  globalAgentSettings,
   credentialProvider,
   isSaving,
-  modelProviderId,
   onCredentialProviderChange,
   onDirtyChange,
-  onModelProviderChange,
   onRemoveCredential,
   onResetModelSettings,
   onSetApiKey,
   onUpdateModelOverride,
   onUpdateProjectAgent,
+  onUpdateGlobalAgent,
   projectAgentSettings,
 }: AgentModelSettingsPanelProps) {
   const { t } = useTranslation("settings");
@@ -66,38 +67,23 @@ export function AgentModelSettingsPanel({
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [resetError, setResetError] = useState(false);
-  const agentSettings = projectAgentSettings ?? {
+  const projectSettings = projectAgentSettings ?? {
     defaultModel: null,
     thinkingLevel: "medium" as const,
+    useGlobal: true,
   };
+  const agentSettings = projectSettings.useGlobal
+    ? globalAgentSettings
+    : projectSettings;
   const configuredProviders = agentConfiguration.providers.filter(
     ({ configured }) => configured,
   );
-  const configuredProviderKey = configuredProviders
-    .map(({ providerId }) => providerId)
-    .join("\u0000");
   const selectedModel =
     agentConfiguration.models.find(
       ({ id, providerId }) =>
         id === agentSettings.defaultModel?.modelId &&
         providerId === agentSettings.defaultModel?.providerId,
     ) ?? null;
-
-  useEffect(() => {
-    const storedProvider = projectAgentSettings?.defaultModel?.providerId;
-    if (storedProvider !== undefined) {
-      onModelProviderChange(storedProvider);
-      return;
-    }
-    if (
-      configuredProviders.some(
-        ({ providerId }) => providerId === modelProviderId,
-      )
-    ) {
-      return;
-    }
-    onModelProviderChange(configuredProviders[0]?.providerId ?? "");
-  }, [configuredProviderKey, projectAgentSettings?.defaultModel?.providerId]);
 
   const resetModelSettings = async (): Promise<void> => {
     if (isResetting) return;
@@ -135,18 +121,16 @@ export function AgentModelSettingsPanel({
       />
 
       <ProjectModelSettingsSection
-        agentSettings={agentSettings}
         configuredProviders={configuredProviders}
+        globalAgentSettings={globalAgentSettings}
         isSaving={isSaving}
-        modelProviderId={modelProviderId}
         models={agentConfiguration.models}
-        onModelProviderChange={onModelProviderChange}
         onUpdate={onUpdateProjectAgent}
+        onUpdateGlobal={onUpdateGlobalAgent}
         projectAgentSettings={projectAgentSettings}
-        selectedModel={selectedModel}
       />
 
-      {agentSettings.defaultModel !== null && (
+      {projectAgentSettings !== null && agentSettings.defaultModel !== null && (
         <AgentModelAdvancedSettings
           isSaving={isSaving}
           model={selectedModel}

@@ -107,6 +107,53 @@ describe('project databases', () => {
     );
   });
 
+  it('migrates existing project model settings as project overrides', async () => {
+    const directory = await mkdtemp(
+      path.join(tmpdir(), 'driftfield-settings-migration-'),
+    );
+    directories.push(directory);
+    const dataDirectory = path.join(directory, '.driftfield');
+    await mkdir(dataDirectory);
+    const legacy = new DatabaseSync(path.join(dataDirectory, 'settings.sqlite'));
+    legacy.exec(`
+      CREATE TABLE schema_migrations (
+        version INTEGER PRIMARY KEY,
+        applied_at TEXT NOT NULL
+      ) STRICT;
+      CREATE TABLE agent_settings (
+        singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+        provider_id TEXT,
+        model_id TEXT,
+        thinking_level TEXT NOT NULL
+      ) STRICT;
+      CREATE TABLE agent_model_overrides (
+        provider_id TEXT NOT NULL,
+        model_id TEXT NOT NULL,
+        override_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY(provider_id, model_id)
+      ) STRICT;
+      INSERT INTO agent_settings VALUES (1, 'anthropic', 'model-a', 'high');
+      INSERT INTO schema_migrations VALUES (1, datetime('now'));
+    `);
+    legacy.close();
+
+    const settings = new SettingsDatabase(directory);
+    expect(settings.connection.prepare(`
+      SELECT provider_id, model_id, thinking_level, use_global
+      FROM agent_settings WHERE singleton = 1
+    `).get()).toEqual({
+      model_id: 'model-a',
+      provider_id: 'anthropic',
+      thinking_level: 'high',
+      use_global: 0,
+    });
+    expect(settings.connection.prepare(`
+      SELECT version FROM schema_migrations ORDER BY version
+    `).all()).toEqual([{ version: 1 }, { version: 2 }]);
+    settings.close();
+  });
+
   it('rejects a newer project database schema', async () => {
     const directory = await mkdtemp(
       path.join(tmpdir(), 'driftfield-databases-'),

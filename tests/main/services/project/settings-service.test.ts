@@ -3,7 +3,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ProjectSettingsService } from '../../../../src/main/services/project/settings-service';
+import {
+  parseProjectAgentSettingsUpdate,
+  ProjectSettingsService,
+} from '../../../../src/main/services/project/settings-service';
 import type { ProjectSession } from '../../../../src/main/services/project/session-service';
 
 const directories: string[] = [];
@@ -23,6 +26,22 @@ afterEach(async () => {
 });
 
 describe('project Agent settings', () => {
+  it('requires an explicit inheritance choice', () => {
+    expect(parseProjectAgentSettingsUpdate({
+      defaultModel: null,
+      thinkingLevel: 'medium',
+      useGlobal: true,
+    })).toEqual({
+      defaultModel: null,
+      thinkingLevel: 'medium',
+      useGlobal: true,
+    });
+    expect(() => parseProjectAgentSettingsUpdate({
+      defaultModel: null,
+      thinkingLevel: 'medium',
+    })).toThrow('Invalid project Agent settings');
+  });
+
   it('persists settings per project without leaking between projects', async () => {
     const first = await createSession();
     const second = await createSession();
@@ -31,19 +50,23 @@ describe('project Agent settings', () => {
     service.update(first, {
       defaultModel: { modelId: 'model-a', providerId: 'anthropic' },
       thinkingLevel: 'high',
+      useGlobal: false,
     });
 
     expect(service.get(first)).toEqual({
       defaultModel: { modelId: 'model-a', providerId: 'anthropic' },
       thinkingLevel: 'high',
+      useGlobal: false,
     });
     expect(service.get(second)).toEqual({
       defaultModel: null,
       thinkingLevel: 'medium',
+      useGlobal: true,
     });
     expect(service.reset(first)).toEqual({
       defaultModel: null,
       thinkingLevel: 'medium',
+      useGlobal: true,
     });
     service.dispose();
   });

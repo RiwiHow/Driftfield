@@ -23,20 +23,28 @@ describe('settings parsing and validation', () => {
   it('accepts only the current complete settings schema', () => {
     expect(
       parseStoredSettings({
+        agent: {
+          defaultModel: { modelId: 'model-a', providerId: 'anthropic' },
+          thinkingLevel: 'high',
+        },
         closeWindowBehavior: 'minimize',
         editorFontSize: 20,
         language: 'zh-CN',
         lastProjectDirectoryPath: '/Novels/Example',
         theme: 'github-dark',
-        version: 1,
+        version: 2,
       }),
     ).toEqual({
+      agent: {
+        defaultModel: { modelId: 'model-a', providerId: 'anthropic' },
+        thinkingLevel: 'high',
+      },
       closeWindowBehavior: 'minimize',
       editorFontSize: 20,
       language: 'zh-CN',
       lastProjectDirectoryPath: '/Novels/Example',
       theme: 'github-dark',
-      version: 1,
+      version: 2,
     });
   });
 
@@ -61,7 +69,7 @@ describe('settings parsing and validation', () => {
       lastProjectDirectoryPath: null,
       language: 'en',
       theme: 'github-light',
-      version: 1,
+      version: 2,
     });
   });
 
@@ -71,6 +79,27 @@ describe('settings parsing and validation', () => {
     expect(() => parseSettingsUpdate({ language: 'fr' })).toThrow(
       'Unknown application language',
     );
+  });
+
+  it('migrates version 1 settings with default global Agent settings', () => {
+    expect(parseStoredSettings(LEGACY_SETTINGS)).toEqual(DEFAULT_SETTINGS);
+  });
+
+  it('validates global Agent settings updates', () => {
+    expect(parseSettingsUpdate({
+      agent: {
+        defaultModel: { modelId: 'model-a', providerId: 'anthropic' },
+        thinkingLevel: 'high',
+      },
+    })).toEqual({
+      agent: {
+        defaultModel: { modelId: 'model-a', providerId: 'anthropic' },
+        thinkingLevel: 'high',
+      },
+    });
+    expect(() => parseSettingsUpdate({
+      agent: { defaultModel: null, thinkingLevel: 'turbo' },
+    })).toThrow('Invalid global Agent settings');
   });
 
   it('validates the last project directory path', () => {
@@ -119,11 +148,24 @@ describe('settings parsing and validation', () => {
     });
     expect(
       JSON.parse(await readFile(path.join(directory, 'settings.json'), 'utf8')),
-    ).toMatchObject({ lastProjectDirectoryPath: '/Novels/Example', version: 1 });
+    ).toMatchObject({ lastProjectDirectoryPath: '/Novels/Example', version: 2 });
   });
 });
 
 const DEFAULT_SETTINGS = {
+  agent: {
+    defaultModel: null,
+    thinkingLevel: 'medium',
+  },
+  closeWindowBehavior: 'quit',
+  editorFontSize: 17,
+  language: 'en',
+  lastProjectDirectoryPath: null,
+  theme: 'github-light',
+  version: 2,
+} as const;
+
+const LEGACY_SETTINGS = {
   closeWindowBehavior: 'quit',
   editorFontSize: 17,
   language: 'en',
