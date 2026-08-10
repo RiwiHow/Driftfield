@@ -79,7 +79,7 @@ export function SettingsDialog({
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="settings-dialog gap-0 p-0">
+      <DialogContent className="adaptive-dialog settings-dialog gap-0 p-0">
         <header className="settings-header">
           <DialogTitle className="settings-dialog-title">
             {t("title")}

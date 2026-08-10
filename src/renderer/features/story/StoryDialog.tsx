@@ -36,7 +36,7 @@ export function StoryDialog({
   const { t } = useTranslation('story');
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="story-dialog">
+      <DialogContent className="adaptive-dialog story-dialog">
         <div className="story-dialog-heading">
           <div>
             <DialogTitle>{t(`sections.${section}`)}</DialogTitle>

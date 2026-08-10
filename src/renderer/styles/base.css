@@ -31,3 +31,24 @@ button,
 [role="button"] {
   -webkit-app-region: no-drag;
 }
+/* Large dialogs fade and travel a few pixels instead of scaling their entire
+   surface, which keeps text-heavy content smooth at workspace-sized bounds. */
+.adaptive-dialog[data-state="open"] {
+  --tw-enter-scale: 1;
+  --tw-enter-translate-y: 6px;
+  animation-duration: 120ms;
+  animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+}
+
+.adaptive-dialog[data-state="closed"] {
+  --tw-exit-scale: 1;
+  --tw-exit-translate-y: 4px;
+  animation-duration: 100ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 1, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adaptive-dialog[data-state] {
+    animation: none;
+  }
+}
