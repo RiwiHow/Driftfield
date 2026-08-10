@@ -18,6 +18,61 @@ const documentResult = {
 const scope = { ownerId: 7, projectSessionId: 'session-1', requestId: 'request-1' };
 
 describe('AgentToolDispatcher', () => {
+  it('reads story state and emits a reviewed story proposal', async () => {
+    const story = {
+      beats: [],
+      eventLinks: [],
+      eventParticipants: [],
+      eventSources: [],
+      events: [],
+      moments: [],
+      personae: [],
+      revision: 0,
+      threads: [],
+      timelines: [],
+    };
+    const change = {
+      name: 'Lin',
+      operation: 'create_persona' as const,
+      role: 'Protagonist',
+      summary: '',
+    };
+    const proposal = {
+      change,
+      operation: 'story' as const,
+      proposalId: 'proposal-story',
+      requestId: 'request-1',
+      storyRevision: 0,
+      title: 'Lin',
+    };
+    const context = {
+      getStoryState: vi.fn().mockResolvedValue(story),
+    } as unknown as ProjectContextService;
+    const proposals = {
+      cancelRequest: vi.fn(),
+      createStoryOperation: vi.fn(() => proposal),
+      waitForDecision: vi.fn().mockResolvedValue({
+        proposalId: proposal.proposalId,
+        status: 'accepted',
+      }),
+    } as unknown as AgentProposalService;
+    const sendProposal = vi.fn();
+    const dispatcher = new AgentToolDispatcher(context, undefined, proposals);
+
+    await expect(dispatcher.execute(scope, {
+      arguments: {},
+      toolName: 'get_story_state',
+    })).resolves.toMatchObject({ data: story, ok: true });
+    await expect(dispatcher.execute({ ...scope, sendProposal }, {
+      arguments: { change, storyRevision: 0 },
+      toolName: 'propose_story_operation',
+    })).resolves.toMatchObject({
+      data: { proposalId: proposal.proposalId, status: 'accepted' },
+      ok: true,
+    });
+    expect(sendProposal).toHaveBeenCalledWith(proposal);
+  });
+
   it('emits a reviewed proposal without writing through the context service', async () => {
     const proposal = {
       baseContentRevision: 'a'.repeat(64),

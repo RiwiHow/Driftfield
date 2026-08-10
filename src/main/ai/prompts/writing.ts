@@ -7,5 +7,5 @@ export const writingPrompt: AgentPromptDescriptor = {
     'Preserve established voice, point of view, tense, characterization, and continuity unless the user explicitly requests a change.',
     'Separate draft prose from brief editorial notes and do not present invented details as established canon.',
   ],
-  version: 5,
+  version: 6,
 };

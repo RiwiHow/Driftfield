@@ -19,6 +19,8 @@ import {
   supportedDocumentExtensions,
 } from '../services/project/document-utils';
 import type { ProjectSessionService } from '../services/project/session-service';
+import type { ProjectStoryService } from '../services/project/story-service';
+import type { ProjectStorySnapshot } from '../../shared/contracts/project-story';
 
 export const MAX_AGENT_DOCUMENT_BYTES = 512 * 1024;
 
@@ -35,7 +37,16 @@ export interface ProjectContextScope {
 }
 
 export class ProjectContextService {
-  constructor(private readonly sessions: ProjectSessionService) {}
+  constructor(
+    private readonly sessions: ProjectSessionService,
+    private readonly stories?: ProjectStoryService,
+  ) {}
+
+  async getStoryState(scope: ProjectContextScope): Promise<ProjectStorySnapshot> {
+    const session = this.requireSession(scope);
+    if (this.stories === undefined) throw new ProjectContextError('internal-error');
+    return this.stories.getSnapshot(session);
+  }
 
   async getCurrentDocument(
     scope: ProjectContextScope,

@@ -95,6 +95,13 @@ export interface CreateThreadBeatInput {
   title: string;
 }
 
+export interface StoryOperationAudit {
+  operationId: string;
+  operationKind: string;
+  originRequestId: string | null;
+  payload: unknown;
+}
+
 export class ProjectStoryRepository {
   constructor(private readonly database: ProjectDatabase) {}
 
@@ -121,7 +128,51 @@ export class ProjectStoryRepository {
     };
   }
 
-  createPersona(expectedRevision: number, input: CreatePersonaInput): Persona {
+  createPendingOperation(
+    expectedRevision: number,
+    audit: StoryOperationAudit,
+  ): void {
+    const actualRevision = this.getRevision();
+    if (actualRevision !== expectedRevision) {
+      throw new ProjectStoryRevisionConflictError(
+        expectedRevision,
+        actualRevision,
+      );
+    }
+    const payloadJson = JSON.stringify({ request: audit.payload });
+    if (Buffer.byteLength(payloadJson, 'utf8') > 262_144) {
+      throw new Error('Project story operation is too large');
+    }
+    this.database.connection.prepare(`
+      INSERT INTO story_operations(
+        operation_id, operation_kind, payload_json, base_revision,
+        applied_revision, status, origin_request_id, created_at,
+        decided_at, error_code
+      ) VALUES (?, ?, ?, ?, NULL, 'pending', ?, ?, NULL, NULL)
+    `).run(
+      audit.operationId,
+      audit.operationKind,
+      payloadJson,
+      expectedRevision,
+      audit.originRequestId,
+      new Date().toISOString(),
+    );
+  }
+
+  settleOperation(
+    operationId: string,
+    status: 'rejected' | 'conflict' | 'failed',
+    errorCode: string | null = null,
+  ): boolean {
+    const result = this.database.connection.prepare(`
+      UPDATE story_operations
+      SET status = ?, decided_at = ?, error_code = ?
+      WHERE operation_id = ? AND status = 'pending'
+    `).run(status, new Date().toISOString(), errorCode, operationId);
+    return result.changes === 1;
+  }
+
+  createPersona(expectedRevision: number, input: CreatePersonaInput, audit?: StoryOperationAudit): Persona {
     return this.mutate(expectedRevision, () => {
       const id = randomUUID();
       const now = new Date().toISOString();
@@ -139,12 +190,13 @@ export class ProjectStoryRepository {
         summary: input.summary ?? '',
         updatedAt: now,
       };
-    });
+    }, audit);
   }
 
   createTimeline(
     expectedRevision: number,
     input: CreateChronicleTimelineInput,
+    audit?: StoryOperationAudit,
   ): ChronicleTimeline {
     return this.mutate(expectedRevision, () => {
       const id = randomUUID();
@@ -169,12 +221,13 @@ export class ProjectStoryRepository {
         title: input.title,
         updatedAt: now,
       };
-    });
+    }, audit);
   }
 
   createMoment(
     expectedRevision: number,
     input: CreateChronicleMomentInput,
+    audit?: StoryOperationAudit,
   ): ChronicleMoment {
     return this.mutate(expectedRevision, () => {
       const id = randomUUID();
@@ -198,12 +251,13 @@ export class ProjectStoryRepository {
         precision: input.precision,
         timelineId: input.timelineId,
       };
-    });
+    }, audit);
   }
 
   createEvent(
     expectedRevision: number,
     input: CreateChronicleEventInput,
+    audit?: StoryOperationAudit,
   ): ChronicleEvent {
     return this.mutate(expectedRevision, () => {
       this.assertEventMomentOrder(input);
@@ -270,10 +324,10 @@ export class ProjectStoryRepository {
         title: input.title,
         updatedAt: now,
       };
-    });
+    }, audit);
   }
 
-  createThread(expectedRevision: number, input: CreateThreadInput): StoryThread {
+  createThread(expectedRevision: number, input: CreateThreadInput, audit?: StoryOperationAudit): StoryThread {
     return this.mutate(expectedRevision, () => {
       const id = randomUUID();
       const now = new Date().toISOString();
@@ -302,10 +356,10 @@ export class ProjectStoryRepository {
         title: input.title,
         updatedAt: now,
       };
-    });
+    }, audit);
   }
 
-  createBeat(expectedRevision: number, input: CreateThreadBeatInput): ThreadBeat {
+  createBeat(expectedRevision: number, input: CreateThreadBeatInput, audit?: StoryOperationAudit): ThreadBeat {
     return this.mutate(expectedRevision, () => {
       const id = randomUUID();
       this.database.connection.prepare(`
@@ -337,7 +391,7 @@ export class ProjectStoryRepository {
         threadId: input.threadId,
         title: input.title,
       };
-    });
+    }, audit);
   }
 
   linkBeatToEvent(
@@ -345,6 +399,7 @@ export class ProjectStoryRepository {
     beatId: string,
     eventId: string,
     relation: ThreadEventRelation,
+    audit?: StoryOperationAudit,
   ): ThreadEventLink {
     return this.mutate(expectedRevision, () => {
       this.database.connection.prepare(`
@@ -352,10 +407,14 @@ export class ProjectStoryRepository {
         VALUES (?, ?, ?)
       `).run(beatId, eventId, relation);
       return { eventId, relation, threadBeatId: beatId };
-    });
+    }, audit);
   }
 
-  private mutate<T>(expectedRevision: number, operation: () => T): T {
+  private mutate<T>(
+    expectedRevision: number,
+    operation: () => T,
+    audit?: StoryOperationAudit,
+  ): T {
     return this.database.transaction(() => {
       const actualRevision = this.getRevision();
       if (actualRevision !== expectedRevision) {
@@ -371,6 +430,29 @@ export class ProjectStoryRepository {
       `).run(expectedRevision);
       if (update.changes !== 1) {
         throw new Error('Project story state is missing');
+      }
+      if (audit !== undefined) {
+        const payloadJson = JSON.stringify({ request: audit.payload, result });
+        if (Buffer.byteLength(payloadJson, 'utf8') > 262_144) {
+          throw new Error('Project story operation is too large');
+        }
+        const auditUpdate = this.database.connection.prepare(`
+          UPDATE story_operations
+          SET payload_json = ?, applied_revision = ?, status = 'applied',
+              decided_at = ?, error_code = NULL
+          WHERE operation_id = ? AND status = 'pending'
+            AND base_revision = ? AND operation_kind = ?
+        `).run(
+          payloadJson,
+          expectedRevision + 1,
+          new Date().toISOString(),
+          audit.operationId,
+          expectedRevision,
+          audit.operationKind,
+        );
+        if (auditUpdate.changes !== 1) {
+          throw new Error('Pending project story operation is missing');
+        }
       }
       return result;
     });

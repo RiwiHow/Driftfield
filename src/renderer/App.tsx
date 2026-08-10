@@ -14,6 +14,11 @@ import { SettingsDialog } from "@/features/settings/dialog/SettingsDialog";
 import { useAppSettings } from "@/features/settings/use-app-settings";
 import { useAgentConfiguration } from "@/features/settings/use-agent-configuration";
 import { useProjectAgentSettings } from '@/features/settings/use-project-agent-settings';
+import {
+  StoryDialog,
+  type StorySection,
+} from '@/features/story/StoryDialog';
+import { useProjectStory } from '@/features/story/use-project-story';
 import type { AppSettings } from "../shared/contracts/settings";
 import type { ProjectSnapshot } from "../shared/contracts/project";
 
@@ -30,6 +35,7 @@ export function App({
 }: AppProps) {
   const { t } = useTranslation("projects");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [storySection, setStorySection] = useState<StorySection | null>(null);
   const {
     isSavingSettings,
     resolvedTheme,
@@ -41,6 +47,7 @@ export function App({
   const project = useProjectWorkspace(initialProject);
   const agentConfiguration = useAgentConfiguration(project.projectId);
   const projectAgentSettings = useProjectAgentSettings(project.projectId);
+  const projectStory = useProjectStory(project.projectId);
 
   useEffect(() => {
     const openSettingsFromKeyboard = (event: KeyboardEvent): void => {
@@ -70,11 +77,18 @@ export function App({
         isRefreshingProject={project.isRefreshingProject}
         isSavingDocument={project.isSavingDocument}
         onChapterChange={project.selectChapter}
-        onAgentProposalApplied={project.commitAgentProposal}
+        onAgentProposalApplied={(result) => {
+          if (result.status === 'story-updated') {
+            projectStory.replace(result.story);
+          } else {
+            project.commitAgentProposal(result);
+          }
+        }}
         onContentChange={project.updateActiveChapter}
         onCreateProject={() => void project.createProjectDirectory()}
         onCloseChapter={() => void project.closeActiveDocument()}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenStory={setStorySection}
         onRefreshProject={() => void project.refreshProject()}
         onSaveDocument={() => void project.saveActiveDocument()}
         onSelectProject={() => void project.selectProjectDirectory()}
@@ -89,6 +103,16 @@ export function App({
           (chapter) => chapter.backingFileStatus === "missing",
         )}
         theme={resolvedTheme}
+      />
+      <StoryDialog
+        error={projectStory.error}
+        isLoading={projectStory.isLoading}
+        onOpenChange={(open) => !open && setStorySection(null)}
+        onRefresh={() => void projectStory.refresh()}
+        onSectionChange={setStorySection}
+        open={storySection !== null}
+        section={storySection ?? 'chronicle'}
+        story={projectStory.story}
       />
       <SettingsDialog
         agentConfiguration={agentConfiguration.configuration}

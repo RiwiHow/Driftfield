@@ -48,6 +48,7 @@ import type {
   SelectAgentConversationRequest,
   UpdateAgentConversationMessageRequest,
 } from '../shared/contracts/agent-conversations';
+import type { ProjectStorySnapshot } from '../shared/contracts/project-story';
 
 const api: DriftfieldAPI = {
   platform: process.platform,
@@ -90,6 +91,10 @@ const api: DriftfieldAPI = {
     ipcRenderer.invoke(
       IPC_CHANNELS.getProjectAgentSettings,
     ) as Promise<ProjectAgentSettings>,
+  getProjectStory: () =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.getProjectStory,
+    ) as Promise<ProjectStorySnapshot>,
   getAgentConfiguration: () =>
     ipcRenderer.invoke(
       IPC_CHANNELS.getAgentConfiguration,

@@ -8,9 +8,10 @@ import type {
   AgentProposalStatus,
 } from '../../../shared/contracts/agent-conversations';
 import type {
-  AgentDocumentProposal,
+  AgentProposal,
   AgentProposalOutcome,
 } from '../../../shared/contracts/agent-proposals';
+import { isProjectStoryOperation } from '../../../shared/contracts/project-story';
 import type { AgentEvent } from '../../../shared/contracts/agent';
 import { isAgentToolName } from '../../../shared/contracts/agent-tools';
 import { ConversationDatabase } from '../../database/conversation-database';
@@ -339,7 +340,7 @@ export class AgentConversationService {
   getProposal(
     session: ProjectSession,
     proposalId: string,
-  ): AgentDocumentProposal | null {
+  ): AgentProposal | null {
     const row = this.getDatabase(session).connection.prepare(`
       SELECT m.proposal_json FROM conversation_messages m
       JOIN conversations c ON c.id = m.conversation_id
@@ -687,7 +688,7 @@ const parseStoredParts = (value: string): AgentConversationPart[] => {
   return parsed as AgentConversationPart[];
 };
 
-const parseStoredProposal = (value: string): AgentDocumentProposal => {
+const parseStoredProposal = (value: string): AgentProposal => {
   const parsed: unknown = JSON.parse(value);
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error('Invalid stored Agent proposal');
@@ -706,7 +707,12 @@ const parseStoredProposal = (value: string): AgentDocumentProposal => {
     proposal.title.length <= 500;
   const isId = (id: unknown): id is string =>
     typeof id === 'string' && id.length > 0 && id.length <= 128;
-  const valid = proposal.operation === 'create'
+  const valid = proposal.operation === 'story'
+    ? hasCommonFields &&
+      Number.isSafeInteger(proposal.storyRevision) &&
+      (proposal.storyRevision as number) >= 0 &&
+      isProjectStoryOperation(proposal.change)
+    : proposal.operation === 'create'
     ? hasCommonFields &&
       typeof proposal.documentId === 'string' &&
       proposal.documentId.length > 0 &&
@@ -766,5 +772,5 @@ const parseStoredProposal = (value: string): AgentDocumentProposal => {
   if (!valid) {
     throw new Error('Invalid stored Agent proposal');
   }
-  return parsed as AgentDocumentProposal;
+  return parsed as AgentProposal;
 };

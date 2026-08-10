@@ -201,6 +201,38 @@ describe('Agent conversation persistence', () => {
     restoredService.dispose();
   });
 
+  it('restores a pending story proposal for main-owned revalidation', async () => {
+    const session = await createSession();
+    const service = new AgentConversationService();
+    const state = service.getState(session);
+    const proposal = {
+      change: {
+        name: 'Lin',
+        operation: 'create_persona' as const,
+        role: 'Protagonist',
+        summary: 'An unwilling heir.',
+      },
+      operation: 'story' as const,
+      proposalId: 'proposal-story',
+      requestId: 'assistant-story',
+      storyRevision: 0,
+      title: 'Lin',
+    };
+    service.beginPrompt(session, {
+      conversationId: state.activeConversation.id,
+      prompt: 'Record the protagonist.',
+      requestId: 'assistant-story',
+      userMessageId: 'user-story',
+    });
+    service.recordEvent({ proposal, requestId: 'assistant-story', type: 'proposal' });
+    service.recordEvent({ requestId: 'assistant-story', type: 'completed' });
+    service.dispose();
+
+    const restoredService = new AgentConversationService();
+    expect(restoredService.getProposal(session, proposal.proposalId)).toEqual(proposal);
+    restoredService.dispose();
+  });
+
   it('returns accepted proposal outcomes as trusted context on the next turn', async () => {
     const session = await createSession();
     const service = new AgentConversationService();

@@ -27,8 +27,16 @@ export const registerProjectIpcHandlers = ({
   aiAgentService,
   getTrustedSenderWindow,
   projectSessions,
+  projectStoryService,
   settingsService,
 }: IpcHandlerContext): void => {
+  ipcMain.handle(IPC_CHANNELS.getProjectStory, async (event) => {
+    const window = getTrustedSenderWindow(event);
+    const session = projectSessions.get(window.webContents.id);
+    if (session === undefined) throw new Error('No project is open');
+    return projectStoryService.getSnapshot(session);
+  });
+
   ipcMain.handle(
     IPC_CHANNELS.createProjectDirectory,
     async (event): Promise<SelectProjectDirectoryResult> => {

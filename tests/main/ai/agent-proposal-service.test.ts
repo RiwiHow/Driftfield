@@ -8,6 +8,8 @@ import { contentRevision } from '../../../src/main/services/project/document-uti
 import type { ProjectSessionService } from '../../../src/main/services/project/session-service';
 import { initializeProjectLayout, loadProjectLayout } from '../../../src/main/services/project/layout-service';
 import { createProjectSnapshot } from '../../../src/main/services/project/snapshot-service';
+import { ProjectStoryService } from '../../../src/main/services/project/story-service';
+import { ProjectDatabase } from '../../../src/main/database/project-database';
 
 const createFixture = async () => {
   const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-proposal-'));
@@ -26,6 +28,66 @@ const createFixture = async () => {
 };
 
 describe('AgentProposalService', () => {
+  it('applies an approved story proposal and records its audit operation', async () => {
+    const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-story-proposal-'));
+    await initializeProjectLayout(directoryPath);
+    const session = {
+      directoryPath,
+      documentPaths: new Map<string, string>(),
+      id: 'session-story',
+      project: await createProjectSnapshot(directoryPath),
+    };
+    const sessions = { get: () => session } as unknown as ProjectSessionService;
+    const stories = new ProjectStoryService();
+    const service = new AgentProposalService(sessions, undefined, stories);
+    const proposal = service.createStoryOperation(
+      {
+        ownerId: 7,
+        projectSessionId: session.id,
+        requestId: 'request-story',
+      },
+      {
+        change: {
+          isPrimary: true,
+          operation: 'create_timeline',
+          summary: 'The canonical sequence of events.',
+          title: 'Primary Chronicle',
+        },
+        storyRevision: 0,
+      },
+    );
+    const pendingDatabase = new ProjectDatabase(directoryPath);
+    expect(pendingDatabase.connection.prepare(`
+      SELECT status FROM story_operations WHERE operation_id = ?
+    `).get(proposal.proposalId)).toEqual({ status: 'pending' });
+    pendingDatabase.close();
+    const decision = service.waitForDecision('request-story', proposal.proposalId);
+
+    await expect(service.apply(7, proposal.proposalId)).resolves.toMatchObject({
+      status: 'story-updated',
+      story: {
+        revision: 1,
+        timelines: [{ isPrimary: true, title: 'Primary Chronicle' }],
+      },
+    });
+    await expect(decision).resolves.toEqual({
+      proposalId: proposal.proposalId,
+      status: 'accepted',
+    });
+    const database = new ProjectDatabase(directoryPath);
+    expect(database.connection.prepare(`
+      SELECT operation_id, operation_kind, base_revision, applied_revision, status
+      FROM story_operations
+    `).get()).toEqual({
+      applied_revision: 1,
+      base_revision: 0,
+      operation_id: proposal.proposalId,
+      operation_kind: 'create_timeline',
+      status: 'applied',
+    });
+    database.close();
+  });
+
   it('keeps a proposal in memory until the owning renderer accepts it', async () => {
     const { directoryPath, markdown, service } = await createFixture();
     const revision = contentRevision(markdown);

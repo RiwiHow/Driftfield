@@ -12,14 +12,14 @@ import {
   type ProjectContextService,
 } from './project-context-service';
 import type { AgentProposalService } from './agent-proposal-service';
-import type { AgentDocumentProposal } from '../../shared/contracts/agent-proposals';
+import type { AgentProposal } from '../../shared/contracts/agent-proposals';
 
 export interface AgentToolScope {
   draftSnapshot?: AgentDraftSnapshot;
   ownerId: number;
   projectSessionId?: string;
   requestId: string;
-  sendProposal?: (proposal: AgentDocumentProposal) => void;
+  sendProposal?: (proposal: AgentProposal) => void;
 }
 
 export interface AgentToolPolicy {
@@ -107,6 +107,13 @@ export class AgentToolDispatcher {
         toolName: request.toolName,
       };
     }
+    if (request.toolName === 'get_story_state') {
+      return {
+        data: await this.context.getStoryState(contextScope),
+        ok: true,
+        toolName: request.toolName,
+      };
+    }
     if (request.toolName === 'get_current_document') {
       return {
         data: await this.context.getCurrentDocument(contextScope),
@@ -178,6 +185,29 @@ export class AgentToolDispatcher {
         toolName: request.toolName,
       };
     }
+    if (request.toolName === 'propose_story_operation') {
+      if (this.proposals === undefined) {
+        throw new ProjectContextError('internal-error');
+      }
+      const proposal = this.proposals.createStoryOperation(
+        scope,
+        request.arguments,
+      );
+      if (scope.sendProposal === undefined) {
+        this.proposals.cancelRequest(scope.requestId);
+        throw new ProjectContextError('internal-error');
+      }
+      const decision = this.proposals.waitForDecision(
+        scope.requestId,
+        proposal.proposalId,
+      );
+      scope.sendProposal(proposal);
+      return {
+        data: await decision,
+        ok: true,
+        toolName: request.toolName,
+      };
+    }
     return {
       data: await this.context.getDocument(
         contextScope,
@@ -221,4 +251,5 @@ class ToolTimeoutError extends Error {}
 const isProposalTool = (toolName: AgentToolName): boolean =>
   toolName === 'propose_document_edit' ||
   toolName === 'propose_document_file_operation' ||
-  toolName === 'propose_project_structure_operation';
+  toolName === 'propose_project_structure_operation' ||
+  toolName === 'propose_story_operation';

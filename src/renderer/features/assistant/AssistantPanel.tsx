@@ -49,7 +49,7 @@ import {
 import type { AgentConfiguration } from '../../../shared/contracts/agent-configuration';
 import type { AgentSettings } from '../../../shared/contracts/settings';
 import type {
-  AgentDocumentProposal,
+  AgentProposal,
   SuccessfulApplyAgentProposalResult,
 } from '../../../shared/contracts/agent-proposals';
 import {
@@ -714,7 +714,7 @@ function AgentResponseTimeline({
   onRejectProposal,
   parts,
 }: {
-  onApplyProposal: (proposal: AgentDocumentProposal) => Promise<void>;
+  onApplyProposal: (proposal: AgentProposal) => Promise<void>;
   onRejectProposal: (proposalId: string) => Promise<void>;
   parts: AgentConversationPart[];
 }) {
@@ -819,7 +819,7 @@ function ProposalCard({
 }: {
   onApply: () => void;
   onReject: () => void;
-  proposal: AgentDocumentProposal;
+  proposal: AgentProposal;
   status: 'pending' | 'applying' | 'saved' | 'rejected' | 'conflict' | 'missing' | 'stale' | 'failed';
 }) {
   const { t } = useTranslation('assistant');
@@ -836,7 +836,9 @@ function ProposalCard({
             ? 'moved'
             : operation === 'create_volume'
               ? 'createdVolume'
-              : 'createdLoreCategory'
+              : operation === 'create_lore_category'
+                ? 'createdLoreCategory'
+                : 'storyUpdated'
       : status;
   return (
     <div className="agent-proposal">
@@ -870,6 +872,12 @@ function ProposalCard({
             <section>
               <span>{t('proposal.destination')}</span>
               <pre>{proposal.parentTitle}</pre>
+            </section>
+          ) : null}
+          {'operation' in proposal && proposal.operation === 'story' ? (
+            <section>
+              <span>{t('proposal.storyChange')}</span>
+              <pre>{JSON.stringify(proposal.change, null, 2)}</pre>
             </section>
           ) : null}
         </div>

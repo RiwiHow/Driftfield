@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { Chapter } from '@/app/types';
 import type {
-  AgentDocumentProposal,
+  AgentProposal,
   SuccessfulApplyAgentProposalResult,
 } from '../../../shared/contracts/agent-proposals';
 import type {
@@ -390,7 +390,7 @@ export function useAgentConversation(
     [],
   );
 
-  const applyProposal = useCallback(async (proposal: AgentDocumentProposal) => {
+  const applyProposal = useCallback(async (proposal: AgentProposal) => {
     if (!canApplyAgentProposal(activeChapter, proposal, chapters)) {
       try {
         await window.driftfield.rejectAgentProposal({
@@ -413,7 +413,8 @@ export function useAgentConversation(
         result.status === 'created' ||
         result.status === 'deleted' ||
         result.status === 'moved' ||
-        result.status === 'created-directory'
+        result.status === 'created-directory' ||
+        result.status === 'story-updated'
       ) {
         onProposalApplied(result);
         setProposalStatus(proposal.proposalId, 'saved');
@@ -543,9 +544,10 @@ function rejectPendingProposals(messages: ConversationMessage[]): void {
 
 export function canApplyAgentProposal(
   chapter: Chapter | null,
-  proposal: AgentDocumentProposal,
+  proposal: AgentProposal,
   chapters: Chapter[] = chapter === null ? [] : [chapter],
 ): boolean {
+  if ('operation' in proposal && proposal.operation === 'story') return true;
   if ('operation' in proposal) {
     if (
       proposal.operation === 'create' ||

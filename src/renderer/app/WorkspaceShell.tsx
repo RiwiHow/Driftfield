@@ -23,6 +23,7 @@ import {
 import { AssistantPanel } from '@/features/assistant/AssistantPanel';
 import { ManuscriptEditor } from '@/features/editor/ManuscriptEditor';
 import { LibraryPanel } from '@/features/library/LibraryPanel';
+import type { StorySection } from '@/features/story/StoryDialog';
 import type { AgentConfiguration } from '../../shared/contracts/agent-configuration';
 import type { AgentSettings, AppTheme } from '../../shared/contracts/settings';
 import type {
@@ -58,6 +59,7 @@ interface WorkspaceShellProps {
   onContentChange: (markdown: string) => void;
   onCreateProject: () => void;
   onOpenSettings: () => void;
+  onOpenStory: (section: StorySection) => void;
   onRefreshProject: () => void;
   onSaveDocument: () => void;
   onSelectProject: () => void;
@@ -91,6 +93,7 @@ export function WorkspaceShell({
   onContentChange,
   onCreateProject,
   onOpenSettings,
+  onOpenStory,
   onRefreshProject,
   onSaveDocument,
   onSelectProject,
@@ -218,6 +221,7 @@ export function WorkspaceShell({
               onChapterChange={onChapterChange}
               onCreateProject={onCreateProject}
               onOpenSettings={onOpenSettings}
+              onOpenStory={onOpenStory}
               onRefreshProject={onRefreshProject}
               onSelectProject={onSelectProject}
               projectDirectory={projectDirectory}

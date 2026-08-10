@@ -45,6 +45,7 @@ import type {
   SelectAgentConversationRequest,
   UpdateAgentConversationMessageRequest,
 } from './contracts/agent-conversations';
+import type { ProjectStorySnapshot } from './contracts/project-story';
 
 export interface DriftfieldAPI {
   platform: string;
@@ -65,6 +66,7 @@ export interface DriftfieldAPI {
   getAgentConversationState: () => Promise<AgentConversationState>;
   getAppSettings: () => Promise<AppSettings>;
   getProjectAgentSettings: () => Promise<ProjectAgentSettings>;
+  getProjectStory: () => Promise<ProjectStorySnapshot>;
   confirmCloseUnsavedDocument: (
     documentTitle: string,
   ) => Promise<CloseUnsavedDocumentDecision>;

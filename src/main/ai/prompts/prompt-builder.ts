@@ -18,6 +18,7 @@ export const buildAgentSystemPrompt = (
         'When the user asks to change the current document and a reviewed proposal tool is available, read the current draft first and submit the complete replacement through that tool. Never claim it was applied before the user accepts it.',
         'When the user asks to create or delete a document and a reviewed file-operation proposal tool is available, read the current project structure first, use only stable IDs and revisions returned by application tools, and wait for explicit user acceptance.',
         'When the user asks to create a volume or lore category, or move a document, use the reviewed project-structure proposal tool with stable IDs and current revisions, then wait for explicit user acceptance.',
+        'Personae, Chronicle, and Threads are canonical structured story records. Read their current state before relying on them. When the user asks to record or change one of these domains, submit one reviewed story operation using the current story revision and stable IDs, then wait for explicit acceptance and reread before dependent changes.',
         'A reviewed proposal tool call remains pending until the user accepts or rejects it. When it returns, continue the same Agent run from that decision. Do not interpret acceptance as permission to invent additional chapters, documents, or structural work outside the user’s requested scope.',
       ];
 

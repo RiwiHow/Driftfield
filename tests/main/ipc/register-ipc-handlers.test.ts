@@ -42,6 +42,7 @@ const invocationChannels = [
   IPC_CHANNELS.restoreLastProject,
   IPC_CHANNELS.selectProjectDirectory,
   IPC_CHANNELS.refreshProject,
+  IPC_CHANNELS.getProjectStory,
   IPC_CHANNELS.copyEditorSelection,
   IPC_CHANNELS.cutEditorSelection,
   IPC_CHANNELS.pasteIntoEditor,
@@ -154,6 +155,28 @@ describe("IPC handler composition", () => {
     expect(context.agentModelConfigService.reset).toHaveBeenCalledOnce();
     expect(context.projectSettingsService.reset).toHaveBeenCalledOnce();
   });
+
+  it('returns story records only for the trusted active project session', async () => {
+    const context = createContext();
+    registerIpcHandlers(context);
+    const getStory = handlers.get(IPC_CHANNELS.getProjectStory);
+    if (getStory === undefined) throw new Error('Story handler was not registered');
+    vi.mocked(context.projectStoryService.getSnapshot).mockReturnValue({
+      beats: [],
+      eventLinks: [],
+      eventParticipants: [],
+      eventSources: [],
+      events: [],
+      moments: [],
+      personae: [],
+      revision: 0,
+      threads: [],
+      timelines: [],
+    });
+    await expect(getStory({})).resolves.toMatchObject({ revision: 0 });
+    expect(context.getTrustedSenderWindow).toHaveBeenCalled();
+    expect(context.projectStoryService.getSnapshot).toHaveBeenCalledOnce();
+  });
 });
 
 const createContext = (): IpcHandlerContext => {
@@ -232,6 +255,9 @@ const createContext = (): IpcHandlerContext => {
       })),
       reset: vi.fn(() => ({ defaultModel: null, thinkingLevel: 'medium' })),
       update: vi.fn((_session, settings) => settings),
+    },
+    projectStoryService: {
+      getSnapshot: vi.fn(),
     },
     setWindowDirty: vi.fn(),
     settingsService: {

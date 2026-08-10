@@ -65,7 +65,7 @@ implemented or authorized.
 - Do not enable Pi extensions, untrusted resource discovery, module-relative
   assets, or broader tools before corresponding packaged and security coverage.
 - `ProjectContextService` and `AiAgentService` remain intentionally cohesive for
-  the current three-tool, single-coordinator prototype. Reassess their split only
+  the current bounded-tool, single-coordinator prototype. Reassess their split only
   when additional context domains, concurrent specialists, or lifecycle states
   create distinct responsibilities; do not add abstractions preemptively.
 

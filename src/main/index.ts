@@ -17,6 +17,7 @@ import { AgentCredentialService } from "./services/agent/credential-service";
 import { AgentModelConfigService } from "./services/agent/model-config-service";
 import { AgentConversationService } from './services/agent/conversation-service';
 import { ProjectSettingsService } from './services/project/settings-service';
+import { ProjectStoryService } from './services/project/story-service';
 import { initializeMainI18n } from "./i18n/main-i18n";
 import { createMainWindow } from "./windows/main-window";
 import type { RendererNavigationPolicy } from "./windows/navigation-policy";
@@ -152,12 +153,14 @@ void app.whenReady().then(async () => {
     );
     const agentConversationService = new AgentConversationService();
     const projectSettingsService = new ProjectSettingsService();
+    const projectStoryService = new ProjectStoryService();
     const agentProposalService = new AgentProposalService(
       projectSessions,
       agentConversationService,
+      projectStoryService,
     );
     const agentToolDispatcher = new AgentToolDispatcher(
-      new ProjectContextService(projectSessions),
+      new ProjectContextService(projectSessions, projectStoryService),
       undefined,
       agentProposalService,
     );
@@ -181,6 +184,7 @@ void app.whenReady().then(async () => {
       getTrustedSenderWindow,
       projectSessions,
       projectSettingsService,
+      projectStoryService,
       setWindowDirty,
       settingsService,
     });

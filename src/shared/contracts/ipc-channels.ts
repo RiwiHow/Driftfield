@@ -19,6 +19,7 @@ export const IPC_CHANNELS = {
   restoreLastProject: "project:restore-last",
   selectProjectDirectory: "project:select-directory",
   refreshProject: "project:refresh",
+  getProjectStory: "project:get-story",
   projectChanged: "project:changed",
   projectWatcherStatusChanged: "project:watcher-status-changed",
   copyEditorSelection: "editor:copy-selection",

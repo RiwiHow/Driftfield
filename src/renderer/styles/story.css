@@ -1,0 +1,137 @@
+.story-dialog {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  height: min(720px, calc(100vh - 48px));
+  max-width: min(860px, calc(100vw - 48px));
+  overflow: hidden;
+}
+
+.story-dialog-heading,
+.story-dialog-heading > div,
+.story-group,
+.story-list,
+.story-groups {
+  min-width: 0;
+}
+
+.story-dialog-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.story-navigation {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.story-navigation button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  color: var(--muted-foreground);
+  border-bottom: 2px solid transparent;
+}
+
+.story-navigation button:hover,
+.story-navigation button.is-active {
+  color: var(--foreground);
+}
+
+.story-navigation button.is-active {
+  border-bottom-color: var(--primary);
+}
+
+.story-content {
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 2px;
+}
+
+.story-list,
+.story-groups,
+.chronicle-moment {
+  display: grid;
+  gap: 12px;
+}
+
+.chronicle-moment {
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+}
+
+.chronicle-moment > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.chronicle-moment > p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.story-group {
+  display: grid;
+  gap: 8px;
+}
+
+.story-group + .story-group {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.story-group > header,
+.story-record > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.story-group > header span,
+.story-record span,
+.story-record time,
+.story-record small,
+.story-footer {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.story-record {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--muted);
+}
+
+.story-record p,
+.story-group > p,
+.story-message {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.story-message {
+  padding: 24px 8px;
+  text-align: center;
+}
+
+.story-footer {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.story-spinner {
+  animation: project-switcher-spin 0.8s linear infinite;
+}

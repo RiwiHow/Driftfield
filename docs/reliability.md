@@ -47,8 +47,13 @@ Preserve these properties when changing affected subsystems.
 - Requests bind to project-session identity. Project switches cancel the owner;
   obsolete streamed output and tool calls are rejected.
 - Cancellation remains terminal when it races with completion or output.
-- Current read tools are `get_novel_structure`, `get_current_document`, and
-  `get_document`; they are typed, bounded, path-free, and main-owned.
+- Current read tools are `get_novel_structure`, `get_current_document`,
+  `get_document`, and `get_story_state`; they are typed, bounded, path-free,
+  and main-owned.
+- `propose_story_operation` records a pending reviewed operation in
+  `project.sqlite`. Acceptance revision-checks and transactionally applies one
+  typed Personae, Chronicle, or Threads change; rejection and terminal failure
+  settle the operation without changing canonical story state.
 - `propose_document_edit` can submit a bounded whole-document replacement for
   the request-start current draft. Main retains the proposal, Renderer previews
   it, and only an explicit proposal-ID acceptance can trigger a revision-checked

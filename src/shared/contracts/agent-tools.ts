@@ -1,3 +1,8 @@
+import {
+  isProjectStoryOperation,
+  isProjectStorySnapshot,
+} from './project-story';
+
 export interface AgentDraftSnapshot {
   baseRevision: string;
   documentId: string;
@@ -92,6 +97,10 @@ export type AgentProjectStructureOperationArguments =
     };
 
 export interface AgentToolContractMap {
+  get_story_state: {
+    arguments: Record<string, never>;
+    result: import('./project-story').ProjectStorySnapshot;
+  };
   get_current_document: {
     arguments: Record<string, never>;
     result: AgentDocumentToolResult;
@@ -121,6 +130,13 @@ export interface AgentToolContractMap {
     arguments: AgentProjectStructureOperationArguments;
     result: AgentProposalToolResult;
   };
+  propose_story_operation: {
+    arguments: {
+      change: import('./project-story').ProjectStoryOperation;
+      storyRevision: number;
+    };
+    result: AgentProposalToolResult;
+  };
 }
 
 export type AgentToolName = keyof AgentToolContractMap;
@@ -129,9 +145,11 @@ export const AGENT_TOOL_NAMES = [
   'get_novel_structure',
   'get_current_document',
   'get_document',
+  'get_story_state',
   'propose_document_edit',
   'propose_document_file_operation',
   'propose_project_structure_operation',
+  'propose_story_operation',
 ] as const satisfies readonly AgentToolName[];
 
 export type AgentToolRequest<
@@ -256,6 +274,14 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
       isRevision(value.projectRevision)
     );
   }
+  if (toolName === 'propose_story_operation') {
+    return (
+      Object.keys(value).length === 2 &&
+      Number.isSafeInteger(value.storyRevision) &&
+      (value.storyRevision as number) >= 0 &&
+      isProjectStoryOperation(value.change)
+    );
+  }
   if (toolName !== 'get_document') return Object.keys(value).length === 0;
   return (
     Object.keys(value).length === 1 &&
@@ -283,9 +309,12 @@ export const isAgentToolExecutionResult = (
 const isToolData = (toolName: AgentToolName, value: unknown): boolean =>
   toolName === 'get_novel_structure'
     ? isNovelStructureResult(value)
+    : toolName === 'get_story_state'
+      ? isProjectStorySnapshot(value)
     : toolName === 'propose_document_edit' ||
         toolName === 'propose_document_file_operation' ||
-        toolName === 'propose_project_structure_operation'
+        toolName === 'propose_project_structure_operation' ||
+        toolName === 'propose_story_operation'
       ? isEditProposalResult(value)
     : isDocumentResult(value);
 

@@ -1,4 +1,4 @@
-import type { AgentDocumentProposal } from './agent-proposals';
+import type { AgentProposal } from './agent-proposals';
 import type { AgentToolName } from './agent-tools';
 
 export type AgentProposalStatus =
@@ -24,7 +24,7 @@ export type AgentConversationPart =
   | { content: string; type: 'text' }
   | { activity: AgentToolActivity; type: 'tool' }
   | {
-      proposal: AgentDocumentProposal;
+      proposal: AgentProposal;
       status: AgentProposalStatus;
       type: 'proposal';
     };

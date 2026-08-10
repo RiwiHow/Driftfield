@@ -59,10 +59,13 @@ realizes, reveals, foreshadows, or resolves a Chronicle event. This keeps
 fictional occurrence separate from authorial plot function and from where an
 event is depicted in the documents.
 
-`story_operations` is the project-owned mutation ledger reserved for reviewed
-Agent operations. Its presence does not authorize direct Agent writes: pending
-payload validation, preview, approval, revision checking, and transactional
-application remain Main-owned workflow responsibilities.
+`story_operations` is the project-owned mutation ledger for reviewed Agent
+operations. A proposed story mutation is inserted as pending before it is shown
+for review. Approval updates canonical rows, increments the story revision, and
+marks the same operation applied in one transaction. Rejection, conflict,
+cancellation, and failure settle the pending row without changing canonical
+story state. This ledger never authorizes direct Agent writes: validation,
+preview, approval, revision checking, and application remain Main-owned.
 
 ## Ownership and access
 

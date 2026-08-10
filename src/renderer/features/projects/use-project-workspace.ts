@@ -111,6 +111,7 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
 
   const commitAgentProposal = useCallback(
     (result: SuccessfulApplyAgentProposalResult): void => {
+      if (result.status === 'story-updated') return;
       if (result.status === 'saved') {
         dispatch({
           result,

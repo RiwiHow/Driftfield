@@ -8,6 +8,7 @@ import type { AgentCredentialService } from "../services/agent/credential-servic
 import type { AgentModelConfigService } from "../services/agent/model-config-service";
 import type { ProjectSessionService } from "../services/project/session-service";
 import type { ProjectSettingsService } from '../services/project/settings-service';
+import type { ProjectStoryService } from '../services/project/story-service';
 import type { SettingsService } from "../services/settings-service";
 
 export interface IpcHandlerContext {
@@ -23,6 +24,7 @@ export interface IpcHandlerContext {
   getTrustedSenderWindow: (event: Electron.IpcMainInvokeEvent) => BrowserWindow;
   projectSessions: ProjectSessionService;
   projectSettingsService: ProjectSettingsService;
+  projectStoryService: ProjectStoryService;
   setWindowDirty: (window: BrowserWindow, isDirty: boolean) => void;
   settingsService: SettingsService;
 }

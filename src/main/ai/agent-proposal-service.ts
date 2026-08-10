@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
+  AgentProposal,
   AgentDocumentProposal,
   AgentCreateDocumentProposal,
   AgentDeleteDocumentProposal,
   AgentCreateDirectoryProposal,
   AgentEditProposal,
   AgentMoveDocumentProposal,
+  AgentStoryProposal,
   ApplyAgentProposalResult,
 } from '../../shared/contracts/agent-proposals';
 import type {
@@ -15,6 +17,9 @@ import type {
   AgentProposalToolResult,
   AgentDraftSnapshot,
 } from '../../shared/contracts/agent-tools';
+import type { ProjectStoryOperation } from '../../shared/contracts/project-story';
+import type { ProjectStoryService } from '../services/project/story-service';
+import { ProjectStoryRevisionConflictError } from '../database/project-story-repository';
 import { saveProjectDocument } from '../services/project/document-service';
 import { contentRevision } from '../services/project/document-utils';
 import type { ProjectSessionService } from '../services/project/session-service';
@@ -49,7 +54,7 @@ interface ProposalScope {
 interface StoredProposal {
   ownerId: number;
   projectSessionId: string;
-  proposal: AgentDocumentProposal;
+  proposal: AgentProposal;
 }
 
 interface ProposalDecisionWaiter {
@@ -65,7 +70,51 @@ export class AgentProposalService {
   constructor(
     private readonly sessions: ProjectSessionService,
     private readonly conversations?: AgentConversationService,
+    private readonly stories?: ProjectStoryService,
   ) {}
+
+  createStoryOperation(
+    scope: ProposalScope,
+    request: { change: ProjectStoryOperation; storyRevision: number },
+  ): AgentStoryProposal {
+    const session = this.sessions.get(scope.ownerId);
+    if (
+      session === undefined ||
+      scope.projectSessionId === undefined ||
+      session.id !== scope.projectSessionId ||
+      this.stories === undefined
+    ) {
+      throw new ProjectContextError('project-session-changed');
+    }
+    const change = structuredClone(request.change);
+    const proposal: AgentStoryProposal = {
+      change,
+      operation: 'story',
+      proposalId: randomUUID(),
+      requestId: scope.requestId,
+      storyRevision: request.storyRevision,
+      title: storyOperationTitle(change),
+    };
+    try {
+      this.stories.createProposal(session, request.storyRevision, {
+        operationId: proposal.proposalId,
+        operationKind: change.operation,
+        originRequestId: scope.requestId,
+        payload: change,
+      });
+    } catch (error) {
+      if (error instanceof ProjectStoryRevisionConflictError) {
+        throw new ProjectContextError('proposal-base-changed');
+      }
+      throw error;
+    }
+    this.proposals.set(proposal.proposalId, {
+      ownerId: scope.ownerId,
+      projectSessionId: session.id,
+      proposal,
+    });
+    return proposal;
+  }
 
   create(scope: ProposalScope, request: CreateProposalRequest): AgentEditProposal {
     const draft = scope.draftSnapshot;
@@ -312,7 +361,8 @@ export class AgentProposalService {
         result.status === 'created' ||
         result.status === 'deleted' ||
         result.status === 'moved' ||
-        result.status === 'created-directory'
+        result.status === 'created-directory' ||
+        result.status === 'story-updated'
         ? 'accepted'
         : result.status === 'not-found'
           ? 'failed'
@@ -328,6 +378,13 @@ export class AgentProposalService {
         session.id === stored.projectSessionId
       ) {
         this.conversations?.setProposalStatus(session, proposalId, 'failed');
+        if (
+          this.stories !== undefined &&
+          'operation' in stored.proposal &&
+          stored.proposal.operation === 'story'
+        ) {
+          this.stories.settleProposal(session, proposalId, 'failed', 'apply-failed');
+        }
       }
       this.resolveDecision(ownerId, proposalId, 'failed');
       throw error;
@@ -357,6 +414,32 @@ export class AgentProposalService {
         : this.conversations?.getProposal(session, proposalId);
     if (proposal === undefined || proposal === null) {
       return { proposalId, status: 'not-found' };
+    }
+    if ('operation' in proposal && proposal.operation === 'story') {
+      if (this.stories === undefined) return { proposalId, status: 'not-found' };
+      try {
+        const story = this.stories.applyOperation(
+          session,
+          proposal.storyRevision,
+          proposal.change,
+          {
+            operationId: proposal.proposalId,
+            operationKind: proposal.change.operation,
+            originRequestId: proposal.requestId,
+            payload: proposal.change,
+          },
+        );
+        this.proposals.delete(proposalId);
+        this.conversations?.setProposalStatus(session, proposalId, 'saved');
+        return { proposalId, status: 'story-updated', story };
+      } catch (error) {
+        if (error instanceof ProjectStoryRevisionConflictError) {
+          this.conversations?.setProposalStatus(session, proposalId, 'stale');
+          this.stories.settleProposal(session, proposalId, 'conflict');
+          return { proposalId, status: 'stale' };
+        }
+        throw error;
+      }
     }
     if ('operation' in proposal) {
       let currentProject: Awaited<ReturnType<typeof createProjectSnapshot>>;
@@ -478,6 +561,20 @@ export class AgentProposalService {
     const persisted = this.conversations?.getProposal(session, proposalId);
     if ((stored === undefined || stored.ownerId !== ownerId) && persisted === null) return false;
     if (stored !== undefined) this.proposals.delete(proposalId);
+    const proposal = stored?.proposal ?? persisted;
+    if (
+      this.stories !== undefined &&
+      proposal !== null &&
+      proposal !== undefined &&
+      'operation' in proposal &&
+      proposal.operation === 'story'
+    ) {
+      this.stories.settleProposal(
+        session,
+        proposalId,
+        status === 'rejected' ? 'rejected' : 'conflict',
+      );
+    }
     this.conversations?.setProposalStatus(session, proposalId, status);
     this.resolveDecision(ownerId, proposalId, status);
     return true;
@@ -489,6 +586,13 @@ export class AgentProposalService {
       const session = this.sessions.get(stored.ownerId);
       if (session !== undefined && session.id === stored.projectSessionId) {
         this.conversations?.setProposalStatus(session, proposalId, 'failed');
+        if (
+          this.stories !== undefined &&
+          'operation' in stored.proposal &&
+          stored.proposal.operation === 'story'
+        ) {
+          this.stories.settleProposal(session, proposalId, 'failed', 'request-cancelled');
+        }
       }
       this.resolveDecision(stored.ownerId, proposalId, 'failed');
       this.proposals.delete(proposalId);
@@ -501,6 +605,13 @@ export class AgentProposalService {
       const session = this.sessions.get(ownerId);
       if (session !== undefined && session.id === stored.projectSessionId) {
         this.conversations?.setProposalStatus(session, proposalId, 'failed');
+        if (
+          this.stories !== undefined &&
+          'operation' in stored.proposal &&
+          stored.proposal.operation === 'story'
+        ) {
+          this.stories.settleProposal(session, proposalId, 'failed', 'owner-disposed');
+        }
       }
       this.resolveDecision(ownerId, proposalId, 'failed');
       this.proposals.delete(proposalId);
@@ -519,3 +630,9 @@ export class AgentProposalService {
     waiter.resolve({ proposalId, status });
   }
 }
+
+const storyOperationTitle = (operation: ProjectStoryOperation): string => {
+  if ('title' in operation) return operation.title;
+  if ('name' in operation) return operation.name;
+  return `${operation.operation}: ${'beatId' in operation ? operation.beatId : ''}`;
+};

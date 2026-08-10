@@ -59,12 +59,23 @@ export interface AgentMoveDocumentProposal {
   title: string;
 }
 
+export interface AgentStoryProposal {
+  change: import('./project-story').ProjectStoryOperation;
+  operation: 'story';
+  proposalId: string;
+  requestId: string;
+  storyRevision: number;
+  title: string;
+}
+
 export type AgentDocumentProposal =
   | AgentEditProposal
   | AgentCreateDocumentProposal
   | AgentDeleteDocumentProposal
   | AgentCreateDirectoryProposal
   | AgentMoveDocumentProposal;
+
+export type AgentProposal = AgentDocumentProposal | AgentStoryProposal;
 
 export type AgentProposalOutcomeStatus =
   | 'accepted'
@@ -81,7 +92,8 @@ export interface AgentProposalOutcome {
     | 'delete'
     | 'create_volume'
     | 'create_lore_category'
-    | 'move_document';
+    | 'move_document'
+    | 'story';
   proposalId: string;
   status: AgentProposalOutcomeStatus;
 }
@@ -109,6 +121,11 @@ export type ApplyAgentProposalResult =
       project: import('./project').ProjectSnapshot;
       proposalId: string;
       status: 'created-directory';
+    }
+  | {
+      proposalId: string;
+      status: 'story-updated';
+      story: import('./project-story').ProjectStorySnapshot;
     }
   | { proposalId: string; status: 'conflict' | 'missing' | 'stale' | 'not-found' };
 

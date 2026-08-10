@@ -108,3 +108,79 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
   },
   { additionalProperties: false },
 );
+
+export const STORY_OPERATION_PARAMETERS = Type.Object(
+  {
+    change: Type.Object(
+      {
+        beatId: Type.Optional(Type.String({ maxLength: 128, minLength: 1 })),
+        causes: Type.Optional(Type.String({ maxLength: 20_000 })),
+        consequences: Type.Optional(Type.String({ maxLength: 20_000 })),
+        description: Type.Optional(Type.String({ maxLength: 30_000 })),
+        desiredOutcome: Type.Optional(Type.String({ maxLength: 10_000 })),
+        displayTime: Type.Optional(Type.String({ maxLength: 500, minLength: 1 })),
+        dramaticPurpose: Type.Optional(Type.String({ maxLength: 10_000 })),
+        endMomentId: Type.Optional(Type.Unsafe<string | null>({
+          maxLength: 128,
+          type: ['string', 'null'],
+        })),
+        eventId: Type.Optional(Type.String({ maxLength: 128, minLength: 1 })),
+        isPrimary: Type.Optional(Type.Boolean()),
+        kind: Type.Optional(stringEnum(
+          ['beat', 'setup', 'turning_point', 'climax', 'resolution'] as const,
+        )),
+        name: Type.Optional(Type.String({ maxLength: 500, minLength: 1 })),
+        note: Type.Optional(Type.String({ maxLength: 10_000 })),
+        operation: stringEnum(
+          [
+            'create_persona',
+            'create_timeline',
+            'create_moment',
+            'create_event',
+            'create_thread',
+            'create_beat',
+            'link_beat_event',
+          ] as const,
+          {
+            description:
+              'Select one operation and provide every field required for that operation. Empty optional prose fields must be sent as empty strings; nullable IDs must be sent as null.',
+          },
+        ),
+        orderKey: Type.Optional(Type.Integer()),
+        parentId: Type.Optional(Type.Unsafe<string | null>({
+          maxLength: 128,
+          type: ['string', 'null'],
+        })),
+        participants: Type.Optional(Type.Array(Type.Object(
+          {
+            description: Type.String({ maxLength: 10_000 }),
+            personaId: Type.String({ maxLength: 128, minLength: 1 }),
+            role: stringEnum(['actor', 'target', 'witness', 'affected'] as const),
+          },
+          { additionalProperties: false },
+        ), { maxItems: 100 })),
+        precision: Type.Optional(stringEnum(
+          ['exact', 'day', 'month', 'season', 'approximate', 'unknown'] as const,
+        )),
+        relation: Type.Optional(stringEnum(
+          ['plans', 'realizes', 'reveals', 'foreshadows', 'resolves'] as const,
+        )),
+        role: Type.Optional(Type.Unsafe<string | null>({
+          maxLength: 500,
+          type: ['string', 'null'],
+        })),
+        startMomentId: Type.Optional(Type.String({ maxLength: 128, minLength: 1 })),
+        status: Type.Optional(stringEnum(
+          ['planned', 'established', 'active', 'resolved', 'abandoned'] as const,
+        )),
+        summary: Type.Optional(Type.String({ maxLength: 30_000 })),
+        threadId: Type.Optional(Type.String({ maxLength: 128, minLength: 1 })),
+        timelineId: Type.Optional(Type.String({ maxLength: 128, minLength: 1 })),
+        title: Type.Optional(Type.String({ maxLength: 500, minLength: 1 })),
+      },
+      { additionalProperties: false },
+    ),
+    storyRevision: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);

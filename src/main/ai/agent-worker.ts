@@ -24,6 +24,7 @@ import { AgentToolResultBridge } from "./agent-tool-result-bridge";
 import {
   DOCUMENT_FILE_OPERATION_PARAMETERS,
   PROJECT_STRUCTURE_OPERATION_PARAMETERS,
+  STORY_OPERATION_PARAMETERS,
 } from "./agent-tool-parameters";
 import { didAssistantResponseFail } from './agent-response-status';
 import {
@@ -310,6 +311,22 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
+        "Read the current Personae character registry, Chronicle timelines and events, and Threads plot structure with stable IDs and the current story revision.",
+      label: "Read story records",
+      name: "get_story_state",
+      parameters: Type.Object({}, { additionalProperties: false }),
+      execute: async (toolCallId, params) =>
+        textToolResult(
+          await requestTool(
+            requestId,
+            toolCallId,
+            "get_story_state",
+            params as AgentToolContractMap["get_story_state"]["arguments"],
+          ),
+        ),
+    }),
+    defineTool({
+      description:
         "Submit a complete replacement for the current document as a reviewable proposal. This never writes the file without explicit acceptance. The tool call waits for the user's decision and returns accepted, rejected, or a typed failure; after acceptance, continue only the user's existing requested scope.",
       label: "Propose document edit",
       name: "propose_document_edit",
@@ -361,6 +378,22 @@ function createNovelTools(requestId: string) {
             toolCallId,
             "propose_project_structure_operation",
             params as AgentToolContractMap["propose_project_structure_operation"]["arguments"],
+          ),
+        ),
+    }),
+    defineTool({
+      description:
+        "Submit one reviewable change to Personae, Chronicle, or Threads. Read get_story_state first and use its current storyRevision and stable IDs. Create dependencies before records that refer to them. This never changes canonical story records without explicit acceptance. The tool call waits for the user's decision; after acceptance, reread story state before proposing another dependent change.",
+      label: "Propose story record change",
+      name: "propose_story_operation",
+      parameters: STORY_OPERATION_PARAMETERS,
+      execute: async (toolCallId, params) =>
+        textToolResult(
+          await requestTool(
+            requestId,
+            toolCallId,
+            "propose_story_operation",
+            params as AgentToolContractMap["propose_story_operation"]["arguments"],
           ),
         ),
     }),

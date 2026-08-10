@@ -11,6 +11,8 @@ The initial Agent data surface contains only:
 - `get_novel_structure`
 - `get_current_document`
 - `get_document`
+- `get_story_state`, which returns the bounded, path-free Personae, Chronicle,
+  and Threads snapshot with its numeric story revision.
 
 The reviewed mutation surface additionally contains:
 
@@ -26,10 +28,20 @@ The reviewed mutation surface additionally contains:
   stable directory IDs. Moves bind to both the project revision and persisted
   document revision; manuscript documents cannot be moved into lore or vice
   versa.
+- `propose_story_operation`, which proposes one typed Personae, Chronicle, or
+  Threads mutation against the current story revision. Dependencies use stable
+  IDs returned by `get_story_state`; dependent changes reread state and proceed
+  as sequential reviewed proposals.
 
 Calling a mutation tool stores a reviewable proposal; it does not write the
 novel. Main generates created document and directory IDs, owns physical names
 and index updates, and the Agent never constructs or receives metadata paths.
+Story proposals are recorded as pending operations in `project.sqlite` while
+the conversation database retains the bounded audit projection needed by the
+chat UI. Acceptance applies the canonical rows, increments the story revision,
+and marks that same operation applied in one database transaction. Rejection,
+conflict, cancellation, and failure settle it without changing canonical story
+state.
 
 A mutation tool call remains pending after the proposal is shown. Accepting or
 rejecting the proposal settles that exact tool call with a typed terminal result,

@@ -6,5 +6,6 @@
 @import "./styles/workspace.css";
 @import "./styles/library.css";
 @import "./styles/editor.css";
+@import "./styles/story.css";
 @import "./styles/assistant.css";
 @import "./styles/settings.css";
