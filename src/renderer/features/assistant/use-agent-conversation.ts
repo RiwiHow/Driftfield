@@ -8,10 +8,10 @@ import type {
 } from '../../../shared/contracts/agent-proposals';
 import type {
   AgentConversationMessage,
-  AgentConversationPart as SharedAgentConversationPart,
+  AgentConversationPart,
   AgentProposalStatus,
   AgentConversationSummary,
-  AgentToolActivity as SharedAgentToolActivity,
+  AgentToolActivity,
 } from '../../../shared/contracts/agent-conversations';
 import {
   type AgentConversationErrorCode,
@@ -30,14 +30,10 @@ const errorTranslationKeys = {
   'start-failed': 'agent.startFailed',
 } as const satisfies Record<AgentConversationErrorCode, string>;
 
-export type ConversationMessage = AgentConversationMessage;
-export type AgentToolActivity = SharedAgentToolActivity;
-export type AgentConversationPart = SharedAgentConversationPart;
-
 type ConversationUpdate = (
-  messages: ConversationMessage[],
+  messages: AgentConversationMessage[],
   requestId: string,
-) => ConversationMessage[];
+) => AgentConversationMessage[];
 
 export function useAgentConversation(
   activeDocument: WorkspaceDocument | null,
@@ -49,7 +45,7 @@ export function useAgentConversation(
   projectId: string | null,
 ) {
   const { t: tErrors } = useTranslation('errors');
-  const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [messages, setMessages] = useState<AgentConversationMessage[]>([]);
   const [conversations, setConversations] = useState<AgentConversationSummary[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -559,11 +555,11 @@ export function useAgentConversation(
 }
 
 export function branchConversationFromUserEdit(
-  messages: ConversationMessage[],
+  messages: AgentConversationMessage[],
   messageId: string,
   content: string,
   requestId: string,
-): ConversationMessage[] {
+): AgentConversationMessage[] {
   const messageIndex = messages.findIndex(
     (message) => message.id === messageId && message.role === 'user',
   );
@@ -576,10 +572,10 @@ export function branchConversationFromUserEdit(
 }
 
 export function replaceAssistantMessage(
-  messages: ConversationMessage[],
+  messages: AgentConversationMessage[],
   messageId: string,
   content: string,
-): ConversationMessage[] {
+): AgentConversationMessage[] {
   return messages.map((message) =>
     message.id === messageId && message.role === 'assistant'
       ? {
@@ -595,7 +591,7 @@ export function replaceAssistantMessage(
   );
 }
 
-function rejectPendingProposals(messages: ConversationMessage[]): void {
+function rejectPendingProposals(messages: AgentConversationMessage[]): void {
   for (const message of messages) {
     for (const part of message.parts ?? []) {
       if (part.type !== 'proposal' || part.status !== 'pending') continue;
@@ -635,10 +631,10 @@ export function canApplyAgentProposal(
 }
 
 function setProposalStatusInMessages(
-  messages: ConversationMessage[],
+  messages: AgentConversationMessage[],
   proposalId: string,
   status: AgentProposalStatus,
-): ConversationMessage[] {
+): AgentConversationMessage[] {
   return messages.map((message) =>
     message.parts?.some(
       (part) => part.type === 'proposal' && part.proposal.proposalId === proposalId,

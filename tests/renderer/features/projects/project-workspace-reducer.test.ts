@@ -12,7 +12,6 @@ const document: WorkspaceDocument = {
   id: 'document-1',
   isDirty: false,
   markdown: '# Chapter',
-  order: 0,
   previousMarkdown: '# Chapter',
   relativePath: 'manuscript/document.md',
   revision: 'revision-1',

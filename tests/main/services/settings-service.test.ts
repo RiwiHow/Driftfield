@@ -81,7 +81,7 @@ describe('settings parsing and validation', () => {
     );
   });
 
-  it('migrates version 1 settings with default global Agent settings', () => {
+  it('uses defaults for version 1 settings', () => {
     expect(parseStoredSettings(LEGACY_SETTINGS)).toEqual(DEFAULT_SETTINGS);
   });
 
@@ -166,10 +166,10 @@ const DEFAULT_SETTINGS = {
 } as const;
 
 const LEGACY_SETTINGS = {
-  closeWindowBehavior: 'quit',
-  editorFontSize: 17,
-  language: 'en',
-  lastProjectDirectoryPath: null,
-  theme: 'github-light',
+  closeWindowBehavior: 'minimize',
+  editorFontSize: 20,
+  language: 'zh-CN',
+  lastProjectDirectoryPath: '/Novels/Legacy',
+  theme: 'github-dark',
   version: 1,
 } as const;

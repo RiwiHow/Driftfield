@@ -244,6 +244,30 @@ Current limitations and unfinished work are tracked in
 [Technical Debt and Roadmap](docs/roadmap.md); never describe roadmap items as
 implemented.
 
+## Deferred Simplification Candidates
+
+The following candidates were identified by the August 2026 repository
+complexity review but were deliberately left unchanged. Before implementing
+one, retrace every current caller and preserve observable behavior unless the
+product explicitly chooses otherwise:
+
+- The `continuity`, `editing`, and `research` Agent roles and prompt profiles
+  are not started by the current Curator/Scribe runtime. Confirm that they are
+  not an intended near-term product surface before deleting their contracts,
+  registry entries, prompt files, and registry tests.
+- `ProjectDatabase.setProjectPresentation()` currently has no runtime caller;
+  its only caller is a layout-service test. Confirm how project title and icon
+  mutation will be exposed before either deleting the method or retaining it as
+  the main-owned persistence operation.
+- `ProjectSnapshot.rootTitles.lore` is produced and transferred but not read by
+  Renderer, while `rootTitles` is optional even though the sole producer always
+  supplies it. Recheck planned Lore navigation before removing the Lore title
+  and making the snapshot field required.
+- Assistant text is maintained both in `conversation_messages.content` and in
+  text entries inside `parts_json`. Any consolidation must choose one canonical
+  representation and preserve transcript trimming, streaming flushes, message
+  editing, proposal/tool ordering, recovery, and existing project data.
+
 ## Package and Build Rules
 
 - Use only pnpm. Use `pnpm add`/`pnpm remove` and commit `pnpm-lock.yaml`.

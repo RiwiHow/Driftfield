@@ -121,9 +121,4 @@ export interface DriftfieldAPI {
   updateAgentConversationMessage: (
     request: UpdateAgentConversationMessageRequest,
   ) => Promise<AgentConversationState>;
-  versions: {
-    chrome: string;
-    electron: string;
-    node: string;
-  };
 }

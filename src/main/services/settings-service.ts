@@ -93,27 +93,6 @@ export const parseStoredSettings = (value: unknown): AppSettings => {
     !isLastProjectDirectoryPath(value.lastProjectDirectoryPath) ||
     parseAgentSettings(value.agent) === null
   ) {
-    if (isRecord(value) && value.version === 1) {
-      const legacyKeys = expectedKeys.filter((key) => key !== 'agent');
-      if (
-        Object.keys(value).length === legacyKeys.length &&
-        legacyKeys.every((key) => key in value) &&
-        isCloseWindowBehavior(value.closeWindowBehavior) &&
-        isEditorFontSize(value.editorFontSize) &&
-        isAppLanguage(value.language) &&
-        isTheme(value.theme) &&
-        isLastProjectDirectoryPath(value.lastProjectDirectoryPath)
-      ) {
-        return {
-          ...DEFAULT_APP_SETTINGS,
-          closeWindowBehavior: value.closeWindowBehavior,
-          editorFontSize: value.editorFontSize,
-          language: value.language,
-          lastProjectDirectoryPath: value.lastProjectDirectoryPath,
-          theme: value.theme,
-        };
-      }
-    }
     return { ...DEFAULT_APP_SETTINGS };
   }
 

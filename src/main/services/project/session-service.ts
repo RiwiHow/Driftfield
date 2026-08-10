@@ -13,7 +13,6 @@ export interface ProjectSession {
   directoryPath: string;
   documentPaths: Map<string, string>;
   id: string;
-  lastRevision: string;
   project: ProjectSnapshot;
   refreshTimer: ReturnType<typeof setTimeout> | null;
   restartTimer: ReturnType<typeof setTimeout> | null;
@@ -40,7 +39,6 @@ export class ProjectSessionService {
     const session = this.sessions.get(webContentsId);
     if (session === undefined) return null;
     const project = await createProjectSnapshot(session.directoryPath);
-    session.lastRevision = project.revision;
     session.project = project;
     this.rememberDocuments(session, project);
     return project;
@@ -59,7 +57,6 @@ export class ProjectSessionService {
         project.documents.map((document) => [document.id, document.relativePath]),
       ),
       id: randomUUID(),
-      lastRevision: project.revision,
       project,
       refreshTimer: null,
       restartTimer: null,
@@ -133,11 +130,10 @@ export class ProjectSessionService {
               this.sessions.get(webContentsId) !== session ||
               window.isDestroyed() ||
               window.webContents.isDestroyed() ||
-              project.revision === session.lastRevision
+              project.revision === session.project.revision
             ) {
               return;
             }
-            session.lastRevision = project.revision;
             session.project = project;
             this.rememberDocuments(session, project);
             window.webContents.send(IPC_CHANNELS.projectChanged, project);

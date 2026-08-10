@@ -35,19 +35,19 @@ export class ProjectStoryRevisionConflictError extends Error {
   }
 }
 
-export interface CreatePersonaInput {
+interface CreatePersonaInput {
   name: string;
   role?: string | null;
   summary?: string;
 }
 
-export interface CreateChronicleTimelineInput {
+interface CreateChronicleTimelineInput {
   isPrimary?: boolean;
   summary?: string;
   title: string;
 }
 
-export interface CreateChronicleMomentInput {
+interface CreateChronicleMomentInput {
   displayTime: string;
   note?: string;
   orderKey: number;
@@ -55,7 +55,7 @@ export interface CreateChronicleMomentInput {
   timelineId: string;
 }
 
-export interface CreateChronicleEventInput {
+interface CreateChronicleEventInput {
   causes?: string;
   consequences?: string;
   endMomentId?: string | null;
@@ -78,7 +78,7 @@ export interface CreateChronicleEventInput {
   title: string;
 }
 
-export interface CreateThreadInput {
+interface CreateThreadInput {
   orderKey: number;
   parentId?: string | null;
   status: ThreadStatus;
@@ -86,7 +86,7 @@ export interface CreateThreadInput {
   title: string;
 }
 
-export interface CreateThreadBeatInput {
+interface CreateThreadBeatInput {
   description?: string;
   desiredOutcome?: string;
   dramaticPurpose?: string;

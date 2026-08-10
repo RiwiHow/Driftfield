@@ -152,11 +152,7 @@ export interface StoryQuestion {
   status: 'open' | 'resolved';
 }
 
-export interface ProjectStoryState {
-  revision: number;
-}
-
-export interface ProjectStorySnapshot extends ProjectStoryState {
+export interface ProjectStorySnapshot {
   beats: ThreadBeat[];
   eventLinks: ThreadEventLink[];
   eventParticipants: ChronicleEventParticipant[];
@@ -165,6 +161,7 @@ export interface ProjectStorySnapshot extends ProjectStoryState {
   moments: ChronicleMoment[];
   personae: Persona[];
   questions: StoryQuestion[];
+  revision: number;
   threads: StoryThread[];
   timelines: ChronicleTimeline[];
 }

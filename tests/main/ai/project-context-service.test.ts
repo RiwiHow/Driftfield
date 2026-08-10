@@ -42,7 +42,6 @@ const createContext = async () => {
     directoryPath: directory,
     documentPaths: new Map(project.documents.map((document) => [document.id, document.relativePath])),
     id: 'session-1',
-    lastRevision: project.revision,
     project,
     refreshTimer: null,
     restartTimer: null,

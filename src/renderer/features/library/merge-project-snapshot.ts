@@ -8,14 +8,13 @@ export const mergeProjectSnapshot = (
   sourceRevision: number,
 ): WorkspaceDocument[] => {
   const currentById = new Map(current.map((document) => [document.id, document]));
-  const next = project.documents.map((document, index): WorkspaceDocument => {
+  const next = project.documents.map((document): WorkspaceDocument => {
     const existing = currentById.get(document.id);
 
     if (preserveDirtyDocuments && existing?.isDirty) {
       return {
         ...existing,
         backingFileStatus: 'available',
-        order: index + 1,
         relativePath: document.relativePath,
         title: document.name,
       };
@@ -25,7 +24,6 @@ export const mergeProjectSnapshot = (
       return {
         ...existing,
         backingFileStatus: 'available',
-        order: index + 1,
         previousMarkdown: document.markdown,
         relativePath: document.relativePath,
         revision: document.revision,
@@ -38,7 +36,6 @@ export const mergeProjectSnapshot = (
       id: document.id,
       isDirty: false,
       markdown: document.markdown,
-      order: index + 1,
       previousMarkdown: document.markdown,
       relativePath: document.relativePath,
       revision: document.revision,
@@ -54,7 +51,6 @@ export const mergeProjectSnapshot = (
         next.push({
           ...document,
           backingFileStatus: 'missing',
-          order: next.length + 1,
         });
       }
     }

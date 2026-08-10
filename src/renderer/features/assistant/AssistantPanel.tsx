@@ -53,18 +53,18 @@ import type {
   AgentStoryProposal,
   SuccessfulApplyAgentProposalResult,
 } from '../../../shared/contracts/agent-proposals';
-import type { AgentProposalStatus } from '../../../shared/contracts/agent-conversations';
+import type {
+  AgentConversationMessage,
+  AgentConversationPart,
+  AgentProposalStatus,
+  AgentToolActivity,
+} from '../../../shared/contracts/agent-conversations';
 import {
   type AgentConversationPhase,
   isAgentConversationNearBottom,
 } from './agent-conversation-state';
 import { SafeMarkdown } from './SafeMarkdown';
-import {
-  type AgentConversationPart,
-  type AgentToolActivity,
-  type ConversationMessage,
-  useAgentConversation,
-} from './use-agent-conversation';
+import { useAgentConversation } from './use-agent-conversation';
 
 interface AssistantPanelProps {
   activeDocument: WorkspaceDocument | null;
@@ -110,7 +110,7 @@ export function AssistantPanel({
   const followConversationRef = useRef(true);
   const followedConversationIdRef = useRef<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<Pick<
-    ConversationMessage,
+    AgentConversationMessage,
     'content' | 'id' | 'role'
   > | null>(null);
   const {
@@ -660,7 +660,7 @@ function MessageEditor({
   onCancel: () => void;
   onChange: (value: string) => void;
   onSave: () => void;
-  role: ConversationMessage['role'];
+  role: AgentConversationMessage['role'];
   value: string;
 }) {
   const { t } = useTranslation('assistant');

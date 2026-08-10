@@ -1,8 +1,9 @@
-import type {
-  AgentToolContractMap,
-  AgentToolExecutionResult,
-  AgentToolName,
-  AgentToolRequest as SharedAgentToolRequest,
+import {
+  isLongRunningAgentTool,
+  type AgentToolContractMap,
+  type AgentToolExecutionResult,
+  type AgentToolName,
+  type AgentToolRequest as SharedAgentToolRequest,
 } from '../../shared/contracts/agent-tools';
 
 interface PendingToolResult {
@@ -12,7 +13,7 @@ interface PendingToolResult {
   toolName: AgentToolName;
 }
 
-export type AgentToolBridgeRequest = SharedAgentToolRequest & {
+type AgentToolBridgeRequest = SharedAgentToolRequest & {
   requestId: string;
   toolCallId: string;
 };
@@ -33,7 +34,7 @@ export class AgentToolResultBridge {
   ): Promise<AgentToolExecutionResult<Name>> {
     const key = this.key(requestId, toolCallId);
     return new Promise<AgentToolExecutionResult<Name>>((resolve, reject) => {
-      const timeout = isProposalTool(toolName)
+      const timeout = isLongRunningAgentTool(toolName)
         ? null
         : setTimeout(() => {
             this.pending.delete(key);
@@ -85,10 +86,3 @@ export class AgentToolResultBridge {
     return `${requestId}:${toolCallId}`;
   }
 }
-
-const isProposalTool = (toolName: AgentToolName): boolean =>
-  toolName === 'propose_document_edit' ||
-  toolName === 'propose_document_file_operation' ||
-  toolName === 'propose_project_structure_operation' ||
-  toolName === 'propose_story_operation' ||
-  toolName === 'delegate_writing';

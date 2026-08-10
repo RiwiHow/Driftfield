@@ -15,7 +15,6 @@ const createSession = async (): Promise<ProjectSession> => {
     directoryPath,
     documentPaths: new Map(),
     id: 'session-1',
-    lastRevision: 'revision',
     project: {
       directory: { name: 'Novel', path: directoryPath },
       documents: [],

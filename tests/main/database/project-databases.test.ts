@@ -56,7 +56,7 @@ describe('project databases', () => {
       project.connection.prepare(`
         SELECT version FROM schema_migrations ORDER BY version
       `).all(),
-    ).toEqual([{ version: 1 }, { version: 2 }]);
+    ).toEqual([{ version: 2 }]);
     project.close();
 
     const conversations = new ConversationDatabase(directory);
@@ -104,11 +104,11 @@ describe('project databases', () => {
     legacy.close();
 
     expect(() => new ProjectDatabase(directory)).toThrow(
-      'Project database schema is invalid',
+      'Project database schema is outdated',
     );
   });
 
-  it('migrates existing project model settings as project overrides', async () => {
+  it('rejects discarded version-one project model settings', async () => {
     const directory = await mkdtemp(
       path.join(tmpdir(), 'driftfield-settings-migration-'),
     );
@@ -139,20 +139,9 @@ describe('project databases', () => {
     `);
     legacy.close();
 
-    const settings = new SettingsDatabase(directory);
-    expect(settings.connection.prepare(`
-      SELECT provider_id, model_id, thinking_level, use_global
-      FROM agent_settings WHERE singleton = 1
-    `).get()).toEqual({
-      model_id: 'model-a',
-      provider_id: 'anthropic',
-      thinking_level: 'high',
-      use_global: 0,
-    });
-    expect(settings.connection.prepare(`
-      SELECT version FROM schema_migrations ORDER BY version
-    `).all()).toEqual([{ version: 1 }, { version: 2 }]);
-    settings.close();
+    expect(() => new SettingsDatabase(directory)).toThrow(
+      'Settings database schema is outdated',
+    );
   });
 
   it('rejects a newer project database schema', async () => {
@@ -173,7 +162,7 @@ describe('project databases', () => {
     );
   });
 
-  it('migrates version-one project databases with open story questions', async () => {
+  it('rejects discarded version-one project databases', async () => {
     const directory = await mkdtemp(
       path.join(tmpdir(), 'driftfield-databases-'),
     );
@@ -183,15 +172,14 @@ describe('project databases', () => {
     legacy.connection.exec(`
       DROP TABLE story_questions;
       DELETE FROM schema_migrations WHERE version = 2;
+      INSERT INTO schema_migrations(version, applied_at)
+      VALUES (1, datetime('now'));
     `);
     legacy.close();
 
-    const migrated = new ProjectDatabase(directory);
-    expect(migrated.hasTable('story_questions')).toBe(true);
-    expect(migrated.connection.prepare(`
-      SELECT version FROM schema_migrations ORDER BY version
-    `).all()).toEqual([{ version: 1 }, { version: 2 }]);
-    migrated.close();
+    expect(() => new ProjectDatabase(directory)).toThrow(
+      'Project database schema is outdated',
+    );
   });
 
 });

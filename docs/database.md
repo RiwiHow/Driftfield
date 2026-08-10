@@ -107,11 +107,11 @@ schema change must be an ordered, transactional migration. Opening a database
 created by a newer Driftfield version fails closed. Application code never
 accepts migrations from the project directory.
 
-The pre-release schema starts at version 1 in each database. During active
-development, version 1 may be reset without compatibility code and old
-development databases are rejected rather than imported. Once a public release
-makes a schema persistent user data, later schema changes must add explicit
-forward migrations rather than guessing from table shapes.
+During active development, pre-release schemas may be reset without
+compatibility code, and old development databases are rejected rather than
+imported. Once a public release makes a schema persistent user data, later
+schema changes must add explicit forward migrations rather than guessing from
+table shapes.
 
 ## Conversations
 
@@ -148,10 +148,9 @@ Credentials never enter these tables.
 
 Global settings use the versioned `userData/settings.json` schema and own the
 default Agent provider/model and thinking level. New projects inherit this
-selection by default. Existing configured project selections migrate as
-explicit project overrides, while projects without a selection begin inheriting
-the global default. Switching projects reloads both the effective settings and
-the generated Pi runtime cache.
+selection by default. Discarded pre-release project settings schemas are
+rejected rather than migrated. Switching projects reloads both the effective
+settings and the generated Pi runtime cache.
 
 The explicit model-settings reset operation clears all global provider
 credentials and Agent defaults, the active project's inheritance state,

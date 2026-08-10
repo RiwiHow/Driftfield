@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
   lstat,
-  readFile,
   realpath,
   rename,
   unlink,
@@ -10,31 +9,15 @@ import {
 import path from 'node:path';
 
 import type {
-  ProjectDocument,
   SaveProjectDocumentRequest,
   SaveProjectDocumentResult,
 } from '../../../shared/contracts/project';
 import {
   contentRevision,
   isPathInside,
+  readProjectDocument,
   supportedDocumentExtensions,
 } from './document-utils';
-
-const readProjectDocument = async (
-  projectPath: string,
-  relativePath: string,
-  id: string,
-): Promise<ProjectDocument> => {
-  const absolutePath = path.resolve(projectPath, relativePath);
-  const fileBuffer = await readFile(absolutePath);
-  return {
-    id,
-    markdown: fileBuffer.toString('utf8'),
-    name: path.basename(relativePath, path.extname(relativePath)),
-    relativePath,
-    revision: contentRevision(fileBuffer),
-  };
-};
 
 const saveQueues = new Map<string, Promise<void>>();
 

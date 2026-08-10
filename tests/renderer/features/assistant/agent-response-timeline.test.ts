@@ -6,9 +6,11 @@ import {
   completeToolActivity,
   replaceAssistantMessage,
   startToolActivity,
-  type AgentConversationPart,
-  type ConversationMessage,
 } from '../../../../src/renderer/features/assistant/use-agent-conversation';
+import type {
+  AgentConversationMessage,
+  AgentConversationPart,
+} from '../../../../src/shared/contracts/agent-conversations';
 
 describe('Agent response timeline', () => {
   it('keeps a Tool call at the point where it occurred between text events', () => {
@@ -52,7 +54,7 @@ describe('Agent response timeline', () => {
   });
 
   it('branches from an edited user message and discards the old continuation', () => {
-    const messages: ConversationMessage[] = [
+    const messages: AgentConversationMessage[] = [
       { content: 'First prompt', id: 'user-1', role: 'user' },
       {
         content: 'Old answer',
@@ -77,7 +79,7 @@ describe('Agent response timeline', () => {
   });
 
   it('keeps edited model content as assistant Markdown after retained tools', () => {
-    const messages: ConversationMessage[] = [
+    const messages: AgentConversationMessage[] = [
       {
         content: 'Old answer',
         id: 'assistant-1',

@@ -8,7 +8,10 @@ import type {
   AgentToolRequest,
   AgentToolSuccessResult,
 } from '../../shared/contracts/agent-tools';
-import { isAgentToolRequest } from '../../shared/contracts/agent-tools';
+import {
+  isAgentToolRequest,
+  isLongRunningAgentTool,
+} from '../../shared/contracts/agent-tools';
 import {
   ProjectContextError,
   type ProjectContextService,
@@ -77,7 +80,7 @@ export class AgentToolDispatcher {
 
     try {
       const operation = this.executeValidated(scope, request);
-      const result = isProposalTool(request.toolName)
+      const result = isLongRunningAgentTool(request.toolName)
         ? await operation
         : await this.withTimeout(operation);
       const bytes = Buffer.byteLength(JSON.stringify(result), 'utf8');
@@ -304,13 +307,6 @@ export class AgentToolDispatcher {
 }
 
 class ToolTimeoutError extends Error {}
-
-const isProposalTool = (toolName: AgentToolName): boolean =>
-  toolName === 'delegate_writing' ||
-  toolName === 'propose_document_edit' ||
-  toolName === 'propose_document_file_operation' ||
-  toolName === 'propose_project_structure_operation' ||
-  toolName === 'propose_story_operation';
 
 const storyOperationShapeHint = (
   toolName: AgentToolName,

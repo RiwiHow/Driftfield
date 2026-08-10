@@ -9,7 +9,6 @@ const dirtyDocument: WorkspaceDocument = {
   id: 'document.md',
   isDirty: true,
   markdown: 'unsaved text',
-  order: 1,
   previousMarkdown: 'old disk text',
   relativePath: 'document.md',
   revision: 'old-revision',

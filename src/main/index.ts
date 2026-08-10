@@ -31,10 +31,7 @@ const projectSessions = new ProjectSessionService();
 const lifecycleStates = new WeakMap<BrowserWindow, WindowLifecycleState>();
 let isQuitting = false;
 let pendingQuit = false;
-let activeAiAgentService: AiAgentService | null = null;
-let activeAgentConversationService: AgentConversationService | null = null;
-let activeProjectSettingsService: ProjectSettingsService | null = null;
-let activeAgentModelConfigService: AgentModelConfigService | null = null;
+let disposeActiveServices: (() => void) | null = null;
 
 interface WindowLifecycleState {
   allowClose: boolean;
@@ -170,10 +167,12 @@ void app.whenReady().then(async () => {
         projectSessions.get(ownerId)?.id === projectSessionId,
       agentToolDispatcher,
     );
-    activeAiAgentService = aiAgentService;
-    activeAgentConversationService = agentConversationService;
-    activeProjectSettingsService = projectSettingsService;
-    activeAgentModelConfigService = agentModelConfigService;
+    disposeActiveServices = () => {
+      aiAgentService.dispose();
+      agentConversationService.dispose();
+      projectSettingsService.dispose();
+      agentModelConfigService.dispose();
+    };
     registerIpcHandlers({
       agentConversationService,
       aiAgentService,
@@ -221,12 +220,6 @@ app.on("window-all-closed", () => {
 });
 
 app.on("will-quit", () => {
-  activeAiAgentService?.dispose();
-  activeAiAgentService = null;
-  activeAgentConversationService?.dispose();
-  activeAgentConversationService = null;
-  activeProjectSettingsService?.dispose();
-  activeProjectSettingsService = null;
-  activeAgentModelConfigService?.dispose();
-  activeAgentModelConfigService = null;
+  disposeActiveServices?.();
+  disposeActiveServices = null;
 });

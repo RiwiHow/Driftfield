@@ -118,21 +118,6 @@ export class ProjectStoryService {
     );
   }
 
-  maintainOperation(
-    session: ProjectSession,
-    expectedRevision: number,
-    operation: ProjectStoryOperation,
-    requestId: string,
-  ): { operationId: string; snapshot: ProjectStorySnapshot } {
-    const result = this.maintainOperations(
-      session,
-      expectedRevision,
-      [operation],
-      requestId,
-    );
-    return { operationId: result.operationIds[0], snapshot: result.snapshot };
-  }
-
   maintainOperations(
     session: ProjectSession,
     expectedRevision: number,

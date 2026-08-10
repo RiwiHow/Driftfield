@@ -5,7 +5,12 @@ const DATABASE_VERSION = 2;
 export class SettingsDatabase extends ProjectSqliteDatabase {
   constructor(projectDirectory: string) {
     super(projectDirectory, 'settings.sqlite');
-    this.migrate();
+    try {
+      this.migrate();
+    } catch (error) {
+      this.close();
+      throw error;
+    }
   }
 
   private migrate(): void {
@@ -49,17 +54,8 @@ export class SettingsDatabase extends ProjectSqliteDatabase {
       });
       return;
     }
-    if (row.version === 1) {
-      this.transaction(() => {
-        this.connection.exec(`
-          ALTER TABLE agent_settings ADD COLUMN use_global INTEGER NOT NULL
-            DEFAULT 0 CHECK(use_global IN (0, 1));
-          UPDATE agent_settings SET use_global = 1
-          WHERE provider_id IS NULL AND model_id IS NULL;
-          INSERT INTO schema_migrations(version, applied_at)
-          VALUES (2, datetime('now'));
-        `);
-      });
+    if (row.version !== DATABASE_VERSION) {
+      throw new Error('Settings database schema is outdated');
     }
   }
 

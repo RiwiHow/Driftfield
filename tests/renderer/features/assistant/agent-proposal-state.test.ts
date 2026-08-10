@@ -13,7 +13,6 @@ const document: WorkspaceDocument = {
   id: 'document-1',
   isDirty: true,
   markdown: '# Request-start draft',
-  order: 0,
   previousMarkdown: '# Disk',
   relativePath: 'document.md',
   revision: 'a'.repeat(64),

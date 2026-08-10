@@ -231,11 +231,6 @@ const api: DriftfieldAPI = {
       IPC_CHANNELS.updateAgentConversationMessage,
       request,
     ) as Promise<AgentConversationState>,
-  versions: {
-    chrome: process.versions.chrome,
-    electron: process.versions.electron,
-    node: process.versions.node,
-  },
 };
 
 contextBridge.exposeInMainWorld("driftfield", api);

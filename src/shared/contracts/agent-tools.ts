@@ -206,6 +206,17 @@ export const AGENT_TOOL_NAMES = [
   'propose_story_operation',
 ] as const satisfies readonly AgentToolName[];
 
+const LONG_RUNNING_AGENT_TOOL_NAMES = new Set<AgentToolName>([
+  'delegate_writing',
+  'propose_document_edit',
+  'propose_document_file_operation',
+  'propose_project_structure_operation',
+  'propose_story_operation',
+]);
+
+export const isLongRunningAgentTool = (toolName: AgentToolName): boolean =>
+  LONG_RUNNING_AGENT_TOOL_NAMES.has(toolName);
+
 export type AgentToolRequest<
   Name extends AgentToolName = AgentToolName,
 > = {

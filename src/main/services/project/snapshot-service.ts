@@ -14,7 +14,7 @@ import {
   loadProjectLayout,
   type LoadedProjectLayout,
 } from './layout-service';
-import { contentRevision } from './document-utils';
+import { contentRevision, readProjectDocument } from './document-utils';
 
 export const MAX_PROJECT_DOCUMENTS = 500;
 export const MAX_PROJECT_BYTES = 10 * 1024 * 1024;
@@ -23,23 +23,6 @@ interface ProjectScanState {
   bytes: number;
   documents: ProjectDocument[];
 }
-
-const readProjectDocument = async (
-  projectPath: string,
-  relativePath: string,
-  id = relativePath,
-  name = path.basename(relativePath, path.extname(relativePath)),
-): Promise<ProjectDocument> => {
-  const absolutePath = path.resolve(projectPath, relativePath);
-  const fileBuffer = await readFile(absolutePath);
-  return {
-    id,
-    markdown: fileBuffer.toString('utf8'),
-    name,
-    relativePath,
-    revision: contentRevision(fileBuffer),
-  };
-};
 
 interface ManuscriptLabelContext {
   number?: number;
