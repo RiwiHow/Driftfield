@@ -52,7 +52,10 @@ import type {
   AgentDocumentProposal,
   SuccessfulApplyAgentProposalResult,
 } from '../../../shared/contracts/agent-proposals';
-import type { AgentConversationPhase } from './agent-conversation-state';
+import {
+  type AgentConversationPhase,
+  isAgentConversationNearBottom,
+} from './agent-conversation-state';
 import { SafeMarkdown } from './SafeMarkdown';
 import {
   type AgentConversationPart,
@@ -99,6 +102,9 @@ export function AssistantPanel({
   const [renameError, setRenameError] = useState(false);
   const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
   const [isRenaming, setIsRenaming] = useState(false);
+  const conversationRef = useRef<HTMLDivElement>(null);
+  const followConversationRef = useRef(true);
+  const followedConversationIdRef = useRef<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<Pick<
     ConversationMessage,
     'content' | 'id' | 'role'
@@ -141,6 +147,7 @@ export function AssistantPanel({
 
   const submit = async (): Promise<void> => {
     if (!canSend || isActive) return;
+    followConversationRef.current = true;
     if (await send(prompt)) setPrompt('');
   };
 
@@ -157,6 +164,18 @@ export function AssistantPanel({
   const activeConversation = conversations.find(
     ({ id }) => id === activeConversationId,
   );
+
+  useLayoutEffect(() => {
+    const conversation = conversationRef.current;
+    if (conversation === null) return;
+    if (followedConversationIdRef.current !== activeConversationId) {
+      followedConversationIdRef.current = activeConversationId;
+      followConversationRef.current = true;
+    }
+    if (followConversationRef.current) {
+      conversation.scrollTop = conversation.scrollHeight;
+    }
+  }, [activeConversationId, error, messages, phase]);
 
   const openRenameConversation = (): void => {
     if (activeConversation === undefined) return;
@@ -406,7 +425,16 @@ export function AssistantPanel({
         </AlertDialogContent>
       </AlertDialog>
 
-      <div aria-label={t('title')} className="conversation">
+      <div
+        aria-label={t('title')}
+        className="conversation"
+        onScroll={(event) => {
+          followConversationRef.current = isAgentConversationNearBottom(
+            event.currentTarget,
+          );
+        }}
+        ref={conversationRef}
+      >
         {messages.length === 0 ? (
           isConfigured ? (
             <div className="message-row assistant-message">

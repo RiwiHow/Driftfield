@@ -3,10 +3,24 @@ import { describe, expect, it } from 'vitest';
 import {
   INITIAL_AGENT_RUN_STATE,
   isAgentConversationActive,
+  isAgentConversationNearBottom,
   reduceAgentConversationRun,
 } from '../../../../src/renderer/features/assistant/agent-conversation-state';
 
 describe('Agent conversation run state', () => {
+  it('follows output only while the reader remains near the bottom', () => {
+    expect(isAgentConversationNearBottom({
+      clientHeight: 500,
+      scrollHeight: 1_000,
+      scrollTop: 430,
+    })).toBe(true);
+    expect(isAgentConversationNearBottom({
+      clientHeight: 500,
+      scrollHeight: 1_000,
+      scrollTop: 300,
+    })).toBe(false);
+  });
+
   it('tracks startup, streaming, cancellation and completion explicitly', () => {
     const starting = reduceAgentConversationRun(INITIAL_AGENT_RUN_STATE, {
       requestId: 'request-1',

@@ -42,6 +42,12 @@ export const isAgentConversationActive = (
 ): boolean =>
   phase === 'starting' || phase === 'streaming' || phase === 'cancelling';
 
+export const isAgentConversationNearBottom = (
+  metrics: Pick<HTMLElement, 'clientHeight' | 'scrollHeight' | 'scrollTop'>,
+  threshold = 72,
+): boolean =>
+  metrics.scrollHeight - metrics.clientHeight - metrics.scrollTop <= threshold;
+
 export const reduceAgentConversationRun = (
   state: AgentConversationRunState,
   action: AgentConversationRunAction,

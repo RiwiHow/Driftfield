@@ -115,6 +115,9 @@ Its history selector can create, switch, rename, and soft-delete conversations;
 Renderer state is only a cache of the active Main-owned database record. Editing
 an earlier user message creates a new active branch, while editing an assistant
 message updates the model-facing persisted transcript.
+Streaming output follows the bottom of the conversation while the reader stays
+near it. Manual upward scrolling pauses that follow behavior until the reader
+returns to the bottom or sends a new prompt.
 
 ## Model settings
 

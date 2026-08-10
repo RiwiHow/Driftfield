@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   lstat,
   mkdir,
+  readdir,
   readFile,
   realpath,
   rename,
@@ -80,6 +81,56 @@ export interface StructuredDocumentDescriptor {
 }
 
 const mutationQueues = new Map<string, Promise<void>>();
+
+const MAX_PHYSICAL_NAME_BYTES = 255;
+const WINDOWS_RESERVED_NAME =
+  /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/iu;
+
+const truncateUtf8 = (value: string, maxBytes: number): string => {
+  let result = '';
+  let bytes = 0;
+  for (const character of value) {
+    const characterBytes = Buffer.byteLength(character, 'utf8');
+    if (bytes + characterBytes > maxBytes) break;
+    result += character;
+    bytes += characterBytes;
+  }
+  return result;
+};
+
+const readablePhysicalBase = (title: string): string => {
+  const sanitized = title
+    .normalize('NFC')
+    .replace(/[<>:"/\\|?*\u0000-\u001f\u007f]+/gu, '-')
+    .replace(/\s+/gu, ' ')
+    .replace(/^[. ]+|[. ]+$/gu, '')
+    .replace(/-+/gu, '-')
+    .trim();
+  const base = sanitized.length === 0 ? 'untitled' : sanitized;
+  return WINDOWS_RESERVED_NAME.test(base) ? `${base}-document` : base;
+};
+
+const chooseReadablePhysicalName = async (
+  directoryPath: string,
+  title: string,
+  extension = '',
+): Promise<string> => {
+  const existingNames = new Set(
+    (await readdir(directoryPath)).map((name) => name.toLowerCase()),
+  );
+  const readableBase = readablePhysicalBase(title);
+  for (let ordinal = 1; ; ordinal += 1) {
+    const suffix = ordinal === 1 ? '' : ` (${ordinal})`;
+    const maxBaseBytes =
+      MAX_PHYSICAL_NAME_BYTES - Buffer.byteLength(suffix + extension, 'utf8');
+    const truncatedBase = truncateUtf8(readableBase, maxBaseBytes).replace(
+      /[. ]+$/gu,
+      '',
+    );
+    const candidate = `${truncatedBase || 'untitled'}${suffix}${extension}`;
+    if (!existingNames.has(candidate.toLowerCase())) return candidate;
+  }
+};
 
 const enqueueMutation = async <T>(
   projectPath: string,
@@ -275,7 +326,10 @@ export const createStructuredProjectDirectory = async (
         ? null
         : locateDirectory(projectPath, layout, layout.lore.index.id);
     if (root === null) throw new Error('Project directory root was not found');
-    const physicalName = request.directoryId;
+    const physicalName = await chooseReadablePhysicalName(
+      root.directoryPath,
+      request.title,
+    );
     const createdPath = path.join(root.directoryPath, physicalName);
     if (!isPathInside(projectPath, createdPath)) {
       throw new Error('Project directory path escapes project');
@@ -326,11 +380,17 @@ export const moveStructuredProjectDocument = async (
     if (contentRevision(markdown) !== request.baseRevision) {
       throw new Error('Project document revision changed');
     }
-    const extension = path.extname(source.entry.file).toLowerCase();
+    const sourceExtension = path.extname(source.entry.file);
+    const extension = sourceExtension.toLowerCase();
     if (extension !== '.md' && extension !== '.markdown') {
       throw new Error('Unsupported project document extension');
     }
-    const targetFilename = `${request.documentId}${extension}`;
+    const sourceBase = path.basename(source.entry.file, sourceExtension);
+    const targetFilename = await chooseReadablePhysicalName(
+      target.directoryPath,
+      sourceBase === request.documentId ? source.entry.title : sourceBase,
+      extension,
+    );
     const targetFilePath = path.join(target.directoryPath, targetFilename);
     if (!isPathInside(projectPath, targetFilePath)) throw new Error('Document path escapes project');
     const movedEntry = { ...source.entry, file: targetFilename };
@@ -375,7 +435,11 @@ export const createStructuredProjectDocument = async (
     if ((isLore && request.kind !== 'entry') || (!isLore && request.kind === 'entry')) {
       throw new Error('Document kind is invalid for its parent');
     }
-    const filename = `${request.documentId}.md`;
+    const filename = await chooseReadablePhysicalName(
+      parent.directoryPath,
+      request.title,
+      '.md',
+    );
     const documentPath = path.join(parent.directoryPath, filename);
     if (!isPathInside(projectPath, documentPath)) throw new Error('Document path escapes project');
     const entry: LoreEntry | ManuscriptDocumentEntry = isLore

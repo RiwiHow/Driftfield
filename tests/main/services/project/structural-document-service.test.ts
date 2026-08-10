@@ -53,6 +53,7 @@ describe('structured project documents', () => {
       }),
     ]);
     const documentPath = created.documents[0].relativePath;
+    expect(documentPath).toBe(path.join('manuscript', 'Created.md'));
 
     await deleteStructuredProjectDocument(directory, {
       baseRevision: contentRevision('# Created\n'),
@@ -135,7 +136,7 @@ describe('structured project documents', () => {
 
     const movedLayout = await loadProjectLayout(directory);
     expect(movedLayout.manuscript.index.children).toContainEqual({
-      directory: 'volume-two',
+      directory: 'Volume Two',
       kind: 'volume',
     });
     expect(movedLayout.manuscript.index.children).not.toContainEqual(
@@ -149,7 +150,43 @@ describe('structured project documents', () => {
       expect.objectContaining({ id: 'chapter-moved' }),
     );
     expect((await createProjectSnapshot(directory)).documents).toContainEqual(
-      expect.objectContaining({ id: 'chapter-moved', markdown: '# Move me\n' }),
+      expect.objectContaining({
+        id: 'chapter-moved',
+        markdown: '# Move me\n',
+        relativePath: path.join('manuscript', 'Volume Two', 'Move me.md'),
+      }),
     );
+  });
+
+  it('creates readable collision-safe names without changing stable IDs', async () => {
+    const directory = await createProject();
+    const layout = await loadProjectLayout(directory);
+
+    await createStructuredProjectDocument(directory, {
+      documentId: 'first-stable-id',
+      kind: 'chapter',
+      markdown: '# First\n',
+      parentId: layout.manuscript.index.id,
+      title: 'Act I: Arrival',
+    });
+    await createStructuredProjectDocument(directory, {
+      documentId: 'second-stable-id',
+      kind: 'chapter',
+      markdown: '# Second\n',
+      parentId: layout.manuscript.index.id,
+      title: 'Act I: Arrival',
+    });
+
+    const created = await createProjectSnapshot(directory);
+    expect(created.documents).toEqual([
+      expect.objectContaining({
+        id: 'first-stable-id',
+        relativePath: path.join('manuscript', 'Act I- Arrival.md'),
+      }),
+      expect.objectContaining({
+        id: 'second-stable-id',
+        relativePath: path.join('manuscript', 'Act I- Arrival (2).md'),
+      }),
+    ]);
   });
 });

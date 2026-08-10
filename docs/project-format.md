@@ -43,6 +43,10 @@ metadata.
   numbering policy.
 - UI labels may be renamed or localized without changing physical paths. Do not
   duplicate the same metadata in parent and child indexes.
+- Newly created semantic directories and Markdown documents use sanitized,
+  collision-safe display titles as their physical names. Stable IDs remain in
+  metadata and never depend on those human-readable names. Renaming a title does
+  not implicitly rename its physical path.
 - Markdown files contain content. Filenames, paths, display titles, numbers,
   and array positions are not stable domain identity.
 
