@@ -180,6 +180,149 @@ export class ProjectDatabase extends ProjectSqliteDatabase {
             icon TEXT,
             created_at TEXT NOT NULL
           ) STRICT;
+          CREATE TABLE project_story_state (
+            singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+            revision INTEGER NOT NULL CHECK(revision >= 0)
+          ) STRICT;
+          INSERT INTO project_story_state(singleton, revision) VALUES (1, 0);
+
+          CREATE TABLE personae (
+            persona_id TEXT PRIMARY KEY CHECK(length(persona_id) BETWEEN 1 AND 128),
+            kind TEXT NOT NULL CHECK(kind = 'character'),
+            name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 500),
+            role TEXT CHECK(role IS NULL OR length(role) <= 500),
+            summary TEXT NOT NULL CHECK(length(summary) <= 20000),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          ) STRICT;
+
+          CREATE TABLE chronicle_timelines (
+            timeline_id TEXT PRIMARY KEY CHECK(length(timeline_id) BETWEEN 1 AND 128),
+            title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 500),
+            summary TEXT NOT NULL CHECK(length(summary) <= 20000),
+            is_primary INTEGER NOT NULL DEFAULT 0 CHECK(is_primary IN (0, 1)),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          ) STRICT;
+          CREATE UNIQUE INDEX chronicle_one_primary_timeline
+            ON chronicle_timelines(is_primary) WHERE is_primary = 1;
+
+          CREATE TABLE chronicle_moments (
+            moment_id TEXT PRIMARY KEY CHECK(length(moment_id) BETWEEN 1 AND 128),
+            timeline_id TEXT NOT NULL REFERENCES chronicle_timelines(timeline_id) ON DELETE CASCADE,
+            display_time TEXT NOT NULL CHECK(length(display_time) BETWEEN 1 AND 500),
+            precision TEXT NOT NULL CHECK(precision IN (
+              'exact', 'day', 'month', 'season', 'approximate', 'unknown'
+            )),
+            order_key INTEGER NOT NULL,
+            note TEXT NOT NULL CHECK(length(note) <= 10000),
+            UNIQUE(moment_id, timeline_id),
+            UNIQUE(timeline_id, order_key)
+          ) STRICT;
+
+          CREATE TABLE chronicle_events (
+            event_id TEXT PRIMARY KEY CHECK(length(event_id) BETWEEN 1 AND 128),
+            timeline_id TEXT NOT NULL REFERENCES chronicle_timelines(timeline_id) ON DELETE CASCADE,
+            start_moment_id TEXT NOT NULL,
+            end_moment_id TEXT,
+            title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 500),
+            summary TEXT NOT NULL CHECK(length(summary) <= 30000),
+            status TEXT NOT NULL CHECK(status IN ('planned', 'established')),
+            causes TEXT NOT NULL CHECK(length(causes) <= 20000),
+            consequences TEXT NOT NULL CHECK(length(consequences) <= 20000),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(event_id, timeline_id),
+            FOREIGN KEY(start_moment_id, timeline_id)
+              REFERENCES chronicle_moments(moment_id, timeline_id),
+            FOREIGN KEY(end_moment_id, timeline_id)
+              REFERENCES chronicle_moments(moment_id, timeline_id)
+          ) STRICT;
+          CREATE INDEX chronicle_events_by_start
+            ON chronicle_events(timeline_id, start_moment_id);
+
+          CREATE TABLE chronicle_event_personae (
+            event_id TEXT NOT NULL REFERENCES chronicle_events(event_id) ON DELETE CASCADE,
+            persona_id TEXT NOT NULL REFERENCES personae(persona_id) ON DELETE RESTRICT,
+            role TEXT NOT NULL CHECK(role IN ('actor', 'target', 'witness', 'affected')),
+            description TEXT NOT NULL CHECK(length(description) <= 10000),
+            PRIMARY KEY(event_id, persona_id, role)
+          ) STRICT;
+          CREATE INDEX chronicle_events_by_persona
+            ON chronicle_event_personae(persona_id, event_id);
+
+          CREATE TABLE chronicle_event_sources (
+            source_id TEXT PRIMARY KEY CHECK(length(source_id) BETWEEN 1 AND 128),
+            event_id TEXT NOT NULL REFERENCES chronicle_events(event_id) ON DELETE CASCADE,
+            source_kind TEXT NOT NULL CHECK(source_kind IN ('manuscript', 'lore')),
+            document_id TEXT NOT NULL CHECK(length(document_id) BETWEEN 1 AND 128),
+            document_revision TEXT NOT NULL CHECK(length(document_revision) BETWEEN 1 AND 128),
+            relation TEXT NOT NULL CHECK(relation IN ('depicted', 'mentioned', 'inferred')),
+            anchor TEXT CHECK(anchor IS NULL OR length(anchor) <= 10000)
+          ) STRICT;
+          CREATE INDEX chronicle_sources_by_document
+            ON chronicle_event_sources(document_id, event_id);
+
+          CREATE TABLE threads (
+            thread_id TEXT PRIMARY KEY CHECK(length(thread_id) BETWEEN 1 AND 128),
+            parent_thread_id TEXT REFERENCES threads(thread_id) ON DELETE RESTRICT,
+            title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 500),
+            summary TEXT NOT NULL CHECK(length(summary) <= 20000),
+            status TEXT NOT NULL CHECK(status IN ('planned', 'active', 'resolved', 'abandoned')),
+            order_key INTEGER NOT NULL UNIQUE,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            CHECK(parent_thread_id IS NULL OR parent_thread_id <> thread_id)
+          ) STRICT;
+
+          CREATE TABLE thread_beats (
+            beat_id TEXT PRIMARY KEY CHECK(length(beat_id) BETWEEN 1 AND 128),
+            thread_id TEXT NOT NULL REFERENCES threads(thread_id) ON DELETE CASCADE,
+            parent_beat_id TEXT,
+            kind TEXT NOT NULL CHECK(kind IN (
+              'beat', 'setup', 'turning_point', 'climax', 'resolution'
+            )),
+            title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 500),
+            description TEXT NOT NULL CHECK(length(description) <= 30000),
+            status TEXT NOT NULL CHECK(status IN ('planned', 'active', 'resolved', 'abandoned')),
+            order_key INTEGER NOT NULL,
+            dramatic_purpose TEXT NOT NULL CHECK(length(dramatic_purpose) <= 10000),
+            desired_outcome TEXT NOT NULL CHECK(length(desired_outcome) <= 10000),
+            UNIQUE(beat_id, thread_id),
+            UNIQUE(thread_id, order_key),
+            FOREIGN KEY(parent_beat_id, thread_id)
+              REFERENCES thread_beats(beat_id, thread_id),
+            CHECK(parent_beat_id IS NULL OR parent_beat_id <> beat_id)
+          ) STRICT;
+
+          CREATE TABLE thread_event_links (
+            beat_id TEXT NOT NULL REFERENCES thread_beats(beat_id) ON DELETE CASCADE,
+            event_id TEXT NOT NULL REFERENCES chronicle_events(event_id) ON DELETE CASCADE,
+            relation TEXT NOT NULL CHECK(relation IN (
+              'plans', 'realizes', 'reveals', 'foreshadows', 'resolves'
+            )),
+            PRIMARY KEY(beat_id, event_id, relation)
+          ) STRICT;
+          CREATE INDEX thread_links_by_event
+            ON thread_event_links(event_id, beat_id);
+
+          CREATE TABLE story_operations (
+            operation_id TEXT PRIMARY KEY CHECK(length(operation_id) BETWEEN 1 AND 128),
+            operation_kind TEXT NOT NULL CHECK(length(operation_kind) BETWEEN 1 AND 100),
+            payload_json TEXT NOT NULL CHECK(length(payload_json) <= 262144),
+            base_revision INTEGER NOT NULL CHECK(base_revision >= 0),
+            applied_revision INTEGER CHECK(applied_revision IS NULL OR applied_revision > base_revision),
+            status TEXT NOT NULL CHECK(status IN (
+              'pending', 'applied', 'rejected', 'conflict', 'failed'
+            )),
+            origin_request_id TEXT CHECK(
+              origin_request_id IS NULL OR length(origin_request_id) BETWEEN 1 AND 128
+            ),
+            created_at TEXT NOT NULL,
+            decided_at TEXT,
+            error_code TEXT CHECK(error_code IS NULL OR length(error_code) <= 100)
+          ) STRICT;
+
           INSERT INTO schema_migrations(version, applied_at)
           VALUES (1, datetime('now'));
         `);
@@ -205,6 +348,22 @@ export class ProjectDatabase extends ProjectSqliteDatabase {
         'title',
       ].every((column) => columnNames.has(column))
     ) {
+      throw new Error('Project database schema is invalid');
+    }
+    const requiredTables = [
+      'chronicle_event_personae',
+      'chronicle_event_sources',
+      'chronicle_events',
+      'chronicle_moments',
+      'chronicle_timelines',
+      'personae',
+      'project_story_state',
+      'story_operations',
+      'thread_beats',
+      'thread_event_links',
+      'threads',
+    ];
+    if (requiredTables.some((tableName) => !this.hasTable(tableName))) {
       throw new Error('Project database schema is invalid');
     }
   }

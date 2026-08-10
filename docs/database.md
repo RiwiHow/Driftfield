@@ -16,6 +16,54 @@ under Electron `userData`. They must never be copied into a project database.
 A generated Pi `models.json` under `userData` is only a rebuildable per-project
 runtime cache.
 
+## Story domain vocabulary
+
+The application uses five product domain names consistently:
+
+- **Manuscript** is the authored novel text under `manuscript/`.
+- **Lore** is the design book and setting material under `lore/`.
+- **Chronicle** is fictional-world time, moments, and events in
+  `project.sqlite`.
+- **Threads** is plot lines, hierarchical beats, and their connections to
+  Chronicle events in `project.sqlite`.
+- **Personae** is the stable character registry used by Chronicle event
+  participation in `project.sqlite`.
+
+Manuscript and Lore remain Markdown/YAML document domains. Chronicle, Threads,
+and Personae are structured database domains; they are not additional project
+directories and do not duplicate authored documents.
+
+## Chronicle, Threads, and Personae schema
+
+`project_story_state` owns a monotonically increasing story revision. Every
+canonical repository mutation checks an expected revision, applies all related
+rows in one transaction, and increments the revision once. A stale mutation
+does not partially change canonical state.
+
+Personae records have stable IDs independent of character names. Chronicle uses
+application-owned timeline and moment IDs. A moment stores a bounded display
+label, precision, and ordering key rather than pretending every fictional
+calendar is a real-world SQL timestamp. Events refer to start and optional end
+moments on the same timeline; Main rejects an end ordered before its start.
+Event participants connect events to Personae with explicit roles.
+
+Chronicle evidence links may refer to a stable Manuscript or Lore document ID
+and its content revision. These are cross-domain references rather than SQLite
+foreign keys; the project service must validate the current document identity
+and revision before accepting them.
+
+Threads contain optionally nested plot lines. Thread beats form a hierarchy
+within one Thread and record dramatic purpose, desired outcome, lifecycle
+status, and explicit order. A many-to-many link records whether a beat plans,
+realizes, reveals, foreshadows, or resolves a Chronicle event. This keeps
+fictional occurrence separate from authorial plot function and from where an
+event is depicted in the documents.
+
+`story_operations` is the project-owned mutation ledger reserved for reviewed
+Agent operations. Its presence does not authorize direct Agent writes: pending
+payload validation, preview, approval, revision checking, and transactional
+application remain Main-owned workflow responsibilities.
+
 ## Ownership and access
 
 - Electron main exclusively owns database paths, connections, migrations, SQL,
@@ -42,10 +90,11 @@ schema change must be an ordered, transactional migration. Opening a database
 created by a newer Driftfield version fails closed. Application code never
 accepts migrations from the project directory.
 
-The pre-release schema starts at version 1 in each database. Driftfield does not
-recognize or import earlier development schemas. Once a public release makes a
-schema persistent user data, later schema changes must add explicit forward
-migrations rather than guessing from table shapes.
+The pre-release schema starts at version 1 in each database. During active
+development, version 1 may be reset without compatibility code and old
+development databases are rejected rather than imported. Once a public release
+makes a schema persistent user data, later schema changes must add explicit
+forward migrations rather than guessing from table shapes.
 
 ## Conversations
 

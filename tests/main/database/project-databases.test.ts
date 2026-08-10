@@ -36,6 +36,21 @@ describe('project databases', () => {
     });
     expect(project.hasTable('conversations')).toBe(false);
     expect(project.hasTable('agent_settings')).toBe(false);
+    expect(listTables(project)).toEqual([
+      'chronicle_event_personae',
+      'chronicle_event_sources',
+      'chronicle_events',
+      'chronicle_moments',
+      'chronicle_timelines',
+      'personae',
+      'project_metadata',
+      'project_story_state',
+      'schema_migrations',
+      'story_operations',
+      'thread_beats',
+      'thread_event_links',
+      'threads',
+    ]);
     expect(
       project.connection.prepare(`
         SELECT version FROM schema_migrations ORDER BY version

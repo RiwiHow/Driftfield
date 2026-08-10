@@ -31,6 +31,13 @@ it directly; credentials never enter it. Its databases travel together with
 ordinary folder copies and backups. Driftfield does not create or depend on Git
 metadata.
 
+The product vocabulary distinguishes five domains: Manuscript is the authored
+novel, Lore is its design book, Chronicle is fictional-world time and events,
+Threads is plot structure, and Personae is the character registry. Manuscript
+and Lore are the two document roots shown above. Chronicle, Threads, and
+Personae are structured domains owned by `project.sqlite`; they are not sibling
+filesystem roots.
+
 ## Physical names and metadata ownership
 
 - Keep the physical roots exactly `manuscript` and `lore`. New projects create
