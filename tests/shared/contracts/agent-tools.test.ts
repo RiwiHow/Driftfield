@@ -32,6 +32,22 @@ describe('Agent proposal tool contract', () => {
     })).toBe(false);
   });
 
+  it('accepts bounded typed tool-error details and rejects oversized details', () => {
+    expect(isAgentToolExecutionResult({
+      error: {
+        code: 'invalid-arguments',
+        detail: 'create_beat status must be active.',
+      },
+      ok: false,
+      toolName: 'maintain_story_records',
+    })).toBe(true);
+    expect(isAgentToolExecutionResult({
+      error: { code: 'invalid-arguments', detail: 'x'.repeat(1_001) },
+      ok: false,
+      toolName: 'maintain_story_records',
+    })).toBe(false);
+  });
+
   it('validates project structure proposal variants', () => {
     expect(isAgentToolRequest({
       arguments: {

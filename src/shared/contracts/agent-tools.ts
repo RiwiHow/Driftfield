@@ -210,7 +210,7 @@ export type AgentToolFailureResult<
   Name extends AgentToolName = AgentToolName,
 > = {
   [ToolName in Name]: {
-    error: { code: AgentToolErrorCode };
+    error: { code: AgentToolErrorCode; detail?: string };
     ok: false;
     toolName: ToolName;
   };
@@ -324,7 +324,9 @@ export const isAgentToolExecutionResult = (
   if (value.ok !== false || !isRecord(value.error)) return false;
   return (
     typeof value.error.code === 'string' &&
-    AGENT_TOOL_ERROR_CODES.includes(value.error.code as AgentToolErrorCode)
+    AGENT_TOOL_ERROR_CODES.includes(value.error.code as AgentToolErrorCode) &&
+    (value.error.detail === undefined ||
+      (typeof value.error.detail === 'string' && value.error.detail.length <= 1_000))
   );
 };
 

@@ -23,6 +23,15 @@ The bounded direct-maintenance surface contains:
   returns the new revision. It does not expose SQL and cannot delete, merge,
   reorder, or edit Manuscript/Lore documents.
 
+The provider-facing Maintain schema keeps Chronicle event lifecycle and Thread
+lifecycle distinct: `create_event` uses `eventStatus` (`planned` or
+`established`), while `create_thread` and `create_beat` use `threadStatus`
+(`planned`, `active`, `resolved`, or `abandoned`). The worker normalizes these
+wire fields to the canonical repository `status` field before Main performs its
+strict operation-shape validation. This avoids advertising a status value for
+an operation that Main would reject. Invalid story shapes return a bounded
+operation-specific hint rather than only an opaque error code.
+
 The reviewed mutation surface additionally contains:
 
 - `propose_document_edit`, which accepts a complete replacement only for the

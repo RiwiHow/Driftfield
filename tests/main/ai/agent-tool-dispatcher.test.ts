@@ -125,7 +125,10 @@ describe('AgentToolDispatcher', () => {
       },
       toolName: 'propose_story_operation',
     })).resolves.toEqual({
-      error: { code: 'invalid-arguments' },
+      error: {
+        code: 'invalid-arguments',
+        detail: 'create_timeline requires exactly operation, title, summary, isPrimary.',
+      },
       ok: false,
       toolName: 'propose_story_operation',
     });

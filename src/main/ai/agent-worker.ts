@@ -23,6 +23,7 @@ import { buildAgentSystemPrompt } from "./prompts/prompt-builder";
 import { AgentToolResultBridge } from "./agent-tool-result-bridge";
 import {
   DOCUMENT_FILE_OPERATION_PARAMETERS,
+  normalizeStoryMaintenanceArguments,
   PROJECT_STRUCTURE_OPERATION_PARAMETERS,
   STORY_OPERATION_PARAMETERS,
 } from "./agent-tool-parameters";
@@ -393,7 +394,7 @@ function createNovelTools(requestId: string) {
             requestId,
             toolCallId,
             "maintain_story_records",
-            params as AgentToolContractMap["maintain_story_records"]["arguments"],
+            normalizeStoryMaintenanceArguments(params),
           ),
         ),
     }),

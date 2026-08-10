@@ -63,7 +63,11 @@ export class AgentToolDispatcher {
     this.budgets.set(scope.requestId, budget);
 
     if (!isAgentToolRequest(request)) {
-      return this.error(request.toolName, 'invalid-arguments');
+      return this.error(
+        request.toolName,
+        'invalid-arguments',
+        storyOperationShapeHint(request.toolName, request.arguments),
+      );
     }
 
     try {
@@ -256,8 +260,13 @@ export class AgentToolDispatcher {
   private error<Name extends AgentToolName>(
     toolName: Name,
     code: Extract<AgentToolExecutionResult, { ok: false }>['error']['code'],
+    detail?: string,
   ): AgentToolFailureResult<Name> {
-    return { error: { code }, ok: false, toolName } as AgentToolFailureResult<Name>;
+    return {
+      error: { code, ...(detail === undefined ? {} : { detail }) },
+      ok: false,
+      toolName,
+    } as AgentToolFailureResult<Name>;
   }
 }
 
@@ -268,3 +277,28 @@ const isProposalTool = (toolName: AgentToolName): boolean =>
   toolName === 'propose_document_file_operation' ||
   toolName === 'propose_project_structure_operation' ||
   toolName === 'propose_story_operation';
+
+const storyOperationShapeHint = (
+  toolName: AgentToolName,
+  args: unknown,
+): string | undefined => {
+  if (
+    (toolName !== 'maintain_story_records' && toolName !== 'propose_story_operation') ||
+    typeof args !== 'object' || args === null
+  ) return undefined;
+  const change = (args as { change?: unknown }).change;
+  if (typeof change !== 'object' || change === null) return undefined;
+  const operation = (change as { operation?: unknown }).operation;
+  if (typeof operation !== 'string') return undefined;
+  return STORY_OPERATION_SHAPE_HINTS[operation];
+};
+
+const STORY_OPERATION_SHAPE_HINTS: Record<string, string> = {
+  create_beat: 'create_beat requires exactly operation, threadId, parentId, kind, title, description, status, orderKey, dramaticPurpose, desiredOutcome; status must be planned, active, resolved, or abandoned.',
+  create_event: 'create_event requires exactly operation, timelineId, startMomentId, endMomentId, title, summary, status, causes, consequences, participants; status must be planned or established.',
+  create_moment: 'create_moment requires exactly operation, timelineId, displayTime, precision, orderKey, note.',
+  create_persona: 'create_persona requires exactly operation, name, role, summary.',
+  create_thread: 'create_thread requires exactly operation, parentId, title, summary, status, orderKey; status must be planned, active, resolved, or abandoned.',
+  create_timeline: 'create_timeline requires exactly operation, title, summary, isPrimary.',
+  link_beat_event: 'link_beat_event requires exactly operation, beatId, eventId, relation.',
+};

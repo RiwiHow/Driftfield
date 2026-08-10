@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DOCUMENT_FILE_OPERATION_PARAMETERS,
+  normalizeStoryMaintenanceArguments,
   PROJECT_STRUCTURE_OPERATION_PARAMETERS,
   STORY_OPERATION_PARAMETERS,
 } from '../../../src/main/ai/agent-tool-parameters';
@@ -71,7 +72,67 @@ describe('Agent tool parameter schemas', () => {
       ],
       type: 'string',
     });
+    expect(changeProperties).not.toHaveProperty('status');
+    expect(changeProperties.eventStatus).toMatchObject({
+      enum: ['planned', 'established'],
+      type: 'string',
+    });
+    expect(changeProperties.threadStatus).toMatchObject({
+      enum: ['planned', 'active', 'resolved', 'abandoned'],
+      type: 'string',
+    });
     expect(JSON.stringify(schema)).not.toContain('anyOf');
     expect(JSON.stringify(schema)).not.toContain('const');
+  });
+
+  it('normalizes operation-specific wire statuses to canonical story operations', () => {
+    expect(normalizeStoryMaintenanceArguments({
+      change: {
+        description: '',
+        desiredOutcome: '',
+        dramaticPurpose: '',
+        kind: 'setup',
+        operation: 'create_beat',
+        orderKey: 1,
+        parentId: null,
+        threadId: 'thread-1',
+        threadStatus: 'active',
+        title: 'Opening encounter',
+      },
+      storyRevision: 6,
+    })).toEqual({
+      change: {
+        description: '',
+        desiredOutcome: '',
+        dramaticPurpose: '',
+        kind: 'setup',
+        operation: 'create_beat',
+        orderKey: 1,
+        parentId: null,
+        status: 'active',
+        threadId: 'thread-1',
+        title: 'Opening encounter',
+      },
+      storyRevision: 6,
+    });
+
+    expect(normalizeStoryMaintenanceArguments({
+      change: {
+        causes: '',
+        consequences: '',
+        endMomentId: null,
+        eventStatus: 'established',
+        operation: 'create_event',
+        participants: [],
+        startMomentId: 'moment-1',
+        summary: '',
+        timelineId: 'timeline-1',
+        title: 'Arrival',
+      },
+      storyRevision: 2,
+    }).change).toMatchObject({
+      operation: 'create_event',
+      status: 'established',
+    });
   });
 });

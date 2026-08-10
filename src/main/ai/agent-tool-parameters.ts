@@ -1,5 +1,7 @@
 import { Type } from 'typebox';
 
+import type { AgentToolContractMap } from '../../shared/contracts/agent-tools';
+
 const stringEnum = <Values extends readonly string[]>(
   values: Values,
   options?: { description?: string },
@@ -143,7 +145,7 @@ export const STORY_OPERATION_PARAMETERS = Type.Object(
           ] as const,
           {
             description:
-              'Select one operation and use its exact change shape: create_persona={operation,name,role,summary}; create_timeline={operation,title,summary,isPrimary}; create_moment={operation,timelineId,displayTime,precision,orderKey,note}; create_event={operation,timelineId,startMomentId,endMomentId,title,summary,status,causes,consequences,participants}; create_thread={operation,parentId,title,summary,status,orderKey}; create_beat={operation,threadId,parentId,kind,title,description,status,orderKey,dramaticPurpose,desiredOutcome}; link_beat_event={operation,beatId,eventId,relation}. Send empty optional prose as empty strings and nullable IDs as null. Do not include fields from another shape.',
+              'Select one operation and use its exact change shape: create_persona={operation,name,role,summary}; create_timeline={operation,title,summary,isPrimary}; create_moment={operation,timelineId,displayTime,precision,orderKey,note}; create_event={operation,timelineId,startMomentId,endMomentId,title,summary,eventStatus,causes,consequences,participants}; create_thread={operation,parentId,title,summary,threadStatus,orderKey}; create_beat={operation,threadId,parentId,kind,title,description,threadStatus,orderKey,dramaticPurpose,desiredOutcome}; link_beat_event={operation,beatId,eventId,relation}. Send empty optional prose as empty strings and nullable IDs as null. Do not include fields from another shape.',
           },
         ),
         orderKey: Type.Optional(Type.Integer()),
@@ -170,8 +172,13 @@ export const STORY_OPERATION_PARAMETERS = Type.Object(
           type: ['string', 'null'],
         })),
         startMomentId: Type.Optional(Type.String({ maxLength: 128, minLength: 1 })),
-        status: Type.Optional(stringEnum(
-          ['planned', 'established', 'active', 'resolved', 'abandoned'] as const,
+        eventStatus: Type.Optional(stringEnum(
+          ['planned', 'established'] as const,
+          { description: 'Required only for create_event.' },
+        )),
+        threadStatus: Type.Optional(stringEnum(
+          ['planned', 'active', 'resolved', 'abandoned'] as const,
+          { description: 'Required only for create_thread and create_beat.' },
         )),
         summary: Type.Optional(Type.String({ maxLength: 30_000 })),
         threadId: Type.Optional(Type.String({ maxLength: 128, minLength: 1 })),
@@ -184,3 +191,32 @@ export const STORY_OPERATION_PARAMETERS = Type.Object(
   },
   { additionalProperties: false },
 );
+
+export const normalizeStoryMaintenanceArguments = (
+  value: {
+    change: Record<string, unknown> & {
+      eventStatus?: unknown;
+      operation?: unknown;
+      threadStatus?: unknown;
+    };
+    storyRevision: number;
+  },
+): AgentToolContractMap['maintain_story_records']['arguments'] => {
+  const { eventStatus, threadStatus, ...change } = value.change;
+  if (change.operation === 'create_event') {
+    return {
+      change: { ...change, status: eventStatus } as AgentToolContractMap['maintain_story_records']['arguments']['change'],
+      storyRevision: value.storyRevision,
+    };
+  }
+  if (change.operation === 'create_thread' || change.operation === 'create_beat') {
+    return {
+      change: { ...change, status: threadStatus } as AgentToolContractMap['maintain_story_records']['arguments']['change'],
+      storyRevision: value.storyRevision,
+    };
+  }
+  return {
+    change: change as AgentToolContractMap['maintain_story_records']['arguments']['change'],
+    storyRevision: value.storyRevision,
+  };
+};
