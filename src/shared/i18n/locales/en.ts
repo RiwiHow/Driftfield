@@ -30,8 +30,8 @@ export const en = {
   },
   library: {
     actions: { create: 'Create new project', open: 'Open local project', refresh: 'Refresh project library', settings: 'Application settings (⌘,)' },
-    empty: { action: 'Open a local project', hint: 'Use the plus button above', noMarkdown: 'This folder contains no Markdown files' },
-    labels: { chronicle: 'Chronicle', manuscript: 'Manuscript', personae: 'Personae', questions: 'Open questions', recovery: 'Unsaved documents to recover', threads: 'Threads' },
+    empty: { action: 'Open a local project', hint: 'Use the plus button above', noDocuments: 'No documents' },
+    labels: { chronicle: 'Chronicle', lore: 'Lore', manuscript: 'Manuscript', personae: 'Personae', questions: 'Open questions', recovery: 'Unsaved documents to recover', threads: 'Threads' },
     missingTitle: '{{path}} (file moved or deleted)',
     storyNavigation: 'Story records',
     title: 'Novel library',

@@ -18,6 +18,7 @@ const createSession = async (): Promise<ProjectSession> => {
     project: {
       directory: { name: 'Novel', path: directoryPath },
       documents: [],
+      loreTree: null,
       projectId: 'project-1',
       revision: 'revision',
       tree: [],

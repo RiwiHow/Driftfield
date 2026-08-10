@@ -19,6 +19,7 @@ const dirtyDocument: WorkspaceDocument = {
 const emptySnapshot: ProjectSnapshot = {
   directory: { name: 'Novel', path: '/Novel' },
   documents: [],
+  loreTree: null,
   projectId: 'project-1',
   revision: 'empty',
   tree: [],

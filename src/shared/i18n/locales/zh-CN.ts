@@ -29,8 +29,8 @@ export const zhCN = {
   },
   library: {
     actions: { create: '新建项目', open: '打开本地项目', refresh: '刷新项目目录', settings: '应用设置（⌘,）' },
-    empty: { action: '打开本地项目', hint: '点击右上角', noMarkdown: '此文件夹中没有 Markdown 文件' },
-    labels: { chronicle: 'Chronicle', manuscript: '正文', personae: 'Personae', questions: '待澄清', recovery: '待恢复的未保存文档', threads: 'Threads' },
+    empty: { action: '打开本地项目', hint: '点击右上角', noDocuments: '暂无文档' },
+    labels: { chronicle: 'Chronicle', lore: '设定集', manuscript: '正文', personae: 'Personae', questions: '待澄清', recovery: '待恢复的未保存文档', threads: 'Threads' },
     missingTitle: '{{path}}（磁盘文件已移动或删除）',
     storyNavigation: '故事记录',
     title: '小说目录',

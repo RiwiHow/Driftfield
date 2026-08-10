@@ -32,6 +32,8 @@ interface LibraryPanelProps {
   isCreatingProject: boolean;
   isSelectingProject: boolean;
   isRefreshingProject: boolean;
+  loreTitle: string | null;
+  loreTree: ProjectTreeNode[] | null;
   manuscriptTitle: string | null;
   onDocumentChange: (documentId: string) => void;
   onCreateProject: () => void;
@@ -51,6 +53,8 @@ export function LibraryPanel({
   isCreatingProject,
   isSelectingProject,
   isRefreshingProject,
+  loreTitle,
+  loreTree,
   manuscriptTitle,
   onDocumentChange,
   onCreateProject,
@@ -170,16 +174,35 @@ export function LibraryPanel({
             <Plus aria-hidden="true" size={12} strokeWidth={2} />
             <span aria-hidden="true">{t('empty.action')}</span>
           </p>
-        ) : projectTree.length === 0 && recoveredDocuments.length === 0 ? (
-          <p className="tree-empty-state">{t('empty.noMarkdown')}</p>
         ) : (
           <>
-            <ProjectTree
-              activeDocumentId={activeDocumentId}
-              key={projectDirectory.path}
-              nodes={projectTree}
-              onDocumentChange={onDocumentChange}
-            />
+            {projectTree.length === 0 ? (
+              <p className="tree-empty-state">{t('empty.noDocuments')}</p>
+            ) : (
+              <ProjectTree
+                activeDocumentId={activeDocumentId}
+                key={`${projectDirectory.path}/manuscript`}
+                nodes={projectTree}
+                onDocumentChange={onDocumentChange}
+              />
+            )}
+            {loreTree !== null && (
+              <>
+                <div className="tree-section-label">
+                  {loreTitle ?? t('labels.lore')}
+                </div>
+                {loreTree.length === 0 ? (
+                  <p className="tree-empty-state">{t('empty.noDocuments')}</p>
+                ) : (
+                  <ProjectTree
+                    activeDocumentId={activeDocumentId}
+                    key={`${projectDirectory.path}/lore`}
+                    nodes={loreTree}
+                    onDocumentChange={onDocumentChange}
+                  />
+                )}
+              </>
+            )}
             {recoveredDocuments.length > 0 && (
               <div className="recovered-documents">
                 <div className="tree-section-label">

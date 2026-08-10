@@ -31,6 +31,7 @@ export type ProjectTreeNode = ProjectFileNode | ProjectFolderNode;
 export interface ProjectSnapshot {
   directory: ProjectDirectory;
   documents: ProjectDocument[];
+  loreTree: ProjectTreeNode[] | null;
   projectId: string;
   projectIcon?: import('./project-layout').ProjectIconId;
   revision: string;

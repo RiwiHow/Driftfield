@@ -21,6 +21,9 @@ does not duplicate those effects or introduce a global state store.
   components that are used.
 - Radix UI provides interactive primitives and Lucide provides icons.
 - `react-resizable-panels` owns the fixed library/editor/Agents layout.
+- The library renders separate Manuscript and Lore sections from the ordered
+  trees supplied by Main. A missing optional Lore root remains hidden for
+  existing projects.
 - MDXEditor owns Markdown rich-text, source, and diff editing modes. Markdown is
   the manuscript interchange format.
 - The editor status bar derives its writing count from reader-visible Markdown

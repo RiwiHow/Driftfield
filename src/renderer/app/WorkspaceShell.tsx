@@ -71,6 +71,7 @@ interface WorkspaceShellProps {
   projectDirectory: ProjectDirectory | null;
   projectId: string | null;
   projectIcon: ProjectSnapshot['projectIcon'];
+  projectLoreTree: ProjectSnapshot['loreTree'];
   projectRootTitles: ProjectSnapshot['rootTitles'] | null;
   projectSelectionError: string | null;
   projectTree: ProjectTreeNode[];
@@ -106,6 +107,7 @@ export function WorkspaceShell({
   projectDirectory,
   projectId,
   projectIcon,
+  projectLoreTree,
   projectRootTitles,
   projectSelectionError,
   projectTree,
@@ -261,6 +263,8 @@ export function WorkspaceShell({
               onSelectProject={onSelectProject}
               projectDirectory={projectDirectory}
               projectIcon={projectIcon}
+              loreTitle={projectRootTitles?.lore ?? null}
+              loreTree={projectLoreTree}
               manuscriptTitle={projectRootTitles?.manuscript ?? null}
               projectSelectionError={projectSelectionError}
               projectTree={projectTree}

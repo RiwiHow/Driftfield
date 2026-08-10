@@ -1,4 +1,4 @@
-import { readFile, stat } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import type {
@@ -8,6 +8,7 @@ import type {
 } from '../../../shared/contracts/project';
 import type {
   ChapterNumberingPolicy,
+  LoreEntry,
   ManuscriptDocumentEntry,
 } from '../../../shared/contracts/project-layout';
 import {
@@ -62,7 +63,7 @@ const formatManuscriptLabel = (
 const readStructuredDocument = async (
   projectPath: string,
   relativeDirectory: string,
-  entry: ManuscriptDocumentEntry,
+  entry: LoreEntry | ManuscriptDocumentEntry,
   displayName: string,
   state: ProjectScanState,
 ): Promise<ProjectTreeNode> => {
@@ -169,6 +170,62 @@ const scanStructuredManuscript = async (
   return nodes;
 };
 
+const scanStructuredLore = async (
+  projectPath: string,
+  layout: LoadedProjectLayout,
+  state: ProjectScanState,
+): Promise<ProjectTreeNode[] | null> => {
+  if (layout.lore === null) return null;
+
+  const loreDirectory = 'lore';
+  const categories = new Map(
+    layout.lore.categories.map((category) => [category.directory, category]),
+  );
+  const nodes: ProjectTreeNode[] = [];
+
+  for (const child of layout.lore.index.children) {
+    if (child.kind !== 'category') {
+      nodes.push(
+        await readStructuredDocument(
+          projectPath,
+          loreDirectory,
+          child,
+          child.title,
+          state,
+        ),
+      );
+      continue;
+    }
+
+    const category = categories.get(child.directory);
+    if (category === undefined) throw new Error('Lore category was not loaded');
+    const relativeDirectory = path.join(loreDirectory, child.directory);
+    const children: ProjectTreeNode[] = [];
+    for (const entry of category.index.children) {
+      children.push(
+        await readStructuredDocument(
+          projectPath,
+          relativeDirectory,
+          entry,
+          entry.title,
+          state,
+        ),
+      );
+    }
+    nodes.push({
+      children,
+      ...(category.index.icon === undefined
+        ? {}
+        : { icon: category.index.icon }),
+      name: category.index.title,
+      relativePath: relativeDirectory,
+      type: 'folder',
+    });
+  }
+
+  return nodes;
+};
+
 export const createProjectSnapshot = async (
   directoryPath: string,
   loadedLayout?: LoadedProjectLayout,
@@ -176,37 +233,14 @@ export const createProjectSnapshot = async (
   const state: ProjectScanState = { bytes: 0, documents: [] };
   const layout = loadedLayout ?? (await loadProjectLayout(directoryPath));
   const tree = await scanStructuredManuscript(directoryPath, layout, state);
-  let loreRevisions: string[] = [];
-  const loreEntries = layout.lore?.entries ?? [];
-  if (loreEntries.length > 0) {
-    if (state.documents.length + loreEntries.length > MAX_PROJECT_DOCUMENTS) {
-      throw new Error('Project contains too many Markdown documents');
-    }
-    const loreContents = await Promise.all(
-      loreEntries.map(async (entry) => ({
-        content: await readFile(path.join(directoryPath, entry.relativePath)),
-        entry,
-      })),
-    );
-    const loreBytes = loreContents.reduce(
-      (total, { content }) => total + content.byteLength,
-      0,
-    );
-    if (state.bytes + loreBytes > MAX_PROJECT_BYTES) {
-      throw new Error('Project Markdown documents are too large');
-    }
-    state.bytes += loreBytes;
-    loreRevisions = loreContents.map(
-      ({ content, entry }) =>
-        `${entry.id}:${entry.relativePath}:${contentRevision(content)}`,
-    );
-  }
+  const loreTree = await scanStructuredLore(directoryPath, layout, state);
   return {
     directory: {
       name: layout.manifest.title,
       path: directoryPath,
     },
     documents: state.documents,
+    loreTree,
     projectId: layout.manifest.id,
     ...(layout.manifest.icon === undefined
       ? {}
@@ -214,7 +248,6 @@ export const createProjectSnapshot = async (
     revision: contentRevision(
       [
         ...layout.metadataSources,
-        ...loreRevisions,
         ...state.documents.map(
           (document) =>
             `${document.id}:${document.relativePath}:${document.revision}`,

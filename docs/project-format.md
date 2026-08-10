@@ -96,9 +96,11 @@ product decision and parser strategy are explicit.
 
 ## Markdown documents
 
-The project tree reads manuscript Markdown through narrow main-process IPC.
-Existing `.md` and `.markdown` documents can be saved through validated,
-conflict-aware handlers. General `.mdx` and JSX files are unsupported.
+The project snapshot exposes separate ordered Manuscript and Lore trees through
+narrow main-process IPC. Documents from both roots use the same stable-ID-based,
+revision-checked open, edit, recovery, and save lifecycle. Existing `.md` and
+`.markdown` documents can be saved through validated, conflict-aware handlers.
+General `.mdx` and JSX files are unsupported.
 
 The last successfully opened project directory is persisted in global
 application settings and restored at startup after main-owned validation. Open

@@ -78,6 +78,16 @@ describe('project documents', () => {
     });
   });
 
+  it('keeps the optional lore tree absent for legacy projects', async () => {
+    const directory = await createProjectWithChapter('# Chapter\n');
+    await rm(path.join(directory, 'lore'), { recursive: true });
+
+    const snapshot = await createProjectSnapshot(directory);
+
+    expect(snapshot.loreTree).toBeNull();
+    expect(snapshot.rootTitles).toEqual({ manuscript: 'Manuscript' });
+  });
+
   it('returns a conflict instead of overwriting an external edit', async () => {
     const directory = await createProjectWithChapter('original');
     const documentPath = path.join(directory, 'manuscript', 'chapter.md');
@@ -217,9 +227,10 @@ describe('project documents', () => {
     ).toBe('# Revised Alpha\n');
   });
 
-  it('includes indexed lore content in the project revision', async () => {
+  it('scans indexed lore into its own ordered tree and allows saving it', async () => {
     const directory = await createTemporaryProject();
     await initializeProjectLayout(directory);
+    await mkdir(path.join(directory, 'lore', 'places'));
     await writeFile(
       path.join(directory, 'lore', PROJECT_INDEX_NAME),
       stringify({
@@ -230,20 +241,74 @@ describe('project documents', () => {
             kind: 'entry',
             title: 'World',
           },
+          { directory: 'places', kind: 'category' },
         ],
         id: 'lore-1',
         kind: 'lore',
         title: 'Lore',
       }),
     );
+    await writeFile(
+      path.join(directory, 'lore', 'places', PROJECT_INDEX_NAME),
+      stringify({
+        children: [
+          {
+            file: 'city.md',
+            id: 'lore-city',
+            kind: 'entry',
+            title: 'City',
+          },
+        ],
+        id: 'lore-places',
+        kind: 'category',
+        title: 'Places',
+      }),
+    );
     const lorePath = path.join(directory, 'lore', 'world.md');
     await writeFile(lorePath, '# First version\n');
+    await writeFile(path.join(directory, 'lore', 'places', 'city.md'), '# City\n');
     const first = await createProjectSnapshot(directory);
+
+    expect(first.documents.map(({ id }) => id)).toEqual([
+      'lore-world',
+      'lore-city',
+    ]);
+    expect(first.loreTree).toEqual([
+      {
+        documentId: 'lore-world',
+        name: 'World',
+        relativePath: path.join('lore', 'world.md'),
+        type: 'file',
+      },
+      {
+        children: [
+          {
+            documentId: 'lore-city',
+            name: 'City',
+            relativePath: path.join('lore', 'places', 'city.md'),
+            type: 'file',
+          },
+        ],
+        name: 'Places',
+        relativePath: path.join('lore', 'places'),
+        type: 'folder',
+      },
+    ]);
+
+    const saveResult = await saveProjectDocument(
+      directory,
+      {
+        documentId: 'lore-world',
+        expectedRevision: first.documents[0].revision,
+        markdown: '# Saved lore\n',
+      },
+      first.documents[0].relativePath,
+    );
+    expect(saveResult.status).toBe('saved');
 
     await writeFile(lorePath, '# Second version\n');
     const second = await createProjectSnapshot(directory);
 
-    expect(second.documents).toHaveLength(0);
     expect(second.revision).not.toBe(first.revision);
   });
 });

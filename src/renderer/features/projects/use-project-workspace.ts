@@ -379,6 +379,7 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
     projectDirectory: state.projectDirectory,
     projectId: state.projectId,
     projectIcon: state.projectIcon,
+    projectLoreTree: state.projectLoreTree,
     projectRootTitles: state.projectRootTitles,
     projectSelectionError: localizeMessage(state.projectSelectionMessage),
     projectTree: state.projectTree,

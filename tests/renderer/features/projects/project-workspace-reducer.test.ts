@@ -30,6 +30,14 @@ const snapshot: ProjectSnapshot = {
       revision: document.revision,
     },
   ],
+  loreTree: [
+    {
+      documentId: 'lore-1',
+      name: 'World',
+      relativePath: 'lore/world.md',
+      type: 'file',
+    },
+  ],
   projectId: 'project-1',
   revision: 'project-revision-1',
   tree: [],
@@ -48,6 +56,7 @@ describe('projectWorkspaceReducer', () => {
       activeDocumentId: 'document-1',
       projectDirectory: snapshot.directory,
       projectId: 'project-1',
+      projectLoreTree: snapshot.loreTree,
     });
     expect(state.documents).toHaveLength(1);
   });

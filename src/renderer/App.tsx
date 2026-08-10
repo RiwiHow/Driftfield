@@ -100,6 +100,7 @@ export function App({
         projectDirectory={project.projectDirectory}
         projectId={project.projectId}
         projectIcon={project.projectIcon}
+        projectLoreTree={project.projectLoreTree}
         projectRootTitles={project.projectRootTitles}
         projectSelectionError={project.projectSelectionError}
         projectTree={project.projectTree}

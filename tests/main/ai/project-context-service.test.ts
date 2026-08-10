@@ -75,7 +75,7 @@ describe('ProjectContextService', () => {
   it('keeps the captured draft readable after its backing file leaves the latest snapshot', async () => {
     const { context, project, session } = await createContext();
     const baseRevision = project.documents[0].revision;
-    session.project = { ...project, documents: [], tree: [] };
+    session.project = { ...project, documents: [], loreTree: [], tree: [] };
 
     await expect(context.getCurrentDocument({
       draftSnapshot: { baseRevision, documentId: 'chapter-1', markdown: '# Recoverable\n' },

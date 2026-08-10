@@ -45,6 +45,7 @@ export interface ProjectWorkspaceState {
   projectDirectory: ProjectDirectory | null;
   projectIcon: ProjectSnapshot['projectIcon'];
   projectId: string | null;
+  projectLoreTree: ProjectSnapshot['loreTree'];
   projectPickerAction: 'create' | 'open' | null;
   projectRootTitles: ProjectSnapshot['rootTitles'] | null;
   projectSelectionMessage: LocalizedWorkspaceMessage | null;
@@ -63,6 +64,7 @@ export const initialProjectWorkspaceState: ProjectWorkspaceState = {
   projectDirectory: null,
   projectIcon: undefined,
   projectId: null,
+  projectLoreTree: null,
   projectPickerAction: null,
   projectRootTitles: null,
   projectSelectionMessage: null,
@@ -127,6 +129,7 @@ export const projectWorkspaceReducer = (
         projectDirectory: action.project.directory,
         projectIcon: action.project.projectIcon,
         projectId: action.project.projectId,
+        projectLoreTree: action.project.loreTree,
         projectRootTitles: action.project.rootTitles ?? null,
         projectTree: action.project.tree,
       };
