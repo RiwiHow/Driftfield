@@ -9,6 +9,7 @@ import type {
 import type {
   AgentConversationMessage,
   AgentConversationPart as SharedAgentConversationPart,
+  AgentProposalStatus,
   AgentConversationSummary,
   AgentToolActivity as SharedAgentToolActivity,
 } from '../../../shared/contracts/agent-conversations';
@@ -136,8 +137,6 @@ export function useAgentConversation(
                       type: 'proposal' as const,
                     },
                   ],
-                  proposal: event.proposal,
-                  proposalStatus: 'pending',
                 }
               : message,
           ),
@@ -182,7 +181,6 @@ export function useAgentConversation(
           current.map((message) =>
             message.id === event.requestId &&
               message.content.length === 0 &&
-              message.proposal === undefined &&
               (message.parts?.length ?? 0) === 0
               ? { ...message, terminal: 'empty' }
               : message,
@@ -383,7 +381,7 @@ export function useAgentConversation(
   const setProposalStatus = useCallback(
     (
       proposalId: string,
-      status: NonNullable<ConversationMessage['proposalStatus']>,
+      status: AgentProposalStatus,
     ) => {
       setMessages((current) =>
         setProposalStatusInMessages(current, proposalId, status),
@@ -534,14 +532,8 @@ export function replaceAssistantMessage(
 
 function rejectPendingProposals(messages: ConversationMessage[]): void {
   for (const message of messages) {
-    if (message.proposalStatus === 'pending' && message.proposal !== undefined) {
-      void window.driftfield.rejectAgentProposal({
-        proposalId: message.proposal.proposalId,
-      });
-    }
     for (const part of message.parts ?? []) {
       if (part.type !== 'proposal' || part.status !== 'pending') continue;
-      if (part.proposal.proposalId === message.proposal?.proposalId) continue;
       void window.driftfield.rejectAgentProposal({
         proposalId: part.proposal.proposalId,
       });
@@ -579,10 +571,9 @@ export function canApplyAgentProposal(
 function setProposalStatusInMessages(
   messages: ConversationMessage[],
   proposalId: string,
-  status: NonNullable<ConversationMessage['proposalStatus']>,
+  status: AgentProposalStatus,
 ): ConversationMessage[] {
   return messages.map((message) =>
-    message.proposal?.proposalId === proposalId ||
     message.parts?.some(
       (part) => part.type === 'proposal' && part.proposal.proposalId === proposalId,
     )
@@ -593,9 +584,6 @@ function setProposalStatusInMessages(
               ? { ...part, status }
               : part,
           ),
-          ...(message.proposal?.proposalId === proposalId
-            ? { proposalStatus: status }
-            : {}),
         }
       : message,
   );

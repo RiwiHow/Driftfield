@@ -34,8 +34,6 @@ export interface AgentConversationMessage {
   createdAt?: string;
   id: string;
   parts?: AgentConversationPart[];
-  proposal?: AgentDocumentProposal;
-  proposalStatus?: AgentProposalStatus;
   role: 'assistant' | 'user';
   terminal?: 'cancelled' | 'empty' | 'failed' | 'interrupted';
 }

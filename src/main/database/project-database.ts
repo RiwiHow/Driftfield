@@ -3,21 +3,19 @@ import { DatabaseSync } from 'node:sqlite';
 import { ProjectSqliteDatabase } from './project-sqlite-database';
 import { DRIFTFIELD_PROJECT_MARKER } from '../../shared/contracts/project-layout';
 
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 1;
 
 export interface ProjectMetadataRecord {
   formatVersion: number;
   icon: string | null;
   marker: string;
   projectId: string;
-  title: string | null;
+  title: string;
 }
 
-export type ExistingProjectDatabaseKind = 'current' | 'legacy';
-
-export const inspectExistingProjectDatabase = (
+export const validateExistingProjectDatabase = (
   databasePath: string,
-): ExistingProjectDatabaseKind => {
+): void => {
   const connection = new DatabaseSync(databasePath, {
     allowExtension: false,
     readOnly: true,
@@ -28,31 +26,39 @@ export const inspectExistingProjectDatabase = (
     `).all() as Array<{ name: string }>;
     const columnNames = new Set(columns.map(({ name }) => name));
     if (
-      !columnNames.has('project_id') ||
-      !columnNames.has('format_version')
+      ![
+        'created_at',
+        'format_version',
+        'icon',
+        'project_id',
+        'project_marker',
+        'singleton',
+        'title',
+      ].every((column) => columnNames.has(column))
     ) {
       throw new Error('Driftfield project identity is missing');
     }
     const metadata = connection.prepare(`
-      SELECT project_id, format_version FROM project_metadata WHERE singleton = 1
-    `).get() as { format_version: number; project_id: string } | undefined;
+      SELECT project_id, project_marker, format_version, title
+      FROM project_metadata WHERE singleton = 1
+    `).get() as {
+      format_version: number;
+      project_id: string;
+      project_marker: string;
+      title: string;
+    } | undefined;
     if (
       metadata === undefined ||
       typeof metadata.project_id !== 'string' ||
       metadata.project_id.length === 0 ||
+      metadata.project_marker !== DRIFTFIELD_PROJECT_MARKER ||
       !Number.isSafeInteger(metadata.format_version) ||
-      metadata.format_version < 1
+      metadata.format_version < 1 ||
+      typeof metadata.title !== 'string' ||
+      metadata.title.length === 0
     ) {
       throw new Error('Driftfield project identity is invalid');
     }
-    if (!columnNames.has('project_marker')) return 'legacy';
-    const marker = connection.prepare(`
-      SELECT project_marker FROM project_metadata WHERE singleton = 1
-    `).get() as { project_marker: string } | undefined;
-    if (marker?.project_marker !== DRIFTFIELD_PROJECT_MARKER) {
-      throw new Error('Driftfield project marker is invalid');
-    }
-    return 'current';
   } finally {
     connection.close();
   }
@@ -61,7 +67,12 @@ export const inspectExistingProjectDatabase = (
 export class ProjectDatabase extends ProjectSqliteDatabase {
   constructor(projectDirectory: string) {
     super(projectDirectory, 'project.sqlite');
-    this.migrate();
+    try {
+      this.migrate();
+    } catch (error) {
+      this.close();
+      throw error;
+    }
   }
 
   getProjectMetadata(): ProjectMetadataRecord | null {
@@ -78,7 +89,7 @@ export class ProjectDatabase extends ProjectSqliteDatabase {
           icon: string | null;
           project_id: string;
           project_marker: string;
-          title: string | null;
+          title: string;
         }
       | undefined;
     return row === undefined
@@ -171,25 +182,30 @@ export class ProjectDatabase extends ProjectSqliteDatabase {
           ) STRICT;
           INSERT INTO schema_migrations(version, applied_at)
           VALUES (1, datetime('now'));
-          INSERT INTO schema_migrations(version, applied_at)
-          VALUES (2, datetime('now'));
         `);
       });
       return;
     }
-    if (row.version === 1) {
-      this.transaction(() => {
-        this.connection.exec(`
-          ALTER TABLE project_metadata ADD COLUMN project_marker TEXT
-            NOT NULL DEFAULT '${DRIFTFIELD_PROJECT_MARKER}'
-            CHECK(project_marker = '${DRIFTFIELD_PROJECT_MARKER}');
-          ALTER TABLE project_metadata ADD COLUMN title TEXT
-            CHECK(title IS NULL OR length(title) BETWEEN 1 AND 500);
-          ALTER TABLE project_metadata ADD COLUMN icon TEXT;
-          INSERT INTO schema_migrations(version, applied_at)
-          VALUES (2, datetime('now'));
-        `);
-      });
+    this.assertCurrentSchema();
+  }
+
+  private assertCurrentSchema(): void {
+    const columns = this.connection.prepare(`
+      PRAGMA table_info(project_metadata)
+    `).all() as Array<{ name: string }>;
+    const columnNames = new Set(columns.map(({ name }) => name));
+    if (
+      ![
+        'created_at',
+        'format_version',
+        'icon',
+        'project_id',
+        'project_marker',
+        'singleton',
+        'title',
+      ].every((column) => columnNames.has(column))
+    ) {
+      throw new Error('Project database schema is invalid');
     }
   }
 }

@@ -208,21 +208,6 @@ const parseChildren = <T>(
   return value.map(parseChild);
 };
 
-export const parseLegacyProjectRootIndex = (
-  value: unknown,
-): { icon?: ProjectIconId; kind: 'novel'; title: string } => {
-  if (!isRecord(value)) throw new Error('Invalid Driftfield project index');
-  assertExactKeys(value, ['kind', 'title'], ['icon']);
-  if (value.kind !== 'novel') {
-    throw new Error('Invalid Driftfield project root');
-  }
-  return {
-    ...(value.icon === undefined ? {} : { icon: parseProjectIcon(value.icon) }),
-    kind: 'novel',
-    title: parseProjectTitle(value.title),
-  };
-};
-
 export const parseManuscriptIndex = (value: unknown): ManuscriptIndex => {
   if (!isRecord(value)) throw new Error('Invalid manuscript index');
   assertExactKeys(

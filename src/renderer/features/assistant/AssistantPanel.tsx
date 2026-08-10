@@ -509,19 +509,6 @@ export function AssistantPanel({
                         </SafeMarkdown>
                       </div>
                     )}
-                    {message.proposal !== undefined &&
-                    !message.parts?.some(
-                      (part) =>
-                        part.type === 'proposal' &&
-                        part.proposal.proposalId === message.proposal?.proposalId,
-                    ) ? (
-                      <ProposalCard
-                        onApply={() => void applyProposal(message.proposal!)}
-                        onReject={() => void rejectProposal(message.proposal!.proposalId)}
-                        proposal={message.proposal}
-                        status={message.proposalStatus ?? 'pending'}
-                      />
-                    ) : null}
                     {message.terminal !== undefined ? (
                       <small className="agent-terminal">
                         {t(`terminal.${message.terminal}`)}

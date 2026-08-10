@@ -55,6 +55,10 @@ state, bounded tool activity, and reviewable edit proposals. Streamed responses
 are periodically flushed and terminal events are committed immediately. A
 request left running at shutdown restores as interrupted.
 
+Text, tool activity, and proposals use one ordered message-parts representation.
+The proposal columns index the latest proposal for main-owned approval recovery;
+they are not a second renderer message representation.
+
 Starting a model request builds a bounded transcript from the active branch.
 Tool traces are retained for audit/UI but are not replayed as model dialogue.
 Editing an earlier user message hides the abandoned continuation and creates a

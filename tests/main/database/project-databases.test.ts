@@ -36,6 +36,11 @@ describe('project databases', () => {
     });
     expect(project.hasTable('conversations')).toBe(false);
     expect(project.hasTable('agent_settings')).toBe(false);
+    expect(
+      project.connection.prepare(`
+        SELECT version FROM schema_migrations ORDER BY version
+      `).all(),
+    ).toEqual([{ version: 1 }]);
     project.close();
 
     const conversations = new ConversationDatabase(directory);
@@ -56,7 +61,7 @@ describe('project databases', () => {
     settings.close();
   });
 
-  it('migrates pre-marker project metadata without inventing presentation data', async () => {
+  it('rejects pre-marker project metadata instead of migrating it', async () => {
     const directory = await mkdtemp(
       path.join(tmpdir(), 'driftfield-databases-'),
     );
@@ -82,15 +87,27 @@ describe('project databases', () => {
     `);
     legacy.close();
 
-    const migrated = new ProjectDatabase(directory);
-    expect(migrated.getProjectMetadata()).toEqual({
-      formatVersion: 1,
-      icon: null,
-      marker: 'driftfield-project',
-      projectId: 'legacy-project',
-      title: null,
-    });
-    migrated.close();
+    expect(() => new ProjectDatabase(directory)).toThrow(
+      'Project database schema is invalid',
+    );
+  });
+
+  it('rejects a newer project database schema', async () => {
+    const directory = await mkdtemp(
+      path.join(tmpdir(), 'driftfield-databases-'),
+    );
+    directories.push(directory);
+    const current = new ProjectDatabase(directory);
+    current.initializeProjectMetadata('project-1', 2, 'Project One');
+    current.connection.prepare(`
+      INSERT INTO schema_migrations(version, applied_at)
+      VALUES (2, datetime('now'))
+    `).run();
+    current.close();
+
+    expect(() => new ProjectDatabase(directory)).toThrow(
+      'Project database was created by a newer Driftfield version',
+    );
   });
 
 });

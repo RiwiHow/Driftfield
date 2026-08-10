@@ -18,13 +18,12 @@ import {
   type VolumeIndex,
 } from '../../../shared/contracts/project-layout';
 import {
-  inspectExistingProjectDatabase,
   ProjectDatabase,
+  validateExistingProjectDatabase,
 } from '../../database/project-database';
 import { initializeProjectLayoutFiles } from './layout-initializer';
 import {
   MAX_PROJECT_METADATA_BYTES,
-  parseLegacyProjectRootIndex,
   parseLoreCategoryIndex,
   parseLoreIndex,
   parseManuscriptIndex,
@@ -207,23 +206,13 @@ export const loadProjectLayout = async (
 ): Promise<LoadedProjectLayout> => {
   const projectPath = await realpath(directoryPath);
   const databasePath = await assertProjectDatabaseFile(projectPath);
-  let databaseKind: 'current' | 'legacy';
   try {
-    databaseKind = inspectExistingProjectDatabase(databasePath);
+    validateExistingProjectDatabase(databasePath);
   } catch {
     throw new ProjectLayoutError(
       'project-database-corrupt',
       'Driftfield project database is damaged or invalid',
     );
-  }
-  if (databaseKind === 'legacy') {
-    const rootNames = await readdir(projectPath);
-    if (!rootNames.includes(PROJECT_INDEX_NAME)) {
-      throw new ProjectLayoutError(
-        'project-database-corrupt',
-        'Legacy Driftfield project metadata is incomplete',
-      );
-    }
   }
   const hasLore = await assertExactRootEntries(projectPath);
 
@@ -256,7 +245,7 @@ export const loadProjectLayout = async (
   }
   let manifest: ProjectManifest & { icon?: ProjectIconId };
   try {
-    let metadata = database.getProjectMetadata();
+    const metadata = database.getProjectMetadata();
     if (
       metadata === null ||
       metadata.marker !== DRIFTFIELD_PROJECT_MARKER ||
@@ -267,31 +256,6 @@ export const loadProjectLayout = async (
         'project-database-corrupt',
         'Driftfield project identity is missing or invalid',
       );
-    }
-    if (metadata.title === null) {
-      const rootIndexPath = path.join(projectPath, PROJECT_INDEX_NAME);
-      let legacyRoot;
-      try {
-        legacyRoot = parseLegacyProjectRootIndex(
-          (await readYaml(rootIndexPath)).value,
-        );
-      } catch {
-        throw new ProjectLayoutError(
-          'project-database-corrupt',
-          'Driftfield project metadata is incomplete',
-        );
-      }
-      database.setProjectPresentation(
-        legacyRoot.title,
-        legacyRoot.icon ?? null,
-      );
-      metadata = database.getProjectMetadata();
-      if (metadata === null) {
-        throw new ProjectLayoutError(
-          'project-database-corrupt',
-          'Driftfield project identity is missing or invalid',
-        );
-      }
     }
     const title = parseProjectTitle(metadata.title);
     const icon =

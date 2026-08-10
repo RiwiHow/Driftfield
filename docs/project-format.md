@@ -49,11 +49,6 @@ metadata.
 Icon values come from Driftfield's fixed Lucide-backed registry. YAML cannot
 inject SVG, HTML, URLs, filesystem paths, or executable icon definitions.
 
-Projects created by the preceding pre-release format may retain a root
-`_index.yaml`. On first open, Driftfield imports its title and icon into a
-migrated database when those database fields are absent. The legacy file is not
-authoritative afterward and is not deleted automatically.
-
 ## Ordering, numbering, and formatting
 
 - Store child order explicitly in `children` arrays instead of inferring it from
