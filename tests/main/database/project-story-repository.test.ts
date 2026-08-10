@@ -123,6 +123,55 @@ describe('ProjectStoryRepository', () => {
     database.close();
   });
 
+  it('records direct maintenance in the applied operation ledger atomically', async () => {
+    const { database, repository } = await createRepository();
+    const change = {
+      name: 'Lin',
+      operation: 'create_persona' as const,
+      role: 'Protagonist',
+      summary: '',
+    };
+
+    repository.createPersona(0, change, {
+      mode: 'direct',
+      operationId: 'operation-1',
+      operationKind: change.operation,
+      originRequestId: 'request-1',
+      payload: change,
+    });
+
+    expect(database.connection.prepare(`
+      SELECT operation_id, operation_kind, base_revision, applied_revision,
+             status, origin_request_id, decided_at, payload_json
+      FROM story_operations
+    `).get()).toMatchObject({
+      applied_revision: 1,
+      base_revision: 0,
+      decided_at: expect.any(String),
+      operation_id: 'operation-1',
+      operation_kind: 'create_persona',
+      origin_request_id: 'request-1',
+      status: 'applied',
+    });
+    expect(repository.getSnapshot()).toMatchObject({
+      personae: [{ name: 'Lin' }],
+      revision: 1,
+    });
+
+    expect(() => repository.createPersona(1, { name: 'Mara' }, {
+      mode: 'direct',
+      operationId: 'operation-1',
+      operationKind: 'create_persona',
+      originRequestId: 'request-1',
+      payload: { name: 'Mara', operation: 'create_persona' },
+    })).toThrow();
+    expect(repository.getSnapshot()).toMatchObject({
+      personae: [{ name: 'Lin' }],
+      revision: 1,
+    });
+    database.close();
+  });
+
   it('rolls back an event and its revision when a linked participant is invalid', async () => {
     const { database, repository } = await createRepository();
     const timeline = repository.createTimeline(0, {

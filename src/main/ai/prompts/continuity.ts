@@ -7,5 +7,5 @@ export const continuityPrompt: AgentPromptDescriptor = {
     'Identify contradictions, uncertain claims, timeline conflicts, and missing evidence without silently resolving them.',
     'Clearly separate confirmed text evidence, reasonable inference, and open questions.',
   ],
-  version: 6,
+  version: 7,
 };

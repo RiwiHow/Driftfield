@@ -59,13 +59,14 @@ realizes, reveals, foreshadows, or resolves a Chronicle event. This keeps
 fictional occurrence separate from authorial plot function and from where an
 event is depicted in the documents.
 
-`story_operations` is the project-owned mutation ledger for reviewed Agent
-operations. A proposed story mutation is inserted as pending before it is shown
-for review. Approval updates canonical rows, increments the story revision, and
-marks the same operation applied in one transaction. Rejection, conflict,
-cancellation, and failure settle the pending row without changing canonical
-story state. This ledger never authorizes direct Agent writes: validation,
-preview, approval, revision checking, and application remain Main-owned.
+`story_operations` is the project-owned mutation ledger for Agent story
+operations. Maintain inserts an applied ledger row alongside the canonical
+additive/linking change and revision increment in one transaction; rows share
+the originating Agent request ID for audit grouping. Reviewed operations are
+inserted as pending before display, then applied or settled after a decision.
+The ledger is not an authorization mechanism: all validation, revision checks,
+transactions, and application remain Main-owned, and neither Renderer nor the
+worker receives SQL access.
 
 ## Ownership and access
 
@@ -73,6 +74,9 @@ preview, approval, revision checking, and application remain Main-owned.
   transactions, validation, and repositories.
 - Preload exposes narrow typed project-domain operations. Renderer and Agent
   workers never receive a database path, handle, or generic query operation.
+- The Agent's Maintain capability is limited to the typed additive/linking
+  Personae, Chronicle, and Threads operations registered by the application.
+  It cannot submit SQL, delete arbitrary rows, or mutate project documents.
 - `.driftfield` must be a regular non-symlink directory. SQLite extensions are
   disabled and migrations are application-owned immutable source code.
 - Project scanning and watching ignore `.driftfield` so database writes cannot
@@ -147,18 +151,20 @@ may retain a stable tool-operation or proposal ID so the transcript can explain
 what happened, but deleting a conversation never deletes an approved character,
 timeline event, relationship, or plot fact.
 
-Future Agent world operations remain narrow domain tools implemented in main.
+Agent world operations remain narrow domain tools implemented in main.
 Models receive typed operations and bounded results, never SQL, a database
-handle, a generic query tool, or filesystem access. Mutating tools create a
-reviewable operation or proposal in `project.sqlite`; main validates project
-session, scope, revision, and approval before applying it. The conversation
+handle, a generic query tool, or filesystem access. Maintain operations write
+only the current additive/linking operation set; other mutations create a
+reviewable proposal. Main validates project session, scope, revision, and the
+applicable authorization path before applying either form. The conversation
 database stores only the tool-call/result audit projection needed to render the
 chat.
 
 ## Future world state
 
-Canonical manuscript Markdown, approved structured world facts, derived search
+Canonical manuscript Markdown, canonical structured world facts, derived search
 or embedding indexes, and generation audit records remain logically separate.
 Future fictional time must use application-owned timeline/moment identities and
 ordering rather than assuming real-world SQL timestamps. Agent-derived facts
-remain proposals until explicitly approved.
+may become canonical only through a successful bounded Maintain operation or an
+explicitly approved proposal.

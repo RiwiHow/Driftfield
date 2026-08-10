@@ -45,6 +45,7 @@ export function useAgentConversation(
   onProposalApplied: (
     result: SuccessfulApplyAgentProposalResult,
   ) => void,
+  onStoryChanged: (revision: number) => void,
   projectId: string | null,
 ) {
   const { t: tErrors } = useTranslation('errors');
@@ -106,6 +107,10 @@ export function useAgentConversation(
     };
     return window.driftfield.onAgentEvent((event) => {
       if (event.requestId !== requestIdRef.current) return;
+      if (event.type === 'story-changed') {
+        onStoryChanged(event.revision);
+        return;
+      }
       if (event.type === 'started') {
         dispatchRun({ requestId: event.requestId, type: 'started' });
       }
@@ -226,7 +231,7 @@ export function useAgentConversation(
         refreshPersistedConversation();
       }
     });
-  }, [applyConversationState]);
+  }, [applyConversationState, onStoryChanged]);
 
   const startRequest = useCallback(
     async (

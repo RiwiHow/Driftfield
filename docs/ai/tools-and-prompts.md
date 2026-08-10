@@ -14,6 +14,15 @@ The initial Agent data surface contains only:
 - `get_story_state`, which returns the bounded, path-free Personae, Chronicle,
   and Threads snapshot with its numeric story revision.
 
+The bounded direct-maintenance surface contains:
+
+- `maintain_story_records`, which applies one typed additive or linking change
+  to Personae, Chronicle, or Threads within the user's explicit request. It
+  requires the current story revision and stable IDs. Main validates and
+  applies the operation transactionally, records it in the project ledger, and
+  returns the new revision. It does not expose SQL and cannot delete, merge,
+  reorder, or edit Manuscript/Lore documents.
+
 The reviewed mutation surface additionally contains:
 
 - `propose_document_edit`, which accepts a complete replacement only for the
@@ -28,20 +37,29 @@ The reviewed mutation surface additionally contains:
   stable directory IDs. Moves bind to both the project revision and persisted
   document revision; manuscript documents cannot be moved into lore or vice
   versa.
-- `propose_story_operation`, which proposes one typed Personae, Chronicle, or
-  Threads mutation against the current story revision. Dependencies use stable
-  IDs returned by `get_story_state`; dependent changes reread state and proceed
-  as sequential reviewed proposals.
+- `propose_story_operation`, retained as the reviewed protocol for story
+  mutations that must not use Maintain. It is not currently offered to the
+  worker because the implemented story operations are additive or linking
+  operations covered by Maintain.
 
-Calling a mutation tool stores a reviewable proposal; it does not write the
-novel. Main generates created document and directory IDs, owns physical names
-and index updates, and the Agent never constructs or receives metadata paths.
+Calling a reviewed mutation tool stores a reviewable proposal; it does not
+write the novel. Main generates created document and directory IDs, owns
+physical names and index updates, and the Agent never constructs or receives
+metadata paths.
 Story proposals are recorded as pending operations in `project.sqlite` while
 the conversation database retains the bounded audit projection needed by the
 chat UI. Acceptance applies the canonical rows, increments the story revision,
 and marks that same operation applied in one database transaction. Rejection,
 conflict, cancellation, and failure settle it without changing canonical story
 state.
+
+A successful Maintain call writes canonical story rows immediately. The
+canonical change, revision increment, and applied `story_operations` row share
+one transaction. Each ledger row carries the originating Agent request ID, so a
+multi-step run remains auditable even though it does not interrupt the user for
+each additive step. Renderer receives a bounded `story-changed` notification
+and refreshes its story snapshot. Maintain currently applies one operation per
+tool call; batch changesets and user-facing undo are not yet implemented.
 
 A mutation tool call remains pending after the proposal is shown. Accepting or
 rejecting the proposal settles that exact tool call with a typed terminal result,
@@ -56,8 +74,9 @@ Main validates typed arguments, resolves stable IDs through the active project
 session, rechecks document containment and regular-file status, and enforces
 per-request call, timeout, individual-result, and cumulative-result budgets.
 Results do not expose physical project paths or raw YAML.
-Proposal construction and validation remain time-bounded, while the subsequent
-human review wait is intentionally excluded from the ordinary tool timeout.
+Maintain execution, proposal construction, and validation remain time-bounded,
+while the subsequent human review wait is intentionally excluded from the
+ordinary tool timeout.
 `get_novel_structure` exposes the optional knowledge root as `lore` with
 directory kind `lore`, matching the project format and application domain.
 

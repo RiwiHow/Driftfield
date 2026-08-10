@@ -20,6 +20,7 @@ export interface AgentToolScope {
   projectSessionId?: string;
   requestId: string;
   sendProposal?: (proposal: AgentProposal) => void;
+  storyChanged?: (revision: number) => void;
 }
 
 export interface AgentToolPolicy {
@@ -30,9 +31,9 @@ export interface AgentToolPolicy {
 }
 
 export const DEFAULT_AGENT_TOOL_POLICY: AgentToolPolicy = {
-  maxCalls: 12,
+  maxCalls: 24,
   maxResultBytes: 640 * 1024,
-  maxTotalResultBytes: 2 * 1024 * 1024,
+  maxTotalResultBytes: 4 * 1024 * 1024,
   timeoutMs: 15_000,
 };
 
@@ -110,6 +111,20 @@ export class AgentToolDispatcher {
     if (request.toolName === 'get_story_state') {
       return {
         data: await this.context.getStoryState(contextScope),
+        ok: true,
+        toolName: request.toolName,
+      };
+    }
+    if (request.toolName === 'maintain_story_records') {
+      const data = await this.context.maintainStoryRecords(
+        contextScope,
+        scope.requestId,
+        request.arguments.storyRevision,
+        request.arguments.change,
+      );
+      scope.storyChanged?.(data.revision);
+      return {
+        data,
         ok: true,
         toolName: request.toolName,
       };

@@ -275,6 +275,12 @@ export class AiAgentService {
                   requestId: message.requestId,
                   type: 'proposal',
                 }),
+              storyChanged: (revision) =>
+                active.sendEvent({
+                  requestId: message.requestId,
+                  revision,
+                  type: 'story-changed',
+                }),
             },
             message,
           );

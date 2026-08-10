@@ -83,6 +83,36 @@ describe('Agent conversation persistence', () => {
     restoredService.dispose();
   });
 
+  it('treats story refresh notifications as non-terminal transient events', async () => {
+    const session = await createSession();
+    const service = new AgentConversationService();
+    const state = service.getState(session);
+    service.beginPrompt(session, {
+      conversationId: state.activeConversation.id,
+      prompt: 'Record Lin.',
+      requestId: 'assistant-maintain',
+      userMessageId: 'user-maintain',
+    });
+
+    service.recordEvent({
+      requestId: 'assistant-maintain',
+      revision: 1,
+      type: 'story-changed',
+    });
+    service.recordEvent({
+      delta: 'Lin has been recorded.',
+      requestId: 'assistant-maintain',
+      type: 'text-delta',
+    });
+    service.recordEvent({ requestId: 'assistant-maintain', type: 'completed' });
+
+    expect(service.getState(session).activeConversation.messages.at(-1)).toMatchObject({
+      content: 'Lin has been recorded.',
+      role: 'assistant',
+    });
+    service.dispose();
+  });
+
   it('marks an unfinished generation as interrupted after shutdown', async () => {
     const session = await createSession();
     const service = new AgentConversationService();

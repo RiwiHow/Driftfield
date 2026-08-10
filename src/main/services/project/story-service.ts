@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type {
   ProjectStoryOperation,
   ProjectStorySnapshot,
@@ -73,6 +75,23 @@ export class ProjectStoryService {
       }
       return repository.getSnapshot();
     });
+  }
+
+  maintainOperation(
+    session: ProjectSession,
+    expectedRevision: number,
+    operation: ProjectStoryOperation,
+    requestId: string,
+  ): { operationId: string; snapshot: ProjectStorySnapshot } {
+    const operationId = randomUUID();
+    const snapshot = this.applyOperation(session, expectedRevision, operation, {
+      mode: 'direct',
+      operationId,
+      operationKind: operation.operation,
+      originRequestId: requestId,
+      payload: operation,
+    });
+    return { operationId, snapshot };
   }
 
   private withRepository<T>(

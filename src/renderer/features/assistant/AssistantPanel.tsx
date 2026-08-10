@@ -74,6 +74,7 @@ interface AssistantPanelProps {
   onProposalApplied: (
     result: SuccessfulApplyAgentProposalResult,
   ) => void;
+  onStoryChanged: (revision: number) => void;
   settings: AgentSettings;
   projectId: string | null;
 }
@@ -86,6 +87,7 @@ export function AssistantPanel({
   configurationLoading,
   onOpenSettings,
   onProposalApplied,
+  onStoryChanged,
   projectId,
   settings,
 }: AssistantPanelProps) {
@@ -127,7 +129,13 @@ export function AssistantPanel({
     resend,
     send,
     selectConversation,
-  } = useAgentConversation(activeChapter, chapters, onProposalApplied, projectId);
+  } = useAgentConversation(
+    activeChapter,
+    chapters,
+    onProposalApplied,
+    onStoryChanged,
+    projectId,
+  );
   const selectedModel = configuration.models.find(
     ({ id, providerId }) =>
       id === settings.defaultModel?.modelId &&

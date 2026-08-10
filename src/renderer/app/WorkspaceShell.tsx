@@ -55,6 +55,7 @@ interface WorkspaceShellProps {
   onAgentProposalApplied: (
     result: SuccessfulApplyAgentProposalResult,
   ) => void;
+  onAgentStoryChanged: (revision: number) => void;
   onCloseChapter: () => void;
   onContentChange: (markdown: string) => void;
   onCreateProject: () => void;
@@ -89,6 +90,7 @@ export function WorkspaceShell({
   isSavingDocument,
   onChapterChange,
   onAgentProposalApplied,
+  onAgentStoryChanged,
   onCloseChapter,
   onContentChange,
   onCreateProject,
@@ -279,6 +281,7 @@ export function WorkspaceShell({
               configurationError={agentConfigurationError}
               configurationLoading={agentConfigurationLoading}
               onProposalApplied={onAgentProposalApplied}
+              onStoryChanged={onAgentStoryChanged}
               onOpenSettings={onOpenSettings}
               projectId={projectId}
               settings={agentSettings}

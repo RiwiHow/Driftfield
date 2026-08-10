@@ -270,6 +270,7 @@ export class AgentConversationService {
   recordEvent(event: AgentEvent): void {
     const active = this.activeRequests.get(event.requestId);
     if (active === undefined || event.type === 'started') return;
+    if (event.type === 'story-changed') return;
     const message = active.message;
     if (event.type === 'text-delta') {
       message.content += event.delta;

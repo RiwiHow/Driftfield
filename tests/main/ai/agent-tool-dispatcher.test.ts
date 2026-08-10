@@ -18,6 +18,43 @@ const documentResult = {
 const scope = { ownerId: 7, projectSessionId: 'session-1', requestId: 'request-1' };
 
 describe('AgentToolDispatcher', () => {
+  it('applies bounded story maintenance and emits the new revision', async () => {
+    const change = {
+      name: 'Lin',
+      operation: 'create_persona' as const,
+      role: 'Protagonist',
+      summary: '',
+    };
+    const context = {
+      maintainStoryRecords: vi.fn(() => ({
+        operationId: 'operation-1',
+        revision: 1,
+        status: 'applied' as const,
+      })),
+    } as unknown as ProjectContextService;
+    const storyChanged = vi.fn();
+    const dispatcher = new AgentToolDispatcher(context);
+
+    await expect(dispatcher.execute(
+      { ...scope, storyChanged },
+      {
+        arguments: { change, storyRevision: 0 },
+        toolName: 'maintain_story_records',
+      },
+    )).resolves.toEqual({
+      data: { operationId: 'operation-1', revision: 1, status: 'applied' },
+      ok: true,
+      toolName: 'maintain_story_records',
+    });
+    expect(context.maintainStoryRecords).toHaveBeenCalledWith(
+      { ownerId: 7, projectSessionId: 'session-1' },
+      'request-1',
+      0,
+      change,
+    );
+    expect(storyChanged).toHaveBeenCalledWith(1);
+  });
+
   it('reads story state and emits a reviewed story proposal', async () => {
     const story = {
       beats: [],

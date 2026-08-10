@@ -144,8 +144,11 @@ See [Project Format](docs/project-format.md).
   reject obsolete output and tool calls after project switches.
 - Prefer narrow novel-domain tools with typed protocols, strict scope checks,
   timeouts, call limits, and result-size budgets.
-- Agents never persist generated content directly. Mutations follow proposal,
-  preview, approval, revision-check, and main-owned apply semantics.
+- Agents may use the bounded Maintain tool to apply additive or linking
+  Personae, Chronicle, and Threads operations within the user's explicit
+  request. Main still owns validation, revision checks, transactions, and the
+  mutation ledger. Manuscript generation and destructive or high-impact
+  mutations retain proposal, preview, approval, and main-owned apply semantics.
 
 ### Tool and prompt source of truth
 

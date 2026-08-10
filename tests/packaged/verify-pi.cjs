@@ -60,8 +60,8 @@ assert.match(
 );
 assert.match(
   workerBundle,
-  /propose_story_operation/,
-  'The packaged Pi worker is missing the reviewed story-operation tool.',
+  /maintain_story_records/,
+  'The packaged Pi worker is missing the direct story-maintenance tool.',
 );
 
 const electronPath = require('electron');

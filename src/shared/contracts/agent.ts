@@ -58,6 +58,7 @@ export type AgentEvent =
       requestId: string;
       type: 'proposal';
     }
+  | { requestId: string; revision: number; type: 'story-changed' }
   | { requestId: string; type: 'completed' }
   | { requestId: string; type: 'cancelled' }
   | { code: AgentErrorCode; requestId: string; type: 'error' };

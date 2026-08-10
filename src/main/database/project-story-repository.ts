@@ -96,6 +96,7 @@ export interface CreateThreadBeatInput {
 }
 
 export interface StoryOperationAudit {
+  mode?: 'direct' | 'pending';
   operationId: string;
   operationKind: string;
   originRequestId: string | null;
@@ -436,22 +437,42 @@ export class ProjectStoryRepository {
         if (Buffer.byteLength(payloadJson, 'utf8') > 262_144) {
           throw new Error('Project story operation is too large');
         }
-        const auditUpdate = this.database.connection.prepare(`
-          UPDATE story_operations
-          SET payload_json = ?, applied_revision = ?, status = 'applied',
-              decided_at = ?, error_code = NULL
-          WHERE operation_id = ? AND status = 'pending'
-            AND base_revision = ? AND operation_kind = ?
-        `).run(
-          payloadJson,
-          expectedRevision + 1,
-          new Date().toISOString(),
-          audit.operationId,
-          expectedRevision,
-          audit.operationKind,
-        );
-        if (auditUpdate.changes !== 1) {
-          throw new Error('Pending project story operation is missing');
+        if (audit.mode === 'direct') {
+          const now = new Date().toISOString();
+          this.database.connection.prepare(`
+            INSERT INTO story_operations(
+              operation_id, operation_kind, payload_json, base_revision,
+              applied_revision, status, origin_request_id, created_at,
+              decided_at, error_code
+            ) VALUES (?, ?, ?, ?, ?, 'applied', ?, ?, ?, NULL)
+          `).run(
+            audit.operationId,
+            audit.operationKind,
+            payloadJson,
+            expectedRevision,
+            expectedRevision + 1,
+            audit.originRequestId,
+            now,
+            now,
+          );
+        } else {
+          const auditUpdate = this.database.connection.prepare(`
+            UPDATE story_operations
+            SET payload_json = ?, applied_revision = ?, status = 'applied',
+                decided_at = ?, error_code = NULL
+            WHERE operation_id = ? AND status = 'pending'
+              AND base_revision = ? AND operation_kind = ?
+          `).run(
+            payloadJson,
+            expectedRevision + 1,
+            new Date().toISOString(),
+            audit.operationId,
+            expectedRevision,
+            audit.operationKind,
+          );
+          if (auditUpdate.changes !== 1) {
+            throw new Error('Pending project story operation is missing');
+          }
         }
       }
       return result;

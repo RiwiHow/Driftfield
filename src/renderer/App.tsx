@@ -84,6 +84,7 @@ export function App({
             project.commitAgentProposal(result);
           }
         }}
+        onAgentStoryChanged={projectStory.refresh}
         onContentChange={project.updateActiveChapter}
         onCreateProject={() => void project.createProjectDirectory()}
         onCloseChapter={() => void project.closeActiveDocument()}

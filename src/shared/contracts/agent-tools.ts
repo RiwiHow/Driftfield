@@ -60,6 +60,12 @@ export interface AgentProposalToolResult {
   status: 'accepted' | 'rejected' | 'conflict' | 'missing' | 'stale' | 'failed';
 }
 
+export interface AgentStoryMaintenanceToolResult {
+  operationId: string;
+  revision: number;
+  status: 'applied';
+}
+
 export type AgentDocumentFileOperationArguments =
   | {
       kind:
@@ -100,6 +106,13 @@ export interface AgentToolContractMap {
   get_story_state: {
     arguments: Record<string, never>;
     result: import('./project-story').ProjectStorySnapshot;
+  };
+  maintain_story_records: {
+    arguments: {
+      change: import('./project-story').ProjectStoryOperation;
+      storyRevision: number;
+    };
+    result: AgentStoryMaintenanceToolResult;
   };
   get_current_document: {
     arguments: Record<string, never>;
@@ -146,6 +159,7 @@ export const AGENT_TOOL_NAMES = [
   'get_current_document',
   'get_document',
   'get_story_state',
+  'maintain_story_records',
   'propose_document_edit',
   'propose_document_file_operation',
   'propose_project_structure_operation',
@@ -282,6 +296,14 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
       isProjectStoryOperation(value.change)
     );
   }
+  if (toolName === 'maintain_story_records') {
+    return (
+      Object.keys(value).length === 2 &&
+      Number.isSafeInteger(value.storyRevision) &&
+      (value.storyRevision as number) >= 0 &&
+      isProjectStoryOperation(value.change)
+    );
+  }
   if (toolName !== 'get_document') return Object.keys(value).length === 0;
   return (
     Object.keys(value).length === 1 &&
@@ -311,6 +333,8 @@ const isToolData = (toolName: AgentToolName, value: unknown): boolean =>
     ? isNovelStructureResult(value)
     : toolName === 'get_story_state'
       ? isProjectStorySnapshot(value)
+    : toolName === 'maintain_story_records'
+      ? isStoryMaintenanceResult(value)
     : toolName === 'propose_document_edit' ||
         toolName === 'propose_document_file_operation' ||
         toolName === 'propose_project_structure_operation' ||
@@ -325,6 +349,16 @@ const isEditProposalResult = (value: unknown): boolean =>
   typeof value.status === 'string' &&
   ['accepted', 'rejected', 'conflict', 'missing', 'stale', 'failed']
     .includes(value.status);
+
+const isStoryMaintenanceResult = (value: unknown): boolean =>
+  isRecord(value) &&
+  Object.keys(value).length === 3 &&
+  value.status === 'applied' &&
+  typeof value.operationId === 'string' &&
+  value.operationId.length > 0 &&
+  value.operationId.length <= 128 &&
+  Number.isSafeInteger(value.revision) &&
+  (value.revision as number) > 0;
 
 const isDocumentId = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= 128;

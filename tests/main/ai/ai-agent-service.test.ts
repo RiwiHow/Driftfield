@@ -13,6 +13,7 @@ vi.mock('electron', () => ({
 }));
 
 import { AiAgentService } from '../../../src/main/ai/ai-agent-service';
+import type { AgentToolDispatcher } from '../../../src/main/ai/agent-tool-dispatcher';
 import type { AgentEvent } from '../../../src/shared/contracts/agent';
 
 class FakeUtilityProcess extends EventEmitter {
@@ -224,5 +225,53 @@ describe('AiAgentService', () => {
       requestId: 'request-1',
       type: 'text-delta',
     });
+  });
+
+  it('notifies the renderer after direct story maintenance', async () => {
+    const events: AgentEvent[] = [];
+    const dispatcher = {
+      execute: vi.fn(async (scope) => {
+        scope.storyChanged?.(4);
+        return {
+          data: { operationId: 'operation-1', revision: 4, status: 'applied' as const },
+          ok: true as const,
+          toolName: 'maintain_story_records' as const,
+        };
+      }),
+      release: vi.fn(),
+    } as unknown as AgentToolDispatcher;
+    const service = new AiAgentService(userDataPath, () => true, dispatcher);
+    const started = start(service, 'request-1', (event) => events.push(event));
+    await waitFor(() => workers.length === 1);
+    workers[0].emit('message', { type: 'ready' });
+    await started;
+
+    workers[0].emit('message', {
+      arguments: {
+        change: {
+          name: 'Lin',
+          operation: 'create_persona',
+          role: 'Protagonist',
+          summary: '',
+        },
+        storyRevision: 3,
+      },
+      requestId: 'request-1',
+      toolCallId: 'tool-maintain',
+      toolName: 'maintain_story_records',
+      type: 'tool-request',
+    });
+    await waitFor(() => events.some((event) => event.type === 'story-changed'));
+
+    expect(events).toContainEqual({
+      requestId: 'request-1',
+      revision: 4,
+      type: 'story-changed',
+    });
+    expect(workers[0].messages).toContainEqual(expect.objectContaining({
+      requestId: 'request-1',
+      toolCallId: 'tool-maintain',
+      type: 'tool-result',
+    }));
   });
 });
