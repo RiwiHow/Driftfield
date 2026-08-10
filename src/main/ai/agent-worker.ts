@@ -398,6 +398,22 @@ function createNovelTools(requestId: string) {
           ),
         ),
     }),
+    defineTool({
+      description:
+        "Submit one additive or linking Personae, Chronicle, or Threads change for explicit review. Use this to reconcile canonical story records after the user accepts generated manuscript prose. First reread the accepted persisted document and get_story_state, use their current revisions and stable IDs, avoid duplicates, and bind a created Chronicle event to manuscript evidence through sources when applicable. The tool waits for acceptance and never writes story state before review. After an accepted change, reread story state before proposing a dependent change.",
+      label: "Propose story record change",
+      name: "propose_story_operation",
+      parameters: STORY_OPERATION_PARAMETERS,
+      execute: async (toolCallId, params) =>
+        textToolResult(
+          await requestTool(
+            requestId,
+            toolCallId,
+            "propose_story_operation",
+            normalizeStoryMaintenanceArguments(params),
+          ),
+        ),
+    }),
   ];
 }
 

@@ -46,10 +46,13 @@ The reviewed mutation surface additionally contains:
   stable directory IDs. Moves bind to both the project revision and persisted
   document revision; manuscript documents cannot be moved into lore or vice
   versa.
-- `propose_story_operation`, retained as the reviewed protocol for story
-  mutations that must not use Maintain. It is not currently offered to the
-  worker because the implemented story operations are additive or linking
-  operations covered by Maintain.
+- `propose_story_operation`, the reviewed protocol for additive or linking
+  story mutations that should not use direct Maintain. The worker uses it to
+  reconcile accepted generated prose with Personae, Chronicle, and Threads.
+  Reconciliation rereads the exact persisted document and current story state,
+  proposes one change at a time, and waits for review before writing canonical
+  records. Chronicle events may carry validated manuscript source identity,
+  revision, relation, and a bounded evidence anchor.
 
 Calling a reviewed mutation tool stores a reviewable proposal; it does not
 write the novel. Main generates created document and directory IDs, owns
@@ -163,14 +166,22 @@ Whenever a tool is added, removed, or its semantics change:
 
 ## Agent coordination
 
-Use one application-owned coordinator Agent to interpret the user's goal,
-decompose work, start and cancel specialist sessions, collect results, and
-prepare the final proposal. Coordination never bypasses persistence, permission,
-revision, or review boundaries.
+Coordination is an application-owned task graph, not a permanent hierarchy or
+a fixed set of role names. Prompt-profile IDs describe current capabilities;
+they are not protocol-level assumptions such as a mandatory Leader or Writer.
+As concurrent collaboration is introduced, Main owns task identity, parentage,
+authorization, budgets, cancellation, and artifact routing. An Agent may request
+a bounded task capability, but it never starts arbitrary processes or broadens
+the user's authority. The current build executes one Agent session and performs
+accepted-prose reconciliation in that run; the reviewed artifact and proposal
+protocol is designed so the reconciliation stage can later move to a separate
+specialist without changing persistence semantics.
 
 - Give specialists only the context required for their role.
-- Use distinct roles such as continuity, plot, style, research, or editing only
-  when they provide distinct context or output.
+- Register distinct capabilities such as drafting, continuity, plot, style,
+  research, editing, or story reconciliation only when they provide distinct
+  context or typed output. Display names may change without changing task or
+  artifact semantics.
 - Do not create multiple Agents to duplicate the same reasoning.
 - Return typed application-owned results with task, parent request, document,
   and base-revision identity where applicable.

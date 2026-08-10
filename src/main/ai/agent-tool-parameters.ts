@@ -145,7 +145,7 @@ export const STORY_OPERATION_PARAMETERS = Type.Object(
           ] as const,
           {
             description:
-              'Select one operation and use its exact change shape: create_persona={operation,name,role,summary}; create_timeline={operation,title,summary,isPrimary}; create_moment={operation,timelineId,displayTime,precision,orderKey,note}; create_event={operation,timelineId,startMomentId,endMomentId,title,summary,eventStatus,causes,consequences,participants}; create_thread={operation,parentId,title,summary,threadStatus,orderKey}; create_beat={operation,threadId,parentId,kind,title,description,threadStatus,orderKey,dramaticPurpose,desiredOutcome}; link_beat_event={operation,beatId,eventId,relation}. Send empty optional prose as empty strings and nullable IDs as null. Do not include fields from another shape.',
+              'Select one operation and use its exact change shape: create_persona={operation,name,role,summary}; create_timeline={operation,title,summary,isPrimary}; create_moment={operation,timelineId,displayTime,precision,orderKey,note}; create_event={operation,timelineId,startMomentId,endMomentId,title,summary,eventStatus,causes,consequences,participants,sources?}; create_thread={operation,parentId,title,summary,threadStatus,orderKey}; create_beat={operation,threadId,parentId,kind,title,description,threadStatus,orderKey,dramaticPurpose,desiredOutcome}; link_beat_event={operation,beatId,eventId,relation}. Send empty optional prose as empty strings and nullable IDs as null. Do not include fields from another shape.',
           },
         ),
         orderKey: Type.Optional(Type.Integer()),
@@ -172,6 +172,19 @@ export const STORY_OPERATION_PARAMETERS = Type.Object(
           type: ['string', 'null'],
         })),
         startMomentId: Type.Optional(Type.String({ maxLength: 128, minLength: 1 })),
+        sources: Type.Optional(Type.Array(Type.Object(
+          {
+            anchor: Type.Unsafe<string | null>({
+              maxLength: 10_000,
+              type: ['string', 'null'],
+            }),
+            documentId: Type.String({ maxLength: 128, minLength: 1 }),
+            documentRevision: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+            relation: stringEnum(['depicted', 'mentioned', 'inferred'] as const),
+            sourceKind: stringEnum(['manuscript'] as const),
+          },
+          { additionalProperties: false },
+        ), { maxItems: 100 })),
         eventStatus: Type.Optional(stringEnum(
           ['planned', 'established'] as const,
           { description: 'Required only for create_event.' },

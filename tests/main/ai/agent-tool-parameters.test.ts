@@ -81,6 +81,7 @@ describe('Agent tool parameter schemas', () => {
       enum: ['planned', 'active', 'resolved', 'abandoned'],
       type: 'string',
     });
+    expect(changeProperties.sources).toMatchObject({ type: 'array' });
     expect(JSON.stringify(schema)).not.toContain('anyOf');
     expect(JSON.stringify(schema)).not.toContain('const');
   });

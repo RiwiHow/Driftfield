@@ -68,6 +68,11 @@ implemented or authorized.
   the current bounded-tool, single-coordinator prototype. Reassess their split only
   when additional context domains, concurrent specialists, or lifecycle states
   create distinct responsibilities; do not add abstractions preemptively.
+- The current worker runs one Agent session. Future collaboration should use a
+  Main-owned bounded task graph with registered capabilities and typed artifacts;
+  it must not assume permanent role names or allow Agents to spawn arbitrary
+  sessions. Accepted-prose story reconciliation already uses the reviewed
+  proposal boundary that a future specialist stage can reuse.
 
 ## Build and settings
 

@@ -108,4 +108,47 @@ describe('Agent proposal tool contract', () => {
       toolName: 'propose_document_file_operation',
     })).toBe(false);
   });
+
+  it('validates manuscript evidence on reviewed Chronicle events', () => {
+    const request = {
+      arguments: {
+        change: {
+          causes: '',
+          consequences: '',
+          endMomentId: null,
+          operation: 'create_event',
+          participants: [],
+          sources: [{
+            anchor: 'Mara opens the sealed door.',
+            documentId: 'chapter-1',
+            documentRevision: 'a'.repeat(64),
+            relation: 'depicted',
+            sourceKind: 'manuscript',
+          }],
+          startMomentId: 'moment-1',
+          status: 'established',
+          summary: '',
+          timelineId: 'timeline-1',
+          title: 'The sealed door opens',
+        },
+        storyRevision: 2,
+      },
+      toolName: 'propose_story_operation',
+    } as const;
+
+    expect(isAgentToolRequest(request)).toBe(true);
+    expect(isAgentToolRequest({
+      ...request,
+      arguments: {
+        ...request.arguments,
+        change: {
+          ...request.arguments.change,
+          sources: [{
+            ...request.arguments.change.sources[0],
+            relation: 'invented',
+          }],
+        },
+      },
+    })).toBe(false);
+  });
 });

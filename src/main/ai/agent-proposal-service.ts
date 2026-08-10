@@ -96,12 +96,17 @@ export class AgentProposalService {
       title: storyOperationTitle(change),
     };
     try {
-      this.stories.createProposal(session, request.storyRevision, {
-        operationId: proposal.proposalId,
-        operationKind: change.operation,
-        originRequestId: scope.requestId,
-        payload: change,
-      });
+      this.stories.createProposal(
+        session,
+        request.storyRevision,
+        change,
+        {
+          operationId: proposal.proposalId,
+          operationKind: change.operation,
+          originRequestId: scope.requestId,
+          payload: change,
+        },
+      );
     } catch (error) {
       if (error instanceof ProjectStoryRevisionConflictError) {
         throw new ProjectContextError('proposal-base-changed');

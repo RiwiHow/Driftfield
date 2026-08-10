@@ -9,6 +9,7 @@ import type { ProjectSessionService } from '../../../src/main/services/project/s
 import { initializeProjectLayout, loadProjectLayout } from '../../../src/main/services/project/layout-service';
 import { createProjectSnapshot } from '../../../src/main/services/project/snapshot-service';
 import { ProjectStoryService } from '../../../src/main/services/project/story-service';
+import type { ProjectSession } from '../../../src/main/services/project/session-service';
 import { ProjectDatabase } from '../../../src/main/database/project-database';
 
 const createFixture = async () => {
@@ -86,6 +87,122 @@ describe('AgentProposalService', () => {
       status: 'applied',
     });
     database.close();
+  });
+
+  it('binds a reviewed Chronicle event to the exact accepted manuscript revision', async () => {
+    const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-story-source-'));
+    await initializeProjectLayout(directoryPath);
+    const markdown = '# Chapter\n\nMara opens the sealed door.\n';
+    await writeFile(path.join(directoryPath, 'chapter.md'), markdown);
+    const session = {
+      directoryPath,
+      documentPaths: new Map([['chapter-1', 'chapter.md']]),
+      id: 'session-story-source',
+      project: await createProjectSnapshot(directoryPath),
+    };
+    const sessions = { get: () => session } as unknown as ProjectSessionService;
+    const stories = new ProjectStoryService();
+    const storySession = session as unknown as ProjectSession;
+    const timeline = stories.applyOperation(storySession, 0, {
+      isPrimary: true,
+      operation: 'create_timeline',
+      summary: '',
+      title: 'Primary Chronicle',
+    }).timelines[0];
+    const moment = stories.applyOperation(storySession, 1, {
+      displayTime: 'Opening night',
+      note: '',
+      operation: 'create_moment',
+      orderKey: 1,
+      precision: 'unknown',
+      timelineId: timeline.id,
+    }).moments[0];
+    const service = new AgentProposalService(sessions, undefined, stories);
+    const proposal = service.createStoryOperation(
+      {
+        ownerId: 7,
+        projectSessionId: session.id,
+        requestId: 'request-story-source',
+      },
+      {
+        change: {
+          causes: '',
+          consequences: '',
+          endMomentId: null,
+          operation: 'create_event',
+          participants: [],
+          sources: [{
+            anchor: 'Mara opens the sealed door.',
+            documentId: 'chapter-1',
+            documentRevision: contentRevision(markdown),
+            relation: 'depicted',
+            sourceKind: 'manuscript',
+          }],
+          startMomentId: moment.id,
+          status: 'established',
+          summary: '',
+          timelineId: timeline.id,
+          title: 'The sealed door opens',
+        },
+        storyRevision: 2,
+      },
+    );
+
+    await expect(service.apply(7, proposal.proposalId)).resolves.toMatchObject({
+      status: 'story-updated',
+      story: {
+        eventSources: [{
+          anchor: 'Mara opens the sealed door.',
+          documentId: 'chapter-1',
+          documentRevision: contentRevision(markdown),
+          relation: 'depicted',
+          sourceKind: 'manuscript',
+        }],
+      },
+    });
+
+    const staleProposal = service.createStoryOperation(
+      {
+        ownerId: 7,
+        projectSessionId: session.id,
+        requestId: 'request-story-source-stale',
+      },
+      {
+        change: {
+          causes: '',
+          consequences: '',
+          endMomentId: null,
+          operation: 'create_event',
+          participants: [],
+          sources: [{
+            anchor: null,
+            documentId: 'chapter-1',
+            documentRevision: contentRevision(markdown),
+            relation: 'mentioned',
+            sourceKind: 'manuscript',
+          }],
+          startMomentId: moment.id,
+          status: 'established',
+          summary: '',
+          timelineId: timeline.id,
+          title: 'A stale sourced event',
+        },
+        storyRevision: 3,
+      },
+    );
+    const staleDecision = service.waitForDecision(
+      'request-story-source-stale',
+      staleProposal.proposalId,
+    );
+    await writeFile(path.join(directoryPath, 'chapter.md'), '# Changed\n');
+
+    await expect(service.apply(7, staleProposal.proposalId)).rejects.toThrow(
+      'Chronicle source revision changed',
+    );
+    await expect(staleDecision).resolves.toEqual({
+      proposalId: staleProposal.proposalId,
+      status: 'failed',
+    });
   });
 
   it('keeps a proposal in memory until the owning renderer accepts it', async () => {

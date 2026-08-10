@@ -171,6 +171,13 @@ export type ProjectStoryOperation =
         personaId: string;
         role: ChronicleParticipantRole;
       }>;
+      sources?: Array<{
+        anchor: string | null;
+        documentId: string;
+        documentRevision: string;
+        relation: ChronicleSourceRelation;
+        sourceKind: ChronicleSourceKind;
+      }>;
       startMomentId: string;
       status: ChronicleEventStatus;
       summary: string;
@@ -238,7 +245,8 @@ export const isProjectStoryOperation = (
       isText(value.note, 10_000, true);
   }
   if (value.operation === 'create_event') {
-    return keys.length === 10 && isId(value.timelineId) &&
+    return (keys.length === 10 || keys.length === 11) &&
+      isId(value.timelineId) &&
       isId(value.startMomentId) &&
       (value.endMomentId === null || isId(value.endMomentId)) &&
       isText(value.title, 500, false) && isText(value.summary, 30_000, true) &&
@@ -246,7 +254,10 @@ export const isProjectStoryOperation = (
       isText(value.causes, 20_000, true) &&
       isText(value.consequences, 20_000, true) &&
       Array.isArray(value.participants) && value.participants.length <= 100 &&
-      value.participants.every(isParticipant);
+      value.participants.every(isParticipant) &&
+      (value.sources === undefined ||
+        (Array.isArray(value.sources) && value.sources.length <= 100 &&
+          value.sources.every(isOperationSource)));
   }
   if (value.operation === 'create_thread') {
     return keys.length === 6 &&
@@ -383,6 +394,16 @@ const isParticipant = (value: unknown): boolean =>
   typeof value.role === 'string' &&
   ['actor', 'target', 'witness', 'affected'].includes(value.role) &&
   isText(value.description, 10_000, true);
+
+const isOperationSource = (value: unknown): boolean =>
+  isRecord(value) && Object.keys(value).length === 5 &&
+  (value.sourceKind === 'manuscript' || value.sourceKind === 'lore') &&
+  isId(value.documentId) &&
+  typeof value.documentRevision === 'string' &&
+  /^[a-f0-9]{64}$/u.test(value.documentRevision) &&
+  (value.relation === 'depicted' || value.relation === 'mentioned' ||
+    value.relation === 'inferred') &&
+  (value.anchor === null || isText(value.anchor, 10_000, true));
 
 const isThreadStatus = (value: unknown): value is ThreadStatus =>
   typeof value === 'string' &&

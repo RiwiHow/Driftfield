@@ -295,7 +295,7 @@ const storyOperationShapeHint = (
 
 const STORY_OPERATION_SHAPE_HINTS: Record<string, string> = {
   create_beat: 'create_beat requires exactly operation, threadId, parentId, kind, title, description, status, orderKey, dramaticPurpose, desiredOutcome; status must be planned, active, resolved, or abandoned.',
-  create_event: 'create_event requires exactly operation, timelineId, startMomentId, endMomentId, title, summary, status, causes, consequences, participants; status must be planned or established.',
+  create_event: 'create_event requires operation, timelineId, startMomentId, endMomentId, title, summary, status, causes, consequences, participants, and optional sources; status must be planned or established.',
   create_moment: 'create_moment requires exactly operation, timelineId, displayTime, precision, orderKey, note.',
   create_persona: 'create_persona requires exactly operation, name, role, summary.',
   create_thread: 'create_thread requires exactly operation, parentId, title, summary, status, orderKey; status must be planned, active, resolved, or abandoned.',

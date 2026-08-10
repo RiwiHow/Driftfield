@@ -57,9 +57,10 @@ Preserve these properties when changing affected subsystems.
   and commits the canonical change, revision, and applied audit row atomically.
   Renderer refreshes story state after each successful write.
 - `propose_story_operation` records a pending reviewed operation in
-  `project.sqlite` for story mutation classes that require review. The protocol
-  remains available, but the current worker exposes Maintain for the presently
-  implemented additive/linking operation set.
+  `project.sqlite`. The worker uses this reviewed path after accepted generated
+  prose, while explicit user requests may still use direct Maintain for bounded
+  additive/linking changes. Chronicle sources bind accepted manuscript identity
+  and disk revision, which Main revalidates before applying the story mutation.
 - `propose_document_edit` can submit a bounded whole-document replacement for
   the request-start current draft. Main retains the proposal, Renderer previews
   it, and only an explicit proposal-ID acceptance can trigger a revision-checked
