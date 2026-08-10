@@ -48,17 +48,6 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
     [],
   );
 
-  const commitAgentProposal = useCallback(
-    (result: Extract<ApplyAgentProposalResult, { status: 'saved' }>): void => {
-      dispatch({
-        result,
-        sourceRevision: ++projectRevision.current,
-        type: 'commit-agent-proposal',
-      });
-    },
-    [],
-  );
-
   const saveDocuments = useCallback(
     async (
       documents: Chapter[],
@@ -118,6 +107,21 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
       });
     },
     [],
+  );
+
+  const commitAgentProposal = useCallback(
+    (result: Extract<ApplyAgentProposalResult, { status: 'saved' | 'created' | 'deleted' }>): void => {
+      if (result.status === 'saved') {
+        dispatch({
+          result,
+          sourceRevision: ++projectRevision.current,
+          type: 'commit-agent-proposal',
+        });
+      } else {
+        applyProjectSnapshot(result.project, true);
+      }
+    },
+    [applyProjectSnapshot],
   );
 
   useProjectSessionEffects({

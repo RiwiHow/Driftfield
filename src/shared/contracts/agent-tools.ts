@@ -55,6 +55,28 @@ export interface AgentEditProposalToolResult {
   status: 'proposed';
 }
 
+export type AgentDocumentFileOperationArguments =
+  | {
+      kind:
+        | 'chapter'
+        | 'prologue'
+        | 'interlude'
+        | 'epilogue'
+        | 'appendix'
+        | 'entry';
+      markdown: string;
+      operation: 'create';
+      parentId: string;
+      projectRevision: string;
+      title: string;
+    }
+  | {
+      baseRevision: string;
+      documentId: string;
+      operation: 'delete';
+      projectRevision: string;
+    };
+
 export interface AgentToolContractMap {
   get_current_document: {
     arguments: Record<string, never>;
@@ -77,6 +99,10 @@ export interface AgentToolContractMap {
     };
     result: AgentEditProposalToolResult;
   };
+  propose_document_file_operation: {
+    arguments: AgentDocumentFileOperationArguments;
+    result: AgentEditProposalToolResult;
+  };
 }
 
 export type AgentToolName = keyof AgentToolContractMap;
@@ -86,6 +112,7 @@ export const AGENT_TOOL_NAMES = [
   'get_current_document',
   'get_document',
   'propose_document_edit',
+  'propose_document_file_operation',
 ] as const satisfies readonly AgentToolName[];
 
 export type AgentToolRequest<
@@ -161,6 +188,32 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
       new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024
     );
   }
+  if (toolName === 'propose_document_file_operation') {
+    if (
+      value.operation === 'create' &&
+      Object.keys(value).length === 6
+    ) {
+      return (
+        isDocumentId(value.parentId) &&
+        isRevision(value.projectRevision) &&
+        typeof value.title === 'string' &&
+        value.title.trim().length > 0 &&
+        value.title.length <= 500 &&
+        !/[\u0000-\u001f\u007f]/u.test(value.title) &&
+        typeof value.markdown === 'string' &&
+        new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024 &&
+        typeof value.kind === 'string' &&
+        ['chapter', 'prologue', 'interlude', 'epilogue', 'appendix', 'entry'].includes(value.kind)
+      );
+    }
+    return (
+      value.operation === 'delete' &&
+      Object.keys(value).length === 4 &&
+      isDocumentId(value.documentId) &&
+      isRevision(value.baseRevision) &&
+      isRevision(value.projectRevision)
+    );
+  }
   if (toolName !== 'get_document') return Object.keys(value).length === 0;
   return (
     Object.keys(value).length === 1 &&
@@ -188,7 +241,8 @@ export const isAgentToolExecutionResult = (
 const isToolData = (toolName: AgentToolName, value: unknown): boolean =>
   toolName === 'get_novel_structure'
     ? isNovelStructureResult(value)
-    : toolName === 'propose_document_edit'
+    : toolName === 'propose_document_edit' ||
+        toolName === 'propose_document_file_operation'
       ? isEditProposalResult(value)
     : isDocumentResult(value);
 

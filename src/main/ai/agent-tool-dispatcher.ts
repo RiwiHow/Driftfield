@@ -12,14 +12,14 @@ import {
   type ProjectContextService,
 } from './project-context-service';
 import type { AgentProposalService } from './agent-proposal-service';
-import type { AgentEditProposal } from '../../shared/contracts/agent-proposals';
+import type { AgentDocumentProposal } from '../../shared/contracts/agent-proposals';
 
 export interface AgentToolScope {
   draftSnapshot?: AgentDraftSnapshot;
   ownerId: number;
   projectSessionId?: string;
   requestId: string;
-  sendProposal?: (proposal: AgentEditProposal) => void;
+  sendProposal?: (proposal: AgentDocumentProposal) => void;
 }
 
 export interface AgentToolPolicy {
@@ -116,6 +116,21 @@ export class AgentToolDispatcher {
         throw new ProjectContextError('internal-error');
       }
       const proposal = this.proposals.create(scope, request.arguments);
+      scope.sendProposal?.(proposal);
+      return {
+        data: { proposalId: proposal.proposalId, status: 'proposed' },
+        ok: true,
+        toolName: request.toolName,
+      };
+    }
+    if (request.toolName === 'propose_document_file_operation') {
+      if (this.proposals === undefined) {
+        throw new ProjectContextError('internal-error');
+      }
+      const proposal = await this.proposals.createFileOperation(
+        scope,
+        request.arguments,
+      );
       scope.sendProposal?.(proposal);
       return {
         data: { proposalId: proposal.proposalId, status: 'proposed' },

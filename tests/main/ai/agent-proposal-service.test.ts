@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { AgentProposalService } from '../../../src/main/ai/agent-proposal-service';
 import { contentRevision } from '../../../src/main/services/project/document-utils';
 import type { ProjectSessionService } from '../../../src/main/services/project/session-service';
+import { initializeProjectLayout, loadProjectLayout } from '../../../src/main/services/project/layout-service';
+import { createProjectSnapshot } from '../../../src/main/services/project/snapshot-service';
 
 const createFixture = async () => {
   const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-proposal-'));
@@ -79,5 +81,63 @@ describe('AgentProposalService', () => {
       status: 'conflict',
     });
     await expect(readFile(path.join(directoryPath, 'chapter.md'), 'utf8')).resolves.toBe('# External\n');
+  });
+
+  it('creates and deletes documents only after proposal acceptance', async () => {
+    const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-proposal-'));
+    await initializeProjectLayout(directoryPath);
+    const project = await createProjectSnapshot(directoryPath);
+    const session = {
+      directoryPath,
+      documentPaths: new Map<string, string>(),
+      id: 'session-structural',
+      project,
+    };
+    const sessions = {
+      get: () => session,
+      refresh: async () => {
+        session.project = await createProjectSnapshot(directoryPath);
+        session.documentPaths = new Map(
+          session.project.documents.map(({ id, relativePath }) => [id, relativePath]),
+        );
+        return session.project;
+      },
+    } as unknown as ProjectSessionService;
+    const service = new AgentProposalService(sessions);
+    const parentId = (await loadProjectLayout(directoryPath)).manuscript.index.id;
+    const scope = {
+      ownerId: 7,
+      projectSessionId: session.id,
+      requestId: 'request-structure',
+    };
+    const creation = await service.createFileOperation(scope, {
+      kind: 'chapter',
+      markdown: '# Created\n',
+      operation: 'create',
+      parentId,
+      projectRevision: session.project.revision,
+      title: 'Created',
+    });
+    expect(session.project.documents).toEqual([]);
+
+    await expect(service.apply(7, creation.proposalId)).resolves.toMatchObject({
+      documentId: creation.documentId,
+      status: 'created',
+    });
+    expect(session.project.documents).toEqual([
+      expect.objectContaining({ id: creation.documentId, markdown: '# Created\n' }),
+    ]);
+
+    const deletion = await service.createFileOperation(scope, {
+      baseRevision: contentRevision('# Created\n'),
+      documentId: creation.documentId,
+      operation: 'delete',
+      projectRevision: session.project.revision,
+    });
+    await expect(service.apply(7, deletion.proposalId)).resolves.toMatchObject({
+      documentId: creation.documentId,
+      status: 'deleted',
+    });
+    expect(session.project.documents).toEqual([]);
   });
 });

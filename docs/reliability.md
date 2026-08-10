@@ -47,12 +47,17 @@ Preserve these properties when changing affected subsystems.
 - Requests bind to project-session identity. Project switches cancel the owner;
   obsolete streamed output and tool calls are rejected.
 - Cancellation remains terminal when it races with completion or output.
-- Current tools are `get_novel_structure`, `get_current_document`, and
+- Current read tools are `get_novel_structure`, `get_current_document`, and
   `get_document`; they are typed, bounded, path-free, and main-owned.
 - `propose_document_edit` can submit a bounded whole-document replacement for
   the request-start current draft. Main retains the proposal, Renderer previews
   it, and only an explicit proposal-ID acceptance can trigger a revision-checked
   atomic save.
+- `propose_document_file_operation` can submit a bounded create or delete
+  proposal using stable IDs. Main owns generated filenames and IDs, validates
+  parent/kind and current project/document revisions, updates metadata, and
+  applies the structural mutation only after explicit acceptance. Renderer
+  refuses deletion while its matching manuscript draft is dirty.
 - Request-start draft snapshots preserve unsaved current-document content.
 - Pi works from application-owned Agent data, not the novel folder.
 - Assistant Markdown does not interpret raw HTML, load remote images, or permit

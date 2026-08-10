@@ -156,9 +156,44 @@ describe('Agent conversation persistence', () => {
     service.recordEvent({
       proposal,
       requestId: 'assistant-1',
-      type: 'edit-proposal',
+      type: 'proposal',
     });
     service.recordEvent({ requestId: 'assistant-1', type: 'completed' });
+    service.dispose();
+
+    const restoredService = new AgentConversationService();
+    expect(restoredService.getProposal(session, proposal.proposalId)).toEqual(proposal);
+    restoredService.dispose();
+  });
+
+  it('restores a pending structural proposal for main-owned revalidation', async () => {
+    const session = await createSession();
+    const service = new AgentConversationService();
+    const state = service.getState(session);
+    const proposal = {
+      documentId: 'chapter-created',
+      documentKind: 'chapter' as const,
+      markdown: '# Created\n',
+      operation: 'create' as const,
+      parentId: 'manuscript-1',
+      parentTitle: 'Manuscript',
+      projectRevision: 'a'.repeat(64),
+      proposalId: 'proposal-create',
+      requestId: 'assistant-create',
+      title: 'Created',
+    };
+    service.beginPrompt(session, {
+      conversationId: state.activeConversation.id,
+      prompt: 'Create a chapter.',
+      requestId: 'assistant-create',
+      userMessageId: 'user-create',
+    });
+    service.recordEvent({
+      proposal,
+      requestId: 'assistant-create',
+      type: 'proposal',
+    });
+    service.recordEvent({ requestId: 'assistant-create', type: 'completed' });
     service.dispose();
 
     const restoredService = new AgentConversationService();

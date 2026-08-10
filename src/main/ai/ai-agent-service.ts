@@ -270,7 +270,7 @@ export class AiAgentService {
                 active.sendEvent({
                   proposal,
                   requestId: message.requestId,
-                  type: 'edit-proposal',
+                  type: 'proposal',
                 }),
             },
             message,

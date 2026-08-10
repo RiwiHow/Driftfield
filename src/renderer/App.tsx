@@ -58,6 +58,7 @@ export function App({
     <>
       <WorkspaceShell
         activeChapter={project.activeChapter}
+        chapters={project.chapters}
         agentConfiguration={agentConfiguration.configuration}
         agentConfigurationError={agentConfiguration.error}
         agentConfigurationLoading={agentConfiguration.isLoading}

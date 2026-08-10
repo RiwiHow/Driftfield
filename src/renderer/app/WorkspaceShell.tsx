@@ -39,6 +39,7 @@ import { useWorkspacePanelTransitions } from './use-workspace-panel-transitions'
 
 interface WorkspaceShellProps {
   activeChapter: Chapter | null;
+  chapters: Chapter[];
   agentConfiguration: AgentConfiguration;
   agentConfigurationError: string | null;
   agentConfigurationLoading: boolean;
@@ -51,7 +52,7 @@ interface WorkspaceShellProps {
   isSavingDocument: boolean;
   onChapterChange: (chapterId: string) => void;
   onAgentProposalApplied: (
-    result: Extract<ApplyAgentProposalResult, { status: 'saved' }>,
+    result: Extract<ApplyAgentProposalResult, { status: 'saved' | 'created' | 'deleted' }>,
   ) => void;
   onCloseChapter: () => void;
   onContentChange: (markdown: string) => void;
@@ -73,6 +74,7 @@ interface WorkspaceShellProps {
 
 export function WorkspaceShell({
   activeChapter,
+  chapters,
   agentConfiguration,
   agentConfigurationError,
   agentConfigurationLoading,
@@ -268,6 +270,7 @@ export function WorkspaceShell({
           >
             <AssistantPanel
               activeChapter={activeChapter}
+              chapters={chapters}
               configuration={agentConfiguration}
               configurationError={agentConfigurationError}
               configurationLoading={agentConfigurationLoading}

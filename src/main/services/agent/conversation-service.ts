@@ -7,7 +7,7 @@ import type {
   AgentConversationSummary,
   AgentProposalStatus,
 } from '../../../shared/contracts/agent-conversations';
-import type { AgentEditProposal } from '../../../shared/contracts/agent-proposals';
+import type { AgentDocumentProposal } from '../../../shared/contracts/agent-proposals';
 import type { AgentEvent } from '../../../shared/contracts/agent';
 import { isAgentToolName } from '../../../shared/contracts/agent-tools';
 import { ConversationDatabase } from '../../database/conversation-database';
@@ -296,7 +296,7 @@ export class AgentConversationService {
       this.scheduleFlush(event.requestId, active);
       return;
     }
-    if (event.type === 'edit-proposal') {
+    if (event.type === 'proposal') {
       message.proposal = event.proposal;
       message.proposalStatus = 'pending';
       this.scheduleFlush(event.requestId, active);
@@ -325,7 +325,7 @@ export class AgentConversationService {
   getProposal(
     session: ProjectSession,
     proposalId: string,
-  ): AgentEditProposal | null {
+  ): AgentDocumentProposal | null {
     const row = this.getDatabase(session).connection.prepare(`
       SELECT m.proposal_json FROM conversation_messages m
       JOIN conversations c ON c.id = m.conversation_id
@@ -584,7 +584,7 @@ const parseStoredParts = (value: string): AgentConversationPart[] => {
   return parsed as AgentConversationPart[];
 };
 
-const parseStoredProposal = (value: string): AgentEditProposal => {
+const parseStoredProposal = (value: string): AgentDocumentProposal => {
   const parsed: unknown = JSON.parse(value);
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error('Invalid stored Agent proposal');
@@ -592,26 +592,52 @@ const parseStoredProposal = (value: string): AgentEditProposal => {
   const proposal = parsed as Record<string, unknown>;
   const isRevision = (revision: unknown): revision is string =>
     typeof revision === 'string' && /^[a-f0-9]{64}$/u.test(revision);
-  if (
-    !isRevision(proposal.baseContentRevision) ||
-    !isRevision(proposal.baseRevision) ||
-    typeof proposal.baseMarkdown !== 'string' ||
-    Buffer.byteLength(proposal.baseMarkdown, 'utf8') > 512 * 1024 ||
-    typeof proposal.documentId !== 'string' ||
-    proposal.documentId.length === 0 ||
-    proposal.documentId.length > 128 ||
-    typeof proposal.markdown !== 'string' ||
-    Buffer.byteLength(proposal.markdown, 'utf8') > 512 * 1024 ||
-    typeof proposal.proposalId !== 'string' ||
-    proposal.proposalId.length === 0 ||
-    proposal.proposalId.length > 128 ||
-    typeof proposal.requestId !== 'string' ||
-    proposal.requestId.length === 0 ||
-    proposal.requestId.length > 128 ||
-    typeof proposal.title !== 'string' ||
-    proposal.title.length > 1_024
-  ) {
+  const hasCommonFields =
+    typeof proposal.proposalId === 'string' &&
+    proposal.proposalId.length > 0 &&
+    proposal.proposalId.length <= 128 &&
+    typeof proposal.requestId === 'string' &&
+    proposal.requestId.length > 0 &&
+    proposal.requestId.length <= 128 &&
+    typeof proposal.title === 'string' &&
+    proposal.title.length <= 500;
+  const valid = proposal.operation === 'create'
+    ? hasCommonFields &&
+      typeof proposal.documentId === 'string' &&
+      proposal.documentId.length > 0 &&
+      proposal.documentId.length <= 128 &&
+      typeof proposal.parentId === 'string' &&
+      proposal.parentId.length > 0 &&
+      proposal.parentId.length <= 128 &&
+      typeof proposal.parentTitle === 'string' &&
+      proposal.parentTitle.length <= 500 &&
+      isRevision(proposal.projectRevision) &&
+      typeof proposal.markdown === 'string' &&
+      Buffer.byteLength(proposal.markdown, 'utf8') <= 512 * 1024 &&
+      typeof proposal.documentKind === 'string' &&
+      ['chapter', 'prologue', 'interlude', 'epilogue', 'appendix', 'entry']
+        .includes(proposal.documentKind)
+    : proposal.operation === 'delete'
+      ? hasCommonFields &&
+        typeof proposal.documentId === 'string' &&
+        proposal.documentId.length > 0 &&
+        proposal.documentId.length <= 128 &&
+        isRevision(proposal.projectRevision) &&
+        isRevision(proposal.baseRevision) &&
+        typeof proposal.baseMarkdown === 'string' &&
+        Buffer.byteLength(proposal.baseMarkdown, 'utf8') <= 512 * 1024
+      : hasCommonFields &&
+        isRevision(proposal.baseContentRevision) &&
+        isRevision(proposal.baseRevision) &&
+        typeof proposal.baseMarkdown === 'string' &&
+        Buffer.byteLength(proposal.baseMarkdown, 'utf8') <= 512 * 1024 &&
+        typeof proposal.documentId === 'string' &&
+        proposal.documentId.length > 0 &&
+        proposal.documentId.length <= 128 &&
+        typeof proposal.markdown === 'string' &&
+        Buffer.byteLength(proposal.markdown, 'utf8') <= 512 * 1024;
+  if (!valid) {
     throw new Error('Invalid stored Agent proposal');
   }
-  return parsed as AgentEditProposal;
+  return parsed as AgentDocumentProposal;
 };

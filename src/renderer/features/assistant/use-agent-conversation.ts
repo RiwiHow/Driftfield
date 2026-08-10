@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { Chapter } from '@/app/types';
 import type {
-  AgentEditProposal,
+  AgentDocumentProposal,
   ApplyAgentProposalResult,
 } from '../../../shared/contracts/agent-proposals';
 import type {
@@ -40,8 +40,9 @@ type ConversationUpdate = (
 
 export function useAgentConversation(
   activeChapter: Chapter | null,
+  chapters: Chapter[],
   onProposalApplied: (
-    result: Extract<ApplyAgentProposalResult, { status: 'saved' }>,
+    result: Extract<ApplyAgentProposalResult, { status: 'saved' | 'created' | 'deleted' }>,
   ) => void,
   projectId: string | null,
 ) {
@@ -121,7 +122,7 @@ export function useAgentConversation(
           ),
         );
       }
-      if (event.type === 'edit-proposal') {
+      if (event.type === 'proposal') {
         setMessages((current) =>
           current.map((message) =>
             message.id === event.requestId
@@ -379,8 +380,8 @@ export function useAgentConversation(
     [],
   );
 
-  const applyProposal = useCallback(async (proposal: AgentEditProposal) => {
-    if (!canApplyAgentProposal(activeChapter, proposal)) {
+  const applyProposal = useCallback(async (proposal: AgentDocumentProposal) => {
+    if (!canApplyAgentProposal(activeChapter, proposal, chapters)) {
       setProposalStatus(proposal.proposalId, 'stale');
       return;
     }
@@ -389,7 +390,11 @@ export function useAgentConversation(
       const result = await window.driftfield.applyAgentProposal({
         proposalId: proposal.proposalId,
       });
-      if (result.status === 'saved') {
+      if (
+        result.status === 'saved' ||
+        result.status === 'created' ||
+        result.status === 'deleted'
+      ) {
         onProposalApplied(result);
         setProposalStatus(proposal.proposalId, 'saved');
       } else {
@@ -401,7 +406,7 @@ export function useAgentConversation(
     } catch {
       setProposalStatus(proposal.proposalId, 'failed');
     }
-  }, [activeChapter, onProposalApplied]);
+  }, [activeChapter, chapters, onProposalApplied]);
 
   const rejectProposal = useCallback(async (proposalId: string) => {
     try {
@@ -517,8 +522,18 @@ function rejectPendingProposals(messages: ConversationMessage[]): void {
 
 export function canApplyAgentProposal(
   chapter: Chapter | null,
-  proposal: AgentEditProposal,
+  proposal: AgentDocumentProposal,
+  chapters: Chapter[] = chapter === null ? [] : [chapter],
 ): boolean {
+  if ('operation' in proposal) {
+    if (proposal.operation === 'create') return true;
+    const target = chapters.find(({ id }) => id === proposal.documentId);
+    return target === undefined || (
+      !target.isDirty &&
+      target.revision === proposal.baseRevision &&
+      target.markdown === proposal.baseMarkdown
+    );
+  }
   return (
     chapter !== null &&
     chapter.id === proposal.documentId &&

@@ -12,11 +12,19 @@ The initial Agent data surface contains only:
 - `get_current_document`
 - `get_document`
 
-The reviewed mutation surface additionally contains
-`propose_document_edit`. It accepts a complete replacement only for the
-request-start current-document snapshot and binds it to both the disk base
-revision and draft content revision. Calling it stores an in-memory proposal;
-it does not write the novel.
+The reviewed mutation surface additionally contains:
+
+- `propose_document_edit`, which accepts a complete replacement only for the
+  request-start current-document snapshot and binds it to both the disk base
+  revision and draft content revision;
+- `propose_document_file_operation`, which proposes either creating a Markdown
+  document under a stable directory ID or deleting a document by stable ID.
+  Creation carries a title, domain kind, and complete Markdown. Deletion binds
+  to both the project revision and persisted document revision.
+
+Calling either mutation tool stores a reviewable proposal; it does not write
+the novel. Main generates created document IDs and physical filenames, and the
+Agent never constructs or receives metadata paths.
 
 Main validates typed arguments, resolves stable IDs through the active project
 session, rechecks document containment and regular-file status, and enforces
@@ -107,16 +115,21 @@ revision, or review boundaries.
 Agents may propose a complete document or edits at character, word, line,
 paragraph, or section granularity, but they never write files directly.
 
-The current implementation supports whole-current-document edit proposals.
+The current implementation supports whole-current-document edit proposals and
+whole-document create/delete proposals.
 Main assigns the proposal ID and retains the authoritative proposed Markdown.
 Renderer acceptance sends only that ID back to Main. Main rejects proposals
 from another window or project session, and applies an accepted proposal only
-when its disk base revision still matches. Create and selective-edit proposals
+when its disk/project base revisions still match. Selective-edit proposals
 remain future work.
 
-- A create proposal carries complete Markdown and a validated
-  application-relative destination. Main enforces extensions, containment, size,
-  and non-overwrite behavior.
+- A create proposal carries complete Markdown and a stable parent directory ID.
+  Main chooses the stable document ID and physical filename, enforces the
+  parent/kind relationship, extension, containment, size, and non-overwrite
+  behavior, then updates the owning `_index.yaml`.
+- A delete proposal carries a stable document ID and reviewed base revisions.
+  Main removes the document from its owning index before deleting the regular,
+  non-symlink Markdown file, restoring the index if deletion fails.
 - An edit proposal identifies a document and SHA-256 `baseRevision`, and carries
   application-owned structured replacements or a patch against that revision.
 - Prefer exact-text anchors or ranges in the base snapshot over bare line

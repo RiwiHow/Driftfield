@@ -1,15 +1,29 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
+  AgentDocumentProposal,
+  AgentCreateDocumentProposal,
+  AgentDeleteDocumentProposal,
   AgentEditProposal,
   ApplyAgentProposalResult,
 } from '../../shared/contracts/agent-proposals';
-import type { AgentDraftSnapshot } from '../../shared/contracts/agent-tools';
+import type {
+  AgentDocumentFileOperationArguments,
+  AgentDraftSnapshot,
+} from '../../shared/contracts/agent-tools';
 import { saveProjectDocument } from '../services/project/document-service';
 import { contentRevision } from '../services/project/document-utils';
 import type { ProjectSessionService } from '../services/project/session-service';
 import type { AgentConversationService } from '../services/agent/conversation-service';
 import { MAX_AGENT_DOCUMENT_BYTES, ProjectContextError } from './project-context-service';
+import { createProjectSnapshot } from '../services/project/snapshot-service';
+import {
+  createStructuredProjectDocument,
+  deleteStructuredProjectDocument,
+  getStructuredDirectoryDescriptor,
+  getStructuredDocumentDescriptor,
+} from '../services/project/structural-document-service';
+import { parseProjectTitle } from '../services/project/metadata-parser';
 
 interface CreateProposalRequest {
   baseContentRevision: string;
@@ -28,7 +42,7 @@ interface ProposalScope {
 interface StoredProposal {
   ownerId: number;
   projectSessionId: string;
-  proposal: AgentEditProposal;
+  proposal: AgentDocumentProposal;
 }
 
 export class AgentProposalService {
@@ -88,6 +102,85 @@ export class AgentProposalService {
     return proposal;
   }
 
+  async createFileOperation(
+    scope: ProposalScope,
+    request: AgentDocumentFileOperationArguments,
+  ): Promise<AgentCreateDocumentProposal | AgentDeleteDocumentProposal> {
+    const session = this.sessions.get(scope.ownerId);
+    if (
+      session === undefined ||
+      scope.projectSessionId === undefined ||
+      session.id !== scope.projectSessionId
+    ) {
+      throw new ProjectContextError('project-session-changed');
+    }
+    if (request.projectRevision !== session.project.revision) {
+      throw new ProjectContextError('proposal-base-changed');
+    }
+
+    let proposal: AgentCreateDocumentProposal | AgentDeleteDocumentProposal;
+    if (request.operation === 'create') {
+      const parent = await getStructuredDirectoryDescriptor(
+        session.directoryPath,
+        request.parentId,
+      );
+      if (parent === null) throw new ProjectContextError('document-not-found');
+      const isLore = parent.kind === 'lore' || parent.kind === 'category';
+      if ((isLore && request.kind !== 'entry') || (!isLore && request.kind === 'entry')) {
+        throw new ProjectContextError('invalid-arguments');
+      }
+      if (Buffer.byteLength(request.markdown, 'utf8') > MAX_AGENT_DOCUMENT_BYTES) {
+        throw new ProjectContextError('document-too-large');
+      }
+      let title: string;
+      try {
+        title = parseProjectTitle(request.title);
+      } catch {
+        throw new ProjectContextError('invalid-arguments');
+      }
+      proposal = {
+        documentId: randomUUID(),
+        documentKind: request.kind,
+        markdown: request.markdown,
+        operation: 'create',
+        parentId: request.parentId,
+        parentTitle: parent.title,
+        projectRevision: request.projectRevision,
+        proposalId: randomUUID(),
+        requestId: scope.requestId,
+        title,
+      };
+    } else {
+      const document = await getStructuredDocumentDescriptor(
+        session.directoryPath,
+        request.documentId,
+      );
+      if (document === null) throw new ProjectContextError('document-not-found');
+      if (document.revision !== request.baseRevision) {
+        throw new ProjectContextError('proposal-base-changed');
+      }
+      if (Buffer.byteLength(document.markdown, 'utf8') > MAX_AGENT_DOCUMENT_BYTES) {
+        throw new ProjectContextError('document-too-large');
+      }
+      proposal = {
+        baseMarkdown: document.markdown,
+        baseRevision: request.baseRevision,
+        documentId: request.documentId,
+        operation: 'delete',
+        projectRevision: request.projectRevision,
+        proposalId: randomUUID(),
+        requestId: scope.requestId,
+        title: document.title,
+      };
+    }
+    this.proposals.set(proposal.proposalId, {
+      ownerId: scope.ownerId,
+      projectSessionId: session.id,
+      proposal,
+    });
+    return proposal;
+  }
+
   async apply(ownerId: number, proposalId: string): Promise<ApplyAgentProposalResult> {
     const stored = this.proposals.get(proposalId);
     const session = this.sessions.get(ownerId);
@@ -108,6 +201,48 @@ export class AgentProposalService {
         : this.conversations?.getProposal(session, proposalId);
     if (proposal === undefined || proposal === null) {
       return { proposalId, status: 'not-found' };
+    }
+    if ('operation' in proposal) {
+      let currentProject: Awaited<ReturnType<typeof createProjectSnapshot>>;
+      try {
+        currentProject = await createProjectSnapshot(session.directoryPath);
+      } catch {
+        this.conversations?.setProposalStatus(session, proposalId, 'stale');
+        return { proposalId, status: 'stale' };
+      }
+      if (currentProject.revision !== proposal.projectRevision) {
+        this.conversations?.setProposalStatus(session, proposalId, 'stale');
+        return { proposalId, status: 'stale' };
+      }
+      try {
+        if (proposal.operation === 'create') {
+          await createStructuredProjectDocument(session.directoryPath, {
+            documentId: proposal.documentId,
+            kind: proposal.documentKind,
+            markdown: proposal.markdown,
+            parentId: proposal.parentId,
+            title: proposal.title,
+          });
+        } else {
+          await deleteStructuredProjectDocument(session.directoryPath, {
+            baseRevision: proposal.baseRevision,
+            documentId: proposal.documentId,
+          });
+        }
+      } catch {
+        this.conversations?.setProposalStatus(session, proposalId, 'stale');
+        return { proposalId, status: 'stale' };
+      }
+      const project = await this.sessions.refresh(ownerId);
+      if (project === null) return { proposalId, status: 'not-found' };
+      this.proposals.delete(proposalId);
+      this.conversations?.setProposalStatus(session, proposalId, 'saved');
+      return {
+        documentId: proposal.documentId,
+        project,
+        proposalId,
+        status: proposal.operation === 'create' ? 'created' : 'deleted',
+      };
     }
     const relativePath = session.documentPaths.get(proposal.documentId);
     const currentDocument = session.project.documents.find(

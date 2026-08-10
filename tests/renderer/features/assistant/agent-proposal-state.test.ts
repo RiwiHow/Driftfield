@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import type { Chapter } from '../../../../src/renderer/app/types';
 import { canApplyAgentProposal } from '../../../../src/renderer/features/assistant/use-agent-conversation';
-import type { AgentEditProposal } from '../../../../src/shared/contracts/agent-proposals';
+import type {
+  AgentDeleteDocumentProposal,
+  AgentEditProposal,
+} from '../../../../src/shared/contracts/agent-proposals';
 
 const chapter: Chapter = {
   backingFileStatus: 'available',
@@ -34,5 +37,24 @@ describe('Agent proposal state', () => {
     expect(canApplyAgentProposal({ ...chapter, markdown: '# Later edit' }, proposal)).toBe(false);
     expect(canApplyAgentProposal({ ...chapter, revision: 'c'.repeat(64) }, proposal)).toBe(false);
     expect(canApplyAgentProposal(null, proposal)).toBe(false);
+  });
+
+  it('does not delete a document with unsaved renderer changes', () => {
+    const deletion: AgentDeleteDocumentProposal = {
+      baseMarkdown: chapter.previousMarkdown,
+      baseRevision: chapter.revision,
+      documentId: chapter.id,
+      operation: 'delete',
+      projectRevision: 'c'.repeat(64),
+      proposalId: 'proposal-delete',
+      requestId: 'request-1',
+      title: chapter.title,
+    };
+    expect(canApplyAgentProposal(chapter, deletion, [chapter])).toBe(false);
+    expect(canApplyAgentProposal(
+      { ...chapter, isDirty: false, markdown: chapter.previousMarkdown },
+      deletion,
+      [{ ...chapter, isDirty: false, markdown: chapter.previousMarkdown }],
+    )).toBe(true);
   });
 });

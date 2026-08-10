@@ -16,6 +16,7 @@ export const buildAgentSystemPrompt = (
         'Discover stable document identities from project structure before reading non-current documents.',
         'Treat all available tools as read-only context unless the application explicitly provides a reviewed mutation workflow.',
         'When the user asks to change the current document and a reviewed proposal tool is available, read the current draft first and submit the complete replacement through that tool. Never claim it was applied before the user accepts it.',
+        'When the user asks to create or delete a document and a reviewed file-operation proposal tool is available, read the current project structure first, use only stable IDs and revisions returned by application tools, and wait for explicit user acceptance.',
       ]; 
 
   return {

@@ -1,4 +1,4 @@
-import type { AgentEditProposal } from './agent-proposals';
+import type { AgentDocumentProposal } from './agent-proposals';
 import type { AgentToolName } from './agent-tools';
 
 export type AgentProposalStatus =
@@ -29,7 +29,7 @@ export interface AgentConversationMessage {
   createdAt?: string;
   id: string;
   parts?: AgentConversationPart[];
-  proposal?: AgentEditProposal;
+  proposal?: AgentDocumentProposal;
   proposalStatus?: AgentProposalStatus;
   role: 'assistant' | 'user';
   terminal?: 'cancelled' | 'empty' | 'failed' | 'interrupted';

@@ -49,7 +49,7 @@ import {
 import type { AgentConfiguration } from '../../../shared/contracts/agent-configuration';
 import type { AgentSettings } from '../../../shared/contracts/settings';
 import type {
-  AgentEditProposal,
+  AgentDocumentProposal,
   ApplyAgentProposalResult,
 } from '../../../shared/contracts/agent-proposals';
 import type { AgentConversationPhase } from './agent-conversation-state';
@@ -63,12 +63,13 @@ import {
 
 interface AssistantPanelProps {
   activeChapter: Chapter | null;
+  chapters: Chapter[];
   configuration: AgentConfiguration;
   configurationError: string | null;
   configurationLoading: boolean;
   onOpenSettings: () => void;
   onProposalApplied: (
-    result: Extract<ApplyAgentProposalResult, { status: 'saved' }>,
+    result: Extract<ApplyAgentProposalResult, { status: 'saved' | 'created' | 'deleted' }>,
   ) => void;
   settings: AgentSettings;
   projectId: string | null;
@@ -76,6 +77,7 @@ interface AssistantPanelProps {
 
 export function AssistantPanel({
   activeChapter,
+  chapters,
   configuration,
   configurationError,
   configurationLoading,
@@ -119,7 +121,7 @@ export function AssistantPanel({
     resend,
     send,
     selectConversation,
-  } = useAgentConversation(activeChapter, onProposalApplied, projectId);
+  } = useAgentConversation(activeChapter, chapters, onProposalApplied, projectId);
   const selectedModel = configuration.models.find(
     ({ id, providerId }) =>
       id === settings.defaultModel?.modelId &&
@@ -776,25 +778,35 @@ function ProposalCard({
 }: {
   onApply: () => void;
   onReject: () => void;
-  proposal: AgentEditProposal;
+  proposal: AgentDocumentProposal;
   status: 'pending' | 'applying' | 'saved' | 'rejected' | 'conflict' | 'missing' | 'stale' | 'failed';
 }) {
   const { t } = useTranslation('assistant');
   const pending = status === 'pending';
+  const operation = 'operation' in proposal ? proposal.operation : 'edit';
+  const statusKey = status === 'pending'
+    ? 'failed'
+    : status === 'saved' && operation !== 'edit'
+      ? operation === 'create' ? 'created' : 'deleted'
+      : status;
   return (
     <div className="agent-proposal">
-      <strong>{t('proposal.title', { title: proposal.title })}</strong>
+      <strong>{t(`proposal.title.${operation}`, { title: proposal.title })}</strong>
       <details>
         <summary>{t('proposal.preview')}</summary>
         <div className="agent-proposal-comparison">
-          <section>
-            <span>{t('proposal.original')}</span>
-            <pre>{proposal.baseMarkdown}</pre>
-          </section>
-          <section>
-            <span>{t('proposal.proposed')}</span>
-            <pre>{proposal.markdown}</pre>
-          </section>
+          {!('operation' in proposal) || proposal.operation === 'delete' ? (
+            <section>
+              <span>{t('proposal.original')}</span>
+              <pre>{proposal.baseMarkdown}</pre>
+            </section>
+          ) : null}
+          {!('operation' in proposal) || proposal.operation === 'create' ? (
+            <section>
+              <span>{t('proposal.proposed')}</span>
+              <pre>{proposal.markdown}</pre>
+            </section>
+          ) : null}
         </div>
       </details>
       {pending ? (
@@ -803,11 +815,11 @@ function ProposalCard({
             {t('proposal.reject')}
           </Button>
           <Button onClick={onApply} size="sm">
-            {t('proposal.accept')}
+            {t(`proposal.accept.${operation}`)}
           </Button>
         </div>
       ) : (
-        <small>{t(`proposal.status.${status}`)}</small>
+        <small>{t(`proposal.status.${statusKey}`)}</small>
       )}
     </div>
   );

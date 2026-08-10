@@ -26,4 +26,35 @@ describe('Agent proposal tool contract', () => {
       toolName: 'propose_document_edit',
     })).toBe(true);
   });
+
+  it('validates create and delete document proposal variants', () => {
+    expect(isAgentToolRequest({
+      arguments: {
+        kind: 'chapter',
+        markdown: '# New',
+        operation: 'create',
+        parentId: 'manuscript-1',
+        projectRevision: 'a'.repeat(64),
+        title: 'New chapter',
+      },
+      toolName: 'propose_document_file_operation',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: {
+        baseRevision: 'b'.repeat(64),
+        documentId: 'chapter-1',
+        operation: 'delete',
+        projectRevision: 'a'.repeat(64),
+      },
+      toolName: 'propose_document_file_operation',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: {
+        documentId: 'chapter-1',
+        operation: 'delete',
+        projectRevision: 'a'.repeat(64),
+      },
+      toolName: 'propose_document_file_operation',
+    })).toBe(false);
+  });
 });

@@ -54,9 +54,9 @@ export type AgentEvent =
       type: 'tool-completed';
     }
   | {
-      proposal: import('./agent-proposals').AgentEditProposal;
+      proposal: import('./agent-proposals').AgentDocumentProposal;
       requestId: string;
-      type: 'edit-proposal';
+      type: 'proposal';
     }
   | { requestId: string; type: 'completed' }
   | { requestId: string; type: 'cancelled' }

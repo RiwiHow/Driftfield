@@ -20,6 +20,7 @@ describe('Agent prompt registry', () => {
     });
     expect(built.prompt).toContain('native tool calling');
     expect(built.prompt).toContain('stable document identities');
+    expect(built.prompt).toContain('create or delete a document');
     expect(built.prompt).not.toContain('get_current_document:');
     expect(built.prompt).not.toContain('get_novel_structure:');
     expect(built.prompt).not.toContain('get_document:');

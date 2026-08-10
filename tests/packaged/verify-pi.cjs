@@ -39,6 +39,15 @@ assert.ok(
   entries.includes('/.vite/build/agent-worker.mjs'),
   'The packaged Pi worker bundle is missing.',
 );
+const workerBundle = asar.extractFile(
+  asarPath,
+  '.vite/build/agent-worker.mjs',
+).toString('utf8');
+assert.match(
+  workerBundle,
+  /propose_document_file_operation/,
+  'The packaged Pi worker is missing the document file-operation tool.',
+);
 
 const electronPath = require('electron');
 const smoke = spawnSync(

@@ -56,6 +56,50 @@ describe('AgentToolDispatcher', () => {
     expect(sendProposal).toHaveBeenCalledWith(proposal);
   });
 
+  it('emits a reviewed create proposal through the structural tool', async () => {
+    const proposal = {
+      documentId: 'chapter-created',
+      documentKind: 'chapter' as const,
+      markdown: '# Created',
+      operation: 'create' as const,
+      parentId: 'manuscript-1',
+      parentTitle: 'Manuscript',
+      projectRevision: 'a'.repeat(64),
+      proposalId: 'proposal-create',
+      requestId: 'request-1',
+      title: 'Created',
+    };
+    const proposals = {
+      createFileOperation: vi.fn().mockResolvedValue(proposal),
+    } as unknown as AgentProposalService;
+    const sendProposal = vi.fn();
+    const dispatcher = new AgentToolDispatcher(
+      {} as ProjectContextService,
+      undefined,
+      proposals,
+    );
+
+    await expect(dispatcher.execute(
+      { ...scope, sendProposal },
+      {
+        arguments: {
+          kind: 'chapter',
+          markdown: '# Created',
+          operation: 'create',
+          parentId: 'manuscript-1',
+          projectRevision: 'a'.repeat(64),
+          title: 'Created',
+        },
+        toolName: 'propose_document_file_operation',
+      },
+    )).resolves.toEqual({
+      data: { proposalId: 'proposal-create', status: 'proposed' },
+      ok: true,
+      toolName: 'propose_document_file_operation',
+    });
+    expect(sendProposal).toHaveBeenCalledWith(proposal);
+  });
+
   it('validates arguments and enforces the per-request call budget', async () => {
     const context = {
       getDocument: vi.fn().mockResolvedValue(documentResult),
