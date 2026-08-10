@@ -830,7 +830,17 @@ function ToolActivityRow({ activity }: { activity: AgentToolActivity }) {
         ) : (
           <Check aria-hidden="true" size={12} />
         )}
-        <span>{t(`tools.names.${activity.toolName}`)}</span>
+        <span className="agent-tool-title">
+          {activity.agentRole === 'scribe' ? (
+            <span
+              className="agent-tool-actor"
+              title={t('tools.calledBy', { agent: 'Scribe' })}
+            >
+              Scribe
+            </span>
+          ) : null}
+          <span>{t(`tools.names.${activity.toolName}`)}</span>
+        </span>
         <small>
           <span>
             {t(

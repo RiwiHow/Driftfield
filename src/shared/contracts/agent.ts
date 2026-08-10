@@ -39,6 +39,7 @@ export type AgentEvent =
   | { requestId: string; type: 'started' }
   | { delta: string; requestId: string; type: 'text-delta' }
   | {
+      agentRole?: AgentRole;
       input: string;
       requestId: string;
       toolCallId: string;
@@ -46,6 +47,7 @@ export type AgentEvent =
       type: 'tool-started';
     }
   | {
+      agentRole?: AgentRole;
       failed: boolean;
       output: string;
       requestId: string;

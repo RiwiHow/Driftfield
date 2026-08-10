@@ -150,6 +150,9 @@ export function useAgentConversation(
               ? {
                   ...message,
                   parts: startToolActivity(message.parts ?? [], {
+                    ...(event.agentRole === undefined
+                      ? {}
+                      : { agentRole: event.agentRole }),
                     input: event.input,
                     status: 'running',
                     toolCallId: event.toolCallId,

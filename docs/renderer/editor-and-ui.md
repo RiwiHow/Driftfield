@@ -114,7 +114,8 @@ footer aligned with the library and editor status bars. Tool activity is
 interleaved with streamed assistant text at the point each call occurs, with
 calls and results collapsed by default. Activity payloads come from the typed
 worker protocol and remain bounded; the Renderer does not infer Tool state from
-model prose.
+model prose. Tool rows originating from a delegated Scribe task carry an
+explicit Scribe marker supplied by Main, including after conversation restore.
 Concurrent reviewed story-operation calls sharing one request and story
 revision render as one story-sync review card instead of repeating one activity
 row and proposal card per record. Their individual calls remain persisted in

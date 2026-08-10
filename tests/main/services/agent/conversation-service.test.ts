@@ -67,6 +67,23 @@ describe('Agent conversation persistence', () => {
       userMessageId: 'user-1',
     });
     service.recordEvent({ delta: 'I will remember it.', requestId: 'assistant-1', type: 'text-delta' });
+    service.recordEvent({
+      agentRole: 'scribe',
+      input: '{}',
+      requestId: 'assistant-1',
+      toolCallId: 'tool-1',
+      toolName: 'get_novel_structure',
+      type: 'tool-started',
+    });
+    service.recordEvent({
+      agentRole: 'scribe',
+      failed: false,
+      output: '{"ok":true}',
+      requestId: 'assistant-1',
+      toolCallId: 'tool-1',
+      toolName: 'get_novel_structure',
+      type: 'tool-completed',
+    });
     service.recordEvent({ requestId: 'assistant-1', type: 'completed' });
     service.dispose();
 
@@ -80,6 +97,12 @@ describe('Agent conversation persistence', () => {
       (await stat(path.join(session.directoryPath, '.driftfield', 'conversations.sqlite')))
         .isFile(),
     ).toBe(true);
+    expect(restored.activeConversation.messages.at(-1)?.parts).toContainEqual(
+      expect.objectContaining({
+        activity: expect.objectContaining({ agentRole: 'scribe' }),
+        type: 'tool',
+      }),
+    );
     restoredService.dispose();
   });
 

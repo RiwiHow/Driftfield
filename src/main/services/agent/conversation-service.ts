@@ -12,7 +12,11 @@ import type {
   AgentProposalOutcome,
 } from '../../../shared/contracts/agent-proposals';
 import { isProjectStoryOperation } from '../../../shared/contracts/project-story';
-import type { AgentEvent } from '../../../shared/contracts/agent';
+import {
+  AGENT_ROLES,
+  type AgentEvent,
+  type AgentRole,
+} from '../../../shared/contracts/agent';
 import { isAgentToolName } from '../../../shared/contracts/agent-tools';
 import { PROJECT_ICON_IDS } from '../../../shared/contracts/project-layout';
 import { ConversationDatabase } from '../../database/conversation-database';
@@ -284,6 +288,7 @@ export class AgentConversationService {
         ...(message.parts ?? []),
         {
           activity: {
+            ...(event.agentRole === undefined ? {} : { agentRole: event.agentRole }),
             input: event.input,
             status: 'running',
             toolCallId: event.toolCallId,
@@ -676,6 +681,9 @@ const parseStoredParts = (value: string): AgentConversationPart[] => {
       (tool.output !== undefined &&
         (typeof tool.output !== 'string' || tool.output.length > 8_192)) ||
       (tool.failed !== undefined && typeof tool.failed !== 'boolean') ||
+      (tool.agentRole !== undefined &&
+        (typeof tool.agentRole !== 'string' ||
+          !AGENT_ROLES.includes(tool.agentRole as AgentRole))) ||
       (tool.status !== 'running' &&
         tool.status !== 'completed' &&
         tool.status !== 'cancelled') ||

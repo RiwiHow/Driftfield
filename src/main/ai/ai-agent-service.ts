@@ -356,7 +356,7 @@ export class AiAgentService {
     }
 
     if (message.type === 'tool-started' || message.type === 'tool-completed') {
-      active.sendEvent(message);
+      active.sendEvent({ ...message, agentRole: 'curator' });
       return;
     }
 
@@ -523,7 +523,11 @@ export class AiAgentService {
       return;
     }
     if (message.type === 'tool-started' || message.type === 'tool-completed') {
-      active.sendEvent({ ...message, requestId: task.parentRequestId });
+      active.sendEvent({
+        ...message,
+        agentRole: 'scribe',
+        requestId: task.parentRequestId,
+      });
       return;
     }
     if (message.type === 'completed') {

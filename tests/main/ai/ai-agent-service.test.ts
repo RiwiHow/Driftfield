@@ -184,9 +184,10 @@ describe('AiAgentService', () => {
   });
 
   it('runs one Main-owned Scribe child task and returns its draft to Curator', async () => {
+    const events: AgentEvent[] = [];
     const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
     const service = new AiAgentService(userDataPath, () => true, dispatcher);
-    const started = start(service, 'request-1');
+    const started = start(service, 'request-1', (event) => events.push(event));
     await waitFor(() => workers.length === 1);
     workers[0].emit('message', { type: 'ready' });
     await started;
@@ -225,6 +226,21 @@ describe('AiAgentService', () => {
       typeof message === 'object' && message !== null &&
       (message as { toolCallId?: unknown }).toolCallId === 'tool-nested-delegate'));
     workers[0].emit('message', {
+      input: '{}',
+      requestId: child.requestId,
+      toolCallId: 'tool-child-read',
+      toolName: 'get_novel_structure',
+      type: 'tool-started',
+    });
+    workers[0].emit('message', {
+      failed: false,
+      output: '{"ok":true}',
+      requestId: child.requestId,
+      toolCallId: 'tool-child-read',
+      toolName: 'get_novel_structure',
+      type: 'tool-completed',
+    });
+    workers[0].emit('message', {
       delta: '# Draft\n\nMara opened the door.',
       requestId: child.requestId,
       type: 'text-delta',
@@ -257,6 +273,12 @@ describe('AiAgentService', () => {
       toolCallId: 'tool-nested-delegate',
       type: 'tool-result',
     });
+    expect(events).toContainEqual(expect.objectContaining({
+      agentRole: 'scribe',
+      requestId: 'request-1',
+      toolCallId: 'tool-child-read',
+      type: 'tool-started',
+    }));
     expect(workers[0].messages).toContainEqual({
       requestId: 'request-1',
       result: {
@@ -338,6 +360,7 @@ describe('AiAgentService', () => {
     await waitFor(() => events.some((event) => event.type === 'text-delta'));
 
     expect(events).toContainEqual(expect.objectContaining({
+      agentRole: 'curator',
       toolCallId: 'tool-1',
       type: 'tool-started',
     }));

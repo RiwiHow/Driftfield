@@ -17,6 +17,7 @@ describe('Agent response timeline', () => {
     let parts: AgentConversationPart[] = [];
     parts = appendConversationText(parts, 'I will inspect the project.');
     parts = startToolActivity(parts, {
+      agentRole: 'scribe',
       input: '{}',
       status: 'running',
       toolCallId: 'tool-1',
@@ -28,6 +29,7 @@ describe('Agent response timeline', () => {
     expect(parts.map(({ type }) => type)).toEqual(['text', 'tool', 'text']);
     expect(parts[1]).toMatchObject({
       activity: {
+        agentRole: 'scribe',
         output: '{"ok":true}',
         status: 'completed',
         toolCallId: 'tool-1',

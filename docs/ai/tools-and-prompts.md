@@ -150,10 +150,12 @@ path-free result includes directory icons and the fixed `availableIcons` list;
 it never exposes YAML or physical metadata paths.
 
 The worker emits bounded Tool activity events around the Driftfield-owned tool
-bridge. Renderer shows the current call and its completion result in collapsible
-rows. Serialized activity is capped at 8 KiB per payload, and Markdown bodies
-are represented by byte counts instead of being duplicated into the activity
-log.
+bridge. Main annotates those events with the executing Agent role before they
+enter the conversation audit, so Renderer can distinguish delegated Scribe
+calls without inferring ownership from tool names or timeline position.
+Renderer shows the current call and its completion result in collapsible rows.
+Serialized activity is capped at 8 KiB per payload, and Markdown bodies are
+represented by byte counts instead of being duplicated into the activity log.
 
 `AgentToolContractMap` is the shared compile-time mapping from each tool name to
 its arguments and result. Request and result unions are derived from that map so

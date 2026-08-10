@@ -1,4 +1,5 @@
 import type { AgentProposal } from './agent-proposals';
+import type { AgentRole } from './agent';
 import type { AgentToolName } from './agent-tools';
 
 export type AgentProposalStatus =
@@ -12,6 +13,7 @@ export type AgentProposalStatus =
   | 'failed';
 
 export interface AgentToolActivity {
+  agentRole?: AgentRole;
   failed?: boolean;
   input: string;
   output?: string;

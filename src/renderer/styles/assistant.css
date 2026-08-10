@@ -361,8 +361,29 @@
   display: none;
 }
 
-.agent-tool-activity summary > span {
+.agent-tool-title {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+  align-items: center;
   color: var(--foreground);
+}
+
+.agent-tool-title > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-tool-actor {
+  flex: none;
+  padding: 0 4px;
+  color: var(--muted-foreground);
+  font-size: 8px;
+  font-weight: 650;
+  line-height: 14px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
 }
 
 .agent-tool-activity summary > small {
