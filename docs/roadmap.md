@@ -65,14 +65,17 @@ implemented or authorized.
 - Do not enable Pi extensions, untrusted resource discovery, module-relative
   assets, or broader tools before corresponding packaged and security coverage.
 - `ProjectContextService` and `AiAgentService` remain intentionally cohesive for
-  the current bounded-tool, single-coordinator prototype. Reassess their split only
+  the current bounded-tool Curator/Scribe workflow. Reassess their split only
   when additional context domains, concurrent specialists, or lifecycle states
   create distinct responsibilities; do not add abstractions preemptively.
-- The current worker runs one Agent session. Future collaboration should use a
-  Main-owned bounded task graph with registered capabilities and typed artifacts;
-  it must not assume permanent role names or allow Agents to spawn arbitrary
-  sessions. Accepted-prose story reconciliation already uses the reviewed
-  proposal boundary that a future specialist stage can reuse.
+- Collaboration currently supports only one Scribe child task per Curator
+  request, using the same selected model and thinking level. The task and final
+  proposal are auditable through the existing tool/proposal timeline, but there
+  is no general persisted task graph, specialist-specific model selection,
+  parallel specialists, retries, or standalone artifact history yet. Future
+  expansion must preserve Main-owned registered capabilities, task parentage,
+  budgets, cancellation, and typed artifacts; Agents must not spawn arbitrary
+  sessions.
 
 ## Build and settings
 

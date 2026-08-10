@@ -72,6 +72,19 @@ export interface AgentStoryQuestionToolResult {
   status: 'recorded' | 'resolved';
 }
 
+export interface AgentWritingAssignment {
+  objective: string;
+  requirements: string[];
+  targetDocumentId: string | null;
+  targetLength: number | null;
+}
+
+export interface AgentWritingAssignmentToolResult {
+  assignmentId: string;
+  markdown: string;
+  status: 'completed';
+}
+
 export type AgentDocumentFileOperationArguments =
   | {
       kind:
@@ -109,6 +122,10 @@ export type AgentProjectStructureOperationArguments =
     };
 
 export interface AgentToolContractMap {
+  delegate_writing: {
+    arguments: AgentWritingAssignment;
+    result: AgentWritingAssignmentToolResult;
+  };
   get_story_state: {
     arguments: Record<string, never>;
     result: import('./project-story').ProjectStorySnapshot;
@@ -175,6 +192,7 @@ export interface AgentToolContractMap {
 export type AgentToolName = keyof AgentToolContractMap;
 
 export const AGENT_TOOL_NAMES = [
+  'delegate_writing',
   'get_novel_structure',
   'get_current_document',
   'get_document',
@@ -251,6 +269,21 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
   value: unknown,
 ): value is AgentToolContractMap[Name]['arguments'] => {
   if (!isRecord(value)) return false;
+  if (toolName === 'delegate_writing') {
+    return (
+      Object.keys(value).length === 4 &&
+      isBoundedText(value.objective, 4_000, false) &&
+      Array.isArray(value.requirements) &&
+      value.requirements.length <= 20 &&
+      value.requirements.every((requirement) =>
+        isBoundedText(requirement, 1_000, false)) &&
+      (value.targetDocumentId === null || isDocumentId(value.targetDocumentId)) &&
+      (value.targetLength === null ||
+        (Number.isSafeInteger(value.targetLength) &&
+          (value.targetLength as number) >= 1 &&
+          (value.targetLength as number) <= 200_000))
+    );
+  }
   if (toolName === 'propose_document_edit') {
     return (
       Object.keys(value).length === 4 &&
@@ -369,7 +402,9 @@ export const isAgentToolExecutionResult = (
 };
 
 const isToolData = (toolName: AgentToolName, value: unknown): boolean =>
-  toolName === 'get_novel_structure'
+  toolName === 'delegate_writing'
+    ? isWritingAssignmentResult(value)
+    : toolName === 'get_novel_structure'
     ? isNovelStructureResult(value)
     : toolName === 'get_story_state'
       ? isProjectStorySnapshot(value)
@@ -383,6 +418,15 @@ const isToolData = (toolName: AgentToolName, value: unknown): boolean =>
         toolName === 'propose_story_operation'
       ? isEditProposalResult(value)
     : isDocumentResult(value);
+
+const isWritingAssignmentResult = (value: unknown): boolean =>
+  isRecord(value) &&
+  Object.keys(value).length === 3 &&
+  isDocumentId(value.assignmentId) &&
+  typeof value.markdown === 'string' &&
+  value.markdown.trim().length > 0 &&
+  new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024 &&
+  value.status === 'completed';
 
 const isEditProposalResult = (value: unknown): boolean =>
   isRecord(value) &&

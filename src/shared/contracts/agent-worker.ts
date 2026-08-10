@@ -2,8 +2,10 @@ import type { AgentModelOption } from "./agent-configuration";
 import { AGENT_ROLES, type AgentErrorCode, type AgentRole } from "./agent";
 import { AGENT_THINKING_LEVELS, type AgentThinkingLevel } from "./settings";
 import {
+  AGENT_TOOL_NAMES,
   isAgentToolName,
   isAgentToolExecutionResult,
+  type AgentToolName,
   type AgentToolExecutionResult,
 } from "./agent-tools";
 import type { AgentProposalOutcome } from './agent-proposals';
@@ -11,6 +13,7 @@ import type { AgentProposalOutcome } from './agent-proposals';
 export interface AgentWorkerStartCommand {
   authPath: string;
   cwd: string;
+  enabledTools: AgentToolName[];
   history: Array<{ content: string; role: 'assistant' | 'user' }>;
   modelsPath: string;
   modelId: string;
@@ -152,6 +155,10 @@ export const isAgentWorkerCommand = (
     command.type === "start" &&
     typeof command.authPath === "string" &&
     typeof command.cwd === "string" &&
+    Array.isArray(command.enabledTools) &&
+    command.enabledTools.length <= AGENT_TOOL_NAMES.length &&
+    new Set(command.enabledTools).size === command.enabledTools.length &&
+    command.enabledTools.every(isAgentToolName) &&
     Array.isArray(command.history) &&
     command.history.length <= 200 &&
     command.history.every(

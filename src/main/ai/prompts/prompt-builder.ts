@@ -34,6 +34,12 @@ export const buildAgentSystemPrompt = (
         ...context.proposalOutcomes!.map((outcome) => `- ${JSON.stringify(outcome)}`),
       ];
 
+  const delegationInstructions = context.availableTools.includes('delegate_writing')
+    ? [
+        'A writing delegation is a bounded child task, not permission to persist or expand the work. Supply one precise assignment, review the returned Markdown, and use the ordinary reviewed proposal workflow for any manuscript change.',
+      ]
+    : [];
+
   return {
     profileId: descriptor.id,
     prompt: [
@@ -45,6 +51,7 @@ export const buildAgentSystemPrompt = (
       '',
       'Tool-use policy:',
       ...capabilityInstructions.map((instruction) => `- ${instruction}`),
+      ...delegationInstructions.map((instruction) => `- ${instruction}`),
       ...proposalOutcomeInstructions,
     ].join('\n'),
     version: descriptor.version,

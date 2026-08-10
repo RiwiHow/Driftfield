@@ -42,6 +42,7 @@ describe("Agent utility-process protocol", () => {
       isAgentWorkerCommand({
         authPath: "/app-data/auth.json",
         cwd: "/project",
+        enabledTools: ["get_current_document"],
         history: [],
         proposalOutcomes: [],
         modelId: "claude-sonnet",
@@ -49,7 +50,7 @@ describe("Agent utility-process protocol", () => {
         prompt: "Review this chapter",
         providerId: "anthropic",
         requestId: "request-1",
-        role: "coordinator",
+        role: "curator",
         thinkingLevel: "medium",
         type: "start",
       }),
@@ -146,6 +147,7 @@ describe("Agent utility-process protocol", () => {
       isAgentWorkerCommand({
         authPath: "/app-data/auth.json",
         cwd: "/project",
+        enabledTools: [],
         modelId: "claude-sonnet",
         modelsPath: "/app-data/models.json",
         prompt: "Review this chapter",

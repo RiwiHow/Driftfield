@@ -63,6 +63,11 @@ assert.match(
   /maintain_story_records/,
   'The packaged Pi worker is missing the direct story-maintenance tool.',
 );
+assert.match(
+  workerBundle,
+  /delegate_writing/,
+  'The packaged Pi worker is missing the Curator-to-Scribe delegation tool.',
+);
 
 const electronPath = require('electron');
 const smoke = spawnSync(

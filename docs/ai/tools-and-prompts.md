@@ -33,6 +33,18 @@ The bounded direct-maintenance surface contains:
   records; any resulting clear additive/linking fact is a separate Maintain
   operation with its own audit entry.
 
+The bounded collaboration surface contains:
+
+- `delegate_writing`, which lets the Curator commission one Scribe draft for a
+  user-authorized manuscript-writing request. The assignment contains a bounded
+  objective, requirements, optional stable target-document ID, and optional
+  target length. Main creates and owns the child task identity, parentage,
+  cancellation, timeout, and artifact-size limit. Scribe receives only the
+  read-only novel tools and returns Markdown to Curator; it cannot delegate,
+  propose, maintain story state, or persist content. Curator must review the
+  artifact and use the ordinary reviewed proposal workflow before any novel
+  text changes.
+
 The provider-facing Maintain schema keeps Chronicle event lifecycle and Thread
 lifecycle distinct: `create_event` uses `eventStatus` (`planned` or
 `established`), while `create_thread` and `create_beat` use `threadStatus`
@@ -193,16 +205,16 @@ Whenever a tool is added, removed, or its semantics change:
 
 ## Agent coordination
 
-Coordination is an application-owned task graph, not a permanent hierarchy or
-a fixed set of role names. Prompt-profile IDs describe current capabilities;
-they are not protocol-level assumptions such as a mandatory Leader or Writer.
-As concurrent collaboration is introduced, Main owns task identity, parentage,
+Coordination is an application-owned task graph, not an authority hierarchy.
+`Curator` and `Scribe` are the default product and prompt-profile names for the
+current planning/review and drafting capabilities; task identity and permission
+checks never depend on those display names. Main owns task identity, parentage,
 authorization, budgets, cancellation, and artifact routing. An Agent may request
-a bounded task capability, but it never starts arbitrary processes or broadens
-the user's authority. The current build executes one Agent session and performs
-accepted-prose reconciliation in that run; the reviewed artifact and proposal
-protocol is designed so the reconciliation stage can later move to a separate
-specialist without changing persistence semantics.
+a registered bounded task capability, but it never starts arbitrary processes
+or broadens the user's authority. The current build permits one Scribe child
+task during a Curator request. Accepted-prose reconciliation remains in the
+Curator run; the reviewed artifact and proposal protocol allows that stage to
+move to a separate specialist later without changing persistence semantics.
 
 - Give specialists only the context required for their role.
 - Register distinct capabilities such as drafting, continuity, plot, style,

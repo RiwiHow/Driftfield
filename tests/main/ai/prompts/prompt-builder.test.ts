@@ -21,7 +21,7 @@ describe('Agent prompt registry', () => {
         proposalId: 'proposal-1',
         status: 'accepted',
       }],
-      role: 'coordinator',
+      role: 'curator',
     });
     expect(built.prompt).toContain('Trusted application proposal outcomes');
     expect(built.prompt).toContain('"status":"accepted"');
@@ -31,7 +31,7 @@ describe('Agent prompt registry', () => {
   it('adds cross-tool policy without duplicating registered tool descriptions', () => {
     const built = buildAgentSystemPrompt({
       availableTools: ['get_current_document'],
-      role: 'coordinator',
+      role: 'curator',
     });
     expect(built.prompt).toContain('native tool calling');
     expect(built.prompt).toContain('stable document identities');
@@ -41,9 +41,19 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain('reconcile the exact accepted persisted prose');
     expect(built.prompt).toContain('automatically apply only clearly evidenced');
     expect(built.prompt).toContain('structured story question');
+    expect(built.prompt).not.toContain('A writing delegation is a bounded child task');
     expect(built.prompt).not.toContain('get_current_document:');
     expect(built.prompt).not.toContain('get_novel_structure:');
     expect(built.prompt).not.toContain('get_document:');
     expect(built.prompt).not.toContain('No application tools are available');
+  });
+
+  it('adds the Curator-to-Scribe handoff policy only when delegation is available', () => {
+    const built = buildAgentSystemPrompt({
+      availableTools: ['delegate_writing'],
+      role: 'curator',
+    });
+    expect(built.prompt).toContain('A writing delegation is a bounded child task');
+    expect(built.prompt).toContain('review the returned Markdown');
   });
 });

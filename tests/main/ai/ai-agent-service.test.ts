@@ -13,7 +13,8 @@ vi.mock('electron', () => ({
 }));
 
 import { AiAgentService } from '../../../src/main/ai/ai-agent-service';
-import type { AgentToolDispatcher } from '../../../src/main/ai/agent-tool-dispatcher';
+import { AgentToolDispatcher } from '../../../src/main/ai/agent-tool-dispatcher';
+import type { ProjectContextService } from '../../../src/main/ai/project-context-service';
 import type { AgentEvent } from '../../../src/shared/contracts/agent';
 
 class FakeUtilityProcess extends EventEmitter {
@@ -180,6 +181,130 @@ describe('AiAgentService', () => {
         type: 'start',
       }),
     );
+  });
+
+  it('runs one Main-owned Scribe child task and returns its draft to Curator', async () => {
+    const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
+    const service = new AiAgentService(userDataPath, () => true, dispatcher);
+    const started = start(service, 'request-1');
+    await waitFor(() => workers.length === 1);
+    workers[0].emit('message', { type: 'ready' });
+    await started;
+
+    workers[0].emit('message', {
+      arguments: {
+        objective: 'Continue the chapter.',
+        requirements: ['Keep close third person.'],
+        targetDocumentId: 'chapter-1',
+        targetLength: 800,
+      },
+      requestId: 'request-1',
+      toolCallId: 'tool-delegate',
+      toolName: 'delegate_writing',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { role?: unknown }).role === 'scribe'));
+    const child = workers[0].messages.find((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { role?: unknown }).role === 'scribe') as { requestId: string };
+    workers[0].emit('message', {
+      arguments: {
+        objective: 'Attempt a nested task.',
+        requirements: [],
+        targetDocumentId: null,
+        targetLength: null,
+      },
+      requestId: child.requestId,
+      toolCallId: 'tool-nested-delegate',
+      toolName: 'delegate_writing',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-nested-delegate'));
+    workers[0].emit('message', {
+      delta: '# Draft\n\nMara opened the door.',
+      requestId: child.requestId,
+      type: 'text-delta',
+    });
+    workers[0].emit('message', {
+      requestId: child.requestId,
+      type: 'completed',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-delegate'));
+
+    expect(workers[0].messages).toContainEqual(expect.objectContaining({
+      enabledTools: [
+        'get_novel_structure',
+        'get_current_document',
+        'get_document',
+        'get_story_state',
+      ],
+      role: 'scribe',
+      type: 'start',
+    }));
+    expect(workers[0].messages).toContainEqual({
+      requestId: child.requestId,
+      result: {
+        error: { code: 'invalid-arguments' },
+        ok: false,
+        toolName: 'delegate_writing',
+      },
+      toolCallId: 'tool-nested-delegate',
+      type: 'tool-result',
+    });
+    expect(workers[0].messages).toContainEqual({
+      requestId: 'request-1',
+      result: {
+        data: {
+          assignmentId: child.requestId,
+          markdown: '# Draft\n\nMara opened the door.',
+          status: 'completed',
+        },
+        ok: true,
+        toolName: 'delegate_writing',
+      },
+      toolCallId: 'tool-delegate',
+      type: 'tool-result',
+    });
+  });
+
+  it('propagates parent cancellation to an active Scribe child task', async () => {
+    const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
+    const service = new AiAgentService(userDataPath, () => true, dispatcher);
+    const started = start(service, 'request-1');
+    await waitFor(() => workers.length === 1);
+    workers[0].emit('message', { type: 'ready' });
+    await started;
+    workers[0].emit('message', {
+      arguments: {
+        objective: 'Continue the chapter.',
+        requirements: [],
+        targetDocumentId: 'chapter-1',
+        targetLength: null,
+      },
+      requestId: 'request-1',
+      toolCallId: 'tool-delegate',
+      toolName: 'delegate_writing',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { role?: unknown }).role === 'scribe'));
+    const child = workers[0].messages.find((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { role?: unknown }).role === 'scribe') as { requestId: string };
+
+    await expect(service.cancel(7, 'request-1')).resolves.toBe(true);
+
+    expect(workers[0].messages).toContainEqual({
+      requestId: child.requestId,
+      type: 'cancel',
+    });
   });
 
   it('forwards tool activity without ending the active request', async () => {

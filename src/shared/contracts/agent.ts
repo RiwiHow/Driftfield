@@ -1,6 +1,6 @@
 export const AGENT_ROLES = [
-  'coordinator',
-  'writing',
+  'curator',
+  'scribe',
   'continuity',
   'editing',
   'research',

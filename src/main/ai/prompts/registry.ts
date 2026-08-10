@@ -1,17 +1,17 @@
 import type { AgentRole } from '../../../shared/contracts/agent';
 import { continuityPrompt } from './continuity';
-import { coordinatorPrompt } from './coordinator';
+import { curatorPrompt } from './curator';
 import { editingPrompt } from './editing';
 import { researchPrompt } from './research';
 import type { AgentPromptDescriptor } from './types';
-import { writingPrompt } from './writing';
+import { scribePrompt } from './scribe';
 
 const PROMPT_REGISTRY: Record<AgentRole, AgentPromptDescriptor> = {
   continuity: continuityPrompt,
-  coordinator: coordinatorPrompt,
+  curator: curatorPrompt,
   editing: editingPrompt,
   research: researchPrompt,
-  writing: writingPrompt,
+  scribe: scribePrompt,
 };
 
 export const getAgentPromptDescriptor = (

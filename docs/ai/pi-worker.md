@@ -21,6 +21,12 @@ domain contracts.
   for bounded operations over the internal typed utility-process protocol.
 - Stream typed deltas through cancellable IPC. Bind requests to application-owned
   project-session identity and reject obsolete output and tool calls.
+- Curator writing requests may create one Main-owned Scribe child task in the
+  same utility process. Main assigns its task ID, binds it to the parent request,
+  applies a five-minute timeout and 512 KiB artifact limit, propagates
+  cancellation, and exposes only the four read-only novel tools to Scribe.
+  Scribe output returns to Curator as an untrusted artifact and never bypasses
+  the existing proposal workflow.
 - Do not enable Pi coding tools, generic shell/filesystem tools, extensions, or
   unrestricted resource discovery by default.
 

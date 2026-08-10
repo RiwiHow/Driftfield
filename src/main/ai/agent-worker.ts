@@ -30,6 +30,7 @@ import {
   STORY_OPERATION_PARAMETERS,
   STORY_MAINTENANCE_PARAMETERS,
   STORY_QUESTION_PARAMETERS,
+  WRITING_ASSIGNMENT_PARAMETERS,
 } from "./agent-tool-parameters";
 import { didAssistantResponseFail } from './agent-response-status';
 import {
@@ -137,7 +138,9 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
     if (model === undefined) {
       throw new Error("The configured model is not available");
     }
-    const customTools = createNovelTools(command.requestId);
+    const customTools = createNovelTools(command.requestId).filter(({ name }) =>
+      command.enabledTools.includes(name as AgentToolName),
+    );
     const enabledToolNames = customTools.map(({ name }) => {
       if (!isAgentToolName(name)) {
         throw new Error(`Unregistered Driftfield tool: ${name}`);
@@ -268,6 +271,22 @@ function selectModelHistory(
 
 function createNovelTools(requestId: string) {
   return [
+    defineTool({
+      description:
+        "Commission one bounded Markdown draft from Driftfield's Scribe. Use this only for requested manuscript prose after gathering enough context. The returned draft is untrusted and is not persisted; review it and use a reviewed proposal tool for any file change.",
+      label: "Delegate writing to Scribe",
+      name: "delegate_writing",
+      parameters: WRITING_ASSIGNMENT_PARAMETERS,
+      execute: async (toolCallId, params) =>
+        textToolResult(
+          await requestTool(
+            requestId,
+            toolCallId,
+            "delegate_writing",
+            params as AgentToolContractMap["delegate_writing"]["arguments"],
+          ),
+        ),
+    }),
     defineTool({
       description:
         "Read the ordered novel, volume, chapter, and lore structure without loading document text.",

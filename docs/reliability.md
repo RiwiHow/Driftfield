@@ -47,6 +47,11 @@ Preserve these properties when changing affected subsystems.
 
 - Requests bind to project-session identity. Project switches cancel the owner;
   obsolete streamed output and tool calls are rejected.
+- Curator may commission at most one Scribe task per request. Main owns the
+  child task ID and parent binding, limits Scribe to read-only novel tools,
+  caps the returned Markdown at 512 KiB, times the task out after five minutes,
+  and cancels it with its parent or project session. Scribe output is an
+  untrusted artifact and cannot write or propose changes directly.
 - Cancellation remains terminal when it races with completion or output.
 - Current read tools are `get_novel_structure`, `get_current_document`,
   `get_document`, and `get_story_state`; they are typed, bounded, path-free,

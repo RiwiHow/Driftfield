@@ -90,4 +90,5 @@ const isProposalTool = (toolName: AgentToolName): boolean =>
   toolName === 'propose_document_edit' ||
   toolName === 'propose_document_file_operation' ||
   toolName === 'propose_project_structure_operation' ||
-  toolName === 'propose_story_operation';
+  toolName === 'propose_story_operation' ||
+  toolName === 'delegate_writing';

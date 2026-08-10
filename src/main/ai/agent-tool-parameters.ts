@@ -14,6 +14,26 @@ const stringEnum = <Values extends readonly string[]>(
       : { description: options.description }),
   });
 
+export const WRITING_ASSIGNMENT_PARAMETERS = Type.Object(
+  {
+    objective: Type.String({ maxLength: 4_000, minLength: 1 }),
+    requirements: Type.Array(
+      Type.String({ maxLength: 1_000, minLength: 1 }),
+      { maxItems: 20 },
+    ),
+    targetDocumentId: Type.Unsafe<string | null>({
+      maxLength: 128,
+      type: ['string', 'null'],
+    }),
+    targetLength: Type.Unsafe<number | null>({
+      maximum: 200_000,
+      minimum: 1,
+      type: ['integer', 'null'],
+    }),
+  },
+  { additionalProperties: false },
+);
+
 export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
   {
     baseRevision: Type.Optional(

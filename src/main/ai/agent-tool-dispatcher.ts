@@ -1,5 +1,7 @@
 import type {
   AgentDraftSnapshot,
+  AgentWritingAssignment,
+  AgentWritingAssignmentToolResult,
   AgentToolExecutionResult,
   AgentToolFailureResult,
   AgentToolName,
@@ -15,6 +17,9 @@ import type { AgentProposalService } from './agent-proposal-service';
 import type { AgentProposal } from '../../shared/contracts/agent-proposals';
 
 export interface AgentToolScope {
+  delegateWriting?: (
+    assignment: AgentWritingAssignment,
+  ) => Promise<AgentWritingAssignmentToolResult>;
   draftSnapshot?: AgentDraftSnapshot;
   ownerId: number;
   projectSessionId?: string;
@@ -105,6 +110,16 @@ export class AgentToolDispatcher {
       ownerId: scope.ownerId,
       projectSessionId: scope.projectSessionId,
     };
+    if (request.toolName === 'delegate_writing') {
+      if (scope.delegateWriting === undefined) {
+        throw new ProjectContextError('internal-error');
+      }
+      return {
+        data: await scope.delegateWriting(request.arguments),
+        ok: true,
+        toolName: request.toolName,
+      };
+    }
     if (request.toolName === 'get_novel_structure') {
       return {
         data: await this.context.getNovelStructure(contextScope),
@@ -291,6 +306,7 @@ export class AgentToolDispatcher {
 class ToolTimeoutError extends Error {}
 
 const isProposalTool = (toolName: AgentToolName): boolean =>
+  toolName === 'delegate_writing' ||
   toolName === 'propose_document_edit' ||
   toolName === 'propose_document_file_operation' ||
   toolName === 'propose_project_structure_operation' ||

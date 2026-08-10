@@ -18,6 +18,38 @@ const documentResult = {
 const scope = { ownerId: 7, projectSessionId: 'session-1', requestId: 'request-1' };
 
 describe('AgentToolDispatcher', () => {
+  it('routes a bounded writing assignment through the Main-owned task callback', async () => {
+    const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
+    const delegateWriting = vi.fn(async () => ({
+      assignmentId: 'scribe-task-1',
+      markdown: '# Draft',
+      status: 'completed' as const,
+    }));
+
+    await expect(dispatcher.execute({
+      delegateWriting,
+      ownerId: 1,
+      requestId: 'request-1',
+    }, {
+      arguments: {
+        objective: 'Write the next scene.',
+        requirements: ['Keep the established point of view.'],
+        targetDocumentId: 'chapter-1',
+        targetLength: 1_000,
+      },
+      toolName: 'delegate_writing',
+    })).resolves.toEqual({
+      data: {
+        assignmentId: 'scribe-task-1',
+        markdown: '# Draft',
+        status: 'completed',
+      },
+      ok: true,
+      toolName: 'delegate_writing',
+    });
+    expect(delegateWriting).toHaveBeenCalledOnce();
+  });
+
   it('applies bounded story maintenance and emits the new revision', async () => {
     const change = {
       name: 'Lin',

@@ -6,6 +6,36 @@ import {
 } from '../../../src/shared/contracts/agent-tools';
 
 describe('Agent proposal tool contract', () => {
+  it('validates bounded Curator-to-Scribe assignments and artifacts', () => {
+    expect(isAgentToolRequest({
+      arguments: {
+        objective: 'Continue the confrontation scene.',
+        requirements: ['Keep Mara in close third person.', 'End on the door opening.'],
+        targetDocumentId: 'chapter-1',
+        targetLength: 1_200,
+      },
+      toolName: 'delegate_writing',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: {
+        objective: '',
+        requirements: [],
+        targetDocumentId: null,
+        targetLength: null,
+      },
+      toolName: 'delegate_writing',
+    })).toBe(false);
+    expect(isAgentToolExecutionResult({
+      data: {
+        assignmentId: 'scribe-task-1',
+        markdown: '# Draft',
+        status: 'completed',
+      },
+      ok: true,
+      toolName: 'delegate_writing',
+    })).toBe(true);
+  });
+
   it('validates bounded atomic story-maintenance changesets', () => {
     expect(isAgentToolRequest({
       arguments: {
