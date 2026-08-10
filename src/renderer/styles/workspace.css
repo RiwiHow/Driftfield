@@ -80,6 +80,12 @@
   flex: 1;
 }
 
+.library-footer,
+.editor-statusbar,
+.assistant-statusbar {
+  user-select: none;
+}
+
 .panel-separator {
   position: relative;
   z-index: 10;
