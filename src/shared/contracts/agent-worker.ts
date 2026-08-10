@@ -4,9 +4,7 @@ import { AGENT_THINKING_LEVELS, type AgentThinkingLevel } from "./settings";
 import {
   isAgentToolName,
   isAgentToolExecutionResult,
-  isAgentToolRequest,
   type AgentToolExecutionResult,
-  type AgentToolRequest,
 } from "./agent-tools";
 import type { AgentProposalOutcome } from './agent-proposals';
 
@@ -46,11 +44,13 @@ export type AgentWorkerMessage =
   | { type: "ready" }
   | { models: AgentModelOption[]; requestId: string; type: "models" }
   | { code: "model-list-failed"; requestId: string; type: "models-error" }
-  | (AgentToolRequest & {
+  | {
+      arguments: unknown;
       requestId: string;
       toolCallId: string;
+      toolName: import('./agent-tools').AgentToolName;
       type: "tool-request";
-    })
+    }
   | { delta: string; requestId: string; type: "text-delta" }
   | {
       input: string;
@@ -112,11 +112,18 @@ export const isAgentWorkerMessage = (
       message.code === "request-failed" || message.code === "runtime-exited"
     );
   }
-  return (
-    message.type === "tool-request" &&
-    typeof message.toolCallId === "string" &&
-    isAgentToolRequest(message)
-  );
+  if (message.type !== "tool-request") return false;
+  if (
+    !isToolCallId(message.toolCallId) ||
+    !isAgentToolName(message.toolName)
+  ) return false;
+  try {
+    const serialized = JSON.stringify(message.arguments);
+    return typeof serialized === 'string' &&
+      new TextEncoder().encode(serialized).byteLength <= 640 * 1024;
+  } catch {
+    return false;
+  }
 };
 
 export const isAgentWorkerCommand = (
@@ -201,7 +208,7 @@ const isProposalOutcome = (value: unknown): value is AgentProposalOutcome => {
     Object.keys(value).length === 3 &&
     typeof outcome.proposalId === 'string' &&
     outcome.proposalId.length > 0 && outcome.proposalId.length <= 128 &&
-    ['edit', 'create', 'delete', 'create_volume', 'create_lore_category', 'move_document']
+    ['edit', 'create', 'delete', 'create_volume', 'create_lore_category', 'move_document', 'story']
       .includes(outcome.operation ?? '') &&
     ['accepted', 'rejected', 'conflict', 'missing', 'stale', 'failed']
       .includes(outcome.status ?? '')

@@ -8,7 +8,7 @@ import type {
 interface PendingToolResult {
   reject: (error: Error) => void;
   resolve: (result: AgentToolExecutionResult) => void;
-  timeout: ReturnType<typeof setTimeout>;
+  timeout: ReturnType<typeof setTimeout> | null;
   toolName: AgentToolName;
 }
 
@@ -33,10 +33,12 @@ export class AgentToolResultBridge {
   ): Promise<AgentToolExecutionResult<Name>> {
     const key = this.key(requestId, toolCallId);
     return new Promise<AgentToolExecutionResult<Name>>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.pending.delete(key);
-        reject(new Error('Agent tool timed out'));
-      }, this.timeoutMs);
+      const timeout = isProposalTool(toolName)
+        ? null
+        : setTimeout(() => {
+            this.pending.delete(key);
+            reject(new Error('Agent tool timed out'));
+          }, this.timeoutMs);
       this.pending.set(key, {
         reject,
         resolve: (result) => resolve(result as AgentToolExecutionResult<Name>),
@@ -60,7 +62,7 @@ export class AgentToolResultBridge {
     const key = this.key(requestId, toolCallId);
     const pending = this.pending.get(key);
     if (pending === undefined) return false;
-    clearTimeout(pending.timeout);
+    if (pending.timeout !== null) clearTimeout(pending.timeout);
     this.pending.delete(key);
     if (result.toolName !== pending.toolName) {
       pending.reject(new Error('Agent tool result identity mismatch'));
@@ -73,7 +75,7 @@ export class AgentToolResultBridge {
   rejectRequest(requestId: string): void {
     for (const [key, pending] of this.pending) {
       if (!key.startsWith(`${requestId}:`)) continue;
-      clearTimeout(pending.timeout);
+      if (pending.timeout !== null) clearTimeout(pending.timeout);
       pending.reject(new Error('Agent request ended'));
       this.pending.delete(key);
     }
@@ -83,3 +85,9 @@ export class AgentToolResultBridge {
     return `${requestId}:${toolCallId}`;
   }
 }
+
+const isProposalTool = (toolName: AgentToolName): boolean =>
+  toolName === 'propose_document_edit' ||
+  toolName === 'propose_document_file_operation' ||
+  toolName === 'propose_project_structure_operation' ||
+  toolName === 'propose_story_operation';

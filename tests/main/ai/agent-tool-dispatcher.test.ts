@@ -73,6 +73,27 @@ describe('AgentToolDispatcher', () => {
     expect(sendProposal).toHaveBeenCalledWith(proposal);
   });
 
+  it('returns a typed argument error for a malformed story operation', async () => {
+    const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
+    await expect(dispatcher.execute(scope, {
+      arguments: {
+        change: {
+          description: 'Wrong generic field',
+          name: 'Imperial calendar',
+          note: '',
+          operation: 'create_timeline',
+          title: 'Imperial calendar',
+        },
+        storyRevision: 0,
+      },
+      toolName: 'propose_story_operation',
+    })).resolves.toEqual({
+      error: { code: 'invalid-arguments' },
+      ok: false,
+      toolName: 'propose_story_operation',
+    });
+  });
+
   it('emits a reviewed proposal without writing through the context service', async () => {
     const proposal = {
       baseContentRevision: 'a'.repeat(64),

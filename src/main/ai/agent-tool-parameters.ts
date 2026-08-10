@@ -143,7 +143,7 @@ export const STORY_OPERATION_PARAMETERS = Type.Object(
           ] as const,
           {
             description:
-              'Select one operation and provide every field required for that operation. Empty optional prose fields must be sent as empty strings; nullable IDs must be sent as null.',
+              'Select one operation and use its exact change shape: create_persona={operation,name,role,summary}; create_timeline={operation,title,summary,isPrimary}; create_moment={operation,timelineId,displayTime,precision,orderKey,note}; create_event={operation,timelineId,startMomentId,endMomentId,title,summary,status,causes,consequences,participants}; create_thread={operation,parentId,title,summary,status,orderKey}; create_beat={operation,threadId,parentId,kind,title,description,status,orderKey,dramaticPurpose,desiredOutcome}; link_beat_event={operation,beatId,eventId,relation}. Send empty optional prose as empty strings and nullable IDs as null. Do not include fields from another shape.',
           },
         ),
         orderKey: Type.Optional(Type.Integer()),

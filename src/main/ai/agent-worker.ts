@@ -383,7 +383,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Submit one reviewable change to Personae, Chronicle, or Threads. Read get_story_state first and use its current storyRevision and stable IDs. Create dependencies before records that refer to them. This never changes canonical story records without explicit acceptance. The tool call waits for the user's decision; after acceptance, reread story state before proposing another dependent change.",
+        "Submit one reviewable change to Personae, Chronicle, or Threads. Read get_story_state first and use its current storyRevision and stable IDs. Use exactly the operation-specific fields described by the change schema; do not invent generic name, description, or note fields for operations that do not define them. Create dependencies before records that refer to them. This never changes canonical story records without explicit acceptance. The tool call waits for the user's decision; after acceptance, reread story state before proposing another dependent change.",
       label: "Propose story record change",
       name: "propose_story_operation",
       parameters: STORY_OPERATION_PARAMETERS,

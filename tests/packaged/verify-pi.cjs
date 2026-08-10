@@ -53,6 +53,16 @@ assert.match(
   /propose_project_structure_operation/,
   'The packaged Pi worker is missing the project structure-operation tool.',
 );
+assert.match(
+  workerBundle,
+  /get_story_state/,
+  'The packaged Pi worker is missing the story read tool.',
+);
+assert.match(
+  workerBundle,
+  /propose_story_operation/,
+  'The packaged Pi worker is missing the reviewed story-operation tool.',
+);
 
 const electronPath = require('electron');
 const smoke = spawnSync(

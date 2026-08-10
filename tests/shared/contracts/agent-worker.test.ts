@@ -196,9 +196,18 @@ describe("Agent utility-process protocol", () => {
     ).toBe(true);
   });
 
-  it("rejects malformed worker messages", () => {
+  it("rejects malformed worker messages but forwards bounded tool arguments for typed errors", () => {
     expect(
       isAgentWorkerMessage({ requestId: "request-1", type: "text-delta" }),
+    ).toBe(false);
+    expect(
+      isAgentWorkerMessage({
+        arguments: { markdown: 'x'.repeat(640 * 1024 + 1) },
+        requestId: 'request-1',
+        toolCallId: 'tool-oversized',
+        toolName: 'propose_document_edit',
+        type: 'tool-request',
+      }),
     ).toBe(false);
     expect(isAgentWorkerMessage({ requestId: 1, type: "completed" })).toBe(
       false,
@@ -211,6 +220,6 @@ describe("Agent utility-process protocol", () => {
         toolName: "get_current_document",
         type: "tool-request",
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 });
