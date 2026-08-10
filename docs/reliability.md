@@ -53,6 +53,16 @@ Preserve these properties when changing affected subsystems.
   the request-start current draft. Main retains the proposal, Renderer previews
   it, and only an explicit proposal-ID acceptance can trigger a revision-checked
   atomic save.
+- Proposal tools wait for an explicit accept or reject decision and then resume
+  the same Agent run with that terminal tool result. No synthetic user turn or
+  follow-up request is created, and acceptance does not expand the original
+  user request. Multiple sequential proposals retain their ordered decisions in
+  the assistant message audit timeline.
+- The composer remains editable while a run is generating or waiting for a
+  proposal decision, preserving a draft for the next turn without starting a
+  concurrent Agent request.
+- Renderer-side dirty-draft checks never overwrite newer edits; they settle the
+  waiting proposal as stale so the Agent run cannot remain suspended locally.
 - `propose_document_file_operation` can submit a bounded create or delete
   proposal using stable IDs. Main owns generated filenames and IDs, validates
   parent/kind and current project/document revisions, updates metadata, and
@@ -73,6 +83,9 @@ Preserve these properties when changing affected subsystems.
   immediate, and unfinished runs restore as interrupted.
 - Recovered proposals remain actionable only while project/document identity,
   disk revision, and base Markdown still match; otherwise they become stale.
+- Cancellation, project invalidation, owner disposal, and worker termination
+  settle outstanding proposal waits as failed before releasing request state;
+  obsolete tool results are never forwarded into a cancelled run.
 
 ## Coverage
 

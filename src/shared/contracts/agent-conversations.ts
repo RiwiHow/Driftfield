@@ -22,7 +22,12 @@ export interface AgentToolActivity {
 
 export type AgentConversationPart =
   | { content: string; type: 'text' }
-  | { activity: AgentToolActivity; type: 'tool' };
+  | { activity: AgentToolActivity; type: 'tool' }
+  | {
+      proposal: AgentDocumentProposal;
+      status: AgentProposalStatus;
+      type: 'proposal';
+    };
 
 export interface AgentConversationMessage {
   content: string;

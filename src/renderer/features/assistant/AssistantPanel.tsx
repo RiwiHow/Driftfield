@@ -140,7 +140,7 @@ export function AssistantPanel({
   };
 
   const submit = async (): Promise<void> => {
-    if (!canSend) return;
+    if (!canSend || isActive) return;
     if (await send(prompt)) setPrompt('');
   };
 
@@ -497,7 +497,11 @@ export function AssistantPanel({
                 ) : message.role === 'assistant' ? (
                   <>
                     {(message.parts?.length ?? 0) > 0 ? (
-                      <AgentResponseTimeline parts={message.parts!} />
+                      <AgentResponseTimeline
+                        onApplyProposal={applyProposal}
+                        onRejectProposal={rejectProposal}
+                        parts={message.parts!}
+                      />
                     ) : (
                       <div className="agent-markdown">
                         <SafeMarkdown>
@@ -505,7 +509,12 @@ export function AssistantPanel({
                         </SafeMarkdown>
                       </div>
                     )}
-                    {message.proposal !== undefined ? (
+                    {message.proposal !== undefined &&
+                    !message.parts?.some(
+                      (part) =>
+                        part.type === 'proposal' &&
+                        part.proposal.proposalId === message.proposal?.proposalId,
+                    ) ? (
                       <ProposalCard
                         onApply={() => void applyProposal(message.proposal!)}
                         onReject={() => void rejectProposal(message.proposal!.proposalId)}
@@ -542,10 +551,11 @@ export function AssistantPanel({
       <div className="composer" data-disabled={!isConfigured || undefined}>
         <textarea
           aria-label={t('actions.send')}
-          disabled={!canSend || isActive}
+          disabled={!isConfigured}
           onChange={(event) => setPrompt(event.target.value)}
           onKeyDown={(event) => {
             if (
+              !isActive &&
               event.key === 'Enter' &&
               !event.shiftKey &&
               !event.nativeEvent.isComposing
@@ -684,7 +694,15 @@ function MessageEditor({
   );
 }
 
-function AgentResponseTimeline({ parts }: { parts: AgentConversationPart[] }) {
+function AgentResponseTimeline({
+  onApplyProposal,
+  onRejectProposal,
+  parts,
+}: {
+  onApplyProposal: (proposal: AgentDocumentProposal) => Promise<void>;
+  onRejectProposal: (proposalId: string) => Promise<void>;
+  parts: AgentConversationPart[];
+}) {
   return (
     <div className="agent-response-timeline">
       {parts.map((part, index) =>
@@ -692,10 +710,18 @@ function AgentResponseTimeline({ parts }: { parts: AgentConversationPart[] }) {
           <div className="agent-markdown" key={`text-${index}`}>
             <SafeMarkdown>{part.content}</SafeMarkdown>
           </div>
-        ) : (
+        ) : part.type === 'tool' ? (
           <ToolActivityRow
             activity={part.activity}
             key={part.activity.toolCallId}
+          />
+        ) : (
+          <ProposalCard
+            key={part.proposal.proposalId}
+            onApply={() => void onApplyProposal(part.proposal)}
+            onReject={() => void onRejectProposal(part.proposal.proposalId)}
+            proposal={part.proposal}
+            status={part.status}
           />
         ),
       )}

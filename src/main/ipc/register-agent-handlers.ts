@@ -95,6 +95,7 @@ export const registerAgentIpcHandlers = ({
         rejected: agentProposalService.reject(
           window.webContents.id,
           value.proposalId,
+          value.reason ?? 'rejected',
         ),
       };
     },

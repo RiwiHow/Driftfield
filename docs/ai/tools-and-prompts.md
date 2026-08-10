@@ -31,10 +31,21 @@ Calling a mutation tool stores a reviewable proposal; it does not write the
 novel. Main generates created document and directory IDs, owns physical names
 and index updates, and the Agent never constructs or receives metadata paths.
 
+A mutation tool call remains pending after the proposal is shown. Accepting or
+rejecting the proposal settles that exact tool call with a typed terminal result,
+then the worker resumes the same Agent run from that result. Approval does not
+create a second request, insert a synthetic user message, or authorize work
+beyond the user's original scope. For example, accepting a proposal that writes
+chapter one does not by itself authorize writing chapter two. One run may submit
+multiple sequential proposals when the original request requires them; every
+proposal and decision remains ordered in the assistant message audit timeline.
+
 Main validates typed arguments, resolves stable IDs through the active project
 session, rechecks document containment and regular-file status, and enforces
 per-request call, timeout, individual-result, and cumulative-result budgets.
 Results do not expose physical project paths or raw YAML.
+Proposal construction and validation remain time-bounded, while the subsequent
+human review wait is intentionally excluded from the ordinary tool timeout.
 `get_novel_structure` exposes the optional knowledge root as `lore` with
 directory kind `lore`, matching the project format and application domain.
 
@@ -71,6 +82,8 @@ audit/UI record and is not injected as dialogue. Terminal proposal outcomes are
 the exception: Main supplies a bounded typed list of accepted, rejected, or
 failed outcomes as trusted application context on later turns, so the model
 does not mistake an already accepted proposal for one still awaiting approval.
+This list includes every terminal proposal recorded in a multi-proposal
+assistant message, not only its latest proposal.
 
 ## Tool definitions and prompt policy
 

@@ -12,6 +12,7 @@ import type {
 import type {
   AgentDocumentFileOperationArguments,
   AgentProjectStructureOperationArguments,
+  AgentProposalToolResult,
   AgentDraftSnapshot,
 } from '../../shared/contracts/agent-tools';
 import { saveProjectDocument } from '../services/project/document-service';
@@ -51,8 +52,15 @@ interface StoredProposal {
   proposal: AgentDocumentProposal;
 }
 
+interface ProposalDecisionWaiter {
+  ownerId: number;
+  requestId: string;
+  resolve: (result: AgentProposalToolResult) => void;
+}
+
 export class AgentProposalService {
   private readonly proposals = new Map<string, StoredProposal>();
+  private readonly decisionWaiters = new Map<string, ProposalDecisionWaiter>();
 
   constructor(
     private readonly sessions: ProjectSessionService,
@@ -277,7 +285,59 @@ export class AgentProposalService {
     return proposal;
   }
 
+  waitForDecision(
+    requestId: string,
+    proposalId: string,
+  ): Promise<AgentProposalToolResult> {
+    const stored = this.proposals.get(proposalId);
+    if (stored === undefined || stored.proposal.requestId !== requestId) {
+      throw new ProjectContextError('internal-error');
+    }
+    if (this.decisionWaiters.has(proposalId)) {
+      throw new ProjectContextError('internal-error');
+    }
+    return new Promise((resolve) => {
+      this.decisionWaiters.set(proposalId, {
+        ownerId: stored.ownerId,
+        requestId,
+        resolve,
+      });
+    });
+  }
+
   async apply(ownerId: number, proposalId: string): Promise<ApplyAgentProposalResult> {
+    try {
+      const result = await this.applyProposal(ownerId, proposalId);
+      const decisionStatus = result.status === 'saved' ||
+        result.status === 'created' ||
+        result.status === 'deleted' ||
+        result.status === 'moved' ||
+        result.status === 'created-directory'
+        ? 'accepted'
+        : result.status === 'not-found'
+          ? 'failed'
+          : result.status;
+      this.resolveDecision(ownerId, proposalId, decisionStatus);
+      return result;
+    } catch (error) {
+      const stored = this.proposals.get(proposalId);
+      const session = this.sessions.get(ownerId);
+      if (
+        stored?.ownerId === ownerId &&
+        session !== undefined &&
+        session.id === stored.projectSessionId
+      ) {
+        this.conversations?.setProposalStatus(session, proposalId, 'failed');
+      }
+      this.resolveDecision(ownerId, proposalId, 'failed');
+      throw error;
+    }
+  }
+
+  private async applyProposal(
+    ownerId: number,
+    proposalId: string,
+  ): Promise<ApplyAgentProposalResult> {
     const stored = this.proposals.get(proposalId);
     const session = this.sessions.get(ownerId);
     if (session === undefined) return { proposalId, status: 'not-found' };
@@ -407,20 +467,55 @@ export class AgentProposalService {
     };
   }
 
-  reject(ownerId: number, proposalId: string): boolean {
+  reject(
+    ownerId: number,
+    proposalId: string,
+    status: 'rejected' | 'stale' = 'rejected',
+  ): boolean {
     const stored = this.proposals.get(proposalId);
     const session = this.sessions.get(ownerId);
     if (session === undefined) return false;
     const persisted = this.conversations?.getProposal(session, proposalId);
     if ((stored === undefined || stored.ownerId !== ownerId) && persisted === null) return false;
     if (stored !== undefined) this.proposals.delete(proposalId);
-    this.conversations?.setProposalStatus(session, proposalId, 'rejected');
+    this.conversations?.setProposalStatus(session, proposalId, status);
+    this.resolveDecision(ownerId, proposalId, status);
     return true;
+  }
+
+  cancelRequest(requestId: string): void {
+    for (const [proposalId, stored] of this.proposals) {
+      if (stored.proposal.requestId !== requestId) continue;
+      const session = this.sessions.get(stored.ownerId);
+      if (session !== undefined && session.id === stored.projectSessionId) {
+        this.conversations?.setProposalStatus(session, proposalId, 'failed');
+      }
+      this.resolveDecision(stored.ownerId, proposalId, 'failed');
+      this.proposals.delete(proposalId);
+    }
   }
 
   disposeOwner(ownerId: number): void {
     for (const [proposalId, stored] of this.proposals) {
-      if (stored.ownerId === ownerId) this.proposals.delete(proposalId);
+      if (stored.ownerId !== ownerId) continue;
+      const session = this.sessions.get(ownerId);
+      if (session !== undefined && session.id === stored.projectSessionId) {
+        this.conversations?.setProposalStatus(session, proposalId, 'failed');
+      }
+      this.resolveDecision(ownerId, proposalId, 'failed');
+      this.proposals.delete(proposalId);
     }
+  }
+
+  private resolveDecision(
+    ownerId: number,
+    proposalId: string,
+    status: AgentProposalToolResult['status'],
+  ): void {
+    const waiter = this.decisionWaiters.get(proposalId);
+    if (waiter === undefined || waiter.ownerId !== ownerId) return;
+    this.decisionWaiters.delete(proposalId);
+    this.proposals.delete(proposalId);
+    waiter.resolve({ proposalId, status });
   }
 }

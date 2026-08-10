@@ -92,6 +92,7 @@ describe('project databases', () => {
     });
     migrated.close();
   });
+
 });
 
 const listTables = (

@@ -122,7 +122,14 @@ export const isApplyAgentProposalRequest = (
 
 export const isRejectAgentProposalRequest = (
   value: unknown,
-): value is RejectAgentProposalRequest => isProposalRequest(value);
+): value is RejectAgentProposalRequest =>
+  isRecord(value) &&
+  Object.keys(value).every((key) => key === 'proposalId' || key === 'reason') &&
+  Object.keys(value).length <= 2 &&
+  typeof value.proposalId === 'string' &&
+  value.proposalId.length > 0 &&
+  value.proposalId.length <= 128 &&
+  (value.reason === undefined || value.reason === 'stale');
 
 const isProposalRequest = (value: unknown): value is { proposalId: string } =>
   isRecord(value) &&

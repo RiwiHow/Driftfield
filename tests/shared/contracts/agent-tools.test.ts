@@ -21,10 +21,15 @@ describe('Agent proposal tool contract', () => {
       toolName: 'propose_document_edit',
     })).toBe(false);
     expect(isAgentToolExecutionResult({
-      data: { proposalId: 'proposal-1', status: 'proposed' },
+      data: { proposalId: 'proposal-1', status: 'accepted' },
       ok: true,
       toolName: 'propose_document_edit',
     })).toBe(true);
+    expect(isAgentToolExecutionResult({
+      data: { proposalId: 'proposal-1', status: 'proposed' },
+      ok: true,
+      toolName: 'propose_document_edit',
+    })).toBe(false);
   });
 
   it('validates project structure proposal variants', () => {

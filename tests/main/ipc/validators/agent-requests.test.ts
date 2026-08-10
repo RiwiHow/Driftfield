@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { isStartAgentPromptRequest } from '../../../../src/main/ipc/validators/agent-requests';
+import {
+  isRejectAgentProposalRequest,
+  isStartAgentPromptRequest,
+} from '../../../../src/main/ipc/validators/agent-requests';
 
 const revision = 'a'.repeat(64);
 
@@ -54,5 +57,21 @@ describe('Agent IPC request validation', () => {
         requestId: 'request-1',
       }),
     ).toBe(false);
+  });
+
+  it('accepts only the narrow stale reason for a proposal rejection', () => {
+    expect(isRejectAgentProposalRequest({ proposalId: 'proposal-1' })).toBe(true);
+    expect(isRejectAgentProposalRequest({
+      proposalId: 'proposal-1',
+      reason: 'stale',
+    })).toBe(true);
+    expect(isRejectAgentProposalRequest({
+      proposalId: 'proposal-1',
+      reason: 'accepted',
+    })).toBe(false);
+    expect(isRejectAgentProposalRequest({
+      extra: true,
+      proposalId: 'proposal-1',
+    })).toBe(false);
   });
 });

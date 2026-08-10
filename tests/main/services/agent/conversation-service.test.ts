@@ -239,4 +239,63 @@ describe('Agent conversation persistence', () => {
     }]);
     service.dispose();
   });
+
+  it('preserves multiple sequential proposal decisions in one Agent run', async () => {
+    const session = await createSession();
+    const service = new AgentConversationService();
+    const state = service.getState(session);
+    const revision = 'a'.repeat(64);
+    const first = {
+      baseContentRevision: revision,
+      baseMarkdown: '# Original\n',
+      baseRevision: revision,
+      documentId: 'chapter-1',
+      markdown: '# First\n',
+      proposalId: 'proposal-first',
+      requestId: 'assistant-sequential',
+      title: 'Chapter One',
+    };
+    const second = {
+      ...first,
+      markdown: '# Second\n',
+      proposalId: 'proposal-second',
+    };
+    service.beginPrompt(session, {
+      conversationId: state.activeConversation.id,
+      prompt: 'Make two reviewed changes.',
+      requestId: 'assistant-sequential',
+      userMessageId: 'user-sequential',
+    });
+    service.recordEvent({ proposal: first, requestId: 'assistant-sequential', type: 'proposal' });
+    service.setProposalStatus(session, first.proposalId, 'saved');
+    service.recordEvent({ proposal: second, requestId: 'assistant-sequential', type: 'proposal' });
+    service.setProposalStatus(session, second.proposalId, 'rejected');
+    service.recordEvent({ requestId: 'assistant-sequential', type: 'completed' });
+
+    const proposalParts = service.getState(session).activeConversation.messages
+      .at(-1)?.parts?.filter((part) => part.type === 'proposal');
+    expect(proposalParts).toEqual([
+      { proposal: first, status: 'saved', type: 'proposal' },
+      { proposal: second, status: 'rejected', type: 'proposal' },
+    ]);
+    const next = service.beginPrompt(session, {
+      conversationId: state.activeConversation.id,
+      prompt: 'Summarize the decisions.',
+      requestId: 'assistant-after-sequential',
+      userMessageId: 'user-after-sequential',
+    });
+    expect(next.proposalOutcomes).toEqual([
+      { operation: 'edit', proposalId: first.proposalId, status: 'accepted' },
+      { operation: 'edit', proposalId: second.proposalId, status: 'rejected' },
+    ]);
+    service.dispose();
+
+    const restored = new AgentConversationService();
+    expect(
+      restored.getState(session).activeConversation.messages
+        .find((message) => message.id === 'assistant-sequential')?.parts
+        ?.filter((part) => part.type === 'proposal'),
+    ).toEqual(proposalParts);
+    restored.dispose();
+  });
 });

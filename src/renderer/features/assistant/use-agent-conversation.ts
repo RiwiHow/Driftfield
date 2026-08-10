@@ -126,7 +126,19 @@ export function useAgentConversation(
         setMessages((current) =>
           current.map((message) =>
             message.id === event.requestId
-              ? { ...message, proposal: event.proposal, proposalStatus: 'pending' }
+              ? {
+                  ...message,
+                  parts: [
+                    ...(message.parts ?? []),
+                    {
+                      proposal: event.proposal,
+                      status: 'pending' as const,
+                      type: 'proposal' as const,
+                    },
+                  ],
+                  proposal: event.proposal,
+                  proposalStatus: 'pending',
+                }
               : message,
           ),
         );
@@ -382,7 +394,15 @@ export function useAgentConversation(
 
   const applyProposal = useCallback(async (proposal: AgentDocumentProposal) => {
     if (!canApplyAgentProposal(activeChapter, proposal, chapters)) {
-      setProposalStatus(proposal.proposalId, 'stale');
+      try {
+        await window.driftfield.rejectAgentProposal({
+          proposalId: proposal.proposalId,
+          reason: 'stale',
+        });
+        setProposalStatus(proposal.proposalId, 'stale');
+      } catch {
+        setProposalStatus(proposal.proposalId, 'failed');
+      }
       return;
     }
     setProposalStatus(proposal.proposalId, 'applying');
@@ -503,7 +523,7 @@ export function replaceAssistantMessage(
           ...message,
           content,
           parts: [
-            ...(message.parts?.filter((part) => part.type === 'tool') ?? []),
+            ...(message.parts?.filter((part) => part.type !== 'text') ?? []),
             { content, type: 'text' },
           ],
           terminal: undefined,
@@ -517,6 +537,13 @@ function rejectPendingProposals(messages: ConversationMessage[]): void {
     if (message.proposalStatus === 'pending' && message.proposal !== undefined) {
       void window.driftfield.rejectAgentProposal({
         proposalId: message.proposal.proposalId,
+      });
+    }
+    for (const part of message.parts ?? []) {
+      if (part.type !== 'proposal' || part.status !== 'pending') continue;
+      if (part.proposal.proposalId === message.proposal?.proposalId) continue;
+      void window.driftfield.rejectAgentProposal({
+        proposalId: part.proposal.proposalId,
       });
     }
   }
@@ -555,8 +582,21 @@ function setProposalStatusInMessages(
   status: NonNullable<ConversationMessage['proposalStatus']>,
 ): ConversationMessage[] {
   return messages.map((message) =>
-    message.proposal?.proposalId === proposalId
-      ? { ...message, proposalStatus: status }
+    message.proposal?.proposalId === proposalId ||
+    message.parts?.some(
+      (part) => part.type === 'proposal' && part.proposal.proposalId === proposalId,
+    )
+      ? {
+          ...message,
+          parts: message.parts?.map((part) =>
+            part.type === 'proposal' && part.proposal.proposalId === proposalId
+              ? { ...part, status }
+              : part,
+          ),
+          ...(message.proposal?.proposalId === proposalId
+            ? { proposalStatus: status }
+            : {}),
+        }
       : message,
   );
 }

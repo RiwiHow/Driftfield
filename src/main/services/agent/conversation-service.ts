@@ -150,10 +150,10 @@ export class AgentConversationService {
       WHERE id = ? AND conversation_id = ? AND role = 'assistant' AND active = 1
     `).get(messageId, conversationId) as { parts_json: string | null } | undefined;
     if (row === undefined) throw new Error('Unknown assistant message');
-    const toolParts = row.parts_json === null
+    const retainedParts = row.parts_json === null
       ? []
       : (JSON.parse(row.parts_json) as AgentConversationPart[]).filter(
-          (part) => part.type === 'tool',
+          (part) => part.type !== 'text',
         );
     database.connection.prepare(`
       UPDATE conversation_messages
@@ -161,7 +161,7 @@ export class AgentConversationService {
       WHERE id = ?
     `).run(
       trimmed,
-      JSON.stringify([...toolParts, { content: trimmed, type: 'text' }]),
+      JSON.stringify([...retainedParts, { content: trimmed, type: 'text' }]),
       new Date().toISOString(),
       messageId,
     );
@@ -314,7 +314,11 @@ export class AgentConversationService {
     if (event.type === 'proposal') {
       message.proposal = event.proposal;
       message.proposalStatus = 'pending';
-      this.scheduleFlush(event.requestId, active);
+      message.parts = [
+        ...(message.parts ?? []),
+        { proposal: event.proposal, status: 'pending', type: 'proposal' },
+      ];
+      this.persistMessage(active);
       return;
     }
     if (event.type === 'cancelled') {
@@ -355,10 +359,38 @@ export class AgentConversationService {
     proposalId: string,
     status: AgentProposalStatus,
   ): void {
-    this.getDatabase(session).connection.prepare(`
-      UPDATE conversation_messages SET proposal_status = ?, updated_at = ?
-      WHERE proposal_id = ?
-    `).run(status, new Date().toISOString(), proposalId);
+    for (const active of this.activeRequests.values()) {
+      if (active.database !== this.getDatabase(session)) continue;
+      const containsProposal = active.message.parts?.some(
+        (part) => part.type === 'proposal' && part.proposal.proposalId === proposalId,
+      );
+      if (!containsProposal) continue;
+      active.message.parts = active.message.parts?.map((part) =>
+        part.type === 'proposal' && part.proposal.proposalId === proposalId
+          ? { ...part, status }
+          : part,
+      );
+      if (active.message.proposal?.proposalId === proposalId) {
+        active.message.proposalStatus = status;
+      }
+      this.persistMessage(active);
+      return;
+    }
+    const database = this.getDatabase(session);
+    const row = database.connection.prepare(`
+      SELECT id, parts_json FROM conversation_messages WHERE proposal_id = ?
+    `).get(proposalId) as { id: string; parts_json: string | null } | undefined;
+    if (row === undefined) return;
+    const parts = row.parts_json === null ? [] : parseStoredParts(row.parts_json);
+    const nextParts = parts.map((part) =>
+      part.type === 'proposal' && part.proposal.proposalId === proposalId
+        ? { ...part, status }
+        : part,
+    );
+    database.connection.prepare(`
+      UPDATE conversation_messages
+      SET parts_json = ?, proposal_status = ?, updated_at = ? WHERE id = ?
+    `).run(JSON.stringify(nextParts), status, new Date().toISOString(), row.id);
   }
 
   dispose(): void {
@@ -474,7 +506,7 @@ export class AgentConversationService {
     requestId: string,
   ): AgentProposalOutcome[] {
     const rows = database.connection.prepare(`
-      SELECT proposal_json, proposal_status FROM conversation_messages
+      SELECT parts_json, proposal_json, proposal_status FROM conversation_messages
       WHERE conversation_id = ? AND active = 1 AND proposal_json IS NOT NULL
         AND sequence < (
           SELECT sequence - 1 FROM conversation_messages WHERE id = ?
@@ -482,17 +514,40 @@ export class AgentConversationService {
         AND proposal_status IN ('saved', 'rejected', 'conflict', 'missing', 'stale', 'failed')
       ORDER BY sequence DESC LIMIT 50
     `).all(conversationId, requestId) as Array<{
+      parts_json: string | null;
       proposal_json: string;
       proposal_status: Exclude<AgentProposalStatus, 'pending' | 'applying'>;
     }>;
-    return rows.reverse().map((row) => {
-      const proposal = parseStoredProposal(row.proposal_json);
-      return {
-        operation: 'operation' in proposal ? proposal.operation : 'edit',
-        proposalId: proposal.proposalId,
-        status: row.proposal_status === 'saved' ? 'accepted' : row.proposal_status,
-      };
-    });
+    return rows
+      .reverse()
+      .flatMap<AgentProposalOutcome>((row) => {
+        const proposalParts = row.parts_json === null
+          ? []
+          : parseStoredParts(row.parts_json).filter(
+              (part): part is Extract<
+                AgentConversationPart,
+                { type: 'proposal' }
+              > =>
+                part.type === 'proposal' &&
+                part.status !== 'pending' &&
+                part.status !== 'applying',
+            );
+        if (proposalParts.length > 0) {
+          return proposalParts.map((part) => ({
+            operation:
+              'operation' in part.proposal ? part.proposal.operation : 'edit',
+            proposalId: part.proposal.proposalId,
+            status: toProposalOutcomeStatus(part.status),
+          }));
+        }
+        const proposal = parseStoredProposal(row.proposal_json);
+        return [{
+          operation: 'operation' in proposal ? proposal.operation : 'edit',
+          proposalId: proposal.proposalId,
+          status: toProposalOutcomeStatus(row.proposal_status),
+        }];
+      })
+      .slice(-50);
   }
 
   private scheduleFlush(requestId: string, active: ActiveRequest): void {
@@ -540,6 +595,15 @@ const normalizeTitle = (value?: string): string | null => {
 
 const deriveTitle = (prompt: string): string =>
   [...prompt.replace(/\s+/gu, ' ').trim()].slice(0, 40).join('');
+
+const toProposalOutcomeStatus = (
+  status: AgentProposalStatus,
+): AgentProposalOutcome['status'] => {
+  if (status === 'pending' || status === 'applying') {
+    throw new Error('Non-terminal Agent proposal outcome');
+  }
+  return status === 'saved' ? 'accepted' : status;
+};
 
 const toSummary = (row: ConversationRow): AgentConversationSummary => ({
   createdAt: row.created_at,
@@ -594,6 +658,17 @@ const parseStoredParts = (value: string): AgentConversationPart[] => {
       if (typeof record.content !== 'string') {
         throw new Error('Invalid stored Agent text part');
       }
+      continue;
+    }
+    if (record.type === 'proposal') {
+      if (
+        typeof record.status !== 'string' ||
+        !['pending', 'applying', 'saved', 'rejected', 'conflict', 'missing', 'stale', 'failed']
+          .includes(record.status)
+      ) {
+        throw new Error('Invalid stored Agent proposal part');
+      }
+      parseStoredProposal(JSON.stringify(record.proposal));
       continue;
     }
     const activity = record.activity;

@@ -29,7 +29,14 @@ describe('AgentToolDispatcher', () => {
       requestId: 'request-1',
       title: 'Chapter',
     };
-    const proposals = { create: vi.fn(() => proposal) } as unknown as AgentProposalService;
+    const proposals = {
+      cancelRequest: vi.fn(),
+      create: vi.fn(() => proposal),
+      waitForDecision: vi.fn().mockResolvedValue({
+        proposalId: 'proposal-1',
+        status: 'accepted',
+      }),
+    } as unknown as AgentProposalService;
     const sendProposal = vi.fn();
     const dispatcher = new AgentToolDispatcher(
       {} as ProjectContextService,
@@ -49,11 +56,65 @@ describe('AgentToolDispatcher', () => {
         toolName: 'propose_document_edit',
       },
     )).resolves.toEqual({
-      data: { proposalId: 'proposal-1', status: 'proposed' },
+      data: { proposalId: 'proposal-1', status: 'accepted' },
       ok: true,
       toolName: 'propose_document_edit',
     });
     expect(sendProposal).toHaveBeenCalledWith(proposal);
+  });
+
+  it('keeps a proposal tool pending beyond ordinary tool timeouts until approval', async () => {
+    vi.useFakeTimers();
+    const proposal = {
+      baseContentRevision: 'a'.repeat(64),
+      baseMarkdown: '# Original',
+      baseRevision: 'b'.repeat(64),
+      documentId: 'chapter-1',
+      markdown: '# Proposed',
+      proposalId: 'proposal-waiting',
+      requestId: 'request-1',
+      title: 'Chapter',
+    };
+    let resolveDecision!: (value: {
+      proposalId: string;
+      status: 'accepted';
+    }) => void;
+    const decision = new Promise<{
+      proposalId: string;
+      status: 'accepted';
+    }>((resolve) => {
+      resolveDecision = resolve;
+    });
+    const proposals = {
+      cancelRequest: vi.fn(),
+      create: vi.fn(() => proposal),
+      waitForDecision: vi.fn(() => decision),
+    } as unknown as AgentProposalService;
+    const sendProposal = vi.fn();
+    const dispatcher = new AgentToolDispatcher(
+      {} as ProjectContextService,
+      { maxCalls: 2, maxResultBytes: 10_000, maxTotalResultBytes: 10_000, timeoutMs: 10 },
+      proposals,
+    );
+    const result = dispatcher.execute(
+      { ...scope, sendProposal },
+      {
+        arguments: {
+          baseContentRevision: proposal.baseContentRevision,
+          baseRevision: proposal.baseRevision,
+          documentId: proposal.documentId,
+          markdown: proposal.markdown,
+        },
+        toolName: 'propose_document_edit',
+      },
+    );
+    await vi.advanceTimersByTimeAsync(100);
+    expect(sendProposal).toHaveBeenCalledWith(proposal);
+    resolveDecision({ proposalId: proposal.proposalId, status: 'accepted' });
+    await expect(result).resolves.toMatchObject({
+      data: { proposalId: proposal.proposalId, status: 'accepted' },
+      ok: true,
+    });
   });
 
   it('emits a reviewed create proposal through the structural tool', async () => {
@@ -70,7 +131,12 @@ describe('AgentToolDispatcher', () => {
       title: 'Created',
     };
     const proposals = {
+      cancelRequest: vi.fn(),
       createFileOperation: vi.fn().mockResolvedValue(proposal),
+      waitForDecision: vi.fn().mockResolvedValue({
+        proposalId: 'proposal-create',
+        status: 'accepted',
+      }),
     } as unknown as AgentProposalService;
     const sendProposal = vi.fn();
     const dispatcher = new AgentToolDispatcher(
@@ -93,7 +159,7 @@ describe('AgentToolDispatcher', () => {
         toolName: 'propose_document_file_operation',
       },
     )).resolves.toEqual({
-      data: { proposalId: 'proposal-create', status: 'proposed' },
+      data: { proposalId: 'proposal-create', status: 'accepted' },
       ok: true,
       toolName: 'propose_document_file_operation',
     });
@@ -113,7 +179,12 @@ describe('AgentToolDispatcher', () => {
       title: 'Volume Two',
     };
     const proposals = {
+      cancelRequest: vi.fn(),
       createStructureOperation: vi.fn().mockResolvedValue(proposal),
+      waitForDecision: vi.fn().mockResolvedValue({
+        proposalId: 'proposal-volume',
+        status: 'rejected',
+      }),
     } as unknown as AgentProposalService;
     const sendProposal = vi.fn();
     const dispatcher = new AgentToolDispatcher(
@@ -133,7 +204,7 @@ describe('AgentToolDispatcher', () => {
         toolName: 'propose_project_structure_operation',
       },
     )).resolves.toEqual({
-      data: { proposalId: 'proposal-volume', status: 'proposed' },
+      data: { proposalId: 'proposal-volume', status: 'rejected' },
       ok: true,
       toolName: 'propose_project_structure_operation',
     });
@@ -225,5 +296,20 @@ describe('AgentToolDispatcher', () => {
       arguments: { documentId: 'chapter-1' },
       toolName: 'get_document',
     })).resolves.toMatchObject({ ok: true });
+  });
+
+  it('cancels a pending proposal decision when request state is released', () => {
+    const proposals = {
+      cancelRequest: vi.fn(),
+    } as unknown as AgentProposalService;
+    const dispatcher = new AgentToolDispatcher(
+      {} as ProjectContextService,
+      undefined,
+      proposals,
+    );
+
+    dispatcher.release(scope.requestId);
+
+    expect(proposals.cancelRequest).toHaveBeenCalledWith(scope.requestId);
   });
 });

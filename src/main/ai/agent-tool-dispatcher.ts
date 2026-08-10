@@ -67,7 +67,9 @@ export class AgentToolDispatcher {
 
     try {
       const operation = this.executeValidated(scope, request);
-      const result = await this.withTimeout(operation);
+      const result = isProposalTool(request.toolName)
+        ? await operation
+        : await this.withTimeout(operation);
       const bytes = Buffer.byteLength(JSON.stringify(result), 'utf8');
       if (
         bytes > this.policy.maxResultBytes ||
@@ -86,6 +88,7 @@ export class AgentToolDispatcher {
 
   release(requestId: string): void {
     this.budgets.delete(requestId);
+    this.proposals?.cancelRequest(requestId);
   }
 
   private async executeValidated(
@@ -116,9 +119,17 @@ export class AgentToolDispatcher {
         throw new ProjectContextError('internal-error');
       }
       const proposal = this.proposals.create(scope, request.arguments);
-      scope.sendProposal?.(proposal);
+      if (scope.sendProposal === undefined) {
+        this.proposals.cancelRequest(scope.requestId);
+        throw new ProjectContextError('internal-error');
+      }
+      const decision = this.proposals.waitForDecision(
+        scope.requestId,
+        proposal.proposalId,
+      );
+      scope.sendProposal(proposal);
       return {
-        data: { proposalId: proposal.proposalId, status: 'proposed' },
+        data: await decision,
         ok: true,
         toolName: request.toolName,
       };
@@ -127,13 +138,20 @@ export class AgentToolDispatcher {
       if (this.proposals === undefined) {
         throw new ProjectContextError('internal-error');
       }
-      const proposal = await this.proposals.createFileOperation(
-        scope,
-        request.arguments,
+      const proposal = await this.withTimeout(
+        this.proposals.createFileOperation(scope, request.arguments),
       );
-      scope.sendProposal?.(proposal);
+      if (scope.sendProposal === undefined) {
+        this.proposals.cancelRequest(scope.requestId);
+        throw new ProjectContextError('internal-error');
+      }
+      const decision = this.proposals.waitForDecision(
+        scope.requestId,
+        proposal.proposalId,
+      );
+      scope.sendProposal(proposal);
       return {
-        data: { proposalId: proposal.proposalId, status: 'proposed' },
+        data: await decision,
         ok: true,
         toolName: request.toolName,
       };
@@ -142,13 +160,20 @@ export class AgentToolDispatcher {
       if (this.proposals === undefined) {
         throw new ProjectContextError('internal-error');
       }
-      const proposal = await this.proposals.createStructureOperation(
-        scope,
-        request.arguments,
+      const proposal = await this.withTimeout(
+        this.proposals.createStructureOperation(scope, request.arguments),
       );
-      scope.sendProposal?.(proposal);
+      if (scope.sendProposal === undefined) {
+        this.proposals.cancelRequest(scope.requestId);
+        throw new ProjectContextError('internal-error');
+      }
+      const decision = this.proposals.waitForDecision(
+        scope.requestId,
+        proposal.proposalId,
+      );
+      scope.sendProposal(proposal);
       return {
-        data: { proposalId: proposal.proposalId, status: 'proposed' },
+        data: await decision,
         ok: true,
         toolName: request.toolName,
       };
@@ -192,3 +217,8 @@ export class AgentToolDispatcher {
 }
 
 class ToolTimeoutError extends Error {}
+
+const isProposalTool = (toolName: AgentToolName): boolean =>
+  toolName === 'propose_document_edit' ||
+  toolName === 'propose_document_file_operation' ||
+  toolName === 'propose_project_structure_operation';

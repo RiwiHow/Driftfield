@@ -50,9 +50,9 @@ export interface AgentNovelStructureToolResult {
   };
 }
 
-export interface AgentEditProposalToolResult {
+export interface AgentProposalToolResult {
   proposalId: string;
-  status: 'proposed';
+  status: 'accepted' | 'rejected' | 'conflict' | 'missing' | 'stale' | 'failed';
 }
 
 export type AgentDocumentFileOperationArguments =
@@ -111,15 +111,15 @@ export interface AgentToolContractMap {
       documentId: string;
       markdown: string;
     };
-    result: AgentEditProposalToolResult;
+    result: AgentProposalToolResult;
   };
   propose_document_file_operation: {
     arguments: AgentDocumentFileOperationArguments;
-    result: AgentEditProposalToolResult;
+    result: AgentProposalToolResult;
   };
   propose_project_structure_operation: {
     arguments: AgentProjectStructureOperationArguments;
-    result: AgentEditProposalToolResult;
+    result: AgentProposalToolResult;
   };
 }
 
@@ -293,7 +293,9 @@ const isEditProposalResult = (value: unknown): boolean =>
   isRecord(value) &&
   typeof value.proposalId === 'string' &&
   value.proposalId.length > 0 &&
-  value.status === 'proposed';
+  typeof value.status === 'string' &&
+  ['accepted', 'rejected', 'conflict', 'missing', 'stale', 'failed']
+    .includes(value.status);
 
 const isDocumentId = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= 128;

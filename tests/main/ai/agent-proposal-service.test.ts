@@ -43,6 +43,7 @@ describe('AgentProposalService', () => {
         markdown: '# Revised\n',
       },
     );
+    const decision = service.waitForDecision('request-1', proposal.proposalId);
 
     await expect(readFile(path.join(directoryPath, 'chapter.md'), 'utf8')).resolves.toBe(markdown);
     await expect(service.apply(8, proposal.proposalId)).resolves.toEqual({
@@ -53,6 +54,10 @@ describe('AgentProposalService', () => {
       documentId: 'chapter-1',
       markdown: '# Revised\n',
       status: 'saved',
+    });
+    await expect(decision).resolves.toEqual({
+      proposalId: proposal.proposalId,
+      status: 'accepted',
     });
     await expect(readFile(path.join(directoryPath, 'chapter.md'), 'utf8')).resolves.toBe('# Revised\n');
   });
@@ -74,13 +79,78 @@ describe('AgentProposalService', () => {
         markdown: '# Proposed\n',
       },
     );
+    const decision = service.waitForDecision('request-1', proposal.proposalId);
     await writeFile(path.join(directoryPath, 'chapter.md'), '# External\n');
 
     await expect(service.apply(7, proposal.proposalId)).resolves.toEqual({
       proposalId: proposal.proposalId,
       status: 'conflict',
     });
+    await expect(decision).resolves.toEqual({
+      proposalId: proposal.proposalId,
+      status: 'conflict',
+    });
     await expect(readFile(path.join(directoryPath, 'chapter.md'), 'utf8')).resolves.toBe('# External\n');
+  });
+
+  it('settles a waiting proposal when the Agent request is cancelled', async () => {
+    const { markdown, service } = await createFixture();
+    const revision = contentRevision(markdown);
+    const proposal = service.create(
+      {
+        draftSnapshot: { baseRevision: revision, documentId: 'chapter-1', markdown },
+        ownerId: 7,
+        projectSessionId: 'session-1',
+        requestId: 'request-cancel',
+      },
+      {
+        baseContentRevision: revision,
+        baseRevision: revision,
+        documentId: 'chapter-1',
+        markdown: '# Proposed\n',
+      },
+    );
+    const decision = service.waitForDecision(
+      'request-cancel',
+      proposal.proposalId,
+    );
+
+    service.cancelRequest('request-cancel');
+
+    await expect(decision).resolves.toEqual({
+      proposalId: proposal.proposalId,
+      status: 'failed',
+    });
+    await expect(service.apply(7, proposal.proposalId)).resolves.toEqual({
+      proposalId: proposal.proposalId,
+      status: 'not-found',
+    });
+  });
+
+  it('settles a locally unsafe acceptance as stale', async () => {
+    const { markdown, service } = await createFixture();
+    const revision = contentRevision(markdown);
+    const proposal = service.create(
+      {
+        draftSnapshot: { baseRevision: revision, documentId: 'chapter-1', markdown },
+        ownerId: 7,
+        projectSessionId: 'session-1',
+        requestId: 'request-stale',
+      },
+      {
+        baseContentRevision: revision,
+        baseRevision: revision,
+        documentId: 'chapter-1',
+        markdown: '# Proposed\n',
+      },
+    );
+    const decision = service.waitForDecision('request-stale', proposal.proposalId);
+
+    expect(service.reject(7, proposal.proposalId, 'stale')).toBe(true);
+    await expect(decision).resolves.toEqual({
+      proposalId: proposal.proposalId,
+      status: 'stale',
+    });
   });
 
   it('creates and deletes documents only after proposal acceptance', async () => {

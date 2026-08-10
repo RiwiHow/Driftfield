@@ -119,6 +119,7 @@ export type SuccessfulApplyAgentProposalResult = Exclude<
 
 export interface RejectAgentProposalRequest {
   proposalId: string;
+  reason?: 'stale';
 }
 
 export interface RejectAgentProposalResult {

@@ -310,7 +310,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Submit a complete replacement for the current document as a reviewable proposal. This never writes the file; the user must explicitly accept it in Driftfield.",
+        "Submit a complete replacement for the current document as a reviewable proposal. This never writes the file without explicit acceptance. The tool call waits for the user's decision and returns accepted, rejected, or a typed failure; after acceptance, continue only the user's existing requested scope.",
       label: "Propose document edit",
       name: "propose_document_edit",
       parameters: Type.Object(
@@ -334,7 +334,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Submit a reviewable proposal to create a Markdown document under a stable directory ID or delete a document by stable ID. Read get_novel_structure first and use its current project revision. Creating chooses a document kind and complete Markdown. Before deleting, call get_document for the target and provide its persisted baseRevision. This never changes files until the user explicitly accepts it in Driftfield.",
+        "Submit a reviewable proposal to create a Markdown document under a stable directory ID or delete a document by stable ID. Read get_novel_structure first and use its current project revision. Creating chooses a document kind and complete Markdown. Before deleting, call get_document for the target and provide its persisted baseRevision. This never changes files without explicit acceptance. The tool call waits for the user's decision; after acceptance, continue only the user's existing requested scope.",
       label: "Propose document creation or deletion",
       name: "propose_document_file_operation",
       parameters: DOCUMENT_FILE_OPERATION_PARAMETERS,
@@ -350,7 +350,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Submit a reviewable proposal to create a manuscript volume, create a lore category, or move a document between compatible stable directory IDs. Read get_novel_structure first and use its current project revision. Before moving, call get_document and provide the persisted baseRevision. This never changes project structure until the user explicitly accepts it in Driftfield.",
+        "Submit a reviewable proposal to create a manuscript volume, create a lore category, or move a document between compatible stable directory IDs. Read get_novel_structure first and use its current project revision. Before moving, call get_document and provide the persisted baseRevision. This never changes project structure without explicit acceptance. The tool call waits for the user's decision; after acceptance, continue only the user's existing requested scope.",
       label: "Propose project structure change",
       name: "propose_project_structure_operation",
       parameters: PROJECT_STRUCTURE_OPERATION_PARAMETERS,
