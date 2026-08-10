@@ -7,7 +7,10 @@ import type {
   AgentConversationSummary,
   AgentProposalStatus,
 } from '../../../shared/contracts/agent-conversations';
-import type { AgentDocumentProposal } from '../../../shared/contracts/agent-proposals';
+import type {
+  AgentDocumentProposal,
+  AgentProposalOutcome,
+} from '../../../shared/contracts/agent-proposals';
 import type { AgentEvent } from '../../../shared/contracts/agent';
 import { isAgentToolName } from '../../../shared/contracts/agent-tools';
 import { ConversationDatabase } from '../../database/conversation-database';
@@ -48,6 +51,11 @@ interface ActiveRequest {
 export interface AgentHistoryMessage {
   content: string;
   role: 'assistant' | 'user';
+}
+
+export interface AgentPromptHistory {
+  history: AgentHistoryMessage[];
+  proposalOutcomes: AgentProposalOutcome[];
 }
 
 export class AgentConversationService {
@@ -169,7 +177,7 @@ export class AgentConversationService {
       requestId: string;
       userMessageId: string;
     },
-  ): AgentHistoryMessage[] {
+  ): AgentPromptHistory {
     const database = this.getDatabase(session);
     this.assertConversation(database, input.conversationId);
     const activeMessageCount = database.connection.prepare(`
@@ -242,7 +250,14 @@ export class AgentConversationService {
       outcome: 'running',
       timer: null,
     });
-    return this.buildHistory(database, input.conversationId, input.requestId);
+    return {
+      history: this.buildHistory(database, input.conversationId, input.requestId),
+      proposalOutcomes: this.buildProposalOutcomes(
+        database,
+        input.conversationId,
+        input.requestId,
+      ),
+    };
   }
 
   abandonRequest(requestId: string): void {
@@ -453,6 +468,33 @@ export class AgentConversationService {
     return selected.reverse();
   }
 
+  private buildProposalOutcomes(
+    database: ConversationDatabase,
+    conversationId: string,
+    requestId: string,
+  ): AgentProposalOutcome[] {
+    const rows = database.connection.prepare(`
+      SELECT proposal_json, proposal_status FROM conversation_messages
+      WHERE conversation_id = ? AND active = 1 AND proposal_json IS NOT NULL
+        AND sequence < (
+          SELECT sequence - 1 FROM conversation_messages WHERE id = ?
+        )
+        AND proposal_status IN ('saved', 'rejected', 'conflict', 'missing', 'stale', 'failed')
+      ORDER BY sequence DESC LIMIT 50
+    `).all(conversationId, requestId) as Array<{
+      proposal_json: string;
+      proposal_status: Exclude<AgentProposalStatus, 'pending' | 'applying'>;
+    }>;
+    return rows.reverse().map((row) => {
+      const proposal = parseStoredProposal(row.proposal_json);
+      return {
+        operation: 'operation' in proposal ? proposal.operation : 'edit',
+        proposalId: proposal.proposalId,
+        status: row.proposal_status === 'saved' ? 'accepted' : row.proposal_status,
+      };
+    });
+  }
+
   private scheduleFlush(requestId: string, active: ActiveRequest): void {
     if (active.timer !== null) return;
     active.timer = setTimeout(() => {
@@ -601,6 +643,8 @@ const parseStoredProposal = (value: string): AgentDocumentProposal => {
     proposal.requestId.length <= 128 &&
     typeof proposal.title === 'string' &&
     proposal.title.length <= 500;
+  const isId = (id: unknown): id is string =>
+    typeof id === 'string' && id.length > 0 && id.length <= 128;
   const valid = proposal.operation === 'create'
     ? hasCommonFields &&
       typeof proposal.documentId === 'string' &&
@@ -626,7 +670,29 @@ const parseStoredProposal = (value: string): AgentDocumentProposal => {
         isRevision(proposal.baseRevision) &&
         typeof proposal.baseMarkdown === 'string' &&
         Buffer.byteLength(proposal.baseMarkdown, 'utf8') <= 512 * 1024
-      : hasCommonFields &&
+      : proposal.operation === 'create_volume' ||
+          proposal.operation === 'create_lore_category'
+        ? hasCommonFields &&
+          isId(proposal.directoryId) &&
+          (proposal.directoryKind === 'volume' || proposal.directoryKind === 'category') &&
+          ((proposal.operation === 'create_volume' && proposal.directoryKind === 'volume') ||
+            (proposal.operation === 'create_lore_category' && proposal.directoryKind === 'category')) &&
+          isId(proposal.parentId) &&
+          typeof proposal.parentTitle === 'string' &&
+          proposal.parentTitle.length <= 500 &&
+          isRevision(proposal.projectRevision)
+        : proposal.operation === 'move_document'
+          ? hasCommonFields &&
+            isId(proposal.documentId) &&
+            isRevision(proposal.baseRevision) &&
+            isRevision(proposal.projectRevision) &&
+            isId(proposal.sourceParentId) &&
+            typeof proposal.sourceParentTitle === 'string' &&
+            proposal.sourceParentTitle.length <= 500 &&
+            isId(proposal.targetParentId) &&
+            typeof proposal.targetParentTitle === 'string' &&
+            proposal.targetParentTitle.length <= 500
+          : hasCommonFields &&
         isRevision(proposal.baseContentRevision) &&
         isRevision(proposal.baseRevision) &&
         typeof proposal.baseMarkdown === 'string' &&

@@ -55,6 +55,7 @@ describe('AiAgentService', () => {
     service.start({
       currentDocumentId: 'chapter.md',
       history: [],
+      proposalOutcomes: [],
       model: { modelId: 'model', providerId: 'anthropic' },
       ownerId: 7,
       projectSessionId: 'session-1',

@@ -48,6 +48,11 @@ assert.match(
   /propose_document_file_operation/,
   'The packaged Pi worker is missing the document file-operation tool.',
 );
+assert.match(
+  workerBundle,
+  /propose_project_structure_operation/,
+  'The packaged Pi worker is missing the project structure-operation tool.',
+);
 
 const electronPath = require('electron');
 const smoke = spawnSync(

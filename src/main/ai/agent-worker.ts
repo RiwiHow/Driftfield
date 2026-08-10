@@ -21,7 +21,10 @@ import {
 } from "../../shared/contracts/agent-worker";
 import { buildAgentSystemPrompt } from "./prompts/prompt-builder";
 import { AgentToolResultBridge } from "./agent-tool-result-bridge";
-import { DOCUMENT_FILE_OPERATION_PARAMETERS } from "./agent-tool-parameters";
+import {
+  DOCUMENT_FILE_OPERATION_PARAMETERS,
+  PROJECT_STRUCTURE_OPERATION_PARAMETERS,
+} from "./agent-tool-parameters";
 import { didAssistantResponseFail } from './agent-response-status';
 import {
   isAgentToolName,
@@ -137,6 +140,7 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
     });
     const systemPrompt = buildAgentSystemPrompt({
       availableTools: enabledToolNames,
+      proposalOutcomes: command.proposalOutcomes,
       role: command.role,
     });
     const sessionManager = SessionManager.inMemory(command.cwd);
@@ -341,6 +345,22 @@ function createNovelTools(requestId: string) {
             toolCallId,
             "propose_document_file_operation",
             params as AgentToolContractMap["propose_document_file_operation"]["arguments"],
+          ),
+        ),
+    }),
+    defineTool({
+      description:
+        "Submit a reviewable proposal to create a manuscript volume, create a lore category, or move a document between compatible stable directory IDs. Read get_novel_structure first and use its current project revision. Before moving, call get_document and provide the persisted baseRevision. This never changes project structure until the user explicitly accepts it in Driftfield.",
+      label: "Propose project structure change",
+      name: "propose_project_structure_operation",
+      parameters: PROJECT_STRUCTURE_OPERATION_PARAMETERS,
+      execute: async (toolCallId, params) =>
+        textToolResult(
+          await requestTool(
+            requestId,
+            toolCallId,
+            "propose_project_structure_operation",
+            params as AgentToolContractMap["propose_project_structure_operation"]["arguments"],
           ),
         ),
     }),

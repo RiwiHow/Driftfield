@@ -173,7 +173,7 @@ const createContext = (): IpcHandlerContext => {
   return {
     agentConversationService: {
       abandonRequest: vi.fn(),
-      beginPrompt: vi.fn(() => []),
+      beginPrompt: vi.fn(() => ({ history: [], proposalOutcomes: [] })),
       create: vi.fn(),
       delete: vi.fn(),
       getState: vi.fn(),

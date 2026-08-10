@@ -68,3 +68,43 @@ export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
   },
   { additionalProperties: false },
 );
+
+export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
+  {
+    baseRevision: Type.Optional(
+      Type.String({
+        description: 'Required for move_document: persisted revision returned by get_document.',
+        pattern: '^[a-f0-9]{64}$',
+      }),
+    ),
+    documentId: Type.Optional(
+      Type.String({
+        description: 'Required for move_document: stable document ID.',
+        maxLength: 128,
+        minLength: 1,
+      }),
+    ),
+    operation: stringEnum(
+      ['create_volume', 'create_lore_category', 'move_document'] as const,
+    ),
+    projectRevision: Type.String({
+      description: 'Current project revision returned by get_novel_structure.',
+      pattern: '^[a-f0-9]{64}$',
+    }),
+    targetParentId: Type.Optional(
+      Type.String({
+        description: 'Required for move_document: stable destination directory ID.',
+        maxLength: 128,
+        minLength: 1,
+      }),
+    ),
+    title: Type.Optional(
+      Type.String({
+        description: 'Required when creating a volume or lore category.',
+        maxLength: 500,
+        minLength: 1,
+      }),
+    ),
+  },
+  { additionalProperties: false },
+);

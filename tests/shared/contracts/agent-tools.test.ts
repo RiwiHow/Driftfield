@@ -27,6 +27,36 @@ describe('Agent proposal tool contract', () => {
     })).toBe(true);
   });
 
+  it('validates project structure proposal variants', () => {
+    expect(isAgentToolRequest({
+      arguments: {
+        operation: 'create_volume',
+        projectRevision: 'a'.repeat(64),
+        title: 'Volume Two',
+      },
+      toolName: 'propose_project_structure_operation',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: {
+        baseRevision: 'b'.repeat(64),
+        documentId: 'chapter-1',
+        operation: 'move_document',
+        projectRevision: 'a'.repeat(64),
+        targetParentId: 'volume-2',
+      },
+      toolName: 'propose_project_structure_operation',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: {
+        documentId: 'chapter-1',
+        operation: 'move_document',
+        projectRevision: 'a'.repeat(64),
+        targetParentId: 'volume-2',
+      },
+      toolName: 'propose_project_structure_operation',
+    })).toBe(false);
+  });
+
   it('validates create and delete document proposal variants', () => {
     expect(isAgentToolRequest({
       arguments: {

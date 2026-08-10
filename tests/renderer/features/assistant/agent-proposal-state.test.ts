@@ -5,6 +5,7 @@ import { canApplyAgentProposal } from '../../../../src/renderer/features/assista
 import type {
   AgentDeleteDocumentProposal,
   AgentEditProposal,
+  AgentMoveDocumentProposal,
 } from '../../../../src/shared/contracts/agent-proposals';
 
 const chapter: Chapter = {
@@ -37,6 +38,28 @@ describe('Agent proposal state', () => {
     expect(canApplyAgentProposal({ ...chapter, markdown: '# Later edit' }, proposal)).toBe(false);
     expect(canApplyAgentProposal({ ...chapter, revision: 'c'.repeat(64) }, proposal)).toBe(false);
     expect(canApplyAgentProposal(null, proposal)).toBe(false);
+  });
+
+  it('does not move a document with unsaved renderer changes', () => {
+    const move: AgentMoveDocumentProposal = {
+      baseRevision: chapter.revision,
+      documentId: chapter.id,
+      operation: 'move_document',
+      projectRevision: 'c'.repeat(64),
+      proposalId: 'proposal-move',
+      requestId: 'request-1',
+      sourceParentId: 'manuscript-1',
+      sourceParentTitle: 'Manuscript',
+      targetParentId: 'volume-2',
+      targetParentTitle: 'Volume Two',
+      title: chapter.title,
+    };
+    expect(canApplyAgentProposal(chapter, move, [chapter])).toBe(false);
+    expect(canApplyAgentProposal(
+      { ...chapter, isDirty: false },
+      move,
+      [{ ...chapter, isDirty: false }],
+    )).toBe(true);
   });
 
   it('does not delete a document with unsaved renderer changes', () => {

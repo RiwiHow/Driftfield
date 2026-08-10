@@ -16,6 +16,7 @@ import {
 } from '../../shared/contracts/agent-worker';
 import type { AgentToolDispatcher } from './agent-tool-dispatcher';
 import type { AgentHistoryMessage } from '../services/agent/conversation-service';
+import type { AgentProposalOutcome } from '../../shared/contracts/agent-proposals';
 
 const WORKER_START_TIMEOUT_MS = 15_000;
 
@@ -36,6 +37,7 @@ interface StartAgentRequest {
   prompt: string;
   model: AgentModelSelection;
   modelsPath?: string;
+  proposalOutcomes: AgentProposalOutcome[];
   requestId: string;
   sendEvent: (event: AgentEvent) => void;
   thinkingLevel: AgentThinkingLevel;
@@ -94,6 +96,7 @@ export class AiAgentService {
         modelsPath: request.modelsPath ?? path.join(directory, 'models.json'),
         modelId: request.model.modelId,
         prompt: request.prompt,
+        proposalOutcomes: request.proposalOutcomes,
         providerId: request.model.providerId,
         requestId: request.requestId,
         role: 'coordinator',

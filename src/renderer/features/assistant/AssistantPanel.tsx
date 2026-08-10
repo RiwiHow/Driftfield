@@ -50,7 +50,7 @@ import type { AgentConfiguration } from '../../../shared/contracts/agent-configu
 import type { AgentSettings } from '../../../shared/contracts/settings';
 import type {
   AgentDocumentProposal,
-  ApplyAgentProposalResult,
+  SuccessfulApplyAgentProposalResult,
 } from '../../../shared/contracts/agent-proposals';
 import type { AgentConversationPhase } from './agent-conversation-state';
 import { SafeMarkdown } from './SafeMarkdown';
@@ -69,7 +69,7 @@ interface AssistantPanelProps {
   configurationLoading: boolean;
   onOpenSettings: () => void;
   onProposalApplied: (
-    result: Extract<ApplyAgentProposalResult, { status: 'saved' | 'created' | 'deleted' }>,
+    result: SuccessfulApplyAgentProposalResult,
   ) => void;
   settings: AgentSettings;
   projectId: string | null;
@@ -787,7 +787,15 @@ function ProposalCard({
   const statusKey = status === 'pending'
     ? 'failed'
     : status === 'saved' && operation !== 'edit'
-      ? operation === 'create' ? 'created' : 'deleted'
+      ? operation === 'create'
+        ? 'created'
+        : operation === 'delete'
+          ? 'deleted'
+          : operation === 'move_document'
+            ? 'moved'
+            : operation === 'create_volume'
+              ? 'createdVolume'
+              : 'createdLoreCategory'
       : status;
   return (
     <div className="agent-proposal">
@@ -805,6 +813,22 @@ function ProposalCard({
             <section>
               <span>{t('proposal.proposed')}</span>
               <pre>{proposal.markdown}</pre>
+            </section>
+          ) : null}
+          {'operation' in proposal && proposal.operation === 'move_document' ? (
+            <section>
+              <span>{t('proposal.destination')}</span>
+              <pre>{t('proposal.moveSummary', {
+                source: proposal.sourceParentTitle,
+                target: proposal.targetParentTitle,
+              })}</pre>
+            </section>
+          ) : null}
+          {'operation' in proposal && (proposal.operation === 'create_volume' ||
+          proposal.operation === 'create_lore_category') ? (
+            <section>
+              <span>{t('proposal.destination')}</span>
+              <pre>{proposal.parentTitle}</pre>
             </section>
           ) : null}
         </div>

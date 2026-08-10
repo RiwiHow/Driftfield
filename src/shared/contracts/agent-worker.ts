@@ -8,6 +8,7 @@ import {
   type AgentToolExecutionResult,
   type AgentToolRequest,
 } from "./agent-tools";
+import type { AgentProposalOutcome } from './agent-proposals';
 
 export interface AgentWorkerStartCommand {
   authPath: string;
@@ -16,6 +17,7 @@ export interface AgentWorkerStartCommand {
   modelsPath: string;
   modelId: string;
   prompt: string;
+  proposalOutcomes: AgentProposalOutcome[];
   providerId: string;
   requestId: string;
   role: AgentRole;
@@ -158,6 +160,9 @@ export const isAgentWorkerCommand = (
     typeof command.modelsPath === "string" &&
     typeof command.modelId === "string" &&
     typeof command.prompt === "string" &&
+    Array.isArray(command.proposalOutcomes) &&
+    command.proposalOutcomes.length <= 50 &&
+    command.proposalOutcomes.every(isProposalOutcome) &&
     typeof command.providerId === "string" &&
     typeof command.role === "string" &&
     AGENT_ROLES.includes(command.role as AgentRole) &&
@@ -188,3 +193,17 @@ const isModelOption = (value: unknown): value is AgentModelOption => {
 
 const isToolCallId = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0 && value.length <= 128;
+
+const isProposalOutcome = (value: unknown): value is AgentProposalOutcome => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const outcome = value as Partial<AgentProposalOutcome>;
+  return (
+    Object.keys(value).length === 3 &&
+    typeof outcome.proposalId === 'string' &&
+    outcome.proposalId.length > 0 && outcome.proposalId.length <= 128 &&
+    ['edit', 'create', 'delete', 'create_volume', 'create_lore_category', 'move_document']
+      .includes(outcome.operation ?? '') &&
+    ['accepted', 'rejected', 'conflict', 'missing', 'stale', 'failed']
+      .includes(outcome.status ?? '')
+  );
+};

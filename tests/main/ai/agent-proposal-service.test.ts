@@ -140,4 +140,64 @@ describe('AgentProposalService', () => {
     });
     expect(session.project.documents).toEqual([]);
   });
+
+  it('creates a volume and moves a chapter only after proposal acceptance', async () => {
+    const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-proposal-'));
+    await initializeProjectLayout(directoryPath);
+    const session = {
+      directoryPath,
+      documentPaths: new Map<string, string>(),
+      id: 'session-structure-move',
+      project: await createProjectSnapshot(directoryPath),
+    };
+    const sessions = {
+      get: () => session,
+      refresh: async () => {
+        session.project = await createProjectSnapshot(directoryPath);
+        session.documentPaths = new Map(
+          session.project.documents.map(({ id, relativePath }) => [id, relativePath]),
+        );
+        return session.project;
+      },
+    } as unknown as ProjectSessionService;
+    const service = new AgentProposalService(sessions);
+    const scope = {
+      ownerId: 7,
+      projectSessionId: session.id,
+      requestId: 'request-move',
+    };
+    const manuscriptId = (await loadProjectLayout(directoryPath)).manuscript.index.id;
+    const chapter = await service.createFileOperation(scope, {
+      kind: 'chapter',
+      markdown: '# Chapter\n',
+      operation: 'create',
+      parentId: manuscriptId,
+      projectRevision: session.project.revision,
+      title: 'Chapter',
+    });
+    await service.apply(7, chapter.proposalId);
+    const volume = await service.createStructureOperation(scope, {
+      operation: 'create_volume',
+      projectRevision: session.project.revision,
+      title: 'Volume Two',
+    });
+    expect((await loadProjectLayout(directoryPath)).manuscript.volumes).toEqual([]);
+    await expect(service.apply(7, volume.proposalId)).resolves.toMatchObject({
+      directoryId: volume.directoryId,
+      status: 'created-directory',
+    });
+    const move = await service.createStructureOperation(scope, {
+      baseRevision: contentRevision('# Chapter\n'),
+      documentId: chapter.documentId,
+      operation: 'move_document',
+      projectRevision: session.project.revision,
+      targetParentId: volume.directoryId,
+    });
+    await expect(service.apply(7, move.proposalId)).resolves.toMatchObject({
+      documentId: chapter.documentId,
+      status: 'moved',
+    });
+    expect((await loadProjectLayout(directoryPath)).manuscript.volumes[0].index.children)
+      .toContainEqual(expect.objectContaining({ id: chapter.documentId }));
+  });
 });

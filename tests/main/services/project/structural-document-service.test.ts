@@ -8,7 +8,9 @@ import { initializeProjectLayout, loadProjectLayout } from '../../../../src/main
 import { createProjectSnapshot } from '../../../../src/main/services/project/snapshot-service';
 import {
   createStructuredProjectDocument,
+  createStructuredProjectDirectory,
   deleteStructuredProjectDocument,
+  moveStructuredProjectDocument,
 } from '../../../../src/main/services/project/structural-document-service';
 import { contentRevision } from '../../../../src/main/services/project/document-utils';
 
@@ -107,5 +109,47 @@ describe('structured project documents', () => {
         title: 'Invalid',
       }),
     ).rejects.toThrow('kind is invalid');
+  });
+
+  it('creates a volume and moves a chapter into it by stable IDs', async () => {
+    const directory = await createProject();
+    const layout = await loadProjectLayout(directory);
+    await createStructuredProjectDocument(directory, {
+      documentId: 'chapter-moved',
+      kind: 'chapter',
+      markdown: '# Move me\n',
+      parentId: layout.manuscript.index.id,
+      title: 'Move me',
+    });
+
+    await createStructuredProjectDirectory(directory, {
+      directoryId: 'volume-two',
+      kind: 'volume',
+      title: 'Volume Two',
+    });
+    await moveStructuredProjectDocument(directory, {
+      baseRevision: contentRevision('# Move me\n'),
+      documentId: 'chapter-moved',
+      targetParentId: 'volume-two',
+    });
+
+    const movedLayout = await loadProjectLayout(directory);
+    expect(movedLayout.manuscript.index.children).toContainEqual({
+      directory: 'volume-two',
+      kind: 'volume',
+    });
+    expect(movedLayout.manuscript.index.children).not.toContainEqual(
+      expect.objectContaining({ id: 'chapter-moved' }),
+    );
+    expect(movedLayout.manuscript.volumes[0].index).toMatchObject({
+      id: 'volume-two',
+      title: 'Volume Two',
+    });
+    expect(movedLayout.manuscript.volumes[0].index.children).toContainEqual(
+      expect.objectContaining({ id: 'chapter-moved' }),
+    );
+    expect((await createProjectSnapshot(directory)).documents).toContainEqual(
+      expect.objectContaining({ id: 'chapter-moved', markdown: '# Move me\n' }),
+    );
   });
 });

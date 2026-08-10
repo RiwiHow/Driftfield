@@ -13,6 +13,21 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain(`Role profile: ${role}`);
   });
 
+  it('reports trusted application proposal outcomes to the next model turn', () => {
+    const built = buildAgentSystemPrompt({
+      availableTools: [],
+      proposalOutcomes: [{
+        operation: 'create_volume',
+        proposalId: 'proposal-1',
+        status: 'accepted',
+      }],
+      role: 'coordinator',
+    });
+    expect(built.prompt).toContain('Trusted application proposal outcomes');
+    expect(built.prompt).toContain('"status":"accepted"');
+    expect(built.prompt).toContain('do not continue claiming');
+  });
+
   it('adds cross-tool policy without duplicating registered tool descriptions', () => {
     const built = buildAgentSystemPrompt({
       availableTools: ['get_current_document'],

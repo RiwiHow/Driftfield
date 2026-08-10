@@ -77,6 +77,20 @@ export type AgentDocumentFileOperationArguments =
       projectRevision: string;
     };
 
+export type AgentProjectStructureOperationArguments =
+  | {
+      operation: 'create_volume' | 'create_lore_category';
+      projectRevision: string;
+      title: string;
+    }
+  | {
+      baseRevision: string;
+      documentId: string;
+      operation: 'move_document';
+      projectRevision: string;
+      targetParentId: string;
+    };
+
 export interface AgentToolContractMap {
   get_current_document: {
     arguments: Record<string, never>;
@@ -103,6 +117,10 @@ export interface AgentToolContractMap {
     arguments: AgentDocumentFileOperationArguments;
     result: AgentEditProposalToolResult;
   };
+  propose_project_structure_operation: {
+    arguments: AgentProjectStructureOperationArguments;
+    result: AgentEditProposalToolResult;
+  };
 }
 
 export type AgentToolName = keyof AgentToolContractMap;
@@ -113,6 +131,7 @@ export const AGENT_TOOL_NAMES = [
   'get_document',
   'propose_document_edit',
   'propose_document_file_operation',
+  'propose_project_structure_operation',
 ] as const satisfies readonly AgentToolName[];
 
 export type AgentToolRequest<
@@ -214,6 +233,29 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
       isRevision(value.projectRevision)
     );
   }
+  if (toolName === 'propose_project_structure_operation') {
+    if (
+      (value.operation === 'create_volume' ||
+        value.operation === 'create_lore_category') &&
+      Object.keys(value).length === 3
+    ) {
+      return (
+        isRevision(value.projectRevision) &&
+        typeof value.title === 'string' &&
+        value.title.trim().length > 0 &&
+        value.title.length <= 500 &&
+        !/[\u0000-\u001f\u007f]/u.test(value.title)
+      );
+    }
+    return (
+      value.operation === 'move_document' &&
+      Object.keys(value).length === 5 &&
+      isDocumentId(value.documentId) &&
+      isDocumentId(value.targetParentId) &&
+      isRevision(value.baseRevision) &&
+      isRevision(value.projectRevision)
+    );
+  }
   if (toolName !== 'get_document') return Object.keys(value).length === 0;
   return (
     Object.keys(value).length === 1 &&
@@ -242,7 +284,8 @@ const isToolData = (toolName: AgentToolName, value: unknown): boolean =>
   toolName === 'get_novel_structure'
     ? isNovelStructureResult(value)
     : toolName === 'propose_document_edit' ||
-        toolName === 'propose_document_file_operation'
+        toolName === 'propose_document_file_operation' ||
+        toolName === 'propose_project_structure_operation'
       ? isEditProposalResult(value)
     : isDocumentResult(value);
 

@@ -138,6 +138,21 @@ export class AgentToolDispatcher {
         toolName: request.toolName,
       };
     }
+    if (request.toolName === 'propose_project_structure_operation') {
+      if (this.proposals === undefined) {
+        throw new ProjectContextError('internal-error');
+      }
+      const proposal = await this.proposals.createStructureOperation(
+        scope,
+        request.arguments,
+      );
+      scope.sendProposal?.(proposal);
+      return {
+        data: { proposalId: proposal.proposalId, status: 'proposed' },
+        ok: true,
+        toolName: request.toolName,
+      };
+    }
     return {
       data: await this.context.getDocument(
         contextScope,

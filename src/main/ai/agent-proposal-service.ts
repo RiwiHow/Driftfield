@@ -4,11 +4,14 @@ import type {
   AgentDocumentProposal,
   AgentCreateDocumentProposal,
   AgentDeleteDocumentProposal,
+  AgentCreateDirectoryProposal,
   AgentEditProposal,
+  AgentMoveDocumentProposal,
   ApplyAgentProposalResult,
 } from '../../shared/contracts/agent-proposals';
 import type {
   AgentDocumentFileOperationArguments,
+  AgentProjectStructureOperationArguments,
   AgentDraftSnapshot,
 } from '../../shared/contracts/agent-tools';
 import { saveProjectDocument } from '../services/project/document-service';
@@ -19,9 +22,12 @@ import { MAX_AGENT_DOCUMENT_BYTES, ProjectContextError } from './project-context
 import { createProjectSnapshot } from '../services/project/snapshot-service';
 import {
   createStructuredProjectDocument,
+  createStructuredProjectDirectory,
   deleteStructuredProjectDocument,
   getStructuredDirectoryDescriptor,
   getStructuredDocumentDescriptor,
+  getStructuredRootDirectoryDescriptor,
+  moveStructuredProjectDocument,
 } from '../services/project/structural-document-service';
 import { parseProjectTitle } from '../services/project/metadata-parser';
 
@@ -181,6 +187,96 @@ export class AgentProposalService {
     return proposal;
   }
 
+  async createStructureOperation(
+    scope: ProposalScope,
+    request: Extract<AgentProjectStructureOperationArguments, { operation: 'move_document' }>,
+  ): Promise<AgentMoveDocumentProposal>;
+  async createStructureOperation(
+    scope: ProposalScope,
+    request: Exclude<AgentProjectStructureOperationArguments, { operation: 'move_document' }>,
+  ): Promise<AgentCreateDirectoryProposal>;
+  async createStructureOperation(
+    scope: ProposalScope,
+    request: AgentProjectStructureOperationArguments,
+  ): Promise<AgentCreateDirectoryProposal | AgentMoveDocumentProposal>;
+  async createStructureOperation(
+    scope: ProposalScope,
+    request: AgentProjectStructureOperationArguments,
+  ): Promise<AgentCreateDirectoryProposal | AgentMoveDocumentProposal> {
+    const session = this.sessions.get(scope.ownerId);
+    if (
+      session === undefined ||
+      scope.projectSessionId === undefined ||
+      session.id !== scope.projectSessionId
+    ) {
+      throw new ProjectContextError('project-session-changed');
+    }
+    if (request.projectRevision !== session.project.revision) {
+      throw new ProjectContextError('proposal-base-changed');
+    }
+    let proposal: AgentCreateDirectoryProposal | AgentMoveDocumentProposal;
+    if (request.operation === 'move_document') {
+      const [document, target] = await Promise.all([
+        getStructuredDocumentDescriptor(session.directoryPath, request.documentId),
+        getStructuredDirectoryDescriptor(session.directoryPath, request.targetParentId),
+      ]);
+      if (document === null || target === null) {
+        throw new ProjectContextError('document-not-found');
+      }
+      if (document.revision !== request.baseRevision) {
+        throw new ProjectContextError('proposal-base-changed');
+      }
+      const documentIsLore = document.parentKind === 'lore' || document.parentKind === 'category';
+      const targetIsLore = target.kind === 'lore' || target.kind === 'category';
+      if (documentIsLore !== targetIsLore || document.parentId === target.id) {
+        throw new ProjectContextError('invalid-arguments');
+      }
+      proposal = {
+        baseRevision: request.baseRevision,
+        documentId: request.documentId,
+        operation: 'move_document',
+        projectRevision: request.projectRevision,
+        proposalId: randomUUID(),
+        requestId: scope.requestId,
+        sourceParentId: document.parentId,
+        sourceParentTitle: document.parentTitle,
+        targetParentId: target.id,
+        targetParentTitle: target.title,
+        title: document.title,
+      };
+    } else {
+      let title: string;
+      try {
+        title = parseProjectTitle(request.title);
+      } catch {
+        throw new ProjectContextError('invalid-arguments');
+      }
+      const directoryKind = request.operation === 'create_volume' ? 'volume' : 'category';
+      const parent = await getStructuredRootDirectoryDescriptor(
+        session.directoryPath,
+        directoryKind === 'volume' ? 'manuscript' : 'lore',
+      );
+      if (parent === null) throw new ProjectContextError('document-not-found');
+      proposal = {
+        directoryId: randomUUID(),
+        directoryKind,
+        operation: request.operation,
+        parentId: parent.id,
+        parentTitle: parent.title,
+        projectRevision: request.projectRevision,
+        proposalId: randomUUID(),
+        requestId: scope.requestId,
+        title,
+      };
+    }
+    this.proposals.set(proposal.proposalId, {
+      ownerId: scope.ownerId,
+      projectSessionId: session.id,
+      proposal,
+    });
+    return proposal;
+  }
+
   async apply(ownerId: number, proposalId: string): Promise<ApplyAgentProposalResult> {
     const stored = this.proposals.get(proposalId);
     const session = this.sessions.get(ownerId);
@@ -223,10 +319,22 @@ export class AgentProposalService {
             parentId: proposal.parentId,
             title: proposal.title,
           });
-        } else {
+        } else if (proposal.operation === 'delete') {
           await deleteStructuredProjectDocument(session.directoryPath, {
             baseRevision: proposal.baseRevision,
             documentId: proposal.documentId,
+          });
+        } else if (proposal.operation === 'move_document') {
+          await moveStructuredProjectDocument(session.directoryPath, {
+            baseRevision: proposal.baseRevision,
+            documentId: proposal.documentId,
+            targetParentId: proposal.targetParentId,
+          });
+        } else {
+          await createStructuredProjectDirectory(session.directoryPath, {
+            directoryId: proposal.directoryId,
+            kind: proposal.directoryKind,
+            title: proposal.title,
           });
         }
       } catch {
@@ -237,11 +345,26 @@ export class AgentProposalService {
       if (project === null) return { proposalId, status: 'not-found' };
       this.proposals.delete(proposalId);
       this.conversations?.setProposalStatus(session, proposalId, 'saved');
+      if (proposal.operation === 'create_volume' || proposal.operation === 'create_lore_category') {
+        return {
+          directoryId: proposal.directoryId,
+          project,
+          proposalId,
+          status: 'created-directory',
+        };
+      }
+      if (!('documentId' in proposal)) {
+        return { proposalId, status: 'stale' };
+      }
       return {
         documentId: proposal.documentId,
         project,
         proposalId,
-        status: proposal.operation === 'create' ? 'created' : 'deleted',
+        status: proposal.operation === 'create'
+          ? 'created'
+          : proposal.operation === 'delete'
+            ? 'deleted'
+            : 'moved',
       };
     }
     const relativePath = session.documentPaths.get(proposal.documentId);

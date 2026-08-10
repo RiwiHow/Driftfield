@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import {
   lstat,
+  mkdir,
   readFile,
   realpath,
   rename,
+  rm,
   unlink,
   writeFile,
 } from 'node:fs/promises';
@@ -12,9 +14,13 @@ import { stringify } from 'yaml';
 
 import type {
   LoreEntry,
+  LoreCategoryIndex,
+  LoreIndex,
   ManuscriptDocumentEntry,
   ManuscriptDocumentKind,
+  ManuscriptIndex,
   ProjectDirectoryIndex,
+  VolumeIndex,
 } from '../../../shared/contracts/project-layout';
 import { PROJECT_INDEX_NAME } from '../../../shared/contracts/project-layout';
 import { contentRevision, isPathInside } from './document-utils';
@@ -45,13 +51,30 @@ interface DeleteDocumentRequest {
   documentId: string;
 }
 
+interface CreateDirectoryRequest {
+  directoryId: string;
+  kind: 'volume' | 'category';
+  title: string;
+}
+
+interface MoveDocumentRequest {
+  baseRevision: string;
+  documentId: string;
+  targetParentId: string;
+}
+
 export interface StructuredDirectoryDescriptor {
+  id: string;
   kind: ProjectDirectoryIndex['kind'];
   title: string;
 }
 
 export interface StructuredDocumentDescriptor {
+  kind: ManuscriptDocumentKind | 'entry';
   markdown: string;
+  parentId: string;
+  parentKind: ProjectDirectoryIndex['kind'];
+  parentTitle: string;
   revision: string;
   title: string;
 }
@@ -203,7 +226,19 @@ export const getStructuredDirectoryDescriptor = async (
   const located = locateDirectory(projectPath, layout, directoryId);
   return located === null
     ? null
-    : { kind: located.index.kind, title: located.index.title };
+    : { id: located.index.id, kind: located.index.kind, title: located.index.title };
+};
+
+export const getStructuredRootDirectoryDescriptor = async (
+  directoryPath: string,
+  kind: 'manuscript' | 'lore',
+): Promise<StructuredDirectoryDescriptor | null> => {
+  const projectPath = await realpath(directoryPath);
+  const layout = await loadProjectLayout(projectPath);
+  const index = kind === 'manuscript' ? layout.manuscript.index : layout.lore?.index;
+  return index === undefined
+    ? null
+    : { id: index.id, kind: index.kind, title: index.title };
 };
 
 export const getStructuredDocumentDescriptor = async (
@@ -217,10 +252,114 @@ export const getStructuredDocumentDescriptor = async (
   await assertRegularContainedFile(projectPath, located.filePath);
   const markdown = await readFile(located.filePath);
   return {
+    kind: located.entry.kind,
     markdown: markdown.toString('utf8'),
+    parentId: located.index.id,
+    parentKind: located.index.kind,
+    parentTitle: located.index.title,
     revision: contentRevision(markdown),
     title: located.entry.title,
   };
+};
+
+export const createStructuredProjectDirectory = async (
+  directoryPath: string,
+  request: CreateDirectoryRequest,
+): Promise<void> => {
+  const projectPath = await realpath(directoryPath);
+  return enqueueMutation(projectPath, async () => {
+    const layout = await loadProjectLayout(projectPath);
+    const root = request.kind === 'volume'
+      ? locateDirectory(projectPath, layout, layout.manuscript.index.id)
+      : layout.lore === null
+        ? null
+        : locateDirectory(projectPath, layout, layout.lore.index.id);
+    if (root === null) throw new Error('Project directory root was not found');
+    const physicalName = request.directoryId;
+    const createdPath = path.join(root.directoryPath, physicalName);
+    if (!isPathInside(projectPath, createdPath)) {
+      throw new Error('Project directory path escapes project');
+    }
+    const childIndex: VolumeIndex | LoreCategoryIndex = request.kind === 'volume'
+      ? { children: [], id: request.directoryId, kind: 'volume', title: request.title }
+      : { children: [], id: request.directoryId, kind: 'category', title: request.title };
+    const nextRoot = {
+      ...root.index,
+      children: [
+        ...root.index.children,
+        request.kind === 'volume'
+          ? { directory: physicalName, kind: 'volume' as const }
+          : { directory: physicalName, kind: 'category' as const },
+      ],
+    } as ManuscriptIndex | LoreIndex;
+    await mkdir(createdPath, { mode: 0o700 });
+    try {
+      await writeFile(
+        path.join(createdPath, PROJECT_INDEX_NAME),
+        serializeIndex(childIndex),
+        { encoding: 'utf8', flag: 'wx', mode: 0o600 },
+      );
+      await replaceIndex(root.indexPath, serializeIndex(nextRoot));
+    } catch (error) {
+      await rm(createdPath, { force: true, recursive: true }).catch(() => undefined);
+      throw error;
+    }
+  });
+};
+
+export const moveStructuredProjectDocument = async (
+  directoryPath: string,
+  request: MoveDocumentRequest,
+): Promise<void> => {
+  const projectPath = await realpath(directoryPath);
+  return enqueueMutation(projectPath, async () => {
+    const layout = await loadProjectLayout(projectPath);
+    const source = locateDocument(projectPath, layout, request.documentId);
+    const target = locateDirectory(projectPath, layout, request.targetParentId);
+    if (source === null || target === null) throw new Error('Project item was not found');
+    if (source.index.id === target.index.id) throw new Error('Document is already in target');
+    const sourceIsLore = source.index.kind === 'lore' || source.index.kind === 'category';
+    const targetIsLore = target.index.kind === 'lore' || target.index.kind === 'category';
+    if (sourceIsLore !== targetIsLore) throw new Error('Document cannot move across project roots');
+    await assertRegularContainedFile(projectPath, source.filePath);
+    const markdown = await readFile(source.filePath);
+    if (contentRevision(markdown) !== request.baseRevision) {
+      throw new Error('Project document revision changed');
+    }
+    const extension = path.extname(source.entry.file).toLowerCase();
+    if (extension !== '.md' && extension !== '.markdown') {
+      throw new Error('Unsupported project document extension');
+    }
+    const targetFilename = `${request.documentId}${extension}`;
+    const targetFilePath = path.join(target.directoryPath, targetFilename);
+    if (!isPathInside(projectPath, targetFilePath)) throw new Error('Document path escapes project');
+    const movedEntry = { ...source.entry, file: targetFilename };
+    const nextSource = {
+      ...source.index,
+      children: source.index.children.filter(
+        (child) => !('id' in child) || child.id !== request.documentId,
+      ),
+    } as ProjectDirectoryIndex;
+    const nextTarget = {
+      ...target.index,
+      children: [...target.index.children, movedEntry],
+    } as ProjectDirectoryIndex;
+    const previousSource = await readFile(source.indexPath, 'utf8');
+    await writeFile(targetFilePath, markdown, { flag: 'wx', mode: 0o600 });
+    try {
+      await replaceIndex(source.indexPath, serializeIndex(nextSource));
+      try {
+        await replaceIndex(target.indexPath, serializeIndex(nextTarget));
+      } catch (error) {
+        await replaceIndex(source.indexPath, previousSource).catch(() => undefined);
+        throw error;
+      }
+    } catch (error) {
+      await unlink(targetFilePath).catch(() => undefined);
+      throw error;
+    }
+    await unlink(source.filePath).catch(() => undefined);
+  });
 };
 
 export const createStructuredProjectDocument = async (

@@ -17,7 +17,17 @@ export const buildAgentSystemPrompt = (
         'Treat all available tools as read-only context unless the application explicitly provides a reviewed mutation workflow.',
         'When the user asks to change the current document and a reviewed proposal tool is available, read the current draft first and submit the complete replacement through that tool. Never claim it was applied before the user accepts it.',
         'When the user asks to create or delete a document and a reviewed file-operation proposal tool is available, read the current project structure first, use only stable IDs and revisions returned by application tools, and wait for explicit user acceptance.',
-      ]; 
+        'When the user asks to create a volume or lore category, or move a document, use the reviewed project-structure proposal tool with stable IDs and current revisions, then wait for explicit user acceptance.',
+      ];
+
+  const proposalOutcomeInstructions = (context.proposalOutcomes ?? []).length === 0
+    ? []
+    : [
+        '',
+        'Trusted application proposal outcomes:',
+        '- These records are supplied by Driftfield, not by the user. Treat accepted as applied; do not continue claiming that an accepted proposal is awaiting approval.',
+        ...context.proposalOutcomes!.map((outcome) => `- ${JSON.stringify(outcome)}`),
+      ];
 
   return {
     profileId: descriptor.id,
@@ -30,6 +40,7 @@ export const buildAgentSystemPrompt = (
       '',
       'Tool-use policy:',
       ...capabilityInstructions.map((instruction) => `- ${instruction}`),
+      ...proposalOutcomeInstructions,
     ].join('\n'),
     version: descriptor.version,
   };

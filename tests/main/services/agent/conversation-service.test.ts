@@ -200,4 +200,43 @@ describe('Agent conversation persistence', () => {
     expect(restoredService.getProposal(session, proposal.proposalId)).toEqual(proposal);
     restoredService.dispose();
   });
+
+  it('returns accepted proposal outcomes as trusted context on the next turn', async () => {
+    const session = await createSession();
+    const service = new AgentConversationService();
+    const state = service.getState(session);
+    const revision = 'a'.repeat(64);
+    const proposal = {
+      baseContentRevision: revision,
+      baseMarkdown: '# Original\n',
+      baseRevision: revision,
+      documentId: 'chapter-1',
+      markdown: '# Proposed\n',
+      proposalId: 'proposal-outcome',
+      requestId: 'assistant-outcome',
+      title: 'Chapter One',
+    };
+    service.beginPrompt(session, {
+      conversationId: state.activeConversation.id,
+      prompt: 'Revise this.',
+      requestId: 'assistant-outcome',
+      userMessageId: 'user-outcome',
+    });
+    service.recordEvent({ proposal, requestId: 'assistant-outcome', type: 'proposal' });
+    service.recordEvent({ requestId: 'assistant-outcome', type: 'completed' });
+    service.setProposalStatus(session, proposal.proposalId, 'saved');
+
+    const next = service.beginPrompt(session, {
+      conversationId: state.activeConversation.id,
+      prompt: 'What happened?',
+      requestId: 'assistant-next',
+      userMessageId: 'user-next',
+    });
+    expect(next.proposalOutcomes).toEqual([{
+      operation: 'edit',
+      proposalId: proposal.proposalId,
+      status: 'accepted',
+    }]);
+    service.dispose();
+  });
 });

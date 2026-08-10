@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { Chapter } from '@/app/types';
 import type {
   AgentDocumentProposal,
-  ApplyAgentProposalResult,
+  SuccessfulApplyAgentProposalResult,
 } from '../../../shared/contracts/agent-proposals';
 import type {
   AgentConversationMessage,
@@ -42,7 +42,7 @@ export function useAgentConversation(
   activeChapter: Chapter | null,
   chapters: Chapter[],
   onProposalApplied: (
-    result: Extract<ApplyAgentProposalResult, { status: 'saved' | 'created' | 'deleted' }>,
+    result: SuccessfulApplyAgentProposalResult,
   ) => void,
   projectId: string | null,
 ) {
@@ -393,7 +393,9 @@ export function useAgentConversation(
       if (
         result.status === 'saved' ||
         result.status === 'created' ||
-        result.status === 'deleted'
+        result.status === 'deleted' ||
+        result.status === 'moved' ||
+        result.status === 'created-directory'
       ) {
         onProposalApplied(result);
         setProposalStatus(proposal.proposalId, 'saved');
@@ -526,13 +528,18 @@ export function canApplyAgentProposal(
   chapters: Chapter[] = chapter === null ? [] : [chapter],
 ): boolean {
   if ('operation' in proposal) {
-    if (proposal.operation === 'create') return true;
+    if (
+      proposal.operation === 'create' ||
+      proposal.operation === 'create_volume' ||
+      proposal.operation === 'create_lore_category'
+    ) return true;
+    if (!('documentId' in proposal) || !('baseRevision' in proposal)) return false;
     const target = chapters.find(({ id }) => id === proposal.documentId);
-    return target === undefined || (
-      !target.isDirty &&
-      target.revision === proposal.baseRevision &&
-      target.markdown === proposal.baseMarkdown
-    );
+    if (target === undefined) return true;
+    if (target.isDirty || target.revision !== proposal.baseRevision) return false;
+    return proposal.operation === 'delete'
+      ? target.markdown === proposal.baseMarkdown
+      : true;
   }
   return (
     chapter !== null &&

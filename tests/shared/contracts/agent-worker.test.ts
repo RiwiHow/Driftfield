@@ -43,6 +43,7 @@ describe("Agent utility-process protocol", () => {
         authPath: "/app-data/auth.json",
         cwd: "/project",
         history: [],
+        proposalOutcomes: [],
         modelId: "claude-sonnet",
         modelsPath: "/app-data/models.json",
         prompt: "Review this chapter",

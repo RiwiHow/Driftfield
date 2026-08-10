@@ -21,10 +21,15 @@ The reviewed mutation surface additionally contains:
   document under a stable directory ID or deleting a document by stable ID.
   Creation carries a title, domain kind, and complete Markdown. Deletion binds
   to both the project revision and persisted document revision.
+- `propose_project_structure_operation`, which proposes creating a manuscript
+  volume, creating a lore category, or moving a document between compatible
+  stable directory IDs. Moves bind to both the project revision and persisted
+  document revision; manuscript documents cannot be moved into lore or vice
+  versa.
 
-Calling either mutation tool stores a reviewable proposal; it does not write
-the novel. Main generates created document IDs and physical filenames, and the
-Agent never constructs or receives metadata paths.
+Calling a mutation tool stores a reviewable proposal; it does not write the
+novel. Main generates created document and directory IDs, owns physical names
+and index updates, and the Agent never constructs or receives metadata paths.
 
 Main validates typed arguments, resolves stable IDs through the active project
 session, rechecks document containment and regular-file status, and enforces
@@ -61,8 +66,11 @@ unless the application explicitly promotes them.
 
 Multi-turn dialogue is assembled from the active project conversation by Main
 and trimmed again in the worker against the selected model context window.
-Driftfield replays user and assistant text only; persisted Tool activity remains
-an audit/UI record and is not injected as dialogue.
+Driftfield replays user and assistant text. Persisted Tool activity remains an
+audit/UI record and is not injected as dialogue. Terminal proposal outcomes are
+the exception: Main supplies a bounded typed list of accepted, rejected, or
+failed outcomes as trusted application context on later turns, so the model
+does not mistake an already accepted proposal for one still awaiting approval.
 
 ## Tool definitions and prompt policy
 

@@ -33,10 +33,58 @@ export interface AgentDeleteDocumentProposal {
   title: string;
 }
 
+export interface AgentCreateDirectoryProposal {
+  directoryId: string;
+  directoryKind: 'volume' | 'category';
+  operation: 'create_volume' | 'create_lore_category';
+  parentId: string;
+  parentTitle: string;
+  projectRevision: string;
+  proposalId: string;
+  requestId: string;
+  title: string;
+}
+
+export interface AgentMoveDocumentProposal {
+  baseRevision: string;
+  documentId: string;
+  operation: 'move_document';
+  projectRevision: string;
+  proposalId: string;
+  requestId: string;
+  sourceParentId: string;
+  sourceParentTitle: string;
+  targetParentId: string;
+  targetParentTitle: string;
+  title: string;
+}
+
 export type AgentDocumentProposal =
   | AgentEditProposal
   | AgentCreateDocumentProposal
-  | AgentDeleteDocumentProposal;
+  | AgentDeleteDocumentProposal
+  | AgentCreateDirectoryProposal
+  | AgentMoveDocumentProposal;
+
+export type AgentProposalOutcomeStatus =
+  | 'accepted'
+  | 'rejected'
+  | 'conflict'
+  | 'missing'
+  | 'stale'
+  | 'failed';
+
+export interface AgentProposalOutcome {
+  operation:
+    | 'edit'
+    | 'create'
+    | 'delete'
+    | 'create_volume'
+    | 'create_lore_category'
+    | 'move_document';
+  proposalId: string;
+  status: AgentProposalOutcomeStatus;
+}
 
 export interface ApplyAgentProposalRequest {
   proposalId: string;
@@ -54,9 +102,20 @@ export type ApplyAgentProposalResult =
       documentId: string;
       project: import('./project').ProjectSnapshot;
       proposalId: string;
-      status: 'created' | 'deleted';
+      status: 'created' | 'deleted' | 'moved';
+    }
+  | {
+      directoryId: string;
+      project: import('./project').ProjectSnapshot;
+      proposalId: string;
+      status: 'created-directory';
     }
   | { proposalId: string; status: 'conflict' | 'missing' | 'stale' | 'not-found' };
+
+export type SuccessfulApplyAgentProposalResult = Exclude<
+  ApplyAgentProposalResult,
+  { status: 'conflict' | 'missing' | 'stale' | 'not-found' }
+>;
 
 export interface RejectAgentProposalRequest {
   proposalId: string;

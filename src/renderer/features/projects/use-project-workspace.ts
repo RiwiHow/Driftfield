@@ -2,7 +2,7 @@ import { useCallback, useMemo, useReducer, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { Chapter } from '@/app/types';
-import type { ApplyAgentProposalResult } from '../../../shared/contracts/agent-proposals';
+import type { SuccessfulApplyAgentProposalResult } from '../../../shared/contracts/agent-proposals';
 import type { ProjectSnapshot } from '../../../shared/contracts/project';
 import {
   initialProjectWorkspaceState,
@@ -110,7 +110,7 @@ export const useProjectWorkspace = (initialProject: ProjectSnapshot | null) => {
   );
 
   const commitAgentProposal = useCallback(
-    (result: Extract<ApplyAgentProposalResult, { status: 'saved' | 'created' | 'deleted' }>): void => {
+    (result: SuccessfulApplyAgentProposalResult): void => {
       if (result.status === 'saved') {
         dispatch({
           result,

@@ -236,12 +236,13 @@ export const registerAgentIpcHandlers = ({
       }
       if (selectedModel === null)
         throw new Error("Agent model invariant failed");
-      const history = agentConversationService.beginPrompt(session, value);
+      const promptHistory = agentConversationService.beginPrompt(session, value);
       try {
         const modelsPath = await agentModelConfigService.prepareRuntime(session);
         const requestId = await aiAgentService.start({
           ...value,
-          history,
+          history: promptHistory.history,
+          proposalOutcomes: promptHistory.proposalOutcomes,
           model: selectedModel,
           modelsPath,
           ownerId: window.webContents.id,

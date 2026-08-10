@@ -100,6 +100,46 @@ describe('AgentToolDispatcher', () => {
     expect(sendProposal).toHaveBeenCalledWith(proposal);
   });
 
+  it('emits a reviewed project structure proposal', async () => {
+    const proposal = {
+      directoryId: 'volume-2',
+      directoryKind: 'volume' as const,
+      operation: 'create_volume' as const,
+      parentId: 'manuscript-1',
+      parentTitle: 'Manuscript',
+      projectRevision: 'a'.repeat(64),
+      proposalId: 'proposal-volume',
+      requestId: 'request-1',
+      title: 'Volume Two',
+    };
+    const proposals = {
+      createStructureOperation: vi.fn().mockResolvedValue(proposal),
+    } as unknown as AgentProposalService;
+    const sendProposal = vi.fn();
+    const dispatcher = new AgentToolDispatcher(
+      {} as ProjectContextService,
+      undefined,
+      proposals,
+    );
+
+    await expect(dispatcher.execute(
+      { ...scope, sendProposal },
+      {
+        arguments: {
+          operation: 'create_volume',
+          projectRevision: 'a'.repeat(64),
+          title: 'Volume Two',
+        },
+        toolName: 'propose_project_structure_operation',
+      },
+    )).resolves.toEqual({
+      data: { proposalId: 'proposal-volume', status: 'proposed' },
+      ok: true,
+      toolName: 'propose_project_structure_operation',
+    });
+    expect(sendProposal).toHaveBeenCalledWith(proposal);
+  });
+
   it('validates arguments and enforces the per-request call budget', async () => {
     const context = {
       getDocument: vi.fn().mockResolvedValue(documentResult),
