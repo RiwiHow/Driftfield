@@ -115,6 +115,15 @@ mutations remain unavailable until a dedicated reviewed operation exists. The
 Agent raises newly recorded questions concisely in its response and avoids
 duplicating questions already returned by `get_story_state`.
 
+Before finishing reconciliation, Curator explicitly checks Personae, Chronicle,
+Threads, and open questions in turn. Thread reconciliation first tests whether
+accepted prose advances, turns, reveals, resolves, or abandons an existing plot
+line, then creates and links a beat when that relationship is clear. A new
+Thread requires evidence of a continuing goal, conflict, dramatic question,
+suspense, or relationship progression. A chapter, scene, or isolated Chronicle
+event does not by itself justify a Thread, and Thread records must not merely
+duplicate Chronicle or invent dramatic purpose to achieve category coverage.
+
 A mutation tool call remains pending after the proposal is shown. Accepting or
 rejecting the proposal settles that exact tool call with a typed terminal result,
 then the worker resumes the same Agent run from that result. Approval does not

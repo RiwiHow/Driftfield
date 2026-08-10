@@ -39,7 +39,19 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain('continue the same Agent run');
     expect(built.prompt).toContain('outside the user’s requested scope');
     expect(built.prompt).toContain('reconcile the exact accepted persisted prose');
+    expect(built.prompt).toContain(
+      'explicitly check Personae, Chronicle, Threads, and open questions in turn',
+    );
     expect(built.prompt).toContain('automatically apply only clearly evidenced');
+    expect(built.prompt).toContain(
+      'First check whether the accepted prose advances, turns, reveals, resolves, or abandons an existing Thread',
+    );
+    expect(built.prompt).toContain(
+      'A chapter, scene, or isolated Chronicle event is not by itself a Thread',
+    );
+    expect(built.prompt).toContain(
+      'Do not invent dramatic purpose or desired outcome to force coverage',
+    );
     expect(built.prompt).toContain('structured story question');
     expect(built.prompt).not.toContain('A writing delegation is a bounded child task');
     expect(built.prompt).not.toContain('get_current_document:');
