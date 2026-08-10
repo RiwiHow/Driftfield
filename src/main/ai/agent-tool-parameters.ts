@@ -18,6 +18,15 @@ const stringEnum = <Values extends readonly string[]>(
 
 export const NOVEL_CONTEXT_PARAMETERS = Type.Object(
   {
+    directoryIds: Type.Array(
+      Type.String({ maxLength: 128, minLength: 1 }),
+      {
+        description:
+          'Stable directory IDs whose immediate document children should be read. Nested directories are not expanded. Use an empty array when none are needed.',
+        maxItems: 4,
+        uniqueItems: true,
+      },
+    ),
     documentIds: Type.Array(
       Type.String({ maxLength: 128, minLength: 1 }),
       {
@@ -40,7 +49,7 @@ export const NOVEL_CONTEXT_PARAMETERS = Type.Object(
   {
     additionalProperties: false,
     description:
-      'Request at least one include section or document ID. Results remain path-free and bounded.',
+      'Request at least one include section, document ID, or directory ID. Explicit and directory-expanded documents are deduplicated and limited to four total results. Results remain path-free and bounded.',
   },
 );
 

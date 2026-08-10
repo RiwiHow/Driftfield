@@ -13,7 +13,7 @@ export const buildAgentSystemPrompt = (
     ? ['No application tools are available for this request.']
     : [
         'Application tools are available through native tool calling. Use them when the request needs exact project information.',
-        'When the bounded novel-context reader is available, request all already-known required sections and document IDs in one call, while omitting unrelated context. Use a later call only when the first result supplies a stable ID needed for the next read.',
+        'When the bounded novel-context reader is available, request all already-known required sections, document IDs, and directory IDs in one call, while omitting unrelated context. Use documentIds only for document nodes and directoryIds only to read a directory’s immediate document children. Use a later call only when the first result supplies a stable ID needed for the next read.',
         'Discover stable document identities from project structure before reading non-current documents.',
         'Treat all available tools as read-only context unless the application explicitly provides a reviewed proposal workflow or a bounded Maintain workflow.',
         'When the user asks to change the current document and a reviewed proposal tool is available, read the current draft first and submit the complete replacement through that tool. Never claim it was applied before the user accepts it.',

@@ -35,6 +35,7 @@ describe('Agent prompt registry', () => {
     });
     expect(built.prompt).toContain('native tool calling');
     expect(built.prompt).toContain('request all already-known required sections');
+    expect(built.prompt).toContain('directoryIds only to read a directory’s immediate document children');
     expect(built.prompt).toContain('stable document identities');
     expect(built.prompt).toContain('create or delete a document');
     expect(built.prompt).toContain('continue the same Agent run');

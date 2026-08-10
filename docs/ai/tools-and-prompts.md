@@ -8,15 +8,20 @@ future databases, permissions, and persistence.
 
 The Agent data surface contains one bounded `read_novel_context` tool. One call
 may request any combination of the fixed `structure`, `current_document`, and
-`story_state` sections plus up to four persisted documents by stable ID. Main
-validates every requested section and document independently, preserves the
-requested document order, and returns only path-free application-owned data.
+`story_state` sections, persisted documents by stable ID, and directories by
+stable ID. A directory selection expands only its immediate document children,
+never nested directories. Explicit and expanded documents are deduplicated in
+request order and limited to four total results. Main validates every requested
+node against the current structure before reading and returns only path-free
+application-owned data. Missing nodes, document/directory kind mismatches, and
+oversized selections return distinct bounded typed errors.
 The current-document section is the immutable request-start editor draft,
 including unsaved edits; explicit document IDs deliberately read persisted
 content. The story-state section contains Personae, Chronicle, Threads, open
-questions, and the numeric story revision. Empty and duplicate requests are
-rejected. Agents batch already-known requirements but use a later call when an
-earlier structure result is needed to discover stable IDs.
+questions, and the numeric story revision. Empty requests and duplicate IDs
+within either selector are rejected. Agents batch already-known requirements
+but use a later call when an earlier structure result is needed to discover
+stable IDs.
 
 The bounded direct-maintenance surface contains:
 

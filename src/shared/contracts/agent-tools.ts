@@ -164,6 +164,7 @@ export interface AgentToolContractMap {
   };
   read_novel_context: {
     arguments: {
+      directoryIds: string[];
       documentIds: string[];
       include: AgentNovelContextSection[];
     };
@@ -274,6 +275,9 @@ export type AgentToolErrorCode =
   | 'invalid-arguments'
   | 'project-session-changed'
   | 'document-not-found'
+  | 'node-not-found'
+  | 'node-kind-mismatch'
+  | 'selection-too-large'
   | 'document-too-large'
   | 'proposal-base-changed'
   | 'tool-timeout'
@@ -284,6 +288,9 @@ export const AGENT_TOOL_ERROR_CODES = [
   'invalid-arguments',
   'project-session-changed',
   'document-not-found',
+  'node-not-found',
+  'node-kind-mismatch',
+  'selection-too-large',
   'document-too-large',
   'proposal-base-changed',
   'tool-timeout',
@@ -446,7 +453,7 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
       isDocumentId(value.questionId) && isBoundedText(value.answer, 2_000, false);
   }
   if (toolName === 'read_novel_context') {
-    return Object.keys(value).length === 2 &&
+    return Object.keys(value).length === 3 &&
       Array.isArray(value.include) && value.include.length <= 3 &&
       value.include.every((section) =>
         typeof section === 'string' &&
@@ -455,7 +462,11 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
       Array.isArray(value.documentIds) && value.documentIds.length <= 4 &&
       value.documentIds.every(isDocumentId) &&
       new Set(value.documentIds).size === value.documentIds.length &&
-      (value.include.length > 0 || value.documentIds.length > 0);
+      Array.isArray(value.directoryIds) && value.directoryIds.length <= 4 &&
+      value.directoryIds.every(isDocumentId) &&
+      new Set(value.directoryIds).size === value.directoryIds.length &&
+      (value.include.length > 0 || value.documentIds.length > 0 ||
+        value.directoryIds.length > 0);
   }
   return Object.keys(value).length === 0;
 };
@@ -505,9 +516,7 @@ const isNovelContextResult = (
   value.documents.every(isDocumentResult) &&
   (value.currentDocument === undefined || isDocumentResult(value.currentDocument)) &&
   (value.storyState === undefined || isProjectStorySnapshot(value.storyState)) &&
-  (value.structure === undefined || isNovelStructureResult(value.structure)) &&
-  (value.documents.length > 0 || value.currentDocument !== undefined ||
-    value.storyState !== undefined || value.structure !== undefined);
+  (value.structure === undefined || isNovelStructureResult(value.structure));
 
 const isWritingAssignmentResult = (value: unknown): boolean =>
   isRecord(value) &&

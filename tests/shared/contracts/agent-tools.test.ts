@@ -17,17 +17,27 @@ describe('Agent proposal tool contract', () => {
   it('validates bounded batched novel-context reads', () => {
     expect(isAgentToolRequest({
       arguments: {
+        directoryIds: ['world-directory'],
         documentIds: ['chapter-1', 'lore-1'],
         include: ['structure', 'story_state'],
       },
       toolName: 'read_novel_context',
     })).toBe(true);
     expect(isAgentToolRequest({
-      arguments: { documentIds: [], include: [] },
+      arguments: { directoryIds: [], documentIds: [], include: [] },
       toolName: 'read_novel_context',
     })).toBe(false);
     expect(isAgentToolRequest({
       arguments: {
+        directoryIds: ['world-directory', 'world-directory'],
+        documentIds: [],
+        include: [],
+      },
+      toolName: 'read_novel_context',
+    })).toBe(false);
+    expect(isAgentToolRequest({
+      arguments: {
+        directoryIds: [],
         documentIds: ['chapter-1', 'chapter-1'],
         include: ['structure'],
       },
@@ -44,6 +54,11 @@ describe('Agent proposal tool contract', () => {
           title: 'Chapter One',
         }],
       },
+      ok: true,
+      toolName: 'read_novel_context',
+    })).toBe(true);
+    expect(isAgentToolExecutionResult({
+      data: { documents: [] },
       ok: true,
       toolName: 'read_novel_context',
     })).toBe(true);
@@ -135,6 +150,14 @@ describe('Agent proposal tool contract', () => {
       },
       ok: false,
       toolName: 'maintain_story_records',
+    })).toBe(true);
+    expect(isAgentToolExecutionResult({
+      error: {
+        code: 'node-kind-mismatch',
+        detail: '{"expectedKind":"document","actualKind":"directory"}',
+      },
+      ok: false,
+      toolName: 'read_novel_context',
     })).toBe(true);
     expect(isAgentToolExecutionResult({
       error: { code: 'invalid-arguments', detail: 'x'.repeat(1_001) },

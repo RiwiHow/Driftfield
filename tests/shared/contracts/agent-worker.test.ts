@@ -9,7 +9,7 @@ describe("Agent utility-process protocol", () => {
   it("accepts bounded correlated tool activity events", () => {
     expect(
       isAgentWorkerMessage({
-        input: '{"documentIds":["chapter-1"],"include":[]}',
+        input: '{"directoryIds":[],"documentIds":["chapter-1"],"include":[]}',
         requestId: "request-1",
         toolCallId: "tool-1",
         toolName: "read_novel_context",
@@ -204,7 +204,7 @@ describe("Agent utility-process protocol", () => {
     ).toBe(true);
     expect(
       isAgentWorkerMessage({
-        arguments: { documentIds: ["chapter-1"], include: [] },
+        arguments: { directoryIds: [], documentIds: ["chapter-1"], include: [] },
         requestId: "request-1",
         toolCallId: "tool-1",
         toolName: "read_novel_context",

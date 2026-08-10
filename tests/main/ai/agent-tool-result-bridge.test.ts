@@ -13,7 +13,7 @@ describe('AgentToolResultBridge', () => {
       'request-1',
       'tool-1',
       'read_novel_context',
-      { documentIds: [], include: ['current_document'] },
+      { directoryIds: [], documentIds: [], include: ['current_document'] },
     );
     const rejection = expect(result).rejects.toThrow(
       'Agent tool timed out',
@@ -23,7 +23,7 @@ describe('AgentToolResultBridge', () => {
       requestId: 'request-1',
       toolCallId: 'tool-1',
       toolName: 'read_novel_context',
-      arguments: { documentIds: [], include: ['current_document'] },
+      arguments: { directoryIds: [], documentIds: [], include: ['current_document'] },
     });
     await vi.advanceTimersByTimeAsync(30_000);
     await rejection;
@@ -42,7 +42,7 @@ describe('AgentToolResultBridge', () => {
       'request-1',
       'tool-1',
       'read_novel_context',
-      { documentIds: [], include: ['current_document'] },
+      { directoryIds: [], documentIds: [], include: ['current_document'] },
     );
 
     bridge.rejectRequest('request-1');
@@ -86,7 +86,7 @@ describe('AgentToolResultBridge', () => {
       'request-1',
       'tool-1',
       'read_novel_context',
-      { documentIds: [], include: ['current_document'] },
+      { directoryIds: [], documentIds: [], include: ['current_document'] },
     );
 
     expect(

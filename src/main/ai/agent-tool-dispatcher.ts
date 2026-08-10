@@ -1,5 +1,7 @@
 import type {
   AgentDraftSnapshot,
+  AgentNovelStructureToolResult,
+  AgentStructureNode,
   AgentWritingAssignment,
   AgentWritingAssignmentToolResult,
   AgentToolExecutionResult,
@@ -93,7 +95,9 @@ export class AgentToolDispatcher {
       budget.resultBytes += bytes;
       return result;
     } catch (error) {
-      if (error instanceof ProjectContextError) return this.error(request.toolName, error.code);
+      if (error instanceof ProjectContextError) {
+        return this.error(request.toolName, error.code, error.detail);
+      }
       if (error instanceof ToolTimeoutError) return this.error(request.toolName, 'tool-timeout');
       return this.error(request.toolName, 'internal-error');
     }
@@ -124,11 +128,13 @@ export class AgentToolDispatcher {
       };
     }
     if (request.toolName === 'read_novel_context') {
-      const { documentIds, include } = request.arguments;
+      const { directoryIds, documentIds, include } = request.arguments;
       const includeSet = new Set(include);
-      const [structure, currentDocument, storyState, documents] =
+      const needsStructure = includeSet.has('structure') ||
+        documentIds.length > 0 || directoryIds.length > 0;
+      const [resolvedStructure, currentDocument, storyState] =
         await Promise.all([
-          includeSet.has('structure')
+          needsStructure
             ? this.context.getNovelStructure(contextScope)
             : undefined,
           includeSet.has('current_document')
@@ -137,16 +143,55 @@ export class AgentToolDispatcher {
           includeSet.has('story_state')
             ? this.context.getStoryState(contextScope)
             : undefined,
-          Promise.all(documentIds.map((documentId) =>
-            this.context.getDocument(contextScope, documentId),
-          )),
         ]);
+      const nodes = resolvedStructure === undefined
+        ? new Map<string, AgentStructureNode>()
+        : indexStructureNodes(resolvedStructure);
+      const resolvedDocumentIds: string[] = [];
+      const seenDocumentIds = new Set<string>();
+      const addDocumentId = (documentId: string): void => {
+        if (seenDocumentIds.has(documentId)) return;
+        seenDocumentIds.add(documentId);
+        resolvedDocumentIds.push(documentId);
+      };
+      for (const documentId of documentIds) {
+        const node = nodes.get(documentId);
+        if (node === undefined) throw nodeNotFound(documentId);
+        if (node.type !== 'document') {
+          throw nodeKindMismatch(documentId, 'document', node);
+        }
+        addDocumentId(documentId);
+      }
+      for (const directoryId of directoryIds) {
+        const node = nodes.get(directoryId);
+        if (node === undefined) throw nodeNotFound(directoryId);
+        if (node.type !== 'directory') {
+          throw nodeKindMismatch(directoryId, 'directory', node);
+        }
+        for (const child of node.children) {
+          if (child.type === 'document') addDocumentId(child.id);
+        }
+      }
+      if (resolvedDocumentIds.length > 4) {
+        throw new ProjectContextError(
+          'selection-too-large',
+          JSON.stringify({
+            limit: 4,
+            resolvedDocumentCount: resolvedDocumentIds.length,
+          }),
+        );
+      }
+      const documents = await Promise.all(resolvedDocumentIds.map(
+        (documentId) => this.context.getDocument(contextScope, documentId),
+      ));
       return {
         data: {
           ...(currentDocument === undefined ? {} : { currentDocument }),
           documents,
           ...(storyState === undefined ? {} : { storyState }),
-          ...(structure === undefined ? {} : { structure }),
+          ...(includeSet.has('structure') && resolvedStructure !== undefined
+            ? { structure: resolvedStructure }
+            : {}),
         },
         ok: true,
         toolName: request.toolName,
@@ -308,6 +353,37 @@ export class AgentToolDispatcher {
 }
 
 class ToolTimeoutError extends Error {}
+
+const indexStructureNodes = (
+  structure: AgentNovelStructureToolResult,
+): Map<string, AgentStructureNode> => {
+  const nodes = new Map<string, AgentStructureNode>();
+  const visit = (node: AgentStructureNode): void => {
+    nodes.set(node.id, node);
+    if (node.type === 'directory') node.children.forEach(visit);
+  };
+  visit(structure.manuscript);
+  if (structure.lore !== undefined) visit(structure.lore);
+  return nodes;
+};
+
+const nodeNotFound = (nodeId: string): ProjectContextError =>
+  new ProjectContextError('node-not-found', JSON.stringify({ nodeId }));
+
+const nodeKindMismatch = (
+  nodeId: string,
+  expectedKind: 'directory' | 'document',
+  node: AgentStructureNode,
+): ProjectContextError =>
+  new ProjectContextError(
+    'node-kind-mismatch',
+    JSON.stringify({
+      actualKind: node.type,
+      expectedKind,
+      nodeId,
+      title: node.title,
+    }),
+  );
 
 const storyOperationShapeHint = (
   toolName: AgentToolName,

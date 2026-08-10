@@ -69,7 +69,7 @@ describe('Agent conversation persistence', () => {
     service.recordEvent({ delta: 'I will remember it.', requestId: 'assistant-1', type: 'text-delta' });
     service.recordEvent({
       agentRole: 'scribe',
-      input: '{"documentIds":[],"include":["structure"]}',
+      input: '{"directoryIds":[],"documentIds":[],"include":["structure"]}',
       requestId: 'assistant-1',
       toolCallId: 'tool-1',
       toolName: 'read_novel_context',

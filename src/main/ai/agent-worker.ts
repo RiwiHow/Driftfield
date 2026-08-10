@@ -290,7 +290,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Read one bounded batch of novel context. include may contain structure, current_document (the immutable request-start draft, including unsaved edits), and story_state (Personae, Chronicle, Threads, and open questions). documentIds reads persisted manuscript or lore documents by stable ID. Request only the context needed; use structure first when stable IDs or the project revision are unknown.",
+        "Read one bounded batch of novel context. include may contain structure, current_document (the immutable request-start draft, including unsaved edits), and story_state (Personae, Chronicle, Threads, and open questions). documentIds reads persisted manuscript or lore documents by stable ID. directoryIds reads only each directory's immediate document children; it never expands nested directories. Explicit and expanded documents are deduplicated and limited to four total. Match IDs to the node type returned by structure. Request only the context needed; use structure first when stable IDs or the project revision are unknown.",
       label: "Read novel context",
       name: "read_novel_context",
       parameters: NOVEL_CONTEXT_PARAMETERS,

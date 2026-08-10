@@ -15,11 +15,46 @@ const documentResult = {
   title: 'Chapter',
 };
 
+const novelStructure = {
+  availableIcons: [],
+  format: 'driftfield' as const,
+  lore: {
+    children: [{
+      children: [{
+        id: 'lore-1',
+        kind: 'entry' as const,
+        title: 'World entry',
+        type: 'document' as const,
+      }],
+      id: 'world-directory',
+      kind: 'category' as const,
+      title: 'World',
+      type: 'directory' as const,
+    }],
+    id: 'lore-root',
+    kind: 'lore' as const,
+    title: 'Lore',
+    type: 'directory' as const,
+  },
+  manuscript: {
+    children: [{
+      id: 'chapter-1',
+      kind: 'chapter' as const,
+      title: 'Chapter',
+      type: 'document' as const,
+    }],
+    id: 'manuscript-root',
+    kind: 'manuscript' as const,
+    title: 'Manuscript',
+    type: 'directory' as const,
+  },
+  project: { id: 'project-1', revision: 'revision', title: 'Novel' },
+};
+
 const scope = { ownerId: 7, projectSessionId: 'session-1', requestId: 'request-1' };
 
 describe('AgentToolDispatcher', () => {
   it('reads selected novel context and persisted documents in one bounded call', async () => {
-    const structure = { format: 'driftfield', project: { id: 'project-1' } };
     const currentDocument = { ...documentResult, source: 'draft' as const };
     const storyState = { revision: 4 };
     const context = {
@@ -28,13 +63,14 @@ describe('AgentToolDispatcher', () => {
         ...documentResult,
         documentId,
       })),
-      getNovelStructure: vi.fn().mockResolvedValue(structure),
+      getNovelStructure: vi.fn().mockResolvedValue(novelStructure),
       getStoryState: vi.fn().mockResolvedValue(storyState),
     } as unknown as ProjectContextService;
     const dispatcher = new AgentToolDispatcher(context);
 
     await expect(dispatcher.execute(scope, {
       arguments: {
+        directoryIds: ['world-directory'],
         documentIds: ['chapter-1', 'lore-1'],
         include: ['structure', 'current_document', 'story_state'],
       },
@@ -47,7 +83,7 @@ describe('AgentToolDispatcher', () => {
           { ...documentResult, documentId: 'lore-1' },
         ],
         storyState,
-        structure,
+        structure: novelStructure,
       },
       ok: true,
       toolName: 'read_novel_context',
@@ -57,6 +93,76 @@ describe('AgentToolDispatcher', () => {
       ownerId: 7,
       projectSessionId: 'session-1',
     });
+  });
+
+  it('returns a typed node-kind error before reading a directory as a document', async () => {
+    const context = {
+      getDocument: vi.fn(),
+      getNovelStructure: vi.fn().mockResolvedValue(novelStructure),
+    } as unknown as ProjectContextService;
+    const dispatcher = new AgentToolDispatcher(context);
+
+    await expect(dispatcher.execute(scope, {
+      arguments: {
+        directoryIds: [],
+        documentIds: ['world-directory'],
+        include: [],
+      },
+      toolName: 'read_novel_context',
+    })).resolves.toEqual({
+      error: {
+        code: 'node-kind-mismatch',
+        detail: JSON.stringify({
+          actualKind: 'directory',
+          expectedKind: 'document',
+          nodeId: 'world-directory',
+          title: 'World',
+        }),
+      },
+      ok: false,
+      toolName: 'read_novel_context',
+    });
+    expect(context.getDocument).not.toHaveBeenCalled();
+  });
+
+  it('rejects directory expansion beyond the global document limit', async () => {
+    const oversizedStructure = {
+      ...novelStructure,
+      lore: {
+        ...novelStructure.lore,
+        children: [{
+          ...novelStructure.lore.children[0],
+          children: Array.from({ length: 5 }, (_, index) => ({
+            id: `lore-${index + 1}`,
+            kind: 'entry' as const,
+            title: `Entry ${index + 1}`,
+            type: 'document' as const,
+          })),
+        }],
+      },
+    };
+    const context = {
+      getDocument: vi.fn(),
+      getNovelStructure: vi.fn().mockResolvedValue(oversizedStructure),
+    } as unknown as ProjectContextService;
+    const dispatcher = new AgentToolDispatcher(context);
+
+    await expect(dispatcher.execute(scope, {
+      arguments: {
+        directoryIds: ['world-directory'],
+        documentIds: [],
+        include: [],
+      },
+      toolName: 'read_novel_context',
+    })).resolves.toEqual({
+      error: {
+        code: 'selection-too-large',
+        detail: JSON.stringify({ limit: 4, resolvedDocumentCount: 5 }),
+      },
+      ok: false,
+      toolName: 'read_novel_context',
+    });
+    expect(context.getDocument).not.toHaveBeenCalled();
   });
 
   it('routes a bounded writing assignment through the Main-owned task callback', async () => {
@@ -205,7 +311,7 @@ describe('AgentToolDispatcher', () => {
     const dispatcher = new AgentToolDispatcher(context, undefined, proposals);
 
     await expect(dispatcher.execute(scope, {
-      arguments: { documentIds: [], include: ['story_state'] },
+      arguments: { directoryIds: [], documentIds: [], include: ['story_state'] },
       toolName: 'read_novel_context',
     })).resolves.toMatchObject({
       data: { documents: [], storyState: story },
@@ -441,6 +547,7 @@ describe('AgentToolDispatcher', () => {
   it('validates arguments and enforces the per-request call budget', async () => {
     const context = {
       getDocument: vi.fn().mockResolvedValue(documentResult),
+      getNovelStructure: vi.fn().mockResolvedValue(novelStructure),
     } as unknown as ProjectContextService;
     const dispatcher = new AgentToolDispatcher(context, {
       maxCalls: 1,
@@ -450,7 +557,7 @@ describe('AgentToolDispatcher', () => {
     });
 
     await expect(dispatcher.execute(scope, {
-      arguments: { documentIds: [], include: [], path: '/tmp/book.md' },
+      arguments: { directoryIds: [], documentIds: [], include: [], path: '/tmp/book.md' },
       toolName: 'read_novel_context',
     })).resolves.toEqual({
       error: { code: 'invalid-arguments' },
@@ -458,7 +565,7 @@ describe('AgentToolDispatcher', () => {
       toolName: 'read_novel_context',
     });
     await expect(dispatcher.execute(scope, {
-      arguments: { documentIds: ['chapter-1'], include: [] },
+      arguments: { directoryIds: [], documentIds: ['chapter-1'], include: [] },
       toolName: 'read_novel_context',
     })).resolves.toEqual({
       error: { code: 'tool-budget-exceeded' },
@@ -472,6 +579,7 @@ describe('AgentToolDispatcher', () => {
     vi.useFakeTimers();
     const context = {
       getDocument: vi.fn(() => new Promise(() => {})),
+      getNovelStructure: vi.fn().mockResolvedValue(novelStructure),
     } as unknown as ProjectContextService;
     const dispatcher = new AgentToolDispatcher(context, {
       maxCalls: 2,
@@ -480,7 +588,7 @@ describe('AgentToolDispatcher', () => {
       timeoutMs: 25,
     });
     const result = dispatcher.execute(scope, {
-      arguments: { documentIds: ['chapter-1'], include: [] },
+      arguments: { directoryIds: [], documentIds: ['chapter-1'], include: [] },
       toolName: 'read_novel_context',
     });
 
@@ -496,6 +604,7 @@ describe('AgentToolDispatcher', () => {
   it('enforces cumulative result bytes and can release request state', async () => {
     const context = {
       getDocument: vi.fn().mockResolvedValue(documentResult),
+      getNovelStructure: vi.fn().mockResolvedValue(novelStructure),
     } as unknown as ProjectContextService;
     const dispatcher = new AgentToolDispatcher(context, {
       maxCalls: 3,
@@ -504,11 +613,11 @@ describe('AgentToolDispatcher', () => {
       timeoutMs: 1_000,
     });
     const first = await dispatcher.execute(scope, {
-      arguments: { documentIds: ['chapter-1'], include: [] },
+      arguments: { directoryIds: [], documentIds: ['chapter-1'], include: [] },
       toolName: 'read_novel_context',
     });
     const second = await dispatcher.execute(scope, {
-      arguments: { documentIds: ['chapter-1'], include: [] },
+      arguments: { directoryIds: [], documentIds: ['chapter-1'], include: [] },
       toolName: 'read_novel_context',
     });
 
@@ -520,7 +629,7 @@ describe('AgentToolDispatcher', () => {
     });
     dispatcher.release(scope.requestId);
     await expect(dispatcher.execute(scope, {
-      arguments: { documentIds: ['chapter-1'], include: [] },
+      arguments: { directoryIds: [], documentIds: ['chapter-1'], include: [] },
       toolName: 'read_novel_context',
     })).resolves.toMatchObject({ ok: true });
   });

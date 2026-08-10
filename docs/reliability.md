@@ -53,9 +53,11 @@ Preserve these properties when changing affected subsystems.
   and cancels it with its parent or project session. Scribe output is an
   untrusted artifact and cannot write or propose changes directly.
 - Cancellation remains terminal when it races with completion or output.
-- The current `read_novel_context` tool batches only fixed typed sections and
-  up to four stable document IDs; every result is bounded, path-free, and
-  main-owned.
+- The current `read_novel_context` tool batches only fixed typed sections,
+  stable document IDs, and immediate document children of stable directory
+  IDs. Explicit and expanded documents are deduplicated and limited to four
+  total results; node kinds are checked before reading, and every result is
+  bounded, path-free, and main-owned.
 - `maintain_story_records` applies a bounded changeset of 1 to 24 independent
   additive or linking Personae, Chronicle, or Threads operations without
   per-step approval. It requires the

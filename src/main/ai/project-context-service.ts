@@ -33,7 +33,10 @@ import { ProjectStoryRevisionConflictError } from '../database/project-story-rep
 export const MAX_AGENT_DOCUMENT_BYTES = 512 * 1024;
 
 export class ProjectContextError extends Error {
-  constructor(readonly code: AgentToolErrorCode) {
+  constructor(
+    readonly code: AgentToolErrorCode,
+    readonly detail?: string,
+  ) {
     super(code);
   }
 }
