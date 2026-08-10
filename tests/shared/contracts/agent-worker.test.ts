@@ -68,6 +68,21 @@ describe("Agent utility-process protocol", () => {
         requestId: "request-1",
         result: {
           data: {
+            availableIcons: [
+              'book-open',
+              'book-marked',
+              'castle',
+              'crown',
+              'earth',
+              'landmark',
+              'map',
+              'orbit',
+              'scroll-text',
+              'shield',
+              'sparkles',
+              'swords',
+              'users',
+            ],
             format: "driftfield",
             lore: {
               children: [],

@@ -1,6 +1,7 @@
 import { Type } from 'typebox';
 
 import type { AgentToolContractMap } from '../../shared/contracts/agent-tools';
+import { PROJECT_ICON_IDS } from '../../shared/contracts/project-layout';
 
 const stringEnum = <Values extends readonly string[]>(
   values: Values,
@@ -106,8 +107,25 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
         minLength: 1,
       }),
     ),
+    directoryId: Type.Optional(
+      Type.String({
+        description: 'Required for delete_lore_category: stable empty category ID.',
+        maxLength: 128,
+        minLength: 1,
+      }),
+    ),
+    icon: Type.Optional(
+      stringEnum(PROJECT_ICON_IDS, {
+        description: 'Required for create_lore_category.',
+      }),
+    ),
     operation: stringEnum(
-      ['create_volume', 'create_lore_category', 'move_document'] as const,
+      [
+        'create_volume',
+        'create_lore_category',
+        'delete_lore_category',
+        'move_document',
+      ] as const,
     ),
     projectRevision: Type.String({
       description: 'Current project revision returned by get_novel_structure.',

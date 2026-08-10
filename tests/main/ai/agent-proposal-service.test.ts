@@ -558,6 +558,81 @@ describe('AgentProposalService', () => {
     expect(session.project.documents).toEqual([]);
   });
 
+  it('reviews icon-bearing lore categories and lore documents by stable ID', async () => {
+    const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-proposal-'));
+    await initializeProjectLayout(directoryPath);
+    const session = {
+      directoryPath,
+      documentPaths: new Map<string, string>(),
+      id: 'session-lore-structure',
+      project: await createProjectSnapshot(directoryPath),
+    };
+    const sessions = {
+      get: () => session,
+      refresh: async () => {
+        session.project = await createProjectSnapshot(directoryPath);
+        session.documentPaths = new Map(
+          session.project.documents.map(({ id, relativePath }) => [id, relativePath]),
+        );
+        return session.project;
+      },
+    } as unknown as ProjectSessionService;
+    const service = new AgentProposalService(sessions);
+    const scope = {
+      ownerId: 7,
+      projectSessionId: session.id,
+      requestId: 'request-lore-structure',
+    };
+
+    const society = await service.createStructureOperation(scope, {
+      icon: 'landmark',
+      operation: 'create_lore_category',
+      projectRevision: session.project.revision,
+      title: 'Society',
+    });
+    expect(society).toMatchObject({ icon: 'landmark', title: 'Society' });
+    await expect(service.apply(7, society.proposalId)).resolves.toMatchObject({
+      directoryId: society.directoryId,
+      status: 'created-directory',
+    });
+
+    const world = (await loadProjectLayout(directoryPath)).lore?.categories.find(
+      ({ index }) => index.title === 'World',
+    );
+    expect(world).toBeDefined();
+    const worldBook = await service.createFileOperation(scope, {
+      kind: 'entry',
+      markdown: '# World book\n',
+      operation: 'create',
+      parentId: world!.index.id,
+      projectRevision: session.project.revision,
+      title: 'World book',
+    });
+    await expect(service.apply(7, worldBook.proposalId)).resolves.toMatchObject({
+      documentId: worldBook.documentId,
+      status: 'created',
+    });
+
+    const deleteWorldBook = await service.createFileOperation(scope, {
+      baseRevision: contentRevision('# World book\n'),
+      documentId: worldBook.documentId,
+      operation: 'delete',
+      projectRevision: session.project.revision,
+    });
+    await expect(service.apply(7, deleteWorldBook.proposalId)).resolves.toMatchObject({
+      status: 'deleted',
+    });
+    const deleteSociety = await service.createStructureOperation(scope, {
+      directoryId: society.directoryId,
+      operation: 'delete_lore_category',
+      projectRevision: session.project.revision,
+    });
+    await expect(service.apply(7, deleteSociety.proposalId)).resolves.toMatchObject({
+      directoryId: society.directoryId,
+      status: 'deleted-directory',
+    });
+  });
+
   it('creates a volume and moves a chapter only after proposal acceptance', async () => {
     const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-proposal-'));
     await initializeProjectLayout(directoryPath);

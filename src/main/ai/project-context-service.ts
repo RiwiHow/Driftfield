@@ -15,6 +15,7 @@ import type {
   LoreEntry,
   ManuscriptDocumentEntry,
 } from '../../shared/contracts/project-layout';
+import { PROJECT_ICON_IDS } from '../../shared/contracts/project-layout';
 import { loadProjectLayout } from '../services/project/layout-service';
 import {
   contentRevision,
@@ -176,16 +177,23 @@ export class ProjectContextService {
           this.mapManuscriptDocument(entry, documents),
         ),
         id: volume.index.id,
+        ...(volume.index.icon === undefined
+          ? {}
+          : { icon: volume.index.icon }),
         kind: 'volume',
         title: volume.index.title,
         type: 'directory',
       };
     });
     const result: AgentNovelStructureToolResult = {
+      availableIcons: [...PROJECT_ICON_IDS],
       format: 'driftfield',
       manuscript: {
         children: manuscriptChildren,
         id: layout.manuscript.index.id,
+        ...(layout.manuscript.index.icon === undefined
+          ? {}
+          : { icon: layout.manuscript.index.icon }),
         kind: 'manuscript',
         title: layout.manuscript.index.title,
         type: 'directory',
@@ -206,12 +214,18 @@ export class ProjectContextService {
           return {
             children: category.index.children.map((entry) => this.mapLoreEntry(entry)),
             id: category.index.id,
+            ...(category.index.icon === undefined
+              ? {}
+              : { icon: category.index.icon }),
             kind: 'category',
             title: category.index.title,
             type: 'directory',
           };
         }),
         id: layout.lore.index.id,
+        ...(layout.lore.index.icon === undefined
+          ? {}
+          : { icon: layout.lore.index.icon }),
         kind: 'lore',
         title: layout.lore.index.title,
         type: 'directory',

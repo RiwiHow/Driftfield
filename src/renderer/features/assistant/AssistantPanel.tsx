@@ -951,11 +951,13 @@ function ProposalCard({
           ? 'deleted'
           : operation === 'move_document'
             ? 'moved'
-            : operation === 'create_volume'
-              ? 'createdVolume'
-              : operation === 'create_lore_category'
-                ? 'createdLoreCategory'
-                : 'storyUpdated'
+            : operation === 'delete_lore_category'
+              ? 'deletedLoreCategory'
+              : operation === 'create_volume'
+                ? 'createdVolume'
+                : operation === 'create_lore_category'
+                  ? 'createdLoreCategory'
+                  : 'storyUpdated'
       : status;
   return (
     <div className="agent-proposal">
@@ -985,10 +987,18 @@ function ProposalCard({
             </section>
           ) : null}
           {'operation' in proposal && (proposal.operation === 'create_volume' ||
-          proposal.operation === 'create_lore_category') ? (
+          proposal.operation === 'create_lore_category' ||
+          proposal.operation === 'delete_lore_category') ? (
             <section>
-              <span>{t('proposal.destination')}</span>
+              <span>{t('proposal.parent')}</span>
               <pre>{proposal.parentTitle}</pre>
+            </section>
+          ) : null}
+          {'operation' in proposal &&
+          proposal.operation === 'create_lore_category' ? (
+            <section>
+              <span>{t('proposal.icon')}</span>
+              <pre>{proposal.icon}</pre>
             </section>
           ) : null}
           {'operation' in proposal && proposal.operation === 'story' ? (

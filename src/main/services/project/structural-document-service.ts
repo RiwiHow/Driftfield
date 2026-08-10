@@ -20,6 +20,7 @@ import type {
   ManuscriptDocumentEntry,
   ManuscriptDocumentKind,
   ManuscriptIndex,
+  ProjectIconId,
   ProjectDirectoryIndex,
   VolumeIndex,
 } from '../../../shared/contracts/project-layout';
@@ -54,8 +55,13 @@ interface DeleteDocumentRequest {
 
 interface CreateDirectoryRequest {
   directoryId: string;
+  icon?: ProjectIconId;
   kind: 'volume' | 'category';
   title: string;
+}
+
+interface DeleteLoreCategoryRequest {
+  directoryId: string;
 }
 
 interface MoveDocumentRequest {
@@ -65,7 +71,9 @@ interface MoveDocumentRequest {
 }
 
 export interface StructuredDirectoryDescriptor {
+  childCount: number;
   id: string;
+  icon?: ProjectIconId;
   kind: ProjectDirectoryIndex['kind'];
   title: string;
 }
@@ -277,7 +285,13 @@ export const getStructuredDirectoryDescriptor = async (
   const located = locateDirectory(projectPath, layout, directoryId);
   return located === null
     ? null
-    : { id: located.index.id, kind: located.index.kind, title: located.index.title };
+    : {
+        childCount: located.index.children.length,
+        id: located.index.id,
+        ...(located.index.icon === undefined ? {} : { icon: located.index.icon }),
+        kind: located.index.kind,
+        title: located.index.title,
+      };
 };
 
 export const getStructuredRootDirectoryDescriptor = async (
@@ -289,7 +303,13 @@ export const getStructuredRootDirectoryDescriptor = async (
   const index = kind === 'manuscript' ? layout.manuscript.index : layout.lore?.index;
   return index === undefined
     ? null
-    : { id: index.id, kind: index.kind, title: index.title };
+    : {
+        childCount: index.children.length,
+        id: index.id,
+        ...(index.icon === undefined ? {} : { icon: index.icon }),
+        kind: index.kind,
+        title: index.title,
+      };
 };
 
 export const getStructuredDocumentDescriptor = async (
@@ -336,7 +356,13 @@ export const createStructuredProjectDirectory = async (
     }
     const childIndex: VolumeIndex | LoreCategoryIndex = request.kind === 'volume'
       ? { children: [], id: request.directoryId, kind: 'volume', title: request.title }
-      : { children: [], id: request.directoryId, kind: 'category', title: request.title };
+      : {
+          children: [],
+          ...(request.icon === undefined ? {} : { icon: request.icon }),
+          id: request.directoryId,
+          kind: 'category',
+          title: request.title,
+        };
     const nextRoot = {
       ...root.index,
       children: [
@@ -358,6 +384,54 @@ export const createStructuredProjectDirectory = async (
       await rm(createdPath, { force: true, recursive: true }).catch(() => undefined);
       throw error;
     }
+  });
+};
+
+export const deleteStructuredLoreCategory = async (
+  directoryPath: string,
+  request: DeleteLoreCategoryRequest,
+): Promise<void> => {
+  const projectPath = await realpath(directoryPath);
+  return enqueueMutation(projectPath, async () => {
+    const layout = await loadProjectLayout(projectPath);
+    if (layout.lore === null) throw new Error('Lore root was not found');
+    const category = layout.lore.categories.find(
+      ({ index }) => index.id === request.directoryId,
+    );
+    if (category === undefined) throw new Error('Lore category was not found');
+    if (category.index.children.length > 0) {
+      throw new Error('Lore category must be empty before deletion');
+    }
+    const categoryPath = path.join(projectPath, 'lore', category.directory);
+    const entries = await readdir(categoryPath);
+    if (entries.length !== 1 || entries[0] !== PROJECT_INDEX_NAME) {
+      throw new Error('Lore category contains untracked files');
+    }
+    await assertRegularContainedFile(
+      projectPath,
+      path.join(categoryPath, PROJECT_INDEX_NAME),
+    );
+    const root = locateDirectory(projectPath, layout, layout.lore.index.id);
+    if (root === null) throw new Error('Lore root was not found');
+    const nextRoot: LoreIndex = {
+      ...layout.lore.index,
+      children: layout.lore.index.children.filter(
+        (child) =>
+          child.kind !== 'category' || child.directory !== category.directory,
+      ),
+    };
+    const tombstonePath = path.join(
+      path.dirname(categoryPath),
+      `.driftfield-delete-${randomUUID()}`,
+    );
+    await rename(categoryPath, tombstonePath);
+    try {
+      await replaceIndex(root.indexPath, serializeIndex(nextRoot));
+    } catch (error) {
+      await rename(tombstonePath, categoryPath).catch(() => undefined);
+      throw error;
+    }
+    await rm(tombstonePath, { recursive: true }).catch(() => undefined);
   });
 };
 

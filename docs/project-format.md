@@ -70,6 +70,9 @@ opened.
 
 Icon values come from Driftfield's fixed Lucide-backed registry. YAML cannot
 inject SVG, HTML, URLs, filesystem paths, or executable icon definitions.
+The bounded Agent structure view exposes selected directory icons and the fixed
+allow-list. Reviewed category creation accepts only those IDs; Agents still do
+not read or edit YAML directly.
 
 ## Ordering, numbering, and formatting
 

@@ -10,6 +10,7 @@ import {
   createStructuredProjectDocument,
   createStructuredProjectDirectory,
   deleteStructuredProjectDocument,
+  deleteStructuredLoreCategory,
   moveStructuredProjectDocument,
 } from '../../../../src/main/services/project/structural-document-service';
 import { contentRevision } from '../../../../src/main/services/project/document-utils';
@@ -110,6 +111,51 @@ describe('structured project documents', () => {
         title: 'Invalid',
       }),
     ).rejects.toThrow('kind is invalid');
+  });
+
+  it('creates icon-bearing lore categories and deletes them only when empty', async () => {
+    const directory = await createProject();
+
+    await createStructuredProjectDirectory(directory, {
+      directoryId: 'society-id',
+      icon: 'landmark',
+      kind: 'category',
+      title: 'Society',
+    });
+    await createStructuredProjectDocument(directory, {
+      documentId: 'society-book-id',
+      kind: 'entry',
+      markdown: '# Society\n',
+      parentId: 'society-id',
+      title: 'Society book',
+    });
+
+    const created = await loadProjectLayout(directory);
+    expect(created.lore?.categories).toContainEqual(
+      expect.objectContaining({
+        index: expect.objectContaining({
+          icon: 'landmark',
+          id: 'society-id',
+          title: 'Society',
+        }),
+      }),
+    );
+    await expect(
+      deleteStructuredLoreCategory(directory, { directoryId: 'society-id' }),
+    ).rejects.toThrow('must be empty');
+
+    await deleteStructuredProjectDocument(directory, {
+      baseRevision: contentRevision('# Society\n'),
+      documentId: 'society-book-id',
+    });
+    await deleteStructuredLoreCategory(directory, { directoryId: 'society-id' });
+
+    expect((await loadProjectLayout(directory)).lore?.categories).not.toContainEqual(
+      expect.objectContaining({ index: expect.objectContaining({ id: 'society-id' }) }),
+    );
+    await expect(access(path.join(directory, 'lore', 'Society'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
   });
 
   it('creates a volume and moves a chapter into it by stable IDs', async () => {

@@ -428,6 +428,7 @@ export function useAgentConversation(
         result.status === 'deleted' ||
         result.status === 'moved' ||
         result.status === 'created-directory' ||
+        result.status === 'deleted-directory' ||
         result.status === 'story-updated'
       ) {
         onProposalApplied(result);
@@ -612,7 +613,8 @@ export function canApplyAgentProposal(
     if (
       proposal.operation === 'create' ||
       proposal.operation === 'create_volume' ||
-      proposal.operation === 'create_lore_category'
+      proposal.operation === 'create_lore_category' ||
+      proposal.operation === 'delete_lore_category'
     ) return true;
     if (!('documentId' in proposal) || !('baseRevision' in proposal)) return false;
     const target = documents.find(({ id }) => id === proposal.documentId);

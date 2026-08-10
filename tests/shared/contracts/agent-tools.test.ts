@@ -111,6 +111,32 @@ describe('Agent proposal tool contract', () => {
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: {
+        icon: 'landmark',
+        operation: 'create_lore_category',
+        projectRevision: 'a'.repeat(64),
+        title: 'Society',
+      },
+      toolName: 'propose_project_structure_operation',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: {
+        icon: 'not-an-icon',
+        operation: 'create_lore_category',
+        projectRevision: 'a'.repeat(64),
+        title: 'Society',
+      },
+      toolName: 'propose_project_structure_operation',
+    })).toBe(false);
+    expect(isAgentToolRequest({
+      arguments: {
+        directoryId: 'society-id',
+        operation: 'delete_lore_category',
+        projectRevision: 'a'.repeat(64),
+      },
+      toolName: 'propose_project_structure_operation',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: {
         baseRevision: 'b'.repeat(64),
         documentId: 'chapter-1',
         operation: 'move_document',

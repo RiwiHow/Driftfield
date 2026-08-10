@@ -36,7 +36,19 @@ export interface AgentDeleteDocumentProposal {
 export interface AgentCreateDirectoryProposal {
   directoryId: string;
   directoryKind: 'volume' | 'category';
+  icon?: import('./project-layout').ProjectIconId;
   operation: 'create_volume' | 'create_lore_category';
+  parentId: string;
+  parentTitle: string;
+  projectRevision: string;
+  proposalId: string;
+  requestId: string;
+  title: string;
+}
+
+export interface AgentDeleteLoreCategoryProposal {
+  directoryId: string;
+  operation: 'delete_lore_category';
   parentId: string;
   parentTitle: string;
   projectRevision: string;
@@ -72,6 +84,7 @@ export type AgentDocumentProposal =
   | AgentEditProposal
   | AgentCreateDocumentProposal
   | AgentDeleteDocumentProposal
+  | AgentDeleteLoreCategoryProposal
   | AgentCreateDirectoryProposal
   | AgentMoveDocumentProposal;
 
@@ -92,6 +105,7 @@ export interface AgentProposalOutcome {
     | 'delete'
     | 'create_volume'
     | 'create_lore_category'
+    | 'delete_lore_category'
     | 'move_document'
     | 'story';
   proposalId: string;
@@ -120,7 +134,7 @@ export type ApplyAgentProposalResult =
       directoryId: string;
       project: import('./project').ProjectSnapshot;
       proposalId: string;
-      status: 'created-directory';
+      status: 'created-directory' | 'deleted-directory';
     }
   | {
       proposalId: string;

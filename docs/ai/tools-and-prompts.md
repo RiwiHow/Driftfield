@@ -67,10 +67,14 @@ The reviewed mutation surface additionally contains:
   Creation carries a title, domain kind, and complete Markdown. Deletion binds
   to both the project revision and persisted document revision.
 - `propose_project_structure_operation`, which proposes creating a manuscript
-  volume, creating a lore category, or moving a document between compatible
-  stable directory IDs. Moves bind to both the project revision and persisted
-  document revision; manuscript documents cannot be moved into lore or vice
-  versa.
+  volume, creating an icon-bearing lore category, deleting an empty lore
+  category, or moving a document between compatible stable directory IDs.
+  `get_novel_structure` returns both each directory's selected icon and the
+  complete fixed icon allow-list. Category creation accepts only an icon from
+  that list. Category deletion is rejected until every contained document has
+  been separately reviewed and deleted. Moves bind to both the project revision
+  and persisted document revision; manuscript documents cannot be moved into
+  lore or vice versa.
 - `propose_story_operation`, the reviewed protocol for additive or linking
   story mutations when the user explicitly requests review before application.
   Routine reconciliation of clear facts from accepted generated prose uses
@@ -141,7 +145,9 @@ Maintain execution, proposal construction, and validation remain time-bounded,
 while the subsequent human review wait is intentionally excluded from the
 ordinary tool timeout.
 `get_novel_structure` exposes the optional knowledge root as `lore` with
-directory kind `lore`, matching the project format and application domain.
+directory kind `lore`, matching the project format and application domain. Its
+path-free result includes directory icons and the fixed `availableIcons` list;
+it never exposes YAML or physical metadata paths.
 
 The worker emits bounded Tool activity events around the Driftfield-owned tool
 bridge. Renderer shows the current call and its completion result in collapsible
@@ -260,6 +266,10 @@ remain future work.
 - A delete proposal carries a stable document ID and reviewed base revisions.
   Main removes the document from its owning index before deleting the regular,
   non-symlink Markdown file, restoring the index if deletion fails.
+- An empty Lore-category deletion proposal carries its stable directory ID and
+  project revision. Main rejects nonempty categories and untracked files, then
+  removes the category from the Lore index before deleting its metadata-only
+  directory.
 - An edit proposal identifies a document and SHA-256 `baseRevision`, and carries
   application-owned structured replacements or a patch against that revision.
 - Prefer exact-text anchors or ranges in the base snapshot over bare line

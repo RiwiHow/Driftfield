@@ -391,7 +391,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Submit a reviewable proposal to create a manuscript volume, create a lore category, or move a document between compatible stable directory IDs. Read get_novel_structure first and use its current project revision. Before moving, call get_document and provide the persisted baseRevision. This never changes project structure without explicit acceptance. The tool call waits for the user's decision; after acceptance, continue only the user's existing requested scope.",
+        "Submit a reviewable proposal to create a manuscript volume, create a lore category with an icon from get_novel_structure.availableIcons, delete an empty lore category, or move a document between compatible stable directory IDs. Read get_novel_structure first and use its current project revision. Before moving, call get_document and provide the persisted baseRevision. Delete lore documents with propose_document_file_operation before deleting their now-empty category. This never changes project structure without explicit acceptance. The tool call waits for the user's decision; after acceptance, continue only the user's existing requested scope.",
       label: "Propose project structure change",
       name: "propose_project_structure_operation",
       parameters: PROJECT_STRUCTURE_OPERATION_PARAMETERS,

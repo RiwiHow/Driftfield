@@ -2,6 +2,13 @@ import {
   isProjectStoryOperation,
   isProjectStorySnapshot,
 } from './project-story';
+import { PROJECT_ICON_IDS } from './project-layout';
+
+const isProjectIcon = (
+  value: unknown,
+): value is import('./project-layout').ProjectIconId =>
+  typeof value === 'string' &&
+  PROJECT_ICON_IDS.includes(value as import('./project-layout').ProjectIconId);
 
 export interface AgentDraftSnapshot {
   baseRevision: string;
@@ -35,6 +42,7 @@ export interface AgentStructureDocument {
 export interface AgentStructureDirectory {
   children: AgentStructureNode[];
   id: string;
+  icon?: import('./project-layout').ProjectIconId;
   kind: 'manuscript' | 'volume' | 'lore' | 'category';
   title: string;
   type: 'directory';
@@ -45,6 +53,7 @@ export type AgentStructureNode =
   | AgentStructureDocument;
 
 export interface AgentNovelStructureToolResult {
+  availableIcons: import('./project-layout').ProjectIconId[];
   format: 'driftfield';
   lore?: AgentStructureDirectory;
   manuscript: AgentStructureDirectory;
@@ -109,9 +118,20 @@ export type AgentDocumentFileOperationArguments =
 
 export type AgentProjectStructureOperationArguments =
   | {
-      operation: 'create_volume' | 'create_lore_category';
+      operation: 'create_volume';
       projectRevision: string;
       title: string;
+    }
+  | {
+      icon: import('./project-layout').ProjectIconId;
+      operation: 'create_lore_category';
+      projectRevision: string;
+      title: string;
+    }
+  | {
+      directoryId: string;
+      operation: 'delete_lore_category';
+      projectRevision: string;
     }
   | {
       baseRevision: string;
@@ -333,8 +353,7 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
   }
   if (toolName === 'propose_project_structure_operation') {
     if (
-      (value.operation === 'create_volume' ||
-        value.operation === 'create_lore_category') &&
+      value.operation === 'create_volume' &&
       Object.keys(value).length === 3
     ) {
       return (
@@ -344,6 +363,25 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
         value.title.length <= 500 &&
         !/[\u0000-\u001f\u007f]/u.test(value.title)
       );
+    }
+    if (
+      value.operation === 'create_lore_category' &&
+      Object.keys(value).length === 4
+    ) {
+      return (
+        isRevision(value.projectRevision) &&
+        isProjectIcon(value.icon) &&
+        typeof value.title === 'string' &&
+        value.title.trim().length > 0 &&
+        value.title.length <= 500 &&
+        !/[\u0000-\u001f\u007f]/u.test(value.title)
+      );
+    }
+    if (
+      value.operation === 'delete_lore_category' &&
+      Object.keys(value).length === 3
+    ) {
+      return isDocumentId(value.directoryId) && isRevision(value.projectRevision);
     }
     return (
       value.operation === 'move_document' &&
@@ -497,6 +535,10 @@ const isNovelStructureResult = (
 ): value is AgentNovelStructureToolResult => {
   if (
     !isRecord(value) ||
+    !Array.isArray(value.availableIcons) ||
+    value.availableIcons.length !== PROJECT_ICON_IDS.length ||
+    !value.availableIcons.every(isProjectIcon) ||
+    new Set(value.availableIcons).size !== value.availableIcons.length ||
     value.format !== 'driftfield' ||
     !isRecord(value.project) ||
     typeof value.project.id !== 'string' ||
@@ -524,6 +566,7 @@ const isStructureDirectory = (
     value.type !== 'directory' ||
     typeof value.title !== 'string' ||
     typeof value.id !== 'string' ||
+    (value.icon !== undefined && !isProjectIcon(value.icon)) ||
     ![
       'manuscript',
       'volume',

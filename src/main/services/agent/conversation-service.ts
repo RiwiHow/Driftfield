@@ -14,6 +14,7 @@ import type {
 import { isProjectStoryOperation } from '../../../shared/contracts/project-story';
 import type { AgentEvent } from '../../../shared/contracts/agent';
 import { isAgentToolName } from '../../../shared/contracts/agent-tools';
+import { PROJECT_ICON_IDS } from '../../../shared/contracts/project-layout';
 import { ConversationDatabase } from '../../database/conversation-database';
 import type { ProjectSession } from '../project/session-service';
 
@@ -745,10 +746,20 @@ const parseStoredProposal = (value: string): AgentProposal => {
           (proposal.directoryKind === 'volume' || proposal.directoryKind === 'category') &&
           ((proposal.operation === 'create_volume' && proposal.directoryKind === 'volume') ||
             (proposal.operation === 'create_lore_category' && proposal.directoryKind === 'category')) &&
+          (proposal.icon === undefined ||
+            (typeof proposal.icon === 'string' &&
+              PROJECT_ICON_IDS.includes(proposal.icon as (typeof PROJECT_ICON_IDS)[number]))) &&
           isId(proposal.parentId) &&
           typeof proposal.parentTitle === 'string' &&
           proposal.parentTitle.length <= 500 &&
           isRevision(proposal.projectRevision)
+        : proposal.operation === 'delete_lore_category'
+          ? hasCommonFields &&
+            isId(proposal.directoryId) &&
+            isId(proposal.parentId) &&
+            typeof proposal.parentTitle === 'string' &&
+            proposal.parentTitle.length <= 500 &&
+            isRevision(proposal.projectRevision)
         : proposal.operation === 'move_document'
           ? hasCommonFields &&
             isId(proposal.documentId) &&

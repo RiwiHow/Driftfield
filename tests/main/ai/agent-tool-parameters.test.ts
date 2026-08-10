@@ -46,7 +46,16 @@ describe('Agent tool parameter schemas', () => {
     expect(schema.type).toBe('object');
     expect(schema.required).toEqual(['operation', 'projectRevision']);
     expect(properties.operation).toMatchObject({
-      enum: ['create_volume', 'create_lore_category', 'move_document'],
+      enum: [
+        'create_volume',
+        'create_lore_category',
+        'delete_lore_category',
+        'move_document',
+      ],
+      type: 'string',
+    });
+    expect(properties.icon).toMatchObject({
+      enum: expect.arrayContaining(['earth', 'map', 'users']),
       type: 'string',
     });
     expect(JSON.stringify(schema)).not.toContain('anyOf');
