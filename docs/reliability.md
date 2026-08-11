@@ -52,8 +52,11 @@ Preserve these properties when changing affected subsystems.
   caps the returned Markdown at 512 KiB, times the task out after five minutes,
   validates non-null target document IDs against the current structure, and
   cancels it with its parent or project session. New-document assignments use a
-  null target rather than a directory or placeholder ID. Scribe output is an
-  untrusted artifact and cannot write or propose changes directly.
+  null target rather than a directory or placeholder ID. Completed output is a
+  Main-owned, single-use artifact bound to the active parent request and its
+  assigned new or existing document target; reviewed proposals reference its
+  assignment ID so Curator does not regenerate the Markdown. Scribe output
+  remains untrusted and cannot write or propose changes directly.
 - Cancellation remains terminal when it races with completion or output.
 - The current `read_novel_context` tool batches only fixed typed sections,
   stable document IDs, and immediate document children of stable directory

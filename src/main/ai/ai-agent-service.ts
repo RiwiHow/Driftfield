@@ -43,6 +43,12 @@ interface ActiveAgentRequest {
   thinkingLevel: AgentThinkingLevel;
   workingDirectory: string;
   writingTasks: number;
+  writingArtifact?: {
+    assignmentId: string;
+    claimed: boolean;
+    markdown: string;
+    targetDocumentId: string | null;
+  };
 }
 
 interface PendingWritingTask {
@@ -51,6 +57,7 @@ interface PendingWritingTask {
   parentRequestId: string;
   reject: (error: Error) => void;
   resolve: (result: AgentWritingAssignmentToolResult) => void;
+  targetDocumentId: string | null;
   timeout: ReturnType<typeof setTimeout>;
 }
 
@@ -309,6 +316,17 @@ export class AiAgentService {
               ownerId: active.ownerId,
               projectSessionId: active.projectSessionId,
               requestId: message.requestId,
+              claimWritingArtifact: (assignmentId, targetDocumentId) => {
+                const artifact = active.writingArtifact;
+                if (
+                  artifact === undefined ||
+                  artifact.assignmentId !== assignmentId ||
+                  artifact.targetDocumentId !== targetDocumentId ||
+                  artifact.claimed
+                ) return undefined;
+                artifact.claimed = true;
+                return artifact.markdown;
+              },
               delegateWriting: (assignment) =>
                 this.runWritingTask(message.requestId, active, assignment),
               sendProposal: (proposal) =>
@@ -317,6 +335,12 @@ export class AiAgentService {
                   requestId: message.requestId,
                   type: 'proposal',
                 }),
+              releaseWritingArtifactClaim: (assignmentId) => {
+                const artifact = active.writingArtifact;
+                if (artifact?.assignmentId === assignmentId) {
+                  artifact.claimed = false;
+                }
+              },
               storyChanged: (revision) =>
                 active.sendEvent({
                   requestId: message.requestId,
@@ -434,6 +458,7 @@ export class AiAgentService {
         parentRequestId,
         reject,
         resolve,
+        targetDocumentId: assignment.targetDocumentId,
         timeout,
       });
       this.worker!.postMessage({
@@ -534,6 +559,12 @@ export class AiAgentService {
         return;
       }
       this.finishWritingTask(message.requestId, active);
+      active.writingArtifact = {
+        assignmentId: message.requestId,
+        claimed: false,
+        markdown: task.markdown,
+        targetDocumentId: task.targetDocumentId,
+      };
       task.resolve({
         assignmentId: message.requestId,
         markdown: task.markdown,

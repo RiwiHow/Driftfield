@@ -209,9 +209,30 @@ describe('Agent proposal tool contract', () => {
         baseRevision: 'b'.repeat(64),
         documentId: 'chapter-1',
         markdown: '# Proposed',
+        writingAssignmentId: null,
       },
       toolName: 'propose_document_edit',
     })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: {
+        baseContentRevision: 'a'.repeat(64),
+        baseRevision: 'b'.repeat(64),
+        documentId: 'chapter-1',
+        markdown: null,
+        writingAssignmentId: 'scribe-task-1',
+      },
+      toolName: 'propose_document_edit',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: {
+        baseContentRevision: 'a'.repeat(64),
+        baseRevision: 'b'.repeat(64),
+        documentId: 'chapter-1',
+        markdown: '# Proposed',
+        writingAssignmentId: 'scribe-task-1',
+      },
+      toolName: 'propose_document_edit',
+    })).toBe(false);
     expect(isAgentToolRequest({
       arguments: { documentId: 'chapter-1', markdown: '# Proposed' },
       toolName: 'propose_document_edit',
@@ -317,6 +338,19 @@ describe('Agent proposal tool contract', () => {
         parentId: 'manuscript-1',
         projectRevision: 'a'.repeat(64),
         title: 'New chapter',
+        writingAssignmentId: null,
+      },
+      toolName: 'propose_document_file_operation',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: {
+        kind: 'chapter',
+        markdown: null,
+        operation: 'create',
+        parentId: 'manuscript-1',
+        projectRevision: 'a'.repeat(64),
+        title: 'New chapter',
+        writingAssignmentId: 'scribe-task-1',
       },
       toolName: 'propose_document_file_operation',
     })).toBe(true);

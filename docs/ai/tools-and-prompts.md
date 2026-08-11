@@ -56,13 +56,13 @@ The bounded collaboration surface contains:
   never a directory ID or invented placeholder. Main validates non-null target
   IDs against the current structure. Main creates and owns the child task
   identity, parentage, cancellation, timeout, and artifact-size limit. Scribe
-  receives only the read-only novel tools and returns Markdown to Curator; it cannot delegate,
-  propose, maintain story state, or persist content. Curator must review the
-  artifact and use the ordinary reviewed proposal workflow before any novel
-  text changes. New-document writing delegates before creation and submits the
-  complete returned Markdown in one creation proposal; it must never create a
-  placeholder and then replace it. Existing-document writing likewise uses one
-  replacement proposal after delegation, with no persisted intermediate draft.
+  receives only the read-only novel tools and returns Markdown to Curator; it
+  cannot delegate, propose, maintain story state, or persist content. Main
+  retains the completed artifact only inside its parent request. Curator reviews
+  the Markdown, then passes the returned assignment ID to one creation or
+  replacement proposal. Main resolves that request- and target-bound reference
+  exactly once to the original Markdown, so Curator never regenerates it and no
+  placeholder or persisted intermediate draft is created.
 
 The provider-facing Maintain schema keeps Chronicle event lifecycle and Thread
 lifecycle distinct: `create_event` uses `eventStatus` (`planned` or
@@ -75,13 +75,15 @@ operation-specific hint rather than only an opaque error code.
 
 The reviewed mutation surface additionally contains:
 
-- `propose_document_edit`, which accepts a complete replacement only for the
-  request-start current-document snapshot and binds it to both the disk base
-  revision and draft content revision;
+- `propose_document_edit`, which accepts either direct replacement Markdown or
+  the current request's unclaimed Scribe assignment ID for the request-start
+  current-document snapshot and binds it to both the disk base revision and
+  draft content revision;
 - `propose_document_file_operation`, which proposes either creating a Markdown
   document under a stable directory ID or deleting a document by stable ID.
-  Creation carries a title, domain kind, and complete Markdown. Deletion binds
-  to both the project revision and persisted document revision.
+  Creation carries a title, domain kind, and either direct Markdown or the
+  current request's unclaimed Scribe assignment ID. Deletion binds to both the
+  project revision and persisted document revision.
 - `propose_project_structure_operation`, which proposes creating a manuscript
   volume, creating an icon-bearing lore category, deleting an empty lore
   category, or moving a document between compatible stable directory IDs.

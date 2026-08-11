@@ -73,6 +73,11 @@ assert.match(
   /delegate_writing/,
   'The packaged Pi worker is missing the Curator-to-Scribe delegation tool.',
 );
+assert.match(
+  workerBundle,
+  /writingAssignmentId/,
+  'The packaged Pi worker is missing request-bound Scribe artifact proposals.',
+);
 
 const electronPath = require('electron');
 const smoke = spawnSync(

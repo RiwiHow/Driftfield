@@ -77,6 +77,27 @@ export const WRITING_ASSIGNMENT_PARAMETERS = Type.Object(
   { additionalProperties: false },
 );
 
+export const DOCUMENT_EDIT_PARAMETERS = Type.Object(
+  {
+    baseContentRevision: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+    baseRevision: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+    documentId: Type.String({ maxLength: 128, minLength: 1 }),
+    markdown: Type.Unsafe<string | null>({
+      description:
+        'Complete replacement Markdown for a direct edit, or null when reusing a reviewed Scribe result through writingAssignmentId.',
+      maxLength: 512 * 1024,
+      type: ['string', 'null'],
+    }),
+    writingAssignmentId: Type.Unsafe<string | null>({
+      description:
+        'The assignmentId returned by delegate_writing, or null when markdown is supplied directly. Exactly one of markdown and writingAssignmentId must be non-null.',
+      maxLength: 128,
+      type: ['string', 'null'],
+    }),
+  },
+  { additionalProperties: false },
+);
+
 export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
   {
     baseRevision: Type.Optional(
@@ -106,9 +127,11 @@ export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
       ),
     ),
     markdown: Type.Optional(
-      Type.String({
-        description: 'Required for create: complete initial Markdown content.',
+      Type.Unsafe<string | null>({
+        description:
+          'Required for create: complete initial Markdown, or null when reusing a reviewed Scribe result through writingAssignmentId.',
         maxLength: 512 * 1024,
+        type: ['string', 'null'],
       }),
     ),
     operation: stringEnum(['create', 'delete'] as const),
@@ -128,6 +151,14 @@ export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
         description: 'Required for create: display title without generated numbering.',
         maxLength: 500,
         minLength: 1,
+      }),
+    ),
+    writingAssignmentId: Type.Optional(
+      Type.Unsafe<string | null>({
+        description:
+          'Required for create: the assignmentId returned by delegate_writing, or null when markdown is supplied directly. Exactly one of markdown and writingAssignmentId must be non-null.',
+        maxLength: 128,
+        type: ['string', 'null'],
       }),
     ),
   },

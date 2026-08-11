@@ -14,6 +14,7 @@ vi.mock('electron', () => ({
 
 import { AiAgentService } from '../../../src/main/ai/ai-agent-service';
 import { AgentToolDispatcher } from '../../../src/main/ai/agent-tool-dispatcher';
+import type { AgentProposalService } from '../../../src/main/ai/agent-proposal-service';
 import type { ProjectContextService } from '../../../src/main/ai/project-context-service';
 import type { AgentEvent } from '../../../src/shared/contracts/agent';
 
@@ -205,7 +206,27 @@ describe('AiAgentService', () => {
 
   it('runs one Main-owned Scribe child task and returns its draft to Curator', async () => {
     const events: AgentEvent[] = [];
-    const dispatcher = new AgentToolDispatcher(writingContext());
+    const proposal = {
+      documentId: 'chapter-created',
+      documentKind: 'chapter' as const,
+      markdown: '# Draft\n\nMara opened the door.',
+      operation: 'create' as const,
+      parentId: 'manuscript-root',
+      parentTitle: 'Manuscript',
+      projectRevision: 'a'.repeat(64),
+      proposalId: 'proposal-create',
+      requestId: 'request-1',
+      title: 'Chapter One',
+    };
+    const proposals = {
+      cancelRequest: vi.fn(),
+      createFileOperation: vi.fn().mockResolvedValue(proposal),
+      waitForDecision: vi.fn().mockResolvedValue({
+        proposalId: proposal.proposalId,
+        status: 'accepted',
+      }),
+    } as unknown as AgentProposalService;
+    const dispatcher = new AgentToolDispatcher(writingContext(), undefined, proposals);
     const service = new AiAgentService(userDataPath, () => true, dispatcher);
     const started = start(service, 'request-1', (event) => events.push(event));
     await waitFor(() => workers.length === 1);
@@ -214,9 +235,9 @@ describe('AiAgentService', () => {
 
     workers[0].emit('message', {
       arguments: {
-        objective: 'Continue the chapter.',
+        objective: 'Write a new chapter.',
         requirements: ['Keep close third person.'],
-        targetDocumentId: 'chapter-1',
+        targetDocumentId: null,
         targetLength: 800,
       },
       requestId: 'request-1',
@@ -308,6 +329,78 @@ describe('AiAgentService', () => {
         toolName: 'delegate_writing',
       },
       toolCallId: 'tool-delegate',
+      type: 'tool-result',
+    });
+
+    workers[0].emit('message', {
+      arguments: {
+        kind: 'chapter',
+        markdown: null,
+        operation: 'create',
+        parentId: 'manuscript-root',
+        projectRevision: 'a'.repeat(64),
+        title: 'Chapter One',
+        writingAssignmentId: child.requestId,
+      },
+      requestId: 'request-1',
+      toolCallId: 'tool-create-from-scribe',
+      toolName: 'propose_document_file_operation',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-create-from-scribe'));
+    expect(proposals.createFileOperation).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        kind: 'chapter',
+        markdown: proposal.markdown,
+        operation: 'create',
+        parentId: 'manuscript-root',
+        projectRevision: 'a'.repeat(64),
+        title: 'Chapter One',
+      },
+    );
+    expect(workers[0].messages).toContainEqual({
+      requestId: 'request-1',
+      result: {
+        data: { proposalId: proposal.proposalId, status: 'accepted' },
+        ok: true,
+        toolName: 'propose_document_file_operation',
+      },
+      toolCallId: 'tool-create-from-scribe',
+      type: 'tool-result',
+    });
+
+    workers[0].emit('message', {
+      arguments: {
+        kind: 'chapter',
+        markdown: null,
+        operation: 'create',
+        parentId: 'manuscript-root',
+        projectRevision: 'a'.repeat(64),
+        title: 'Duplicate',
+        writingAssignmentId: child.requestId,
+      },
+      requestId: 'request-1',
+      toolCallId: 'tool-reuse-scribe',
+      toolName: 'propose_document_file_operation',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-reuse-scribe'));
+    expect(workers[0].messages).toContainEqual({
+      requestId: 'request-1',
+      result: {
+        error: {
+          code: 'invalid-arguments',
+          detail: 'The writingAssignmentId is missing, belongs to another request or target, or was already used.',
+        },
+        ok: false,
+        toolName: 'propose_document_file_operation',
+      },
+      toolCallId: 'tool-reuse-scribe',
       type: 'tool-result',
     });
   });

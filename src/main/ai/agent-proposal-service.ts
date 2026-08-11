@@ -45,6 +45,13 @@ interface CreateProposalRequest {
   markdown: string;
 }
 
+export type ResolvedDocumentFileOperationArguments =
+  | (Omit<
+      Extract<AgentDocumentFileOperationArguments, { operation: 'create' }>,
+      'markdown' | 'writingAssignmentId'
+    > & { markdown: string })
+  | Extract<AgentDocumentFileOperationArguments, { operation: 'delete' }>;
+
 interface ProposalScope {
   draftSnapshot?: AgentDraftSnapshot;
   ownerId: number;
@@ -173,7 +180,7 @@ export class AgentProposalService {
 
   async createFileOperation(
     scope: ProposalScope,
-    request: AgentDocumentFileOperationArguments,
+    request: ResolvedDocumentFileOperationArguments,
   ): Promise<AgentCreateDocumentProposal | AgentDeleteDocumentProposal> {
     const session = this.sessions.get(scope.ownerId);
     if (

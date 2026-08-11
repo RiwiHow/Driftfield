@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AgentToolDispatcher } from '../../../src/main/ai/agent-tool-dispatcher';
-import type { ProjectContextService } from '../../../src/main/ai/project-context-service';
+import {
+  ProjectContextError,
+  type ProjectContextService,
+} from '../../../src/main/ai/project-context-service';
 import type { AgentProposalService } from '../../../src/main/ai/agent-proposal-service';
 
 afterEach(() => vi.useRealTimers());
@@ -443,6 +446,29 @@ describe('AgentToolDispatcher', () => {
     });
   });
 
+  it('returns a recoverable source hint for malformed document proposals', async () => {
+    const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
+
+    await expect(dispatcher.execute(scope, {
+      arguments: {
+        baseContentRevision: 'a'.repeat(64),
+        baseRevision: 'b'.repeat(64),
+        documentId: 'chapter-1',
+        markdown: null,
+      },
+      toolName: 'propose_document_edit',
+    })).resolves.toEqual({
+      error: {
+        code: 'invalid-arguments',
+        detail: expect.stringContaining(
+          'set markdown null and use the assignmentId returned by delegate_writing',
+        ),
+      },
+      ok: false,
+      toolName: 'propose_document_edit',
+    });
+  });
+
   it('emits a reviewed proposal without writing through the context service', async () => {
     const proposal = {
       baseContentRevision: 'a'.repeat(64),
@@ -463,6 +489,7 @@ describe('AgentToolDispatcher', () => {
       }),
     } as unknown as AgentProposalService;
     const sendProposal = vi.fn();
+    const claimWritingArtifact = vi.fn(() => proposal.markdown);
     const dispatcher = new AgentToolDispatcher(
       {} as ProjectContextService,
       undefined,
@@ -470,13 +497,14 @@ describe('AgentToolDispatcher', () => {
     );
 
     await expect(dispatcher.execute(
-      { ...scope, sendProposal },
+      { ...scope, claimWritingArtifact, sendProposal },
       {
         arguments: {
           baseContentRevision: proposal.baseContentRevision,
           baseRevision: proposal.baseRevision,
           documentId: proposal.documentId,
-          markdown: proposal.markdown,
+          markdown: null,
+          writingAssignmentId: 'scribe-task-1',
         },
         toolName: 'propose_document_edit',
       },
@@ -485,7 +513,53 @@ describe('AgentToolDispatcher', () => {
       ok: true,
       toolName: 'propose_document_edit',
     });
+    expect(claimWritingArtifact).toHaveBeenCalledWith('scribe-task-1', 'chapter-1');
+    expect(proposals.create).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        baseContentRevision: proposal.baseContentRevision,
+        baseRevision: proposal.baseRevision,
+        documentId: proposal.documentId,
+        markdown: proposal.markdown,
+      },
+    );
     expect(sendProposal).toHaveBeenCalledWith(proposal);
+  });
+
+  it('releases a Scribe artifact claim when proposal construction fails', async () => {
+    const proposals = {
+      cancelRequest: vi.fn(),
+      create: vi.fn(() => {
+        throw new ProjectContextError('proposal-base-changed');
+      }),
+    } as unknown as AgentProposalService;
+    const claimWritingArtifact = vi.fn(() => '# Proposed');
+    const releaseWritingArtifactClaim = vi.fn();
+    const dispatcher = new AgentToolDispatcher(
+      {} as ProjectContextService,
+      undefined,
+      proposals,
+    );
+
+    await expect(dispatcher.execute({
+      ...scope,
+      claimWritingArtifact,
+      releaseWritingArtifactClaim,
+    }, {
+      arguments: {
+        baseContentRevision: 'a'.repeat(64),
+        baseRevision: 'b'.repeat(64),
+        documentId: 'chapter-1',
+        markdown: null,
+        writingAssignmentId: 'scribe-task-1',
+      },
+      toolName: 'propose_document_edit',
+    })).resolves.toEqual({
+      error: { code: 'proposal-base-changed' },
+      ok: false,
+      toolName: 'propose_document_edit',
+    });
+    expect(releaseWritingArtifactClaim).toHaveBeenCalledWith('scribe-task-1');
   });
 
   it('keeps a proposal tool pending beyond ordinary tool timeouts until approval', async () => {
@@ -529,6 +603,7 @@ describe('AgentToolDispatcher', () => {
           baseRevision: proposal.baseRevision,
           documentId: proposal.documentId,
           markdown: proposal.markdown,
+          writingAssignmentId: null,
         },
         toolName: 'propose_document_edit',
       },
@@ -564,6 +639,7 @@ describe('AgentToolDispatcher', () => {
       }),
     } as unknown as AgentProposalService;
     const sendProposal = vi.fn();
+    const claimWritingArtifact = vi.fn(() => proposal.markdown);
     const dispatcher = new AgentToolDispatcher(
       {} as ProjectContextService,
       undefined,
@@ -571,15 +647,16 @@ describe('AgentToolDispatcher', () => {
     );
 
     await expect(dispatcher.execute(
-      { ...scope, sendProposal },
+      { ...scope, claimWritingArtifact, sendProposal },
       {
         arguments: {
           kind: 'chapter',
-          markdown: '# Created',
+          markdown: null,
           operation: 'create',
           parentId: 'manuscript-1',
           projectRevision: 'a'.repeat(64),
           title: 'Created',
+          writingAssignmentId: 'scribe-task-1',
         },
         toolName: 'propose_document_file_operation',
       },
@@ -588,6 +665,18 @@ describe('AgentToolDispatcher', () => {
       ok: true,
       toolName: 'propose_document_file_operation',
     });
+    expect(claimWritingArtifact).toHaveBeenCalledWith('scribe-task-1', null);
+    expect(proposals.createFileOperation).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        kind: 'chapter',
+        markdown: '# Created',
+        operation: 'create',
+        parentId: 'manuscript-1',
+        projectRevision: 'a'.repeat(64),
+        title: 'Created',
+      },
+    );
     expect(sendProposal).toHaveBeenCalledWith(proposal);
   });
 

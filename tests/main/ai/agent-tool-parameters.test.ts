@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DOCUMENT_EDIT_PARAMETERS,
   DOCUMENT_FILE_OPERATION_PARAMETERS,
   normalizeStoryMaintenanceBatchArguments,
   normalizeStoryMaintenanceArguments,
@@ -11,6 +12,24 @@ import {
 } from '../../../src/main/ai/agent-tool-parameters';
 
 describe('Agent tool parameter schemas', () => {
+  it('supports direct Markdown or a Scribe assignment for document edits', () => {
+    const schema = DOCUMENT_EDIT_PARAMETERS as unknown as Record<string, unknown>;
+    const properties = schema.properties as Record<string, Record<string, unknown>>;
+
+    expect(schema.required).toEqual([
+      'baseContentRevision',
+      'baseRevision',
+      'documentId',
+      'markdown',
+      'writingAssignmentId',
+    ]);
+    expect(properties.markdown).toMatchObject({ type: ['string', 'null'] });
+    expect(properties.writingAssignmentId).toMatchObject({
+      description: expect.stringContaining('assignmentId returned by delegate_writing'),
+      type: ['string', 'null'],
+    });
+  });
+
   it('explains nullable new-document writing targets to providers', () => {
     const schema = WRITING_ASSIGNMENT_PARAMETERS as unknown as Record<string, unknown>;
     const properties = schema.properties as Record<string, Record<string, unknown>>;
@@ -59,6 +78,8 @@ describe('Agent tool parameter schemas', () => {
       ],
       type: 'string',
     });
+    expect(properties.markdown).toMatchObject({ type: ['string', 'null'] });
+    expect(properties.writingAssignmentId).toMatchObject({ type: ['string', 'null'] });
     expect(JSON.stringify(schema)).not.toContain('anyOf');
     expect(JSON.stringify(schema)).not.toContain('const');
   });

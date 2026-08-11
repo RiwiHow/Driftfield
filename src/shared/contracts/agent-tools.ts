@@ -130,8 +130,18 @@ export interface AgentWritingAssignmentToolResult {
   status: 'completed';
 }
 
+type AgentDocumentContentSource =
+  | { markdown: string; writingAssignmentId: null }
+  | { markdown: null; writingAssignmentId: string };
+
+export type AgentDocumentEditArguments = {
+  baseContentRevision: string;
+  baseRevision: string;
+  documentId: string;
+} & AgentDocumentContentSource;
+
 export type AgentDocumentFileOperationArguments =
-  | {
+  | ({
       kind:
         | 'chapter'
         | 'prologue'
@@ -139,12 +149,11 @@ export type AgentDocumentFileOperationArguments =
         | 'epilogue'
         | 'appendix'
         | 'entry';
-      markdown: string;
       operation: 'create';
       parentId: string;
       projectRevision: string;
       title: string;
-    }
+    } & AgentDocumentContentSource)
   | {
       baseRevision: string;
       documentId: string;
@@ -212,12 +221,7 @@ export interface AgentToolContractMap {
     result: AgentStoryQuestionToolResult;
   };
   propose_document_edit: {
-    arguments: {
-      baseContentRevision: string;
-      baseRevision: string;
-      documentId: string;
-      markdown: string;
-    };
+    arguments: AgentDocumentEditArguments;
     result: AgentProposalToolResult;
   };
   propose_document_file_operation: {
@@ -365,18 +369,17 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
   }
   if (toolName === 'propose_document_edit') {
     return (
-      Object.keys(value).length === 4 &&
+      Object.keys(value).length === 5 &&
       isDocumentId(value.documentId) &&
       isRevision(value.baseRevision) &&
       isRevision(value.baseContentRevision) &&
-      typeof value.markdown === 'string' &&
-      new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024
+      isDocumentContentSource(value)
     );
   }
   if (toolName === 'propose_document_file_operation') {
     if (
       value.operation === 'create' &&
-      Object.keys(value).length === 6
+      Object.keys(value).length === 7
     ) {
       return (
         isDocumentId(value.parentId) &&
@@ -385,8 +388,7 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
         value.title.trim().length > 0 &&
         value.title.length <= 500 &&
         !/[\u0000-\u001f\u007f]/u.test(value.title) &&
-        typeof value.markdown === 'string' &&
-        new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024 &&
+        isDocumentContentSource(value) &&
         typeof value.kind === 'string' &&
         ['chapter', 'prologue', 'interlude', 'epilogue', 'appendix', 'entry'].includes(value.kind)
       );
@@ -620,6 +622,16 @@ const isBoundedText = (
 
 const isDocumentId = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= 128;
+
+const isDocumentContentSource = (value: Record<string, unknown>): boolean =>
+  (
+    typeof value.markdown === 'string' &&
+    new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024 &&
+    value.writingAssignmentId === null
+  ) || (
+    value.markdown === null &&
+    isDocumentId(value.writingAssignmentId)
+  );
 
 const isRevision = (value: unknown): value is string =>
   typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);

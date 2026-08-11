@@ -18,10 +18,17 @@ import {
   ProjectContextError,
   type ProjectContextService,
 } from './project-context-service';
-import type { AgentProposalService } from './agent-proposal-service';
+import type {
+  AgentProposalService,
+  ResolvedDocumentFileOperationArguments,
+} from './agent-proposal-service';
 import type { AgentProposal } from '../../shared/contracts/agent-proposals';
 
 export interface AgentToolScope {
+  claimWritingArtifact?: (
+    assignmentId: string,
+    targetDocumentId: string | null,
+  ) => string | undefined;
   delegateWriting?: (
     assignment: AgentWritingAssignment,
   ) => Promise<AgentWritingAssignmentToolResult>;
@@ -29,6 +36,7 @@ export interface AgentToolScope {
   ownerId: number;
   projectSessionId?: string;
   requestId: string;
+  releaseWritingArtifactClaim?: (assignmentId: string) => void;
   sendProposal?: (proposal: AgentProposal) => void;
   storyChanged?: (revision: number) => void;
 }
@@ -249,7 +257,23 @@ export class AgentToolDispatcher {
       if (this.proposals === undefined) {
         throw new ProjectContextError('internal-error');
       }
-      const proposal = this.proposals.create(scope, request.arguments);
+      const content = claimDocumentContent(
+        scope,
+        request.arguments,
+        request.arguments.documentId,
+      );
+      let proposal: ReturnType<AgentProposalService['create']>;
+      try {
+        proposal = this.proposals.create(scope, {
+          baseContentRevision: request.arguments.baseContentRevision,
+          baseRevision: request.arguments.baseRevision,
+          documentId: request.arguments.documentId,
+          markdown: content.markdown,
+        });
+      } catch (error) {
+        content.release();
+        throw error;
+      }
       if (scope.sendProposal === undefined) {
         this.proposals.cancelRequest(scope.requestId);
         throw new ProjectContextError('internal-error');
@@ -269,9 +293,28 @@ export class AgentToolDispatcher {
       if (this.proposals === undefined) {
         throw new ProjectContextError('internal-error');
       }
-      const proposal = await this.withTimeout(
-        this.proposals.createFileOperation(scope, request.arguments),
-      );
+      const content = request.arguments.operation === 'create'
+        ? claimDocumentContent(scope, request.arguments, null)
+        : null;
+      let proposal: Awaited<ReturnType<AgentProposalService['createFileOperation']>>;
+      try {
+        const resolvedRequest = request.arguments.operation === 'create'
+          ? {
+              kind: request.arguments.kind,
+              markdown: content!.markdown,
+              operation: request.arguments.operation,
+              parentId: request.arguments.parentId,
+              projectRevision: request.arguments.projectRevision,
+              title: request.arguments.title,
+            } satisfies ResolvedDocumentFileOperationArguments
+          : request.arguments;
+        proposal = await this.withTimeout(
+          this.proposals.createFileOperation(scope, resolvedRequest),
+        );
+      } catch (error) {
+        content?.release();
+        throw error;
+      }
       if (scope.sendProposal === undefined) {
         this.proposals.cancelRequest(scope.requestId);
         throw new ProjectContextError('internal-error');
@@ -370,6 +413,34 @@ export class AgentToolDispatcher {
 
 class ToolTimeoutError extends Error {}
 
+const claimDocumentContent = (
+  scope: AgentToolScope,
+  source: { markdown: string | null; writingAssignmentId: string | null },
+  targetDocumentId: string | null,
+): { markdown: string; release: () => void } => {
+  if (source.markdown !== null) {
+    return { markdown: source.markdown, release: () => {} };
+  }
+  const assignmentId = source.writingAssignmentId;
+  if (assignmentId === null || scope.claimWritingArtifact === undefined) {
+    throw new ProjectContextError(
+      'invalid-arguments',
+      'A Scribe-backed proposal requires the current request’s writingAssignmentId.',
+    );
+  }
+  const markdown = scope.claimWritingArtifact(assignmentId, targetDocumentId);
+  if (markdown === undefined) {
+    throw new ProjectContextError(
+      'invalid-arguments',
+      'The writingAssignmentId is missing, belongs to another request or target, or was already used.',
+    );
+  }
+  return {
+    markdown,
+    release: () => scope.releaseWritingArtifactClaim?.(assignmentId),
+  };
+};
+
 const indexStructureNodes = (
   structure: AgentNovelStructureToolResult,
 ): Map<string, AgentStructureNode> => {
@@ -407,6 +478,16 @@ const toolArgumentShapeHint = (
 ): string | undefined => {
   if (toolName === 'delegate_writing') {
     return 'delegate_writing requires exactly objective, requirements, targetDocumentId, and targetLength. For a new document, set targetDocumentId to null; for an existing document, use its stable document ID, never a directory ID or placeholder. Set targetLength to an integer from 1 to 200000, or null when unspecified.';
+  }
+  if (toolName === 'propose_document_edit') {
+    return 'propose_document_edit requires exactly baseContentRevision, baseRevision, documentId, markdown, and writingAssignmentId. Supply direct markdown with writingAssignmentId null, or set markdown null and use the assignmentId returned by delegate_writing.';
+  }
+  if (
+    toolName === 'propose_document_file_operation' &&
+    typeof args === 'object' && args !== null &&
+    (args as { operation?: unknown }).operation === 'create'
+  ) {
+    return 'Document creation requires exactly operation, parentId, projectRevision, title, kind, markdown, and writingAssignmentId. Supply direct markdown with writingAssignmentId null, or set markdown null and use the assignmentId returned by delegate_writing.';
   }
   if (
     (toolName !== 'maintain_story_records' && toolName !== 'propose_story_operation') ||

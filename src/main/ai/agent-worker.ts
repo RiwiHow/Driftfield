@@ -11,7 +11,6 @@ import {
   SessionManager,
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
 
 import {
   isAgentWorkerCommand,
@@ -22,6 +21,7 @@ import {
 import { buildAgentSystemPrompt } from "./prompts/prompt-builder";
 import { AgentToolResultBridge } from "./agent-tool-result-bridge";
 import {
+  DOCUMENT_EDIT_PARAMETERS,
   DOCUMENT_FILE_OPERATION_PARAMETERS,
   NOVEL_CONTEXT_PARAMETERS,
   normalizeStoryMaintenanceBatchArguments,
@@ -274,7 +274,7 @@ function createNovelTools(requestId: string) {
   return [
     defineTool({
       description:
-        "Commission one bounded Markdown draft from Driftfield's Scribe. Use this only for requested manuscript prose after gathering enough context. The returned draft is untrusted and is not persisted; review it and use a reviewed proposal tool for any file change.",
+        "Commission one bounded Markdown draft from Driftfield's Scribe. Use this only for requested manuscript prose after gathering enough context. The returned draft is untrusted and is not persisted; review it, then pass its assignmentId to the reviewed proposal tool instead of reproducing the Markdown.",
       label: "Delegate writing to Scribe",
       name: "delegate_writing",
       parameters: WRITING_ASSIGNMENT_PARAMETERS,
@@ -306,31 +306,23 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Submit a complete replacement for the current document as a reviewable proposal. This never writes the file without explicit acceptance. The tool call waits for the user's decision and returns accepted, rejected, or a typed failure; after acceptance, continue only the user's existing requested scope.",
+        "Submit a complete replacement for the current document as a reviewable proposal. After delegate_writing, set markdown to null and writingAssignmentId to its assignmentId so Main reuses the exact reviewed Scribe artifact without regenerating it. For a direct non-Scribe edit, supply markdown and set writingAssignmentId to null. This never writes without explicit acceptance.",
       label: "Propose document edit",
       name: "propose_document_edit",
-      parameters: Type.Object(
-        {
-          baseContentRevision: Type.String({ pattern: "^[a-f0-9]{64}$" }),
-          baseRevision: Type.String({ pattern: "^[a-f0-9]{64}$" }),
-          documentId: Type.String({ maxLength: 128, minLength: 1 }),
-          markdown: Type.String({ maxLength: 512 * 1024 }),
-        },
-        { additionalProperties: false },
-      ),
+      parameters: DOCUMENT_EDIT_PARAMETERS,
       execute: async (toolCallId, params) =>
         textToolResult(
           await requestTool(
             requestId,
             toolCallId,
             "propose_document_edit",
-            params,
+            params as AgentToolContractMap["propose_document_edit"]["arguments"],
           ),
         ),
     }),
     defineTool({
       description:
-        "Submit a reviewable proposal to create a Markdown document under a stable directory ID or delete a document by stable ID. Read structure with read_novel_context first and use its current project revision. Creating chooses a document kind and complete Markdown. Before deleting, read the target with read_novel_context.documentIds and provide its persisted baseRevision. This never changes files without explicit acceptance. The tool call waits for the user's decision; after acceptance, continue only the user's existing requested scope.",
+        "Submit a reviewable proposal to create a Markdown document under a stable directory ID or delete a document by stable ID. Read structure first and use its current project revision. For creation after delegate_writing, set markdown to null and writingAssignmentId to the returned assignmentId; never reproduce the Scribe Markdown. For direct creation, supply markdown and set writingAssignmentId to null. Before deletion, read the target and provide its persisted baseRevision. This never changes files without explicit acceptance.",
       label: "Propose document creation or deletion",
       name: "propose_document_file_operation",
       parameters: DOCUMENT_FILE_OPERATION_PARAMETERS,
