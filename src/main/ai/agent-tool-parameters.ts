@@ -61,10 +61,14 @@ export const WRITING_ASSIGNMENT_PARAMETERS = Type.Object(
       { maxItems: 20 },
     ),
     targetDocumentId: Type.Unsafe<string | null>({
+      description:
+        'For an existing document, use its stable document ID from read_novel_context.structure. For a new document that does not exist yet, use null. Never use a directory ID, title, path, or placeholder ID.',
       maxLength: 128,
       type: ['string', 'null'],
     }),
     targetLength: Type.Unsafe<number | null>({
+      description:
+        'Requested approximate draft length when the user supplied one; otherwise use null.',
       maximum: 200_000,
       minimum: 1,
       type: ['integer', 'null'],

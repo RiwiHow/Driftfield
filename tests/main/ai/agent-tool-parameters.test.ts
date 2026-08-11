@@ -5,9 +5,30 @@ import {
   normalizeStoryMaintenanceArguments,
   PROJECT_STRUCTURE_OPERATION_PARAMETERS,
   STORY_OPERATION_PARAMETERS,
+  WRITING_ASSIGNMENT_PARAMETERS,
 } from '../../../src/main/ai/agent-tool-parameters';
 
 describe('Agent tool parameter schemas', () => {
+  it('explains nullable new-document writing targets to providers', () => {
+    const schema = WRITING_ASSIGNMENT_PARAMETERS as unknown as Record<string, unknown>;
+    const properties = schema.properties as Record<string, Record<string, unknown>>;
+
+    expect(schema.required).toEqual([
+      'objective',
+      'requirements',
+      'targetDocumentId',
+      'targetLength',
+    ]);
+    expect(properties.targetDocumentId).toMatchObject({
+      description: expect.stringContaining('For a new document that does not exist yet, use null'),
+      type: ['string', 'null'],
+    });
+    expect(properties.targetLength).toMatchObject({
+      description: expect.stringContaining('otherwise use null'),
+      type: ['integer', 'null'],
+    });
+  });
+
   it('uses a provider-compatible root object for document file operations', () => {
     const schema = DOCUMENT_FILE_OPERATION_PARAMETERS as unknown as Record<
       string,

@@ -50,7 +50,9 @@ Preserve these properties when changing affected subsystems.
 - Curator may commission at most one Scribe task per request. Main owns the
   child task ID and parent binding, limits Scribe to read-only novel tools,
   caps the returned Markdown at 512 KiB, times the task out after five minutes,
-  and cancels it with its parent or project session. Scribe output is an
+  validates non-null target document IDs against the current structure, and
+  cancels it with its parent or project session. New-document assignments use a
+  null target rather than a directory or placeholder ID. Scribe output is an
   untrusted artifact and cannot write or propose changes directly.
 - Cancellation remains terminal when it races with completion or output.
 - The current `read_novel_context` tool batches only fixed typed sections,

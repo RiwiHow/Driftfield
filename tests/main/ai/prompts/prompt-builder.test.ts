@@ -70,7 +70,8 @@ describe('Agent prompt registry', () => {
     });
     expect(built.prompt).toContain('A writing delegation is a bounded child task');
     expect(built.prompt).toContain('review the returned Markdown');
-    expect(built.prompt).toContain('Never create a placeholder');
+    expect(built.prompt).toContain('targetDocumentId set to null');
+    expect(built.prompt).toContain('Never use a directory ID');
     expect(built.prompt).toContain('one replacement proposal');
   });
 });

@@ -46,10 +46,13 @@ The bounded collaboration surface contains:
 
 - `delegate_writing`, which lets the Curator commission one Scribe draft for a
   user-authorized manuscript-writing request. The assignment contains a bounded
-  objective, requirements, optional stable target-document ID, and optional
-  target length. Main creates and owns the child task identity, parentage,
-  cancellation, timeout, and artifact-size limit. Scribe receives only the
-  read-only novel tools and returns Markdown to Curator; it cannot delegate,
+  objective, requirements, nullable stable target-document ID, and nullable
+  target length. New-document assignments use `targetDocumentId: null`;
+  existing-document assignments use a stable document ID returned by structure,
+  never a directory ID or invented placeholder. Main validates non-null target
+  IDs against the current structure. Main creates and owns the child task
+  identity, parentage, cancellation, timeout, and artifact-size limit. Scribe
+  receives only the read-only novel tools and returns Markdown to Curator; it cannot delegate,
   propose, maintain story state, or persist content. Curator must review the
   artifact and use the ordinary reviewed proposal workflow before any novel
   text changes. New-document writing delegates before creation and submits the

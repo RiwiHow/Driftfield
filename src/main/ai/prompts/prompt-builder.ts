@@ -39,7 +39,7 @@ export const buildAgentSystemPrompt = (
   const delegationInstructions = context.availableTools.includes('delegate_writing')
     ? [
         'A writing delegation is a bounded child task, not permission to persist or expand the work. Supply one precise assignment, review the returned Markdown, and use the ordinary reviewed proposal workflow for any manuscript change.',
-        'When writing a new document, delegate first and then place the complete returned Markdown in one creation proposal. Never create a placeholder and follow it with an edit. For an existing document, use one replacement proposal after delegation and never persist an intermediate draft.',
+        'When writing a new document, call delegate_writing with targetDocumentId set to null, then place the complete returned Markdown in one creation proposal. Never use a directory ID or invented placeholder ID and never create a placeholder followed by an edit. For an existing document, use its stable document ID and one replacement proposal after delegation; never persist an intermediate draft.',
       ]
     : [];
 

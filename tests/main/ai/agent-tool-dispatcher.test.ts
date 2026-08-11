@@ -166,7 +166,10 @@ describe('AgentToolDispatcher', () => {
   });
 
   it('routes a bounded writing assignment through the Main-owned task callback', async () => {
-    const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
+    const getNovelStructure = vi.fn().mockResolvedValue(novelStructure);
+    const dispatcher = new AgentToolDispatcher({
+      getNovelStructure,
+    } as unknown as ProjectContextService);
     const delegateWriting = vi.fn(async () => ({
       assignmentId: 'scribe-task-1',
       markdown: '# Draft',
@@ -195,6 +198,79 @@ describe('AgentToolDispatcher', () => {
       toolName: 'delegate_writing',
     });
     expect(delegateWriting).toHaveBeenCalledOnce();
+    expect(getNovelStructure).toHaveBeenCalledOnce();
+  });
+
+  it('delegates new-document writing with a null target and rejects directory targets', async () => {
+    const getNovelStructure = vi.fn().mockResolvedValue(novelStructure);
+    const dispatcher = new AgentToolDispatcher({
+      getNovelStructure,
+    } as unknown as ProjectContextService);
+    const delegateWriting = vi.fn(async () => ({
+      assignmentId: 'scribe-task-1',
+      markdown: '# Draft',
+      status: 'completed' as const,
+    }));
+
+    await expect(dispatcher.execute({
+      ...scope,
+      delegateWriting,
+    }, {
+      arguments: {
+        objective: 'Write a new opening chapter.',
+        requirements: ['Return complete Markdown.'],
+        targetDocumentId: null,
+        targetLength: null,
+      },
+      toolName: 'delegate_writing',
+    })).resolves.toMatchObject({ ok: true, toolName: 'delegate_writing' });
+    expect(getNovelStructure).not.toHaveBeenCalled();
+
+    await expect(dispatcher.execute({
+      ...scope,
+      delegateWriting,
+    }, {
+      arguments: {
+        objective: 'Write a new opening chapter.',
+        requirements: ['Return complete Markdown.'],
+        targetDocumentId: 'manuscript-root',
+        targetLength: null,
+      },
+      toolName: 'delegate_writing',
+    })).resolves.toEqual({
+      error: {
+        code: 'node-kind-mismatch',
+        detail: JSON.stringify({
+          actualKind: 'directory',
+          expectedKind: 'document',
+          nodeId: 'manuscript-root',
+          title: 'Manuscript',
+        }),
+      },
+      ok: false,
+      toolName: 'delegate_writing',
+    });
+    expect(delegateWriting).toHaveBeenCalledOnce();
+  });
+
+  it('returns a recoverable hint for malformed writing assignments', async () => {
+    const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
+
+    await expect(dispatcher.execute(scope, {
+      arguments: {
+        objective: 'Write a new opening chapter.',
+        requirements: [],
+        targetDocumentId: '',
+      },
+      toolName: 'delegate_writing',
+    })).resolves.toEqual({
+      error: {
+        code: 'invalid-arguments',
+        detail: expect.stringContaining('For a new document, set targetDocumentId to null'),
+      },
+      ok: false,
+      toolName: 'delegate_writing',
+    });
   });
 
   it('applies bounded story maintenance and emits the new revision', async () => {

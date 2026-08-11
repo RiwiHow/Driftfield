@@ -76,6 +76,15 @@ describe('Agent proposal tool contract', () => {
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: {
+        objective: 'Write a new opening chapter.',
+        requirements: ['Return a complete Markdown draft.'],
+        targetDocumentId: null,
+        targetLength: null,
+      },
+      toolName: 'delegate_writing',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: {
         objective: '',
         requirements: [],
         targetDocumentId: null,

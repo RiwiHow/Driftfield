@@ -76,7 +76,7 @@ export class AgentToolDispatcher {
       return this.error(
         request.toolName,
         'invalid-arguments',
-        storyOperationShapeHint(request.toolName, request.arguments),
+        toolArgumentShapeHint(request.toolName, request.arguments),
       );
     }
 
@@ -120,6 +120,22 @@ export class AgentToolDispatcher {
     if (request.toolName === 'delegate_writing') {
       if (scope.delegateWriting === undefined) {
         throw new ProjectContextError('internal-error');
+      }
+      if (request.arguments.targetDocumentId !== null) {
+        const structure = await this.context.getNovelStructure(contextScope);
+        const node = indexStructureNodes(structure).get(
+          request.arguments.targetDocumentId,
+        );
+        if (node === undefined) {
+          throw nodeNotFound(request.arguments.targetDocumentId);
+        }
+        if (node.type !== 'document') {
+          throw nodeKindMismatch(
+            request.arguments.targetDocumentId,
+            'document',
+            node,
+          );
+        }
       }
       return {
         data: await scope.delegateWriting(request.arguments),
@@ -385,10 +401,13 @@ const nodeKindMismatch = (
     }),
   );
 
-const storyOperationShapeHint = (
+const toolArgumentShapeHint = (
   toolName: AgentToolName,
   args: unknown,
 ): string | undefined => {
+  if (toolName === 'delegate_writing') {
+    return 'delegate_writing requires exactly objective, requirements, targetDocumentId, and targetLength. For a new document, set targetDocumentId to null; for an existing document, use its stable document ID, never a directory ID or placeholder. Set targetLength to an integer from 1 to 200000, or null when unspecified.';
+  }
   if (
     (toolName !== 'maintain_story_records' && toolName !== 'propose_story_operation') ||
     typeof args !== 'object' || args === null

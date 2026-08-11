@@ -34,6 +34,26 @@ const waitFor = async (predicate: () => boolean): Promise<void> => {
   throw new Error('Condition was not reached');
 };
 
+const writingContext = (): ProjectContextService => ({
+  getNovelStructure: vi.fn().mockResolvedValue({
+    availableIcons: [],
+    format: 'driftfield',
+    manuscript: {
+      children: [{
+        id: 'chapter-1',
+        kind: 'chapter',
+        title: 'Chapter',
+        type: 'document',
+      }],
+      id: 'manuscript-root',
+      kind: 'manuscript',
+      title: 'Manuscript',
+      type: 'directory',
+    },
+    project: { id: 'project-1', revision: 'revision', title: 'Novel' },
+  }),
+} as unknown as ProjectContextService);
+
 describe('AiAgentService', () => {
   let userDataPath: string;
   let workers: FakeUtilityProcess[];
@@ -185,7 +205,7 @@ describe('AiAgentService', () => {
 
   it('runs one Main-owned Scribe child task and returns its draft to Curator', async () => {
     const events: AgentEvent[] = [];
-    const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
+    const dispatcher = new AgentToolDispatcher(writingContext());
     const service = new AiAgentService(userDataPath, () => true, dispatcher);
     const started = start(service, 'request-1', (event) => events.push(event));
     await waitFor(() => workers.length === 1);
@@ -293,7 +313,7 @@ describe('AiAgentService', () => {
   });
 
   it('propagates parent cancellation to an active Scribe child task', async () => {
-    const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
+    const dispatcher = new AgentToolDispatcher(writingContext());
     const service = new AiAgentService(userDataPath, () => true, dispatcher);
     const started = start(service, 'request-1');
     await waitFor(() => workers.length === 1);
