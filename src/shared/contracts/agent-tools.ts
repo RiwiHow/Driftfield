@@ -134,6 +134,18 @@ export interface AgentWritingArtifactSubmissionToolResult {
   status: 'submitted';
 }
 
+export interface AgentWritingArtifactReplacement {
+  expectedOccurrences: number;
+  find: string;
+  replace: string;
+}
+
+export interface AgentWritingArtifactRevisionToolResult {
+  assignmentId: string;
+  replacementsApplied: number;
+  status: 'revised';
+}
+
 type AgentDocumentContentSource =
   | { markdown: string; writingAssignmentId: null }
   | { markdown: null; writingAssignmentId: string };
@@ -207,6 +219,13 @@ export interface AgentToolContractMap {
     arguments: { markdown: string };
     result: AgentWritingArtifactSubmissionToolResult;
   };
+  revise_writing_artifact: {
+    arguments: {
+      replacements: AgentWritingArtifactReplacement[];
+      writingAssignmentId: string;
+    };
+    result: AgentWritingArtifactRevisionToolResult;
+  };
   maintain_story_records: {
     arguments: {
       changes: AgentStoryMaintenanceChange[];
@@ -255,6 +274,7 @@ export const AGENT_TOOL_NAMES = [
   'delegate_writing',
   'read_novel_context',
   'submit_writing_artifact',
+  'revise_writing_artifact',
   'maintain_story_records',
   'record_story_question',
   'resolve_story_question',
@@ -382,6 +402,16 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
       typeof value.markdown === 'string' &&
       value.markdown.trim().length > 0 &&
       new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024
+    );
+  }
+  if (toolName === 'revise_writing_artifact') {
+    return (
+      Object.keys(value).length === 2 &&
+      isDocumentId(value.writingAssignmentId) &&
+      Array.isArray(value.replacements) &&
+      value.replacements.length >= 1 &&
+      value.replacements.length <= 12 &&
+      value.replacements.every(isWritingArtifactReplacement)
     );
   }
   if (toolName === 'propose_document_edit') {
@@ -534,6 +564,8 @@ const isToolData = (toolName: AgentToolName, value: unknown): boolean =>
     ? isWritingAssignmentResult(value)
     : toolName === 'submit_writing_artifact'
       ? isWritingArtifactSubmissionResult(value)
+    : toolName === 'revise_writing_artifact'
+      ? isWritingArtifactRevisionResult(value)
     : toolName === 'read_novel_context'
       ? isNovelContextResult(value)
     : toolName === 'maintain_story_records'
@@ -572,6 +604,15 @@ const isWritingArtifactSubmissionResult = (value: unknown): boolean =>
   isRecord(value) &&
   Object.keys(value).length === 1 &&
   value.status === 'submitted';
+
+const isWritingArtifactRevisionResult = (value: unknown): boolean =>
+  isRecord(value) &&
+  Object.keys(value).length === 3 &&
+  isDocumentId(value.assignmentId) &&
+  Number.isSafeInteger(value.replacementsApplied) &&
+  (value.replacementsApplied as number) >= 1 &&
+  (value.replacementsApplied as number) <= 1_200 &&
+  value.status === 'revised';
 
 const isEditProposalResult = (value: unknown): boolean =>
   isRecord(value) &&
@@ -656,6 +697,19 @@ const isDocumentContentSource = (value: Record<string, unknown>): boolean =>
     value.markdown === null &&
     isDocumentId(value.writingAssignmentId)
   );
+
+const isWritingArtifactReplacement = (
+  value: unknown,
+): value is AgentWritingArtifactReplacement =>
+  isRecord(value) &&
+  Object.keys(value).length === 3 &&
+  isBoundedText(value.find, 8_000, false) &&
+  typeof value.replace === 'string' &&
+  value.replace.length <= 8_000 &&
+  value.replace !== value.find &&
+  Number.isSafeInteger(value.expectedOccurrences) &&
+  (value.expectedOccurrences as number) >= 1 &&
+  (value.expectedOccurrences as number) <= 100;
 
 const isRevision = (value: unknown): value is string =>
   typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);

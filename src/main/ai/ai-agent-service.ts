@@ -22,11 +22,14 @@ import {
   type AgentWorkerMessage,
 } from '../../shared/contracts/agent-worker';
 import type { AgentToolDispatcher } from './agent-tool-dispatcher';
+import { ProjectContextError } from './project-context-service';
 import type { AgentHistoryMessage } from '../services/agent/conversation-service';
 import type { AgentProposalOutcome } from '../../shared/contracts/agent-proposals';
+import type { AppLanguage } from '../../shared/i18n/languages';
 
 const WORKER_START_TIMEOUT_MS = 15_000;
 const WRITING_TASK_TIMEOUT_MS = 5 * 60_000;
+const MAX_WRITING_ARTIFACT_BYTES = 512 * 1024;
 const CURATOR_TOOLS = AGENT_TOOL_NAMES.filter(
   (toolName) => toolName !== 'submit_writing_artifact',
 );
@@ -43,6 +46,7 @@ interface ActiveAgentRequest {
   modelsPath: string;
   ownerId: number;
   projectSessionId?: string;
+  responseLanguage: AppLanguage;
   sendEvent: (event: AgentEvent) => void;
   thinkingLevel: AgentThinkingLevel;
   workingDirectory: string;
@@ -51,6 +55,7 @@ interface ActiveAgentRequest {
     assignmentId: string;
     claimed: boolean;
     markdown: string;
+    revised: boolean;
     targetDocumentId: string | null;
   };
 }
@@ -70,6 +75,7 @@ interface StartAgentRequest {
   history: AgentHistoryMessage[];
   ownerId: number;
   projectSessionId?: string;
+  responseLanguage: AppLanguage;
   prompt: string;
   model: AgentModelSelection;
   modelsPath?: string;
@@ -119,6 +125,7 @@ export class AiAgentService {
       modelsPath: request.modelsPath ?? path.join(directory, 'models.json'),
       ownerId: request.ownerId,
       projectSessionId: request.projectSessionId,
+      responseLanguage: request.responseLanguage,
       sendEvent: request.sendEvent,
       thinkingLevel: request.thinkingLevel,
       workingDirectory: directory,
@@ -142,6 +149,7 @@ export class AiAgentService {
         proposalOutcomes: request.proposalOutcomes,
         providerId: request.model.providerId,
         requestId: request.requestId,
+        responseLanguage: request.responseLanguage,
         role: 'curator',
         thinkingLevel: request.thinkingLevel,
         type: 'start',
@@ -330,8 +338,15 @@ export class AiAgentService {
                 artifact.claimed = true;
                 return artifact.markdown;
               },
-              delegateWriting: (assignment) =>
-                this.runWritingTask(message.requestId, active, assignment),
+              delegateWriting: (assignment) => {
+                if (active.writingTasks >= 1 || active.childTaskId !== undefined) {
+                  throw new ProjectContextError(
+                    'tool-budget-exceeded',
+                    'Only one Scribe delegation is available per user request. Revise an unclaimed completed artifact with revise_writing_artifact; do not retry delegation.',
+                  );
+                }
+                return this.runWritingTask(message.requestId, active, assignment);
+              },
               sendProposal: (proposal) =>
                 active.sendEvent({
                   proposal,
@@ -343,6 +358,51 @@ export class AiAgentService {
                 if (artifact?.assignmentId === assignmentId) {
                   artifact.claimed = false;
                 }
+              },
+              reviseWritingArtifact: (assignmentId, replacements) => {
+                const artifact = active.writingArtifact;
+                if (
+                  artifact === undefined ||
+                  artifact.assignmentId !== assignmentId ||
+                  artifact.claimed ||
+                  artifact.revised
+                ) {
+                  return {
+                    detail:
+                      'The writingAssignmentId is missing, belongs to another request, was already used, or was already revised.',
+                    ok: false as const,
+                  };
+                }
+                let markdown = artifact.markdown;
+                let replacementsApplied = 0;
+                for (const [index, replacement] of replacements.entries()) {
+                  const occurrences = countExactOccurrences(markdown, replacement.find);
+                  if (occurrences !== replacement.expectedOccurrences) {
+                    return {
+                      detail:
+                        `Replacement ${index + 1} expected ${replacement.expectedOccurrences} occurrence(s) but found ${occurrences}; no changes were applied.`,
+                      ok: false as const,
+                    };
+                  }
+                  markdown = markdown.split(replacement.find).join(replacement.replace);
+                  replacementsApplied += occurrences;
+                }
+                if (Buffer.byteLength(markdown, 'utf8') > MAX_WRITING_ARTIFACT_BYTES) {
+                  return {
+                    detail: 'The revised Scribe artifact exceeds the size limit; no changes were applied.',
+                    ok: false as const,
+                  };
+                }
+                artifact.markdown = markdown;
+                artifact.revised = true;
+                return {
+                  ok: true as const,
+                  result: {
+                    assignmentId,
+                    replacementsApplied,
+                    status: 'revised' as const,
+                  },
+                };
               },
               storyChanged: (revision) =>
                 active.sendEvent({
@@ -477,6 +537,7 @@ export class AiAgentService {
         proposalOutcomes: [],
         providerId: active.model.providerId,
         requestId: taskId,
+        responseLanguage: active.responseLanguage,
         role: 'scribe',
         thinkingLevel: active.thinkingLevel,
         type: 'start',
@@ -590,6 +651,7 @@ export class AiAgentService {
         assignmentId: message.requestId,
         claimed: false,
         markdown: task.artifactMarkdown,
+        revised: false,
         targetDocumentId: task.targetDocumentId,
       };
       task.resolve({
@@ -634,3 +696,15 @@ export class AiAgentService {
     this.writingTasks.clear();
   }
 }
+
+const countExactOccurrences = (source: string, find: string): number => {
+  let count = 0;
+  let offset = 0;
+  while (offset <= source.length - find.length) {
+    const index = source.indexOf(find, offset);
+    if (index === -1) break;
+    count += 1;
+    offset = index + find.length;
+  }
+  return count;
+};

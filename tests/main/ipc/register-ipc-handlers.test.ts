@@ -161,6 +161,7 @@ describe("IPC handler composition", () => {
     expect(context.aiAgentService.start).toHaveBeenCalledWith(
       expect.objectContaining({
         model: { modelId: 'model-1', providerId: 'anthropic' },
+        responseLanguage: 'en',
         thinkingLevel: 'medium',
       }),
     );
@@ -314,6 +315,7 @@ const createContext = (): IpcHandlerContext => {
           defaultModel: { modelId: "model-1", providerId: "anthropic" },
           thinkingLevel: "medium",
         },
+        language: 'en',
       })),
       update: vi.fn(async () => ({
         agent: { defaultModel: null, thinkingLevel: 'medium' },

@@ -276,6 +276,46 @@ describe('AgentToolDispatcher', () => {
     });
   });
 
+  it('routes bounded exact Scribe artifact revisions through the active request scope', async () => {
+    const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
+    const reviseWritingArtifact = vi.fn(() => ({
+      ok: true as const,
+      result: {
+        assignmentId: 'scribe-task-1',
+        replacementsApplied: 2,
+        status: 'revised' as const,
+      },
+    }));
+    const replacements = [{
+      expectedOccurrences: 2,
+      find: '织母议会议会',
+      replace: '织母议会',
+    }];
+
+    await expect(dispatcher.execute({
+      ...scope,
+      reviseWritingArtifact,
+    }, {
+      arguments: {
+        replacements,
+        writingAssignmentId: 'scribe-task-1',
+      },
+      toolName: 'revise_writing_artifact',
+    })).resolves.toEqual({
+      data: {
+        assignmentId: 'scribe-task-1',
+        replacementsApplied: 2,
+        status: 'revised',
+      },
+      ok: true,
+      toolName: 'revise_writing_artifact',
+    });
+    expect(reviseWritingArtifact).toHaveBeenCalledWith(
+      'scribe-task-1',
+      replacements,
+    );
+  });
+
   it('applies bounded story maintenance and emits the new revision', async () => {
     const change = {
       name: 'Lin',

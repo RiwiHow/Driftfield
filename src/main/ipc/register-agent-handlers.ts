@@ -188,9 +188,10 @@ export const registerAgentIpcHandlers = ({
       ) {
         throw new Error("Unknown Agent model override target");
       }
+      const appSettings = settingsService.get();
       const agentSettings = resolveProjectAgentSettings(
         projectSettingsService.get(session),
-        settingsService.get().agent,
+        appSettings.agent,
       );
       if (
         agentSettings.defaultModel?.providerId === override.providerId &&
@@ -240,9 +241,10 @@ export const registerAgentIpcHandlers = ({
         throw new Error("Stale Agent document snapshot");
       }
       if (session === undefined) throw new Error('No project is open');
+      const appSettings = settingsService.get();
       const agentSettings = resolveProjectAgentSettings(
         projectSettingsService.get(session),
-        settingsService.get().agent,
+        appSettings.agent,
       );
       const selectedModel = agentSettings.defaultModel;
       const configurationError = getAgentStartConfigurationError(
@@ -265,6 +267,7 @@ export const registerAgentIpcHandlers = ({
           modelsPath,
           ownerId: window.webContents.id,
           projectSessionId: session?.id,
+          responseLanguage: appSettings.language,
           sendEvent: (agentEvent) => {
             agentConversationService.recordEvent(agentEvent);
             if (!window.isDestroyed() && !window.webContents.isDestroyed()) {

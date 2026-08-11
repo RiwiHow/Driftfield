@@ -27,7 +27,10 @@ domain contracts.
   cancellation, and exposes only the bounded novel-context reader plus a
   terminal artifact-submission tool to Scribe. Only Markdown submitted through
   that tool returns to Curator; ordinary assistant text is discarded. The
-  untrusted artifact never bypasses the existing proposal workflow.
+  untrusted artifact never bypasses the existing proposal workflow. Curator can
+  apply a bounded atomic batch of exact counted replacements to an unclaimed
+  artifact for mechanical corrections without retransmitting the full draft or
+  starting another Scribe task.
 - Do not enable Pi coding tools, generic shell/filesystem tools, extensions, or
   unrestricted resource discovery by default.
 

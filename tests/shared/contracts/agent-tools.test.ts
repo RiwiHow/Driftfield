@@ -80,6 +80,37 @@ describe('Agent proposal tool contract', () => {
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: {
+        replacements: [{
+          expectedOccurrences: 2,
+          find: '织母议会议会',
+          replace: '织母议会',
+        }],
+        writingAssignmentId: 'scribe-task-1',
+      },
+      toolName: 'revise_writing_artifact',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: {
+        replacements: [{
+          expectedOccurrences: 1,
+          find: 'same',
+          replace: 'same',
+        }],
+        writingAssignmentId: 'scribe-task-1',
+      },
+      toolName: 'revise_writing_artifact',
+    })).toBe(false);
+    expect(isAgentToolExecutionResult({
+      data: {
+        assignmentId: 'scribe-task-1',
+        replacementsApplied: 2,
+        status: 'revised',
+      },
+      ok: true,
+      toolName: 'revise_writing_artifact',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: {
         objective: 'Continue the confrontation scene.',
         requirements: ['Keep Mara in close third person.', 'End on the door opening.'],
         targetDocumentId: 'chapter-1',

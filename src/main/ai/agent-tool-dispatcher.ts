@@ -4,6 +4,8 @@ import type {
   AgentStructureNode,
   AgentWritingAssignment,
   AgentWritingAssignmentToolResult,
+  AgentWritingArtifactReplacement,
+  AgentWritingArtifactRevisionToolResult,
   AgentToolExecutionResult,
   AgentToolFailureResult,
   AgentToolName,
@@ -37,6 +39,12 @@ export interface AgentToolScope {
   projectSessionId?: string;
   requestId: string;
   releaseWritingArtifactClaim?: (assignmentId: string) => void;
+  reviseWritingArtifact?: (
+    assignmentId: string,
+    replacements: AgentWritingArtifactReplacement[],
+  ) =>
+    | { ok: true; result: AgentWritingArtifactRevisionToolResult }
+    | { detail: string; ok: false };
   sendProposal?: (proposal: AgentProposal) => void;
   storyChanged?: (revision: number) => void;
 }
@@ -147,6 +155,23 @@ export class AgentToolDispatcher {
       }
       return {
         data: await scope.delegateWriting(request.arguments),
+        ok: true,
+        toolName: request.toolName,
+      };
+    }
+    if (request.toolName === 'revise_writing_artifact') {
+      if (scope.reviseWritingArtifact === undefined) {
+        throw new ProjectContextError('internal-error');
+      }
+      const outcome = scope.reviseWritingArtifact(
+        request.arguments.writingAssignmentId,
+        request.arguments.replacements,
+      );
+      if (!outcome.ok) {
+        throw new ProjectContextError('invalid-arguments', outcome.detail);
+      }
+      return {
+        data: outcome.result,
         ok: true,
         toolName: request.toolName,
       };
@@ -477,7 +502,10 @@ const toolArgumentShapeHint = (
   args: unknown,
 ): string | undefined => {
   if (toolName === 'delegate_writing') {
-    return 'delegate_writing requires exactly objective, requirements, targetDocumentId, and targetLength. For a new document, set targetDocumentId to null; for an existing document, use its stable document ID, never a directory ID or placeholder. Set targetLength to an integer from 1 to 200000, or null when unspecified.';
+    return 'delegate_writing requires exactly objective, requirements, targetDocumentId, and targetLength. It is available at most once per user request and must not be retried for draft corrections. For a new document, set targetDocumentId to null; for an existing document, use its stable document ID, never a directory ID or placeholder. Set targetLength to an integer from 1 to 200000, or null when unspecified.';
+  }
+  if (toolName === 'revise_writing_artifact') {
+    return 'revise_writing_artifact requires exactly writingAssignmentId and 1 to 12 ordered replacements. Each replacement requires exactly find, replace, and expectedOccurrences; find must be non-empty and differ from replace.';
   }
   if (toolName === 'propose_document_edit') {
     return 'propose_document_edit requires exactly baseContentRevision, baseRevision, documentId, markdown, and writingAssignmentId. Supply direct markdown with writingAssignmentId null, or set markdown null and use the assignmentId returned by delegate_writing.';

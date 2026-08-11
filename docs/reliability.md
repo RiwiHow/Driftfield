@@ -47,6 +47,10 @@ Preserve these properties when changing affected subsystems.
 
 - Requests bind to project-session identity. Project switches cancel the owner;
   obsolete streamed output and tool calls are rejected.
+- Main snapshots the validated application locale when an Agent request starts.
+  The worker uses that enum only as Curator's default conversational language;
+  explicit language requests take precedence, and Scribe manuscript language
+  remains determined by the assignment and existing prose.
 - Curator may commission at most one Scribe task per request. Main owns the
   child task ID and parent binding, limits Scribe to the bounded novel-context
   reader and a terminal artifact-submission tool,
@@ -60,7 +64,12 @@ Preserve these properties when changing affected subsystems.
   the Markdown argument of the single artifact-submission call and discards
   ordinary Scribe assistant text, preventing planning or commentary from
   entering the manuscript. Scribe output remains untrusted and cannot write or
-  propose changes directly.
+  propose changes directly. A completed unclaimed artifact may receive one
+  atomic batch of bounded exact replacements for obvious mechanical defects;
+  every replacement carries an expected occurrence count, any mismatch rejects
+  the whole batch, and the resulting artifact remains size-bounded, target-bound,
+  single-use, and subject to proposal review. A second delegation returns a
+  typed non-retryable budget error rather than an internal error.
 - Cancellation remains terminal when it races with completion or output.
 - The current `read_novel_context` tool batches only fixed typed sections,
   stable document IDs, and immediate document children of stable directory

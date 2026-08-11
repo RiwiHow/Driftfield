@@ -62,10 +62,16 @@ The bounded collaboration surface contains:
   submission is discarded, so planning or commentary cannot leak into the
   manuscript. Scribe cannot delegate, propose, maintain story state, or persist content. Main
   retains the completed artifact only inside its parent request. Curator reviews
-  the Markdown, then passes the returned assignment ID to one creation or
+  the Markdown. One Scribe delegation is available per user request and cannot
+  be retried. For obvious mechanical defects, Curator may call
+  `revise_writing_artifact` with up to twelve ordered exact replacements and an
+  expected occurrence count for each. Main applies the entire revision to the
+  unclaimed transient artifact or none of it, preserving the same assignment
+  and target binding. Curator then passes the assignment ID to one creation or
   replacement proposal. Main resolves that request- and target-bound reference
-  exactly once to the original Markdown, so Curator never regenerates it and no
-  placeholder or persisted intermediate draft is created.
+  exactly once to the reviewed Markdown, so Curator never regenerates it and no
+  placeholder or persisted intermediate draft is created. Substantive rewrites
+  and uncertain editorial choices are not artifact revisions.
 
 The provider-facing Maintain schema keeps Chronicle event lifecycle and Thread
 lifecycle distinct: `create_event` uses `eventStatus` (`planned` or
@@ -210,6 +216,17 @@ failed outcomes as trusted application context on later turns, so the model
 does not mistake an already accepted proposal for one still awaiting approval.
 This list includes every terminal proposal recorded in a multi-proposal
 assistant message, not only its latest proposal.
+
+Main snapshots the validated application locale at request start and sends only
+the `en` or `zh-CN` enum to the worker. Curator uses it as the default language
+for user-facing explanations, questions, and summaries unless the user
+explicitly requests another language. The worker appends this policy at the end
+of the system prompt in the target language so that English tool policy does not
+overpower it. It is fixed application-owned policy, not a localized
+renderer-supplied prompt. It covers visible text before and after tool calls but
+never translates manuscript text or tool data. Scribe instead follows the
+assignment's explicit language and otherwise preserves the language of relevant
+existing prose.
 
 ## Tool definitions and prompt policy
 

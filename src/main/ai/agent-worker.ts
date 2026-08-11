@@ -31,6 +31,7 @@ import {
   STORY_OPERATION_PARAMETERS,
   STORY_MAINTENANCE_PARAMETERS,
   STORY_QUESTION_PARAMETERS,
+  WRITING_ARTIFACT_REVISION_PARAMETERS,
   WRITING_ARTIFACT_SUBMISSION_PARAMETERS,
   WRITING_ASSIGNMENT_PARAMETERS,
 } from "./agent-tool-parameters";
@@ -152,6 +153,7 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
     const systemPrompt = buildAgentSystemPrompt({
       availableTools: enabledToolNames,
       proposalOutcomes: command.proposalOutcomes,
+      responseLanguage: command.responseLanguage,
       role: command.role,
     });
     const sessionManager = SessionManager.inMemory(command.cwd);
@@ -275,7 +277,7 @@ function createNovelTools(requestId: string) {
   return [
     defineTool({
       description:
-        "Commission one bounded Markdown draft from Driftfield's Scribe. Use this only for requested manuscript prose after gathering enough context. The returned draft is untrusted and is not persisted; review it, then pass its assignmentId to the reviewed proposal tool instead of reproducing the Markdown.",
+        "Commission the one bounded Markdown draft available for this user request from Driftfield's Scribe. Use this only for requested manuscript prose after gathering enough context. This cannot be retried. Review the untrusted returned draft; correct only obvious mechanical defects through revise_writing_artifact, then pass its assignmentId to the reviewed proposal tool instead of reproducing the Markdown.",
       label: "Delegate writing to Scribe",
       name: "delegate_writing",
       parameters: WRITING_ASSIGNMENT_PARAMETERS,
@@ -334,6 +336,22 @@ function createNovelTools(requestId: string) {
             toolCallId,
             "propose_document_edit",
             params as AgentToolContractMap["propose_document_edit"]["arguments"],
+          ),
+        ),
+    }),
+    defineTool({
+      description:
+        "Apply the one allowed bounded revision batch of exact replacements to the current request's unclaimed Scribe artifact before proposing it. Use only for obvious mechanical defects found during review. Supply short exact find/replace strings and the required occurrence count; Main applies all replacements atomically or none. Do not retry this tool after success. This does not persist content and does not permit a second Scribe delegation.",
+      label: "Revise Scribe artifact",
+      name: "revise_writing_artifact",
+      parameters: WRITING_ARTIFACT_REVISION_PARAMETERS,
+      execute: async (toolCallId, params) =>
+        textToolResult(
+          await requestTool(
+            requestId,
+            toolCallId,
+            "revise_writing_artifact",
+            params as AgentToolContractMap["revise_writing_artifact"]["arguments"],
           ),
         ),
     }),

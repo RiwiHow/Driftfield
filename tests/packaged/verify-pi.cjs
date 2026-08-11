@@ -80,6 +80,11 @@ assert.match(
 );
 assert.match(
   workerBundle,
+  /revise_writing_artifact/,
+  'The packaged Pi worker is missing bounded Scribe artifact revision.',
+);
+assert.match(
+  workerBundle,
   /writingAssignmentId/,
   'The packaged Pi worker is missing request-bound Scribe artifact proposals.',
 );

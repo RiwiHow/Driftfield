@@ -84,6 +84,7 @@ describe('AiAgentService', () => {
       projectSessionId: 'session-1',
       prompt: 'Review this chapter',
       requestId,
+      responseLanguage: 'zh-CN',
       sendEvent,
       thinkingLevel: 'medium',
     });
@@ -206,10 +207,12 @@ describe('AiAgentService', () => {
 
   it('runs one Main-owned Scribe child task and returns its draft to Curator', async () => {
     const events: AgentEvent[] = [];
+    const flawedMarkdown = '# Draft\n\n织母议会议会。塞拉认得那白袍。\n\n织母议会议会予你返回科瓦里斯的权与名。';
+    const revisedMarkdown = '# Draft\n\n织母议会。塞拉认得那白袍。\n\n议会予你返回科瓦里斯的权与名。';
     const proposal = {
       documentId: 'chapter-created',
       documentKind: 'chapter' as const,
-      markdown: '# Draft\n\nMara opened the door.',
+      markdown: revisedMarkdown,
       operation: 'create' as const,
       parentId: 'manuscript-root',
       parentTitle: 'Manuscript',
@@ -235,9 +238,11 @@ describe('AiAgentService', () => {
     const curatorStart = workers[0].messages.find((message) =>
       typeof message === 'object' && message !== null &&
       (message as { role?: unknown }).role === 'curator') as {
-        enabledTools: string[];
+      enabledTools: string[];
+      responseLanguage: string;
       };
     expect(curatorStart.enabledTools).not.toContain('submit_writing_artifact');
+    expect(curatorStart.responseLanguage).toBe('zh-CN');
 
     workers[0].emit('message', {
       arguments: {
@@ -293,7 +298,7 @@ describe('AiAgentService', () => {
       type: 'text-delta',
     });
     workers[0].emit('message', {
-      arguments: { markdown: '# Draft\n\nMara opened the door.' },
+      arguments: { markdown: flawedMarkdown },
       requestId: child.requestId,
       toolCallId: 'tool-submit-artifact',
       toolName: 'submit_writing_artifact',
@@ -320,6 +325,7 @@ describe('AiAgentService', () => {
         'read_novel_context',
         'submit_writing_artifact',
       ],
+      responseLanguage: 'zh-CN',
       role: 'scribe',
       type: 'start',
     }));
@@ -354,13 +360,119 @@ describe('AiAgentService', () => {
       result: {
         data: {
           assignmentId: child.requestId,
-          markdown: '# Draft\n\nMara opened the door.',
+          markdown: flawedMarkdown,
           status: 'completed',
         },
         ok: true,
         toolName: 'delegate_writing',
       },
       toolCallId: 'tool-delegate',
+      type: 'tool-result',
+    });
+
+    workers[0].emit('message', {
+      arguments: {
+        objective: 'Retry the chapter.',
+        requirements: [],
+        targetDocumentId: null,
+        targetLength: null,
+      },
+      requestId: 'request-1',
+      toolCallId: 'tool-repeat-delegate',
+      toolName: 'delegate_writing',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-repeat-delegate'));
+    expect(workers[0].messages).toContainEqual({
+      requestId: 'request-1',
+      result: {
+        error: {
+          code: 'tool-budget-exceeded',
+          detail: expect.stringContaining('Only one Scribe delegation'),
+        },
+        ok: false,
+        toolName: 'delegate_writing',
+      },
+      toolCallId: 'tool-repeat-delegate',
+      type: 'tool-result',
+    });
+
+    workers[0].emit('message', {
+      arguments: {
+        replacements: [
+          {
+            expectedOccurrences: 1,
+            find: '织母议会议会。塞拉认得',
+            replace: '织母议会。塞拉认得',
+          },
+          {
+            expectedOccurrences: 2,
+            find: '织母议会议会予你返回',
+            replace: '议会予你返回',
+          },
+        ],
+        writingAssignmentId: child.requestId,
+      },
+      requestId: 'request-1',
+      toolCallId: 'tool-revise-mismatch',
+      toolName: 'revise_writing_artifact',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-revise-mismatch'));
+    expect(workers[0].messages).toContainEqual({
+      requestId: 'request-1',
+      result: {
+        error: {
+          code: 'invalid-arguments',
+          detail: 'Replacement 2 expected 2 occurrence(s) but found 1; no changes were applied.',
+        },
+        ok: false,
+        toolName: 'revise_writing_artifact',
+      },
+      toolCallId: 'tool-revise-mismatch',
+      type: 'tool-result',
+    });
+
+    workers[0].emit('message', {
+      arguments: {
+        replacements: [
+          {
+            expectedOccurrences: 1,
+            find: '织母议会议会。塞拉认得',
+            replace: '织母议会。塞拉认得',
+          },
+          {
+            expectedOccurrences: 1,
+            find: '织母议会议会予你返回',
+            replace: '议会予你返回',
+          },
+        ],
+        writingAssignmentId: child.requestId,
+      },
+      requestId: 'request-1',
+      toolCallId: 'tool-revise-artifact',
+      toolName: 'revise_writing_artifact',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-revise-artifact'));
+    expect(workers[0].messages).toContainEqual({
+      requestId: 'request-1',
+      result: {
+        data: {
+          assignmentId: child.requestId,
+          replacementsApplied: 2,
+          status: 'revised',
+        },
+        ok: true,
+        toolName: 'revise_writing_artifact',
+      },
+      toolCallId: 'tool-revise-artifact',
       type: 'tool-result',
     });
 

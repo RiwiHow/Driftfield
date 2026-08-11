@@ -38,11 +38,23 @@ export const buildAgentSystemPrompt = (
       ];
 
   const delegationInstructions = context.availableTools.includes('delegate_writing')
-    ? [
-        'A writing delegation is a bounded child task, not permission to persist or expand the work. Supply one precise assignment, review the returned Markdown, and use the ordinary reviewed proposal workflow for any manuscript change.',
-        'When writing a new document, call delegate_writing with targetDocumentId set to null, review the returned Markdown, then create one proposal with markdown set to null and writingAssignmentId set to the returned assignmentId. For an existing document, use its stable document ID and submit one replacement proposal through the same assignment reference. Never reproduce Scribe Markdown in proposal arguments, use a directory or placeholder ID, or persist an intermediate draft.',
+      ? [
+        'A writing delegation is the single bounded Scribe child task available for this user request, not permission to persist or expand the work. Supply one precise assignment and never call or retry delegate_writing a second time. Review the returned Markdown, use revise_writing_artifact only for obvious mechanical defects through exact counted replacements, and use the ordinary reviewed proposal workflow for any manuscript change.',
+        'When writing a new document, call delegate_writing with targetDocumentId set to null, review and optionally mechanically revise the returned artifact, then create one proposal with markdown set to null and writingAssignmentId set to the same returned assignmentId. For an existing document, use its stable document ID and submit one replacement proposal through the same assignment reference. Never reproduce Scribe Markdown in proposal arguments, use a directory or placeholder ID, persist an intermediate draft, or attempt a second delegation.',
       ]
     : [];
+
+  const languageInstructions = context.role === 'scribe'
+    ? [
+        'Final language policy: The interface language does not determine manuscript language. Write the artifact in the language explicitly requested by the assignment; otherwise preserve the language of the relevant existing manuscript context, or use the language implied by the assignment when no manuscript context exists.',
+      ]
+    : context.responseLanguage === 'zh-CN'
+      ? [
+          '最终语言规则（必须遵守）：当前界面语言为简体中文。除非用户明确要求使用其他回复语言，否则所有对用户可见的非原文文本都必须使用简体中文，包括工具调用前后的说明、进度提示、问题、总结和错误解释。不得用英文叙述计划。不要因此翻译小说正文、标题、文件名、引用证据或工具数据。',
+        ]
+      : [
+          'Final language policy (mandatory): The interface language is English. Unless the user explicitly requests another response language, all user-visible non-manuscript text must be in English, including text before or after tool calls, progress notes, questions, summaries, and error explanations. Do not translate manuscript text, titles, filenames, quoted evidence, or tool data because of the interface language.',
+        ];
 
   return {
     profileId: descriptor.id,
@@ -57,6 +69,8 @@ export const buildAgentSystemPrompt = (
       ...capabilityInstructions.map((instruction) => `- ${instruction}`),
       ...delegationInstructions.map((instruction) => `- ${instruction}`),
       ...proposalOutcomeInstructions,
+      '',
+      ...languageInstructions,
     ].join('\n'),
     version: descriptor.version,
   };

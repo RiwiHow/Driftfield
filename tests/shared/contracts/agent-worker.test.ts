@@ -17,6 +17,24 @@ describe("Agent utility-process protocol", () => {
       }),
     ).toBe(true);
     expect(
+      isAgentWorkerCommand({
+        authPath: "/app-data/auth.json",
+        cwd: "/project",
+        enabledTools: [],
+        history: [],
+        proposalOutcomes: [],
+        modelId: "claude-sonnet",
+        modelsPath: "/app-data/models.json",
+        prompt: "Review this chapter",
+        providerId: "anthropic",
+        requestId: "request-2",
+        responseLanguage: "fr",
+        role: "curator",
+        thinkingLevel: "medium",
+        type: "start",
+      }),
+    ).toBe(false);
+    expect(
       isAgentWorkerMessage({
         failed: false,
         output: '{"ok":true}',
@@ -50,6 +68,7 @@ describe("Agent utility-process protocol", () => {
         prompt: "Review this chapter",
         providerId: "anthropic",
         requestId: "request-1",
+        responseLanguage: "zh-CN",
         role: "curator",
         thinkingLevel: "medium",
         type: "start",

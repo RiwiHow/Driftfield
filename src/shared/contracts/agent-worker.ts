@@ -9,6 +9,7 @@ import {
   type AgentToolExecutionResult,
 } from "./agent-tools";
 import type { AgentProposalOutcome } from './agent-proposals';
+import { isAppLanguage, type AppLanguage } from '../i18n/languages';
 
 export interface AgentWorkerStartCommand {
   authPath: string;
@@ -21,6 +22,7 @@ export interface AgentWorkerStartCommand {
   proposalOutcomes: AgentProposalOutcome[];
   providerId: string;
   requestId: string;
+  responseLanguage: AppLanguage;
   role: AgentRole;
   thinkingLevel: AgentThinkingLevel;
   type: "start";
@@ -178,6 +180,7 @@ export const isAgentWorkerCommand = (
     command.proposalOutcomes.length <= 50 &&
     command.proposalOutcomes.every(isProposalOutcome) &&
     typeof command.providerId === "string" &&
+    isAppLanguage(command.responseLanguage) &&
     typeof command.role === "string" &&
     AGENT_ROLES.includes(command.role as AgentRole) &&
     typeof command.thinkingLevel === "string" &&

@@ -89,6 +89,29 @@ export const WRITING_ARTIFACT_SUBMISSION_PARAMETERS = Type.Object(
   { additionalProperties: false },
 );
 
+export const WRITING_ARTIFACT_REVISION_PARAMETERS = Type.Object(
+  {
+    replacements: Type.Array(
+      Type.Object(
+        {
+          expectedOccurrences: Type.Integer({ maximum: 100, minimum: 1 }),
+          find: Type.String({ maxLength: 8_000, minLength: 1 }),
+          replace: Type.String({ maxLength: 8_000 }),
+        },
+        { additionalProperties: false },
+      ),
+      {
+        description:
+          'Ordered exact replacements in the current Scribe artifact. Each find string must occur exactly expectedOccurrences times at its step or the entire revision is rejected.',
+        maxItems: 12,
+        minItems: 1,
+      },
+    ),
+    writingAssignmentId: Type.String({ maxLength: 128, minLength: 1 }),
+  },
+  { additionalProperties: false },
+);
+
 export const DOCUMENT_EDIT_PARAMETERS = Type.Object(
   {
     baseContentRevision: Type.String({ pattern: '^[a-f0-9]{64}$' }),

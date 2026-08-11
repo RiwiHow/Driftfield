@@ -8,11 +8,22 @@ import {
   PROJECT_STRUCTURE_OPERATION_PARAMETERS,
   STORY_MAINTENANCE_PARAMETERS,
   STORY_OPERATION_PARAMETERS,
+  WRITING_ARTIFACT_REVISION_PARAMETERS,
   WRITING_ARTIFACT_SUBMISSION_PARAMETERS,
   WRITING_ASSIGNMENT_PARAMETERS,
 } from '../../../src/main/ai/agent-tool-parameters';
 
 describe('Agent tool parameter schemas', () => {
+  it('defines bounded exact Scribe artifact replacements', () => {
+    const schema = WRITING_ARTIFACT_REVISION_PARAMETERS as unknown as Record<string, unknown>;
+    const properties = schema.properties as Record<string, Record<string, unknown>>;
+
+    expect(schema.required).toEqual(['replacements', 'writingAssignmentId']);
+    expect(properties.replacements).toMatchObject({ maxItems: 12, minItems: 1 });
+    expect(JSON.stringify(properties.replacements)).toContain('expectedOccurrences');
+    expect(JSON.stringify(properties.replacements)).toContain('entire revision is rejected');
+  });
+
   it('defines a bounded terminal Scribe artifact submission', () => {
     const schema = WRITING_ARTIFACT_SUBMISSION_PARAMETERS as unknown as Record<string, unknown>;
     const properties = schema.properties as Record<string, Record<string, unknown>>;
