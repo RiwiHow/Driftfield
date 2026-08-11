@@ -1,4 +1,7 @@
 import type {
+  AgentAcceptedDocumentReconciliationArguments,
+  AgentAcceptedReconciliationContext,
+  AgentDocumentToolResult,
   AgentDraftSnapshot,
   AgentNovelStructureToolResult,
   AgentStructureNode,
@@ -8,9 +11,12 @@ import type {
   AgentWritingArtifactRevisionToolResult,
   AgentToolExecutionResult,
   AgentToolFailureResult,
+  AgentToolContractMap,
   AgentToolName,
   AgentToolRequest,
   AgentToolSuccessResult,
+  AgentStoryMaintenanceChange,
+  AgentCanonicalStoryQuestionArguments,
 } from '../../shared/contracts/agent-tools';
 import {
   isAgentToolRequest,
@@ -25,13 +31,20 @@ import type {
   ResolvedDocumentFileOperationArguments,
 } from './agent-proposal-service';
 import type { AgentProposal } from '../../shared/contracts/agent-proposals';
-import { isProjectStoryOperation } from '../../shared/contracts/project-story';
+import {
+  isProjectStoryOperation,
+  type ProjectStorySnapshot,
+} from '../../shared/contracts/project-story';
 
 export interface AgentToolScope {
+  acceptedDocumentId?: string;
   claimWritingArtifact?: (
     assignmentId: string,
     targetDocumentId: string | null,
   ) => string | undefined;
+  completeStoryReconciliation?: (
+    status: 'applied' | 'no_changes' | 'questions_recorded',
+  ) => { detail?: string; ok: boolean };
   delegateWriting?: (
     assignment: AgentWritingAssignment,
   ) => Promise<AgentWritingAssignmentToolResult>;
@@ -69,8 +82,22 @@ interface RequestBudget {
   resultBytes: number;
 }
 
+interface ReconciliationRegistry {
+  acceptedDocumentId: string;
+  acceptedDocumentRevision: string;
+  acceptedDocumentTitle: string;
+  beatOrderKeys: Map<string, number>;
+  momentOrderKey: number;
+  personaIds: Map<string, string>;
+  primaryTimelineId: string | null;
+  storyRevision: number;
+  threadIds: Map<string, string>;
+  threadStatuses: Map<string, import('../../shared/contracts/project-story').ThreadStatus>;
+}
+
 export class AgentToolDispatcher {
   private readonly budgets = new Map<string, RequestBudget>();
+  private readonly reconciliationRegistries = new Map<string, ReconciliationRegistry>();
 
   constructor(
     private readonly context: ProjectContextService,
@@ -122,6 +149,7 @@ export class AgentToolDispatcher {
 
   release(requestId: string): void {
     this.budgets.delete(requestId);
+    this.reconciliationRegistries.delete(requestId);
     this.proposals?.cancelRequest(requestId);
   }
 
@@ -182,7 +210,14 @@ export class AgentToolDispatcher {
       const includeSet = new Set(include);
       const needsStructure = includeSet.has('structure') ||
         documentIds.length > 0 || directoryIds.length > 0;
-      const [resolvedStructure, currentDocument, storyState] =
+      const needsAcceptedReconciliation = includeSet.has('accepted_reconciliation');
+      if (needsAcceptedReconciliation && scope.acceptedDocumentId === undefined) {
+        throw new ProjectContextError(
+          'invalid-arguments',
+          'No accepted Scribe-backed document is awaiting reconciliation.',
+        );
+      }
+      const [resolvedStructure, currentDocument, storyState, acceptedDocument] =
         await Promise.all([
           needsStructure
             ? this.context.getNovelStructure(contextScope)
@@ -190,8 +225,11 @@ export class AgentToolDispatcher {
           includeSet.has('current_document')
             ? this.context.getCurrentDocument(contextScope)
             : undefined,
-          includeSet.has('story_state')
+          includeSet.has('story_state') || needsAcceptedReconciliation
             ? this.context.getStoryState(contextScope)
+            : undefined,
+          needsAcceptedReconciliation
+            ? this.context.getDocument(contextScope, scope.acceptedDocumentId!)
             : undefined,
         ]);
       const nodes = resolvedStructure === undefined
@@ -234,11 +272,21 @@ export class AgentToolDispatcher {
       const documents = await Promise.all(resolvedDocumentIds.map(
         (documentId) => this.context.getDocument(contextScope, documentId),
       ));
+      const reconciliation = acceptedDocument === undefined || storyState === undefined
+        ? undefined
+        : this.buildReconciliationContext(
+            scope.requestId,
+            acceptedDocument,
+            storyState,
+          );
       return {
         data: {
           ...(currentDocument === undefined ? {} : { currentDocument }),
-          documents,
-          ...(storyState === undefined ? {} : { storyState }),
+        documents,
+        ...(reconciliation === undefined ? {} : { reconciliation }),
+        ...(!includeSet.has('story_state') || storyState === undefined
+          ? {}
+          : { storyState }),
           ...(includeSet.has('structure') && resolvedStructure !== undefined
             ? { structure: resolvedStructure }
             : {}),
@@ -261,11 +309,58 @@ export class AgentToolDispatcher {
         toolName: request.toolName,
       };
     }
+    if (request.toolName === 'reconcile_accepted_document') {
+      const registry = this.reconciliationRegistries.get(scope.requestId);
+      if (
+        registry === undefined ||
+        scope.acceptedDocumentId === undefined ||
+        registry.acceptedDocumentId !== scope.acceptedDocumentId
+      ) {
+        throw new ProjectContextError(
+          'invalid-arguments',
+          'Read accepted_reconciliation context after the manuscript proposal is accepted.',
+        );
+      }
+      const changes = buildAcceptedDocumentChanges(
+        registry,
+        request.arguments,
+      );
+      const data = await this.context.maintainStoryRecords(
+        contextScope,
+        scope.requestId,
+        registry.storyRevision,
+        changes,
+      );
+      scope.storyChanged?.(data.revision);
+      return { data, ok: true, toolName: request.toolName };
+    }
+    if (request.toolName === 'complete_story_reconciliation') {
+      if (scope.completeStoryReconciliation === undefined) {
+        throw new ProjectContextError('internal-error');
+      }
+      const outcome = scope.completeStoryReconciliation(request.arguments.status);
+      if (!outcome.ok) {
+        throw new ProjectContextError(
+          'invalid-arguments',
+          outcome.detail ?? 'Story reconciliation cannot be completed yet.',
+        );
+      }
+      return {
+        data: { status: 'complete' },
+        ok: true,
+        toolName: request.toolName,
+      };
+    }
     if (request.toolName === 'record_story_question') {
+      const input = resolveStoryQuestionArguments(
+        scope,
+        this.reconciliationRegistries.get(scope.requestId),
+        request.arguments,
+      );
       const data = this.context.recordStoryQuestion(
         contextScope,
         scope.requestId,
-        request.arguments,
+        input,
       );
       scope.storyChanged?.(data.revision);
       return { data, ok: true, toolName: request.toolName };
@@ -404,6 +499,115 @@ export class AgentToolDispatcher {
     throw new ProjectContextError('internal-error');
   }
 
+  private buildReconciliationContext(
+    requestId: string,
+    acceptedDocument: AgentDocumentToolResult,
+    story: ProjectStorySnapshot,
+  ): AgentAcceptedReconciliationContext {
+    const primaryTimeline = story.timelines.find(({ isPrimary }) => isPrimary) ?? null;
+    const personaIds = new Map<string, string>();
+    const personae = story.personae.map((persona, index) => {
+      const ref = `persona:${index + 1}`;
+      personaIds.set(ref, persona.id);
+      return {
+        name: persona.name,
+        ref,
+        role: persona.role,
+        summary: persona.summary,
+      };
+    });
+    const threadIds = new Map<string, string>();
+    const threadStatuses = new Map<
+      string,
+      import('../../shared/contracts/project-story').ThreadStatus
+    >();
+    const beatOrderKeys = new Map<string, number>();
+    const threads = story.threads.map((thread, index) => {
+      const ref = `thread:${index + 1}`;
+      threadIds.set(ref, thread.id);
+      threadStatuses.set(thread.id, thread.status);
+      const beats = story.beats
+        .filter(({ threadId }) => threadId === thread.id)
+        .sort((left, right) => left.orderKey - right.orderKey);
+      beatOrderKeys.set(
+        thread.id,
+        beats.reduce((maximum, beat) => Math.max(maximum, beat.orderKey), -1),
+      );
+      return {
+        beats: beats.map((beat) => ({
+          description: beat.description,
+          kind: beat.kind,
+          status: beat.status,
+          title: beat.title,
+        })),
+        ref,
+        status: thread.status,
+        summary: thread.summary,
+        title: thread.title,
+      };
+    });
+    const momentById = new Map(story.moments.map((moment) => [moment.id, moment]));
+    const personaById = new Map(story.personae.map((persona) => [persona.id, persona]));
+    const participantsByEvent = new Map<string, string[]>();
+    for (const participant of story.eventParticipants) {
+      const name = personaById.get(participant.personaId)?.name;
+      if (name === undefined) continue;
+      const participants = participantsByEvent.get(participant.eventId) ?? [];
+      participants.push(name);
+      participantsByEvent.set(participant.eventId, participants);
+    }
+    const registry: ReconciliationRegistry = {
+      acceptedDocumentId: acceptedDocument.documentId,
+      acceptedDocumentRevision: acceptedDocument.contentRevision,
+      acceptedDocumentTitle: acceptedDocument.displayTitle,
+      beatOrderKeys,
+      momentOrderKey: primaryTimeline === null
+        ? -1
+        : story.moments
+            .filter(({ timelineId }) => timelineId === primaryTimeline.id)
+            .reduce((maximum, moment) => Math.max(maximum, moment.orderKey), -1),
+      personaIds,
+      primaryTimelineId: primaryTimeline?.id ?? null,
+      storyRevision: story.revision,
+      threadIds,
+      threadStatuses,
+    };
+    this.reconciliationRegistries.set(requestId, registry);
+    return {
+      acceptedDocument: {
+        displayTitle: acceptedDocument.displayTitle,
+        markdown: acceptedDocument.markdown,
+        metadataTitle: acceptedDocument.metadataTitle,
+        ref: 'document:accepted',
+      },
+      chronicle: story.events.map((event) => ({
+        displayTime: momentById.get(event.startMomentId)?.displayTime ?? '',
+        participants: participantsByEvent.get(event.id) ?? [],
+        status: event.status,
+        summary: event.summary,
+        title: event.title,
+      })),
+      personae,
+      primaryTimeline: primaryTimeline === null
+        ? null
+        : {
+            ref: 'timeline:primary',
+            summary: primaryTimeline.summary,
+            title: primaryTimeline.title,
+          },
+      questions: story.questions
+        .filter(({ status }) => status === 'open')
+        .map((question) => ({
+          context: question.context,
+          kind: question.kind,
+          options: question.options,
+          question: question.question,
+        })),
+      storyRef: 'story:accepted',
+      threads,
+    };
+  }
+
   disposeOwner(ownerId: number): void {
     this.proposals?.disposeOwner(ownerId);
   }
@@ -436,6 +640,127 @@ export class AgentToolDispatcher {
     } as AgentToolFailureResult<Name>;
   }
 }
+
+const buildAcceptedDocumentChanges = (
+  registry: ReconciliationRegistry,
+  input: AgentAcceptedDocumentReconciliationArguments,
+): AgentStoryMaintenanceChange[] => {
+  if (registry.primaryTimelineId === null) {
+    throw new ProjectContextError(
+      'invalid-arguments',
+      'The accepted reconciliation context has no primary timeline.',
+    );
+  }
+  const event = input.events[0];
+  const participants = event.participants.map((participant) => {
+    const personaId = registry.personaIds.get(participant.personaRef);
+    if (personaId === undefined) {
+      throw new ProjectContextError(
+        'invalid-arguments',
+        `Unknown reconciliation persona ref: ${participant.personaRef}`,
+      );
+    }
+    return {
+      description: participant.description,
+      personaId,
+      role: participant.role,
+    };
+  });
+  const changes: AgentStoryMaintenanceChange[] = [
+    {
+      clientRef: 'accepted_moment',
+      displayTime: event.displayTime,
+      note: event.summary,
+      operation: 'create_moment',
+      orderKey: registry.momentOrderKey + 1,
+      precision: event.precision,
+      timelineId: registry.primaryTimelineId,
+    },
+    {
+      causes: '',
+      clientRef: 'accepted_event',
+      consequences: '',
+      endMomentId: null,
+      operation: 'create_event',
+      participants,
+      sources: [{
+        anchor: registry.acceptedDocumentTitle,
+        documentId: registry.acceptedDocumentId,
+        documentRevision: registry.acceptedDocumentRevision,
+        relation: 'depicted',
+        sourceKind: 'manuscript',
+      }],
+      startMomentId: '@accepted_moment',
+      status: 'established',
+      summary: event.summary,
+      timelineId: registry.primaryTimelineId,
+      title: event.title,
+    },
+  ];
+  const beatOrderKeys = new Map(registry.beatOrderKeys);
+  input.threadAdvances.forEach((advance, index) => {
+    const threadId = registry.threadIds.get(advance.threadRef);
+    if (threadId === undefined) {
+      throw new ProjectContextError(
+        'invalid-arguments',
+        `Unknown reconciliation thread ref: ${advance.threadRef}`,
+      );
+    }
+    const beatRef = `accepted_beat_${index + 1}`;
+    const orderKey = (beatOrderKeys.get(threadId) ?? -1) + 1;
+    beatOrderKeys.set(threadId, orderKey);
+    changes.push({
+      clientRef: beatRef,
+      description: advance.description,
+      desiredOutcome: advance.desiredOutcome ?? '',
+      dramaticPurpose: advance.dramaticPurpose ?? '',
+      kind: advance.kind,
+      operation: 'create_beat',
+      orderKey,
+      parentId: null,
+      status: registry.threadStatuses.get(threadId) ?? 'active',
+      threadId,
+      title: advance.title,
+    });
+    changes.push({
+      beatId: `@${beatRef}`,
+      eventId: '@accepted_event',
+      operation: 'link_beat_event',
+      relation: advance.relation,
+    });
+  });
+  return changes;
+};
+
+const resolveStoryQuestionArguments = (
+  scope: AgentToolScope,
+  registry: ReconciliationRegistry | undefined,
+  input: AgentToolContractMap['record_story_question']['arguments'],
+): AgentCanonicalStoryQuestionArguments => {
+  if (input.evidence === null) return { ...input, evidence: null };
+  if ('documentId' in input.evidence) {
+    return { ...input, evidence: input.evidence };
+  }
+  if (
+    registry === undefined ||
+    scope.acceptedDocumentId === undefined ||
+    registry.acceptedDocumentId !== scope.acceptedDocumentId
+  ) {
+    throw new ProjectContextError(
+      'invalid-arguments',
+      'Read accepted_reconciliation before using document:accepted evidence.',
+    );
+  }
+  return {
+    ...input,
+    evidence: {
+      anchor: input.evidence.anchor,
+      documentId: registry.acceptedDocumentId,
+      documentRevision: registry.acceptedDocumentRevision,
+      sourceKind: 'manuscript',
+    },
+  };
+};
 
 class ToolTimeoutError extends Error {}
 
@@ -508,6 +833,12 @@ const toolArgumentShapeHint = (
   if (toolName === 'revise_writing_artifact') {
     return 'revise_writing_artifact requires exactly writingAssignmentId and 1 to 12 ordered replacements. Each replacement requires exactly find, replace, and expectedOccurrences; find must be non-empty and differ from replace.';
   }
+  if (toolName === 'reconcile_accepted_document') {
+    return 'reconcile_accepted_document requires exactly events and threadAdvances. events must contain exactly one event with displayTime, precision, title, summary, and participants. Participants use personaRef from accepted_reconciliation. Thread advances use threadRef from that same read and require kind, title, description, and relation; dramaticPurpose and desiredOutcome are optional.';
+  }
+  if (toolName === 'complete_story_reconciliation') {
+    return 'complete_story_reconciliation requires exactly status and reason. Read accepted_reconciliation after acceptance first. Use applied only after a successful reconciliation mutation, questions_recorded only after recording a question, or no_changes only when neither occurred.';
+  }
   if (toolName === 'propose_document_edit') {
     return 'propose_document_edit requires exactly baseContentRevision, baseRevision, documentId, markdown, and writingAssignmentId. Supply direct markdown with writingAssignmentId null, or set markdown null and use the assignmentId returned by delegate_writing.';
   }
@@ -550,6 +881,7 @@ const STORY_OPERATION_FIELDS: Record<string, {
   required: string[];
 }> = {
   create_beat: {
+    optional: ['dramaticPurpose', 'desiredOutcome'],
     required: [
       'operation',
       'threadId',
@@ -559,12 +891,10 @@ const STORY_OPERATION_FIELDS: Record<string, {
       'description',
       'status',
       'orderKey',
-      'dramaticPurpose',
-      'desiredOutcome',
     ],
   },
   create_event: {
-    optional: ['sources'],
+    optional: ['causes', 'consequences', 'sources'],
     required: [
       'operation',
       'timelineId',
@@ -573,8 +903,6 @@ const STORY_OPERATION_FIELDS: Record<string, {
       'title',
       'summary',
       'status',
-      'causes',
-      'consequences',
       'participants',
     ],
   },

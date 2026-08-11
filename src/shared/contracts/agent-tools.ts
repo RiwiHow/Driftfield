@@ -70,6 +70,7 @@ export const AGENT_NOVEL_CONTEXT_SECTIONS = [
   'structure',
   'current_document',
   'story_state',
+  'accepted_reconciliation',
 ] as const;
 
 export type AgentNovelContextSection =
@@ -78,8 +79,78 @@ export type AgentNovelContextSection =
 export interface AgentNovelContextToolResult {
   currentDocument?: AgentDocumentToolResult;
   documents: AgentDocumentToolResult[];
+  reconciliation?: AgentAcceptedReconciliationContext;
   storyState?: import('./project-story').ProjectStorySnapshot;
   structure?: AgentNovelStructureToolResult;
+}
+
+export interface AgentAcceptedReconciliationContext {
+  acceptedDocument: {
+    displayTitle: string;
+    markdown: string;
+    metadataTitle: string;
+    ref: 'document:accepted';
+  };
+  chronicle: Array<{
+    displayTime: string;
+    participants: string[];
+    status: import('./project-story').ChronicleEventStatus;
+    summary: string;
+    title: string;
+  }>;
+  personae: Array<{
+    name: string;
+    ref: string;
+    role: string | null;
+    summary: string;
+  }>;
+  primaryTimeline: {
+    ref: 'timeline:primary';
+    summary: string;
+    title: string;
+  } | null;
+  questions: Array<{
+    context: string;
+    kind: import('./project-story').StoryQuestionKind;
+    options: string[];
+    question: string;
+  }>;
+  storyRef: 'story:accepted';
+  threads: Array<{
+    beats: Array<{
+      description: string;
+      kind: import('./project-story').ThreadBeatKind;
+      status: import('./project-story').ThreadStatus;
+      title: string;
+    }>;
+    ref: string;
+    status: import('./project-story').ThreadStatus;
+    summary: string;
+    title: string;
+  }>;
+}
+
+export interface AgentAcceptedDocumentReconciliationArguments {
+  events: Array<{
+    displayTime: string;
+    participants: Array<{
+      description: string;
+      personaRef: string;
+      role: import('./project-story').ChronicleParticipantRole;
+    }>;
+    precision: import('./project-story').ChronicleMomentPrecision;
+    summary: string;
+    title: string;
+  }>;
+  threadAdvances: Array<{
+    description: string;
+    desiredOutcome?: string;
+    dramaticPurpose?: string;
+    kind: import('./project-story').ThreadBeatKind;
+    relation: import('./project-story').ThreadEventRelation;
+    threadRef: string;
+    title: string;
+  }>;
 }
 
 export interface AgentProposalToolResult {
@@ -91,6 +162,10 @@ export interface AgentStoryMaintenanceToolResult {
   appliedCount: number;
   revision: number;
   status: 'applied';
+}
+
+export interface AgentStoryReconciliationCompletionToolResult {
+  status: 'complete';
 }
 
 type StoryCreateOperation = Exclude<
@@ -110,6 +185,23 @@ export interface AgentStoryQuestionToolResult {
   revision: number;
   status: 'recorded' | 'resolved';
 }
+
+export type AgentStoryQuestionEvidence =
+  | import('./project-story').StoryQuestionEvidence
+  | { anchor: string; sourceRef: 'document:accepted' };
+
+export interface AgentStoryQuestionArguments {
+  context: string;
+  evidence: AgentStoryQuestionEvidence | null;
+  kind: import('./project-story').StoryQuestionKind;
+  options: string[];
+  question: string;
+}
+
+export type AgentCanonicalStoryQuestionArguments = Omit<
+  AgentStoryQuestionArguments,
+  'evidence'
+> & { evidence: import('./project-story').StoryQuestionEvidence | null };
 
 export interface AgentWritingAssignment {
   objective: string;
@@ -233,14 +325,19 @@ export interface AgentToolContractMap {
     };
     result: AgentStoryMaintenanceToolResult;
   };
-  record_story_question: {
+  complete_story_reconciliation: {
     arguments: {
-      context: string;
-      evidence: import('./project-story').StoryQuestionEvidence | null;
-      kind: import('./project-story').StoryQuestionKind;
-      options: string[];
-      question: string;
+      reason: string;
+      status: 'applied' | 'no_changes' | 'questions_recorded';
     };
+    result: AgentStoryReconciliationCompletionToolResult;
+  };
+  reconcile_accepted_document: {
+    arguments: AgentAcceptedDocumentReconciliationArguments;
+    result: AgentStoryMaintenanceToolResult;
+  };
+  record_story_question: {
+    arguments: AgentStoryQuestionArguments;
     result: AgentStoryQuestionToolResult;
   };
   resolve_story_question: {
@@ -276,6 +373,8 @@ export const AGENT_TOOL_NAMES = [
   'submit_writing_artifact',
   'revise_writing_artifact',
   'maintain_story_records',
+  'complete_story_reconciliation',
+  'reconcile_accepted_document',
   'record_story_question',
   'resolve_story_question',
   'propose_document_edit',
@@ -519,6 +618,20 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
       value.changes.length <= 24 && value.changes.every(isStoryMaintenanceChange)
     );
   }
+  if (toolName === 'complete_story_reconciliation') {
+    return Object.keys(value).length === 2 &&
+      typeof value.status === 'string' &&
+      ['applied', 'no_changes', 'questions_recorded'].includes(value.status) &&
+      isBoundedText(value.reason, 2_000, false);
+  }
+  if (toolName === 'reconcile_accepted_document') {
+    return Object.keys(value).length === 2 &&
+      Array.isArray(value.events) && value.events.length === 1 &&
+      value.events.every(isAcceptedReconciliationEvent) &&
+      Array.isArray(value.threadAdvances) &&
+      value.threadAdvances.length <= 11 &&
+      value.threadAdvances.every(isAcceptedThreadAdvance);
+  }
   if (toolName === 'record_story_question') {
     return Object.keys(value).length === 5 &&
       typeof value.kind === 'string' &&
@@ -536,7 +649,7 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
   }
   if (toolName === 'read_novel_context') {
     return Object.keys(value).length === 3 &&
-      Array.isArray(value.include) && value.include.length <= 3 &&
+      Array.isArray(value.include) && value.include.length <= 4 &&
       value.include.every((section) =>
         typeof section === 'string' &&
         AGENT_NOVEL_CONTEXT_SECTIONS.includes(section as AgentNovelContextSection)) &&
@@ -583,6 +696,10 @@ const isToolData = (toolName: AgentToolName, value: unknown): boolean =>
       ? isNovelContextResult(value)
     : toolName === 'maintain_story_records'
       ? isStoryMaintenanceResult(value)
+    : toolName === 'complete_story_reconciliation'
+      ? isStoryReconciliationCompletionResult(value)
+    : toolName === 'reconcile_accepted_document'
+      ? isStoryMaintenanceResult(value)
     : toolName === 'record_story_question' || toolName === 'resolve_story_question'
       ? isStoryQuestionResult(value)
     : toolName === 'propose_document_edit' ||
@@ -597,10 +714,18 @@ const isNovelContextResult = (
 ): value is AgentNovelContextToolResult =>
   isRecord(value) &&
   Object.keys(value).every((key) =>
-    ['currentDocument', 'documents', 'storyState', 'structure'].includes(key)) &&
+    [
+      'currentDocument',
+      'documents',
+      'reconciliation',
+      'storyState',
+      'structure',
+    ].includes(key)) &&
   Array.isArray(value.documents) && value.documents.length <= 4 &&
   value.documents.every(isDocumentResult) &&
   (value.currentDocument === undefined || isDocumentResult(value.currentDocument)) &&
+  (value.reconciliation === undefined ||
+    isAcceptedReconciliationContext(value.reconciliation)) &&
   (value.storyState === undefined || isProjectStorySnapshot(value.storyState)) &&
   (value.structure === undefined || isNovelStructureResult(value.structure));
 
@@ -645,6 +770,80 @@ const isStoryMaintenanceResult = (value: unknown): boolean =>
   Number.isSafeInteger(value.revision) &&
   (value.revision as number) > 0;
 
+const isStoryReconciliationCompletionResult = (value: unknown): boolean =>
+  isRecord(value) && Object.keys(value).length === 1 &&
+  value.status === 'complete';
+
+const isAcceptedReconciliationEvent = (value: unknown): boolean =>
+  isRecord(value) && Object.keys(value).length === 5 &&
+  isBoundedText(value.displayTime, 500, false) &&
+  typeof value.precision === 'string' &&
+  ['exact', 'day', 'month', 'season', 'approximate', 'unknown']
+    .includes(value.precision) &&
+  isBoundedText(value.title, 500, false) &&
+  isBoundedText(value.summary, 30_000, true) &&
+  Array.isArray(value.participants) && value.participants.length <= 100 &&
+  value.participants.every((participant) =>
+    isRecord(participant) && Object.keys(participant).length === 3 &&
+    isBoundedText(participant.personaRef, 64, false) &&
+    isBoundedText(participant.description, 10_000, true) &&
+    typeof participant.role === 'string' &&
+    ['actor', 'target', 'witness', 'affected'].includes(participant.role));
+
+const isAcceptedThreadAdvance = (value: unknown): boolean => {
+  if (!isRecord(value)) return false;
+  const keys = Object.keys(value);
+  return keys.length >= 5 && keys.length <= 7 &&
+    keys.every((key) => [
+      'description',
+      'desiredOutcome',
+      'dramaticPurpose',
+      'kind',
+      'relation',
+      'threadRef',
+      'title',
+    ].includes(key)) &&
+    isBoundedText(value.threadRef, 64, false) &&
+    isBoundedText(value.title, 500, false) &&
+    isBoundedText(value.description, 30_000, true) &&
+    (value.desiredOutcome === undefined ||
+      isBoundedText(value.desiredOutcome, 10_000, true)) &&
+    (value.dramaticPurpose === undefined ||
+      isBoundedText(value.dramaticPurpose, 10_000, true)) &&
+    typeof value.kind === 'string' &&
+    ['beat', 'setup', 'turning_point', 'climax', 'resolution']
+      .includes(value.kind) &&
+    typeof value.relation === 'string' &&
+    ['plans', 'realizes', 'reveals', 'foreshadows', 'resolves']
+      .includes(value.relation);
+};
+
+const isAcceptedReconciliationContext = (value: unknown): boolean =>
+  isRecord(value) && Object.keys(value).length === 7 &&
+  value.storyRef === 'story:accepted' &&
+  isRecord(value.acceptedDocument) &&
+  value.acceptedDocument.ref === 'document:accepted' &&
+  isBoundedText(value.acceptedDocument.displayTitle, 500, false) &&
+  isBoundedText(value.acceptedDocument.metadataTitle, 500, false) &&
+  typeof value.acceptedDocument.markdown === 'string' &&
+  Array.isArray(value.personae) &&
+  value.personae.every((persona) => isRecord(persona) &&
+    isBoundedText(persona.ref, 64, false) &&
+    isBoundedText(persona.name, 500, false)) &&
+  Array.isArray(value.chronicle) &&
+  value.chronicle.every((event) => isRecord(event) &&
+    isBoundedText(event.title, 500, false) &&
+    isBoundedText(event.summary, 30_000, true)) &&
+  Array.isArray(value.threads) &&
+  value.threads.every((thread) => isRecord(thread) &&
+    isBoundedText(thread.ref, 64, false) &&
+    isBoundedText(thread.title, 500, false) &&
+    Array.isArray(thread.beats)) &&
+  Array.isArray(value.questions) &&
+  (value.primaryTimeline === null ||
+    (isRecord(value.primaryTimeline) &&
+      value.primaryTimeline.ref === 'timeline:primary'));
+
 const isStoryMaintenanceChange = (value: unknown): boolean => {
   if (!isRecord(value)) return false;
   const { clientRef, ...operation } = value;
@@ -663,10 +862,12 @@ const isStoryQuestionResult = (value: unknown): boolean =>
   (value.revision as number) >= 0;
 
 const isQuestionEvidence = (value: unknown): boolean =>
-  isRecord(value) && Object.keys(value).length === 4 &&
-  value.sourceKind === 'manuscript' &&
-  isDocumentId(value.documentId) && isRevision(value.documentRevision) &&
-  isBoundedText(value.anchor, 10_000, false);
+  isRecord(value) && isBoundedText(value.anchor, 10_000, false) &&
+  ((Object.keys(value).length === 2 &&
+    value.sourceRef === 'document:accepted') ||
+    (Object.keys(value).length === 4 &&
+      value.sourceKind === 'manuscript' &&
+      isDocumentId(value.documentId) && isRevision(value.documentRevision)));
 
 const isBoundedText = (
   value: unknown,

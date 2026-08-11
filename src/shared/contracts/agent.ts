@@ -7,7 +7,19 @@ export const AGENT_ROLES = [
 ] as const;
 
 export type AgentRole = (typeof AGENT_ROLES)[number];
-export type AgentErrorCode = 'request-failed' | 'runtime-exited';
+export type AgentErrorCode =
+  | 'request-failed'
+  | 'response-truncated'
+  | 'runtime-exited'
+  | 'workflow-incomplete';
+
+export type AgentStopReason =
+  | 'stop'
+  | 'length'
+  | 'toolUse'
+  | 'error'
+  | 'aborted'
+  | 'unknown';
 export type StartAgentErrorCode =
   | 'credential-missing'
   | 'model-not-configured'
@@ -61,6 +73,11 @@ export type AgentEvent =
       type: 'proposal';
     }
   | { requestId: string; revision: number; type: 'story-changed' }
-  | { requestId: string; type: 'completed' }
+  | { requestId: string; stopReason?: AgentStopReason; type: 'completed' }
   | { requestId: string; type: 'cancelled' }
-  | { code: AgentErrorCode; requestId: string; type: 'error' };
+  | {
+      code: AgentErrorCode;
+      requestId: string;
+      stopReason?: AgentStopReason;
+      type: 'error';
+    };

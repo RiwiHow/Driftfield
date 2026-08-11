@@ -1,5 +1,10 @@
 import type { AgentModelOption } from "./agent-configuration";
-import { AGENT_ROLES, type AgentErrorCode, type AgentRole } from "./agent";
+import {
+  AGENT_ROLES,
+  type AgentErrorCode,
+  type AgentRole,
+  type AgentStopReason,
+} from "./agent";
 import { AGENT_THINKING_LEVELS, type AgentThinkingLevel } from "./settings";
 import {
   AGENT_TOOL_NAMES,
@@ -72,9 +77,14 @@ export type AgentWorkerMessage =
       toolName: import("./agent-tools").AgentToolName;
       type: "tool-completed";
     }
-  | { requestId: string; type: "completed" }
+  | { requestId: string; stopReason: AgentStopReason; type: "completed" }
   | { requestId: string; type: "cancelled" }
-  | { code: AgentErrorCode; requestId: string; type: "error" };
+  | {
+      code: AgentErrorCode;
+      requestId: string;
+      stopReason?: AgentStopReason;
+      type: "error";
+    };
 
 export const isAgentWorkerMessage = (
   value: unknown,
@@ -91,7 +101,10 @@ export const isAgentWorkerMessage = (
   if (message.type === "models-error") {
     return message.code === "model-list-failed";
   }
-  if (message.type === "completed" || message.type === "cancelled") {
+  if (message.type === "completed") {
+    return isAgentStopReason(message.stopReason);
+  }
+  if (message.type === "cancelled") {
     return true;
   }
   if (message.type === "text-delta") return typeof message.delta === "string";
@@ -113,9 +126,8 @@ export const isAgentWorkerMessage = (
     );
   }
   if (message.type === "error") {
-    return (
-      message.code === "request-failed" || message.code === "runtime-exited"
-    );
+    return isAgentErrorCode(message.code) &&
+      (message.stopReason === undefined || isAgentStopReason(message.stopReason));
   }
   if (message.type !== "tool-request") return false;
   if (
@@ -130,6 +142,19 @@ export const isAgentWorkerMessage = (
     return false;
   }
 };
+
+const isAgentStopReason = (value: unknown): value is AgentStopReason =>
+  typeof value === 'string' &&
+  ['stop', 'length', 'toolUse', 'error', 'aborted', 'unknown'].includes(value);
+
+const isAgentErrorCode = (value: unknown): value is AgentErrorCode =>
+  typeof value === 'string' &&
+  [
+    'request-failed',
+    'response-truncated',
+    'runtime-exited',
+    'workflow-incomplete',
+  ].includes(value);
 
 export const isAgentWorkerCommand = (
   value: unknown,

@@ -13,8 +13,10 @@ export type AgentConversationErrorCode =
   | 'credential-missing'
   | 'model-not-configured'
   | 'request-failed'
+  | 'response-truncated'
   | 'runtime-exited'
-  | 'start-failed';
+  | 'start-failed'
+  | 'workflow-incomplete';
 
 export interface AgentConversationRunState {
   errorCode: AgentConversationErrorCode | null;

@@ -59,11 +59,13 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain('rename a document metadata title');
     expect(built.prompt).toContain('continue the same Agent run');
     expect(built.prompt).toContain('outside the user’s requested scope');
-    expect(built.prompt).toContain('reconcile the exact accepted persisted prose');
+    expect(built.prompt).toContain('read accepted_reconciliation context');
+    expect(built.prompt).toContain('Prefer reconcile_accepted_document');
     expect(built.prompt).toContain(
       'explicitly check Personae, Chronicle, Threads, and open questions in turn',
     );
-    expect(built.prompt).toContain('automatically apply only clearly evidenced');
+    expect(built.prompt).toContain('Use ordinary Maintain only for clear shapes');
+    expect(built.prompt).toContain('call complete_story_reconciliation');
     expect(built.prompt).toContain('complete ordered dependency graph');
     expect(built.prompt).toContain('reference it as @clientRef');
     expect(built.prompt).toContain('audit and entity IDs remain Main-owned');
@@ -99,7 +101,9 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain('Never reproduce Scribe Markdown');
     expect(built.prompt).toContain('one replacement proposal');
     expect(built.prompt).toContain('never call or retry delegate_writing a second time');
-    expect(built.prompt).toContain('use revise_writing_artifact only for obvious mechanical defects');
+    expect(built.prompt).toContain('Use revise_writing_artifact only for directly verified typos');
+    expect(built.prompt).toContain('never for continuity, gender, tone, or phrasing judgments');
+    expect(built.prompt).toContain('if an exact revision is rejected, do not retry it');
   });
 
   it('uses the interface locale for conversation but not manuscript language', () => {

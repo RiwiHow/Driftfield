@@ -40,7 +40,7 @@ export const NOVEL_CONTEXT_PARAMETERS = Type.Object(
       stringEnum(AGENT_NOVEL_CONTEXT_SECTIONS),
       {
         description:
-          'Additional context sections to read. current_document is the immutable request-start editor draft, including unsaved edits.',
+          'Additional context sections to read. current_document is the immutable request-start editor draft. accepted_reconciliation is available only after an accepted Scribe-backed manuscript proposal and returns the exact accepted persisted document with request-scoped refs instead of stable IDs.',
         maxItems: AGENT_NOVEL_CONTEXT_SECTIONS.length,
         uniqueItems: true,
       },
@@ -299,7 +299,7 @@ const STORY_CHANGE_PARAMETERS = Type.Object(
           ] as const,
           {
             description:
-              'Select one operation and use its exact change shape: create_persona={operation,name,role,summary}; create_timeline={operation,title,summary,isPrimary}; create_moment={operation,timelineId,displayTime,precision,orderKey,note}; create_event={operation,timelineId,startMomentId,endMomentId,title,summary,eventStatus,causes,consequences,participants,sources?}; create_thread={operation,parentId,title,summary,threadStatus,orderKey}; create_beat={operation,threadId,parentId,kind,title,description,threadStatus,orderKey,dramaticPurpose,desiredOutcome}; link_beat_event={operation,beatId,eventId,relation}. Send empty optional prose as empty strings and nullable IDs as null. Do not include fields from another shape.',
+              'Select one operation and use its exact change shape: create_persona={operation,name,role,summary}; create_timeline={operation,title,summary,isPrimary}; create_moment={operation,timelineId,displayTime,precision,orderKey,note}; create_event={operation,timelineId,startMomentId,endMomentId,title,summary,eventStatus,participants,sources?,causes?,consequences?}; create_thread={operation,parentId,title,summary,threadStatus,orderKey}; create_beat={operation,threadId,parentId,kind,title,description,threadStatus,orderKey,dramaticPurpose?,desiredOutcome?}; link_beat_event={operation,beatId,eventId,relation}. Omit optional prose when it is not evidenced; Main stores it as empty text. Send nullable IDs as null. Do not include fields from another shape.',
           },
         ),
         orderKey: Type.Optional(Type.Integer()),
@@ -456,6 +456,70 @@ export const STORY_MAINTENANCE_PARAMETERS = Type.Object(
   { additionalProperties: false },
 );
 
+export const STORY_RECONCILIATION_COMPLETION_PARAMETERS = Type.Object(
+  {
+    reason: Type.String({ maxLength: 2_000, minLength: 1 }),
+    status: stringEnum(
+      ['applied', 'no_changes', 'questions_recorded'] as const,
+      {
+        description:
+          'Use applied after Maintain changed story records, questions_recorded after recording one or more author questions, or no_changes after checking the accepted document and current story state and finding no canonical change.',
+      },
+    ),
+  },
+  { additionalProperties: false },
+);
+
+export const ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS = Type.Object(
+  {
+    events: Type.Array(Type.Object(
+      {
+        displayTime: Type.String({ maxLength: 500, minLength: 1 }),
+        participants: Type.Array(Type.Object(
+          {
+            description: Type.String({ maxLength: 10_000 }),
+            personaRef: Type.String({ maxLength: 64, minLength: 1 }),
+            role: stringEnum(['actor', 'target', 'witness', 'affected'] as const),
+          },
+          { additionalProperties: false },
+        ), { maxItems: 100 }),
+        precision: stringEnum(
+          ['exact', 'day', 'month', 'season', 'approximate', 'unknown'] as const,
+        ),
+        summary: Type.String({ maxLength: 30_000 }),
+        title: Type.String({ maxLength: 500, minLength: 1 }),
+      },
+      { additionalProperties: false },
+    ), {
+      description:
+        'Exactly one Chronicle event depicted by the accepted document. Main creates its moment, source binding, order, IDs, and revision atomically.',
+      maxItems: 1,
+      minItems: 1,
+    }),
+    threadAdvances: Type.Array(Type.Object(
+      {
+        description: Type.String({ maxLength: 30_000 }),
+        desiredOutcome: Type.Optional(Type.String({ maxLength: 10_000 })),
+        dramaticPurpose: Type.Optional(Type.String({ maxLength: 10_000 })),
+        kind: stringEnum(
+          ['beat', 'setup', 'turning_point', 'climax', 'resolution'] as const,
+        ),
+        relation: stringEnum(
+          ['plans', 'realizes', 'reveals', 'foreshadows', 'resolves'] as const,
+        ),
+        threadRef: Type.String({ maxLength: 64, minLength: 1 }),
+        title: Type.String({ maxLength: 500, minLength: 1 }),
+      },
+      { additionalProperties: false },
+    ), {
+      description:
+        'Existing Threads advanced by this accepted-document event, using refs from accepted_reconciliation context. Main creates and links beats atomically.',
+      maxItems: 11,
+    }),
+  },
+  { additionalProperties: false },
+);
+
 export const STORY_QUESTION_PARAMETERS = Type.Object(
   {
     context: Type.String({ maxLength: 10_000 }),
@@ -464,7 +528,7 @@ export const STORY_QUESTION_PARAMETERS = Type.Object(
       documentId: string;
       documentRevision: string;
       sourceKind: 'manuscript';
-    } | null>({
+    } | { anchor: string; sourceRef: 'document:accepted' } | null>({
       anyOf: [
         {
           additionalProperties: false,
@@ -475,6 +539,15 @@ export const STORY_QUESTION_PARAMETERS = Type.Object(
             sourceKind: { enum: ['manuscript'], type: 'string' },
           },
           required: ['anchor', 'documentId', 'documentRevision', 'sourceKind'],
+          type: 'object',
+        },
+        {
+          additionalProperties: false,
+          properties: {
+            anchor: { maxLength: 10_000, minLength: 1, type: 'string' },
+            sourceRef: { enum: ['document:accepted'], type: 'string' },
+          },
+          required: ['anchor', 'sourceRef'],
           type: 'object',
         },
         { type: 'null' },
@@ -516,13 +589,29 @@ export const normalizeStoryMaintenanceArguments = (
   const { eventStatus, threadStatus, ...change } = value.change;
   if (change.operation === 'create_event') {
     return {
-      change: { ...change, status: eventStatus } as AgentToolContractMap['propose_story_operation']['arguments']['change'],
+      change: {
+        ...change,
+        causes: change.causes ?? '',
+        consequences: change.consequences ?? '',
+        status: eventStatus,
+      } as AgentToolContractMap['propose_story_operation']['arguments']['change'],
       storyRevision: value.storyRevision,
     };
   }
-  if (change.operation === 'create_thread' || change.operation === 'create_beat') {
+  if (change.operation === 'create_thread') {
     return {
       change: { ...change, status: threadStatus } as AgentToolContractMap['propose_story_operation']['arguments']['change'],
+      storyRevision: value.storyRevision,
+    };
+  }
+  if (change.operation === 'create_beat') {
+    return {
+      change: {
+        ...change,
+        desiredOutcome: change.desiredOutcome ?? '',
+        dramaticPurpose: change.dramaticPurpose ?? '',
+        status: threadStatus,
+      } as AgentToolContractMap['propose_story_operation']['arguments']['change'],
       storyRevision: value.storyRevision,
     };
   }
@@ -546,15 +635,25 @@ export const normalizeStoryMaintenanceBatchArguments = (
   changes: value.changes.map((change) => {
     const { eventStatus, threadStatus, ...normalized } = change;
     if (normalized.operation === 'create_event') {
-      return { ...normalized, status: eventStatus } as
+      return {
+        ...normalized,
+        causes: normalized.causes ?? '',
+        consequences: normalized.consequences ?? '',
+        status: eventStatus,
+      } as
         AgentToolContractMap['maintain_story_records']['arguments']['changes'][number];
     }
-    if (
-      normalized.operation === 'create_thread' ||
-      normalized.operation === 'create_beat'
-    ) {
+    if (normalized.operation === 'create_thread') {
       return { ...normalized, status: threadStatus } as
         AgentToolContractMap['maintain_story_records']['arguments']['changes'][number];
+    }
+    if (normalized.operation === 'create_beat') {
+      return {
+        ...normalized,
+        desiredOutcome: normalized.desiredOutcome ?? '',
+        dramaticPurpose: normalized.dramaticPurpose ?? '',
+        status: threadStatus,
+      } as AgentToolContractMap['maintain_story_records']['arguments']['changes'][number];
     }
     return normalized as
       AgentToolContractMap['maintain_story_records']['arguments']['changes'][number];

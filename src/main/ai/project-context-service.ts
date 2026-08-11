@@ -7,9 +7,9 @@ import type {
   AgentDraftSnapshot,
   AgentNovelStructureToolResult,
   AgentStoryMaintenanceToolResult,
+  AgentCanonicalStoryQuestionArguments,
   AgentStoryQuestionToolResult,
   AgentStructureNode,
-  AgentToolContractMap,
   AgentToolErrorCode,
 } from '../../shared/contracts/agent-tools';
 import type {
@@ -97,7 +97,7 @@ export class ProjectContextService {
   recordStoryQuestion(
     scope: ProjectContextScope,
     requestId: string,
-    input: AgentToolContractMap['record_story_question']['arguments'],
+    input: AgentCanonicalStoryQuestionArguments,
   ): AgentStoryQuestionToolResult {
     const session = this.requireSession(scope);
     if (this.stories === undefined) throw new ProjectContextError('internal-error');

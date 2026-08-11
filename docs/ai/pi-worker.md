@@ -21,6 +21,11 @@ domain contracts.
   for bounded operations over the internal typed utility-process protocol.
 - Stream typed deltas through cancellable IPC. Bind requests to application-owned
   project-session identity and reject obsolete output and tool calls.
+- Preserve the final provider stop reason. Output-limit responses and printed
+  pseudo tool-call markup receive at most one application-owned corrective
+  continuation; a second failure is terminal and typed, never a successful
+  completion. Main independently gates accepted Scribe-backed manuscript runs
+  on a validated story-reconciliation checkpoint.
 - Curator writing requests may create one Main-owned Scribe child task in the
   same utility process. Main assigns its task ID, binds it to the parent request,
   applies a five-minute timeout and 512 KiB artifact limit, propagates
@@ -98,9 +103,9 @@ The Pi subsystem is not production-ready yet:
 - API-key credentials, explicit model selection, thinking level, and bounded Pi
   model overrides have UI, validated IPC, and main-owned persistence; OAuth
   flows are not implemented.
-- Read-tool calls and returned context are bounded, but streamed output, total
-  model input context, and monetary cost lack complete application-owned budgets
-  and typed terminal reasons.
+- Read-tool calls and returned context are bounded, and output truncation and
+  incomplete workflow termination are typed. Total streamed-output, model-input
+  context, and monetary-cost budgets remain incomplete.
 - Packaged startup and local provider discovery are tested without billable
   provider requests. Real upstream credential rejection, rate limits, network
   failures, full packaged request/cancellation lifecycles, and provider API smoke

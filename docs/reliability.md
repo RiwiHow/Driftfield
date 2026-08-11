@@ -71,11 +71,22 @@ Preserve these properties when changing affected subsystems.
   single-use, and subject to proposal review. A second delegation returns a
   typed non-retryable budget error rather than an internal error.
 - Cancellation remains terminal when it races with completion or output.
+- The worker preserves the provider stop reason, retries output truncation or
+  printed pseudo tool-call markup at most once, and never reports a still-open
+  accepted-manuscript reconciliation workflow as completed. Main validates the
+  reconciliation checkpoint independently; pseudo tool markup is never
+  interpreted as an operation.
 - The current `read_novel_context` tool batches only fixed typed sections,
   stable document IDs, and immediate document children of stable directory
   IDs. Explicit and expanded documents are deduplicated and limited to four
   total results; node kinds are checked before reading, and every result is
   bounded, path-free, and main-owned.
+- Accepted Scribe-backed manuscript reconciliation has a request-scoped context
+  view that exposes semantic Persona, Thread, and primary-timeline refs instead
+  of persistent UUIDs. The focused reconciliation mutation resolves those refs,
+  the accepted document revision, the story revision, and append order in Main,
+  then delegates to the same atomic Maintain transaction. Refs never cross a
+  request or project session and are released with request state.
 - `maintain_story_records` applies a bounded ordered changeset of 1 to 24
   additive or linking Personae, Chronicle, or Threads operations without
   per-step approval. It requires the
@@ -85,6 +96,9 @@ Preserve these properties when changing affected subsystems.
   on Main-generated entities created earlier in the same changeset; Main
   validates reference order and entity kind. Any item failure rolls back the whole set.
   Renderer refreshes story state after each successful write.
+- Event causes/consequences and beat dramatic-purpose/desired-outcome prose are
+  optional at the Agent boundary and default to empty text in Main; the model is
+  not required to invent narrative analysis to satisfy a wire schema.
 - Clear low-risk facts from accepted persisted prose use Maintain without a
   second approval. Ambiguous aliases, time, relationships, contradictions, and
   other author judgments are stored as deduplicated open questions instead;

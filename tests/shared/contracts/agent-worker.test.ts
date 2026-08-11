@@ -16,6 +16,17 @@ describe("Agent utility-process protocol", () => {
         type: "tool-started",
       }),
     ).toBe(true);
+    expect(isAgentWorkerMessage({
+      requestId: 'request-1',
+      stopReason: 'stop',
+      type: 'completed',
+    })).toBe(true);
+    expect(isAgentWorkerMessage({
+      code: 'response-truncated',
+      requestId: 'request-1',
+      stopReason: 'length',
+      type: 'error',
+    })).toBe(true);
     expect(
       isAgentWorkerCommand({
         authPath: "/app-data/auth.json",
@@ -249,6 +260,10 @@ describe("Agent utility-process protocol", () => {
     expect(isAgentWorkerMessage({ requestId: 1, type: "completed" })).toBe(
       false,
     );
+    expect(isAgentWorkerMessage({
+      requestId: 'request-1',
+      type: 'completed',
+    })).toBe(false);
     expect(
       isAgentWorkerMessage({
         arguments: { documentId: "not-allowed" },

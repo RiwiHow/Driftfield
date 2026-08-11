@@ -7,9 +7,14 @@ future databases, permissions, and persistence.
 ## Current read-only tool
 
 The Agent data surface contains one bounded `read_novel_context` tool. One call
-may request any combination of the fixed `structure`, `current_document`, and
-`story_state` sections, persisted documents by stable ID, and directories by
-stable ID. A directory selection expands only its immediate document children,
+may request any combination of the fixed `structure`, `current_document`,
+`story_state`, and `accepted_reconciliation` sections, persisted documents by
+stable ID, and directories by stable ID. `accepted_reconciliation` is available
+only after an accepted Scribe-backed manuscript proposal. It returns the exact
+persisted accepted document and a compact semantic view of Personae, Chronicle,
+Threads, and open questions. Existing entities use request-scoped refs such as
+`persona:1`, `thread:1`, and `timeline:primary`; persistent UUIDs and revisions
+remain Main-owned. A directory selection expands only its immediate document children,
 never nested directories. Explicit and expanded documents are deduplicated in
 request order and limited to four total results. Main validates every requested
 node against the current structure before reading and returns only path-free
@@ -42,10 +47,28 @@ The bounded direct-maintenance surface contains:
   result contains only `status`, `revision`, and `appliedCount`; audit and
   generated entity IDs remain Main-owned. It does not expose SQL and cannot
   delete, merge, reorder, or edit Manuscript/Lore documents.
+- `reconcile_accepted_document`, which consumes only refs returned by the
+  current request's `accepted_reconciliation` read. It accepts one depicted
+  Chronicle event and zero or more advances to existing Threads. Main resolves
+  the accepted document source and revision, story revision, primary timeline,
+  Persona and Thread UUIDs, moment and beat order keys, generated IDs, and
+  event-to-beat links, then applies the complete graph through the same atomic
+  Maintain transaction. Missing, stale, cross-request, or wrong-kind refs fail
+  closed. Low-level Maintain remains available for clear shapes outside this
+  focused path.
+- `complete_story_reconciliation`, which closes the Main-owned reconciliation
+  checkpoint after an accepted Scribe-backed manuscript proposal. Main requires
+  post-acceptance reads of both the persisted document and story state, and
+  validates that `applied` or
+  `questions_recorded` matches successful tool activity. `no_changes` is valid
+  only when no canonical mutation or question was recorded. The checkpoint does
+  not itself write story data.
 - `record_story_question`, which records a deduplicated unresolved ambiguity
   without changing canonical story records or their revision. Questions carry
   a bounded kind, author-facing wording, optional answer choices, request
-  identity, and optional exact manuscript evidence.
+  identity, and optional exact manuscript evidence. In accepted-document
+  reconciliation, the `document:accepted` ref lets Main supply the persisted
+  document ID and revision without exposing either to the model.
 - `resolve_story_question`, which closes an open question only after an
   explicit user answer. Resolution does not itself mutate canonical story
   records; any resulting clear additive/linking fact is a separate Maintain
@@ -68,11 +91,13 @@ The bounded collaboration surface contains:
   manuscript. Scribe cannot delegate, propose, maintain story state, or persist content. Main
   retains the completed artifact only inside its parent request. Curator reviews
   the Markdown. One Scribe delegation is available per user request and cannot
-  be retried. For obvious mechanical defects, Curator may call
+  be retried. For directly verified typos or formatting defects, Curator may call
   `revise_writing_artifact` with up to twelve ordered exact replacements and an
   expected occurrence count for each. Main applies the entire revision to the
   unclaimed transient artifact or none of it, preserving the same assignment
-  and target binding. Curator then passes the assignment ID to one creation or
+  and target binding. Continuity, gender, tone, and phrasing choices are not
+  mechanical revisions. A rejected exact-replacement batch is not retried;
+  Curator proceeds with the unchanged artifact. Curator then passes the assignment ID to one creation or
   replacement proposal. Main resolves that request- and target-bound reference
   exactly once to the reviewed Markdown, so Curator never regenerates it and no
   placeholder or persisted intermediate draft is created. Substantive rewrites
@@ -166,6 +191,14 @@ Routine synchronization is executed without narrating tool planning,
 intermediate identifiers, schema choices, or retries. The user receives a
 concise summary of canonical changes and any unresolved questions after the
 tool workflow finishes.
+
+The worker retains the final provider stop reason. A `length` response and a
+response that prints known tool-call markup as ordinary text receive one
+application-owned concise corrective continuation. If the retry is still
+truncated, contains pseudo tool markup, or leaves a required reconciliation
+checkpoint open, the request terminates with a typed incomplete error rather
+than `completed`. Main independently refuses completion while the checkpoint is
+open; pseudo tool text is never parsed or executed.
 
 A mutation tool call remains pending after the proposal is shown. Accepting or
 rejecting the proposal settles that exact tool call with a typed terminal result,

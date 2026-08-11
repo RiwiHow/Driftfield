@@ -21,6 +21,12 @@ import {
 import { buildAgentSystemPrompt } from "./prompts/prompt-builder";
 import { AgentToolResultBridge } from "./agent-tool-result-bridge";
 import {
+  normalizeStopReason,
+  protocolCorrection,
+  responseProtocolIssue,
+} from './agent-run-protocol';
+import {
+  ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS,
   DOCUMENT_EDIT_PARAMETERS,
   DOCUMENT_FILE_OPERATION_PARAMETERS,
   NOVEL_CONTEXT_PARAMETERS,
@@ -28,6 +34,7 @@ import {
   normalizeStoryMaintenanceArguments,
   PROJECT_STRUCTURE_OPERATION_PARAMETERS,
   RESOLVE_STORY_QUESTION_PARAMETERS,
+  STORY_RECONCILIATION_COMPLETION_PARAMETERS,
   STORY_OPERATION_PARAMETERS,
   STORY_MAINTENANCE_PARAMETERS,
   STORY_QUESTION_PARAMETERS,
@@ -35,17 +42,19 @@ import {
   WRITING_ARTIFACT_SUBMISSION_PARAMETERS,
   WRITING_ASSIGNMENT_PARAMETERS,
 } from "./agent-tool-parameters";
-import { didAssistantResponseFail } from './agent-response-status';
 import {
   isAgentToolName,
   type AgentToolContractMap,
+  type AgentToolExecutionResult,
   type AgentToolName,
 } from "../../shared/contracts/agent-tools";
+import type { AgentStopReason } from '../../shared/contracts/agent';
 
 const TOOL_RESULT_TIMEOUT_MS = 30_000;
 
 interface ActiveRequest {
   cancelled: boolean;
+  reconciliationPending: boolean;
   session: AgentSession | null;
 }
 
@@ -128,7 +137,11 @@ async function handleCommand(command: AgentWorkerCommand): Promise<void> {
 
 async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
   if (activeRequests.has(command.requestId)) return;
-  const active: ActiveRequest = { cancelled: false, session: null };
+  const active: ActiveRequest = {
+    cancelled: false,
+    reconciliationPending: false,
+    session: null,
+  };
   activeRequests.set(command.requestId, active);
   let session: AgentSession | null = null;
   try {
@@ -207,7 +220,10 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
       send({ requestId: command.requestId, type: "cancelled" });
       return;
     }
-    let responseFailed = false;
+    const responseState: {
+      assistantText: string;
+      stopReason: AgentStopReason;
+    } = { assistantText: '', stopReason: 'unknown' };
     const unsubscribe = session.subscribe((event) => {
       if (
         event.type === "message_update" &&
@@ -220,21 +236,64 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
         });
       }
       if (event.type === 'message_end' && event.message.role === 'assistant') {
-        responseFailed = didAssistantResponseFail(event.message);
+        responseState.stopReason = normalizeStopReason(event.message.stopReason);
+        responseState.assistantText = event.message.content
+          .filter((entry) => entry.type === 'text')
+          .map((entry) => entry.text)
+          .join('');
       }
     });
     try {
       await session.prompt(command.prompt);
+      let protocolIssue = responseProtocolIssue(
+        responseState.assistantText,
+        responseState.stopReason,
+        active.reconciliationPending,
+        enabledToolNames,
+      );
+      if (!active.cancelled && protocolIssue !== null) {
+        responseState.assistantText = '';
+        responseState.stopReason = 'unknown';
+        await session.prompt(protocolCorrection(protocolIssue));
+        protocolIssue = responseProtocolIssue(
+          responseState.assistantText,
+          responseState.stopReason,
+          active.reconciliationPending,
+          enabledToolNames,
+        );
+      }
       if (active.cancelled) {
         send({ requestId: command.requestId, type: 'cancelled' });
-      } else if (responseFailed) {
+      } else if (
+        responseState.stopReason === 'error' ||
+        responseState.stopReason === 'aborted'
+      ) {
         send({
           code: 'request-failed',
           requestId: command.requestId,
+          stopReason: responseState.stopReason,
+          type: 'error',
+        });
+      } else if (responseState.stopReason === 'length') {
+        send({
+          code: 'response-truncated',
+          requestId: command.requestId,
+          stopReason: responseState.stopReason,
+          type: 'error',
+        });
+      } else if (protocolIssue !== null) {
+        send({
+          code: 'workflow-incomplete',
+          requestId: command.requestId,
+          stopReason: responseState.stopReason,
           type: 'error',
         });
       } else {
-        send({ requestId: command.requestId, type: 'completed' });
+        send({
+          requestId: command.requestId,
+          stopReason: responseState.stopReason,
+          type: 'completed',
+        });
       }
     } finally {
       unsubscribe();
@@ -309,7 +368,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Read one bounded batch of novel context. include may contain structure, current_document (the immutable request-start draft, including unsaved edits), and story_state (Personae, Chronicle, Threads, and open questions). Document results distinguish raw metadataTitle from formatted displayTitle; never copy generated numbering from displayTitle into metadataTitle. documentIds reads persisted manuscript or lore documents by stable ID. directoryIds reads only each directory's immediate document children; it never expands nested directories. Explicit and expanded documents are deduplicated and limited to four total. Match IDs to the node type returned by structure. Request only the context needed; use structure first when stable IDs or the project revision are unknown.",
+        "Read one bounded batch of novel context. include may contain structure, current_document (the immutable request-start draft), story_state, and accepted_reconciliation. After an accepted Scribe-backed manuscript proposal, prefer accepted_reconciliation: it returns the exact persisted accepted document plus UUID-free request-scoped persona/thread/timeline refs and compact existing story context for reconcile_accepted_document. Document results distinguish raw metadataTitle from formatted displayTitle. documentIds reads persisted manuscript or lore documents by stable ID. directoryIds reads only immediate document children. Explicit and expanded documents are deduplicated and limited to four total.",
       label: "Read novel context",
       name: "read_novel_context",
       parameters: NOVEL_CONTEXT_PARAMETERS,
@@ -341,7 +400,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Apply the one allowed bounded revision batch of exact replacements to the current request's unclaimed Scribe artifact before proposing it. Use only for obvious mechanical defects found during review. Supply short exact find/replace strings and the required occurrence count; Main applies all replacements atomically or none. Do not retry this tool after success. This does not persist content and does not permit a second Scribe delegation.",
+        "Apply one bounded exact-replacement batch to the current request's unclaimed Scribe artifact before proposing it. Use only for a directly verified typo or formatting defect, never for continuity, gender, tone, or phrasing judgment. Copy each find string verbatim from the artifact and provide its occurrence count. Main applies all replacements atomically or none. If rejected, do not retry; propose the unchanged artifact. This does not persist content or permit a second Scribe delegation.",
       label: "Revise Scribe artifact",
       name: "revise_writing_artifact",
       parameters: WRITING_ARTIFACT_REVISION_PARAMETERS,
@@ -405,7 +464,39 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Record one unresolved author question without changing canonical Personae, Chronicle, or Threads. Use this for possible aliases, uncertain fictional time, unclear relationships, contradictions, or any other ambiguity that requires author judgment. Read story_state with read_novel_context first, do not duplicate an existing open question, attach exact persisted-document evidence when available, and also ask the question concisely in your response. Options are suggestions, not decisions.",
+        "Complete the required reconciliation checkpoint after an accepted Scribe-backed manuscript proposal. Call this only after rereading the accepted persisted document and current story state, and after applying every clear low-risk change or recording each author question. This does not write story data. Use no_changes only when the checked accepted prose requires no canonical story update.",
+      label: "Complete story reconciliation",
+      name: "complete_story_reconciliation",
+      parameters: STORY_RECONCILIATION_COMPLETION_PARAMETERS,
+      execute: async (toolCallId, params) =>
+        textToolResult(
+          await requestTool(
+            requestId,
+            toolCallId,
+            "complete_story_reconciliation",
+            params,
+          ),
+        ),
+    }),
+    defineTool({
+      description:
+        "Atomically add the Chronicle event depicted by the accepted Scribe-backed manuscript document and advance existing Threads without stable IDs. First read read_novel_context with accepted_reconciliation, then use only its timeline, persona, and thread refs. Main supplies the accepted document source/revision, story revision, order keys, UUIDs, empty optional prose, and event-to-beat links. Use ordinary Maintain only for shapes this focused tool cannot represent.",
+      label: "Reconcile accepted document",
+      name: "reconcile_accepted_document",
+      parameters: ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS,
+      execute: async (toolCallId, params) =>
+        textToolResult(
+          await requestTool(
+            requestId,
+            toolCallId,
+            "reconcile_accepted_document",
+            params,
+          ),
+        ),
+    }),
+    defineTool({
+      description:
+        "Record one unresolved author question without changing canonical Personae, Chronicle, or Threads. Use this for possible aliases, uncertain fictional time, unclear relationships, contradictions, or any other ambiguity that requires author judgment. Read story state first, do not duplicate an existing open question, and attach exact evidence when available. After accepted_reconciliation, use evidence sourceRef document:accepted so Main binds the persisted document ID and revision. Options are suggestions, not decisions.",
       label: "Record story question",
       name: "record_story_question",
       parameters: STORY_QUESTION_PARAMETERS,
@@ -464,6 +555,7 @@ async function requestTool<Name extends AgentToolName>(
       toolName,
       args,
     );
+    observeToolProtocol(requestId, toolName, args, result);
     send({
       failed: !result.ok,
       output: serializeToolPayload(result),
@@ -485,6 +577,37 @@ async function requestTool<Name extends AgentToolName>(
     throw error;
   }
 }
+
+const observeToolProtocol = <Name extends AgentToolName>(
+  requestId: string,
+  toolName: Name,
+  args: AgentToolContractMap[Name]['arguments'],
+  result: AgentToolExecutionResult<Name>,
+): void => {
+  if (!result.ok) return;
+  const active = activeRequests.get(requestId);
+  if (active === undefined) return;
+  if (
+    (toolName === 'propose_document_edit' ||
+      toolName === 'propose_document_file_operation') &&
+    'writingAssignmentId' in args &&
+    args.writingAssignmentId !== null &&
+    isAcceptedProposalResult(result)
+  ) {
+    active.reconciliationPending = true;
+    return;
+  }
+  if (toolName === 'complete_story_reconciliation') {
+    active.reconciliationPending = false;
+  }
+};
+
+const isAcceptedProposalResult = (
+  result: unknown,
+): boolean => typeof result === 'object' && result !== null &&
+  'ok' in result && result.ok === true && 'data' in result &&
+  typeof result.data === 'object' && result.data !== null &&
+  'status' in result.data && result.data.status === 'accepted';
 
 const serializeToolPayload = (value: unknown): string => {
   let serialized: string;

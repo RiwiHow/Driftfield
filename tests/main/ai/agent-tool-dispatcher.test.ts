@@ -6,6 +6,7 @@ import {
   type ProjectContextService,
 } from '../../../src/main/ai/project-context-service';
 import type { AgentProposalService } from '../../../src/main/ai/agent-proposal-service';
+import { isAgentToolExecutionResult } from '../../../src/shared/contracts/agent-tools';
 
 afterEach(() => vi.useRealTimers());
 
@@ -99,6 +100,226 @@ describe('AgentToolDispatcher', () => {
       ownerId: 7,
       projectSessionId: 'session-1',
     });
+  });
+
+  it('reconciles an accepted document through request-scoped refs without exposing UUIDs', async () => {
+    const story = {
+      beats: [{
+        description: 'The first clue.',
+        desiredOutcome: '',
+        dramaticPurpose: '',
+        id: 'beat-uuid',
+        kind: 'setup' as const,
+        orderKey: 0,
+        parentId: null,
+        status: 'active' as const,
+        threadId: 'thread-uuid',
+        title: 'First clue',
+      }],
+      eventLinks: [],
+      eventParticipants: [{
+        description: 'Witnessed the clue.',
+        eventId: 'event-uuid',
+        personaId: 'persona-uuid',
+        role: 'actor' as const,
+      }],
+      eventSources: [],
+      events: [{
+        causes: '',
+        consequences: '',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        endMomentId: null,
+        id: 'event-uuid',
+        startMomentId: 'moment-uuid',
+        status: 'established' as const,
+        summary: 'An earlier clue appeared.',
+        timelineId: 'timeline-uuid',
+        title: 'Earlier clue',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }],
+      moments: [{
+        displayTime: 'Year 1',
+        id: 'moment-uuid',
+        note: '',
+        orderKey: 0,
+        precision: 'exact' as const,
+        timelineId: 'timeline-uuid',
+      }],
+      personae: [{
+        createdAt: '2026-01-01T00:00:00.000Z',
+        id: 'persona-uuid',
+        kind: 'character' as const,
+        name: 'Serra',
+        role: 'Weaver',
+        summary: 'Investigates the crystal.',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }],
+      questions: [],
+      revision: 6,
+      threads: [{
+        createdAt: '2026-01-01T00:00:00.000Z',
+        id: 'thread-uuid',
+        orderKey: 0,
+        parentId: null,
+        status: 'active' as const,
+        summary: 'The blue crystal mystery.',
+        title: 'Blue crystal',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }],
+      timelines: [{
+        createdAt: '2026-01-01T00:00:00.000Z',
+        id: 'timeline-uuid',
+        isPrimary: true,
+        summary: 'Main chronology.',
+        title: 'Main timeline',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }],
+    };
+    const maintainStoryRecords = vi.fn((
+      _scope: unknown,
+      _requestId: string,
+      _revision: number,
+      _changes: Array<Record<string, unknown>>,
+    ) => ({
+      appliedCount: 4,
+      revision: 7,
+      status: 'applied' as const,
+    }));
+    const recordStoryQuestion = vi.fn(() => ({
+      questionId: 'question-1',
+      revision: 8,
+      status: 'recorded' as const,
+    }));
+    const context = {
+      getDocument: vi.fn().mockResolvedValue({
+        ...documentResult,
+        contentRevision: 'a'.repeat(64),
+      }),
+      getStoryState: vi.fn().mockResolvedValue(story),
+      maintainStoryRecords,
+      recordStoryQuestion,
+    } as unknown as ProjectContextService;
+    const dispatcher = new AgentToolDispatcher(context);
+    const acceptedScope = { ...scope, acceptedDocumentId: 'chapter-1' };
+
+    const readResult = await dispatcher.execute(acceptedScope, {
+      arguments: {
+        directoryIds: [],
+        documentIds: [],
+        include: ['accepted_reconciliation'],
+      },
+      toolName: 'read_novel_context',
+    });
+    expect(readResult).toMatchObject({
+      data: {
+        documents: [],
+        reconciliation: {
+          acceptedDocument: { ref: 'document:accepted' },
+          personae: [{ name: 'Serra', ref: 'persona:1' }],
+          primaryTimeline: { ref: 'timeline:primary' },
+          storyRef: 'story:accepted',
+          threads: [{ ref: 'thread:1', title: 'Blue crystal' }],
+        },
+      },
+      ok: true,
+    });
+    const serializedRead = JSON.stringify(readResult);
+    expect(serializedRead).not.toContain('persona-uuid');
+    expect(serializedRead).not.toContain('thread-uuid');
+    expect(serializedRead).not.toContain('timeline-uuid');
+    expect(isAgentToolExecutionResult(readResult)).toBe(true);
+
+    const storyChanged = vi.fn();
+    const writeResult = await dispatcher.execute({ ...acceptedScope, storyChanged }, {
+      arguments: {
+        events: [{
+          displayTime: 'Year 1, late spring',
+          participants: [{
+            description: 'Follows the erased memory.',
+            personaRef: 'persona:1',
+            role: 'actor',
+          }],
+          precision: 'approximate',
+          summary: 'The mirror glows blue and Serra turns back.',
+          title: 'The mirror glows',
+        }],
+        threadAdvances: [{
+          description: 'Serra chooses to investigate.',
+          kind: 'turning_point',
+          relation: 'realizes',
+          threadRef: 'thread:1',
+          title: 'Turn the boat back',
+        }],
+      },
+      toolName: 'reconcile_accepted_document',
+    });
+    expect(writeResult).toEqual({
+      data: { appliedCount: 4, revision: 7, status: 'applied' },
+      ok: true,
+      toolName: 'reconcile_accepted_document',
+    });
+    expect(isAgentToolExecutionResult(writeResult)).toBe(true);
+    expect(maintainStoryRecords).toHaveBeenCalledWith(
+      { ownerId: 7, projectSessionId: 'session-1' },
+      'request-1',
+      6,
+      expect.arrayContaining([
+        expect.objectContaining({
+          operation: 'create_event',
+          sources: [expect.objectContaining({
+            documentId: 'chapter-1',
+            documentRevision: 'a'.repeat(64),
+          })],
+        }),
+        expect.objectContaining({
+          operation: 'create_beat',
+          threadId: 'thread-uuid',
+        }),
+      ]),
+    );
+    const appliedChanges = maintainStoryRecords.mock.calls[0]![3];
+    expect(appliedChanges.find(({ operation }) => operation === 'create_moment'))
+      .toMatchObject({
+        displayTime: 'Year 1, late spring',
+        precision: 'approximate',
+      });
+    const createdEvent = appliedChanges.find(
+      ({ operation }) => operation === 'create_event',
+    );
+    expect(createdEvent).toMatchObject({ startMomentId: '@accepted_moment' });
+    expect(createdEvent).not.toHaveProperty('displayTime');
+    expect(createdEvent).not.toHaveProperty('precision');
+    expect(storyChanged).toHaveBeenCalledWith(7);
+
+    const questionResult = await dispatcher.execute(
+      { ...acceptedScope, storyChanged },
+      {
+        arguments: {
+          context: 'The accepted chapter leaves the actor uncertain.',
+          evidence: {
+            anchor: 'The mirror glowed.',
+            sourceRef: 'document:accepted',
+          },
+          kind: 'other',
+          options: [],
+          question: 'Who altered the mirror?',
+        },
+        toolName: 'record_story_question',
+      },
+    );
+    expect(isAgentToolExecutionResult(questionResult)).toBe(true);
+    expect(recordStoryQuestion).toHaveBeenCalledWith(
+      { ownerId: 7, projectSessionId: 'session-1' },
+      'request-1',
+      expect.objectContaining({
+        evidence: {
+          anchor: 'The mirror glowed.',
+          documentId: 'chapter-1',
+          documentRevision: 'a'.repeat(64),
+          sourceKind: 'manuscript',
+        },
+      }),
+    );
   });
 
   it('returns a typed node-kind error before reading a directory as a document', async () => {
@@ -943,5 +1164,23 @@ describe('AgentToolDispatcher', () => {
     dispatcher.release(scope.requestId);
 
     expect(proposals.cancelRequest).toHaveBeenCalledWith(scope.requestId);
+  });
+
+  it('uses a Main-owned checkpoint to complete story reconciliation', async () => {
+    const completeStoryReconciliation = vi.fn(() => ({ ok: true }));
+    const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
+
+    await expect(dispatcher.execute(
+      { ...scope, completeStoryReconciliation },
+      {
+        arguments: { reason: 'No canonical changes found.', status: 'no_changes' },
+        toolName: 'complete_story_reconciliation',
+      },
+    )).resolves.toEqual({
+      data: { status: 'complete' },
+      ok: true,
+      toolName: 'complete_story_reconciliation',
+    });
+    expect(completeStoryReconciliation).toHaveBeenCalledWith('no_changes');
   });
 });

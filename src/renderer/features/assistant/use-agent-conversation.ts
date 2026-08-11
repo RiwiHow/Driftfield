@@ -26,8 +26,10 @@ const errorTranslationKeys = {
   'credential-missing': 'agent.credentialMissing',
   'model-not-configured': 'agent.modelNotConfigured',
   'request-failed': 'agent.requestFailed',
+  'response-truncated': 'agent.responseTruncated',
   'runtime-exited': 'agent.runtimeExited',
   'start-failed': 'agent.startFailed',
+  'workflow-incomplete': 'agent.workflowIncomplete',
 } as const satisfies Record<AgentConversationErrorCode, string>;
 
 type ConversationUpdate = (
@@ -219,10 +221,7 @@ export function useAgentConversation(
           ),
         );
         dispatchRun({
-          errorCode:
-            event.code === 'runtime-exited'
-              ? 'runtime-exited'
-              : 'request-failed',
+          errorCode: event.code,
           requestId: event.requestId,
           type: 'failed',
         });

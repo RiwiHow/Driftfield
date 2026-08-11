@@ -46,6 +46,14 @@ interface ActiveAgentRequest {
   modelsPath: string;
   ownerId: number;
   projectSessionId?: string;
+  reconciliation: {
+    acceptedDocumentRead: boolean;
+    applied: boolean;
+    documentId?: string;
+    pending: boolean;
+    questionsRecorded: boolean;
+    storyStateRead: boolean;
+  };
   responseLanguage: AppLanguage;
   sendEvent: (event: AgentEvent) => void;
   thinkingLevel: AgentThinkingLevel;
@@ -125,6 +133,13 @@ export class AiAgentService {
       modelsPath: request.modelsPath ?? path.join(directory, 'models.json'),
       ownerId: request.ownerId,
       projectSessionId: request.projectSessionId,
+      reconciliation: {
+        acceptedDocumentRead: false,
+        applied: false,
+        pending: false,
+        questionsRecorded: false,
+        storyStateRead: false,
+      },
       responseLanguage: request.responseLanguage,
       sendEvent: request.sendEvent,
       thinkingLevel: request.thinkingLevel,
@@ -324,6 +339,9 @@ export class AiAgentService {
               ...(active.draftSnapshot === undefined
                 ? {}
                 : { draftSnapshot: active.draftSnapshot }),
+              ...(active.reconciliation.documentId === undefined
+                ? {}
+                : { acceptedDocumentId: active.reconciliation.documentId }),
               ownerId: active.ownerId,
               projectSessionId: active.projectSessionId,
               requestId: message.requestId,
@@ -338,6 +356,8 @@ export class AiAgentService {
                 artifact.claimed = true;
                 return artifact.markdown;
               },
+              completeStoryReconciliation: (status) =>
+                this.completeStoryReconciliation(active, status),
               delegateWriting: (assignment) => {
                 if (active.writingTasks >= 1 || active.childTaskId !== undefined) {
                   throw new ProjectContextError(
@@ -347,12 +367,20 @@ export class AiAgentService {
                 }
                 return this.runWritingTask(message.requestId, active, assignment);
               },
-              sendProposal: (proposal) =>
+              sendProposal: (proposal) => {
+                if (
+                  active.writingArtifact?.claimed === true &&
+                  'documentId' in proposal &&
+                  (!('operation' in proposal) || proposal.operation === 'create')
+                ) {
+                  active.reconciliation.documentId = proposal.documentId;
+                }
                 active.sendEvent({
                   proposal,
                   requestId: message.requestId,
                   type: 'proposal',
-                }),
+                });
+              },
               releaseWritingArtifactClaim: (assignmentId) => {
                 const artifact = active.writingArtifact;
                 if (artifact?.assignmentId === assignmentId) {
@@ -413,6 +441,7 @@ export class AiAgentService {
             },
             message,
           );
+      this.observeToolResult(active, message, result);
       if (
         this.activeRequests.get(message.requestId) === active &&
         !active.cancelled &&
@@ -444,7 +473,16 @@ export class AiAgentService {
       return;
     }
 
-    active.sendEvent(message);
+    if (message.type === 'completed' && active.reconciliation.pending) {
+      active.sendEvent({
+        code: 'workflow-incomplete',
+        requestId: message.requestId,
+        stopReason: message.stopReason,
+        type: 'error',
+      });
+    } else {
+      active.sendEvent(message);
+    }
     this.activeRequests.delete(message.requestId);
     this.toolDispatcher?.release(message.requestId);
   }
@@ -491,6 +529,117 @@ export class AiAgentService {
       request.projectSessionId === undefined ||
       this.isProjectSessionActive(request.ownerId, request.projectSessionId)
     );
+  }
+
+  private observeToolResult(
+    active: ActiveAgentRequest,
+    message: Extract<AgentWorkerMessage, { type: 'tool-request' }>,
+    result: import('../../shared/contracts/agent-tools').AgentToolExecutionResult,
+  ): void {
+    if (!result.ok) return;
+    if (
+      (message.toolName === 'propose_document_edit' ||
+        message.toolName === 'propose_document_file_operation') &&
+      isAgentToolArguments(message.toolName, message.arguments) &&
+      'writingAssignmentId' in message.arguments &&
+      message.arguments.writingAssignmentId !== null &&
+      isAcceptedProposalResult(result)
+    ) {
+      active.reconciliation = {
+        acceptedDocumentRead: false,
+        applied: false,
+        ...(active.reconciliation.documentId === undefined
+          ? {}
+          : { documentId: active.reconciliation.documentId }),
+        pending: true,
+        questionsRecorded: false,
+        storyStateRead: false,
+      };
+      return;
+    }
+    if (
+      (message.toolName === 'propose_document_edit' ||
+        message.toolName === 'propose_document_file_operation') &&
+      isAgentToolArguments(message.toolName, message.arguments) &&
+      'writingAssignmentId' in message.arguments &&
+      message.arguments.writingAssignmentId !== null
+    ) {
+      active.reconciliation.documentId = undefined;
+      return;
+    }
+    if (!active.reconciliation.pending) return;
+    if (
+      message.toolName === 'read_novel_context' &&
+      isAgentToolArguments(message.toolName, message.arguments)
+    ) {
+      if (message.arguments.include.includes('accepted_reconciliation')) {
+        active.reconciliation.acceptedDocumentRead = true;
+        active.reconciliation.storyStateRead = true;
+        return;
+      }
+      if (message.arguments.include.includes('story_state')) {
+        active.reconciliation.storyStateRead = true;
+      }
+      if (
+        active.reconciliation.documentId !== undefined &&
+        message.arguments.documentIds.includes(active.reconciliation.documentId)
+      ) {
+        active.reconciliation.acceptedDocumentRead = true;
+      }
+      return;
+    }
+    if (
+      message.toolName === 'maintain_story_records' ||
+      message.toolName === 'reconcile_accepted_document'
+    ) {
+      active.reconciliation.applied = true;
+      return;
+    }
+    if (message.toolName === 'record_story_question') {
+      active.reconciliation.questionsRecorded = true;
+    }
+  }
+
+  private completeStoryReconciliation(
+    active: ActiveAgentRequest,
+    status: 'applied' | 'no_changes' | 'questions_recorded',
+  ): { detail?: string; ok: boolean } {
+    const reconciliation = active.reconciliation;
+    if (!reconciliation.pending) {
+      return {
+        detail: 'No accepted Scribe-backed manuscript proposal is awaiting reconciliation.',
+        ok: false,
+      };
+    }
+    if (!reconciliation.acceptedDocumentRead || !reconciliation.storyStateRead) {
+      return {
+        detail: 'Read both the accepted persisted document and current story_state after acceptance before completing reconciliation.',
+        ok: false,
+      };
+    }
+    if (status === 'applied' && !reconciliation.applied) {
+      return {
+        detail: 'The applied status requires a successful maintain_story_records call after acceptance.',
+        ok: false,
+      };
+    }
+    if (status === 'questions_recorded' && !reconciliation.questionsRecorded) {
+      return {
+        detail: 'The questions_recorded status requires a successful record_story_question call after acceptance.',
+        ok: false,
+      };
+    }
+    if (
+      status === 'no_changes' &&
+      (reconciliation.applied || reconciliation.questionsRecorded)
+    ) {
+      return {
+        detail: 'Use applied or questions_recorded after changing story records.',
+        ok: false,
+      };
+    }
+    reconciliation.pending = false;
+    return { ok: true };
   }
 
   private runWritingTask(
@@ -708,3 +857,10 @@ const countExactOccurrences = (source: string, find: string): number => {
   }
   return count;
 };
+
+const isAcceptedProposalResult = (
+  result: unknown,
+): boolean => typeof result === 'object' && result !== null &&
+  'ok' in result && result.ok === true && 'data' in result &&
+  typeof result.data === 'object' && result.data !== null &&
+  'status' in result.data && result.data.status === 'accepted';

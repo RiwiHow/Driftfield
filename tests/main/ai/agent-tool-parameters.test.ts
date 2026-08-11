@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS,
   DOCUMENT_EDIT_PARAMETERS,
   DOCUMENT_FILE_OPERATION_PARAMETERS,
   normalizeStoryMaintenanceBatchArguments,
@@ -8,6 +9,7 @@ import {
   PROJECT_STRUCTURE_OPERATION_PARAMETERS,
   STORY_MAINTENANCE_PARAMETERS,
   STORY_OPERATION_PARAMETERS,
+  STORY_QUESTION_PARAMETERS,
   WRITING_ARTIFACT_REVISION_PARAMETERS,
   WRITING_ARTIFACT_SUBMISSION_PARAMETERS,
   WRITING_ASSIGNMENT_PARAMETERS,
@@ -184,6 +186,33 @@ describe('Agent tool parameter schemas', () => {
     expect(changeProperties.operation.description).toContain('one exact change shape');
   });
 
+  it('defines UUID-free accepted-document reconciliation inputs', () => {
+    const schema = ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS as unknown as
+      Record<string, unknown>;
+    const properties = schema.properties as Record<string, Record<string, unknown>>;
+    const event = properties.events.items as Record<string, unknown>;
+    const eventProperties = event.properties as Record<string, unknown>;
+    const advances = properties.threadAdvances;
+
+    expect(properties.events).toMatchObject({ minItems: 1, maxItems: 1 });
+    expect(advances).toMatchObject({ maxItems: 11 });
+    expect(JSON.stringify(eventProperties.participants)).toContain('personaRef');
+    expect(JSON.stringify(advances)).toContain('threadRef');
+    expect(JSON.stringify(schema)).not.toContain('storyRevision');
+    expect(JSON.stringify(schema)).not.toContain('documentId');
+    expect(JSON.stringify(schema)).not.toContain('orderKey');
+  });
+
+  it('allows accepted-document question evidence without its ID or revision', () => {
+    const schema = STORY_QUESTION_PARAMETERS as unknown as {
+      properties: { evidence: { anyOf: unknown[] } };
+    };
+
+    expect(JSON.stringify(schema.properties.evidence.anyOf)).toContain(
+      'document:accepted',
+    );
+  });
+
   it('normalizes operation-specific wire statuses to canonical story operations', () => {
     expect(normalizeStoryMaintenanceArguments({
       change: {
@@ -263,5 +292,35 @@ describe('Agent tool parameter schemas', () => {
       ],
       storyRevision: 2,
     });
+  });
+
+  it('defaults optional event and beat prose instead of requiring invented text', () => {
+    expect(normalizeStoryMaintenanceArguments({
+      change: {
+        endMomentId: null,
+        eventStatus: 'established',
+        operation: 'create_event',
+        participants: [],
+        startMomentId: 'moment-1',
+        summary: 'A clue appears.',
+        timelineId: 'timeline-1',
+        title: 'Clue',
+      },
+      storyRevision: 1,
+    }).change).toMatchObject({ causes: '', consequences: '' });
+
+    expect(normalizeStoryMaintenanceArguments({
+      change: {
+        description: 'The investigation turns.',
+        kind: 'turning_point',
+        operation: 'create_beat',
+        orderKey: 2,
+        parentId: null,
+        threadId: 'thread-1',
+        threadStatus: 'active',
+        title: 'Turn back',
+      },
+      storyRevision: 1,
+    }).change).toMatchObject({ desiredOutcome: '', dramaticPurpose: '' });
   });
 });
