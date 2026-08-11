@@ -719,7 +719,7 @@ describe('AgentProposalService', () => {
       operation: 'create',
       parentId,
       projectRevision: session.project.revision,
-      title: 'Created',
+      metadataTitle: 'Created',
     });
     expect(session.project.documents).toEqual([]);
 
@@ -730,6 +730,31 @@ describe('AgentProposalService', () => {
     expect(session.project.documents).toEqual([
       expect.objectContaining({ id: creation.documentId, markdown: '# Created\n' }),
     ]);
+
+    const originalPath = session.project.documents[0].relativePath;
+    const rename = await service.createStructureOperation(scope, {
+      documentId: creation.documentId,
+      metadataTitle: 'Silent Island',
+      operation: 'rename_document',
+      projectRevision: session.project.revision,
+    });
+    expect(rename).toMatchObject({
+      previousTitle: 'Created',
+      title: 'Silent Island',
+    });
+    await expect(service.apply(7, rename.proposalId)).resolves.toMatchObject({
+      documentId: creation.documentId,
+      status: 'renamed',
+    });
+    expect(session.project.documents[0]).toMatchObject({
+      name: '1. Silent Island',
+      relativePath: originalPath,
+    });
+    expect((await loadProjectLayout(directoryPath)).manuscript.index.children)
+      .toContainEqual(expect.objectContaining({
+        id: creation.documentId,
+        title: 'Silent Island',
+      }));
 
     const deletion = await service.createFileOperation(scope, {
       baseRevision: contentRevision('# Created\n'),
@@ -792,7 +817,7 @@ describe('AgentProposalService', () => {
       operation: 'create',
       parentId: world!.index.id,
       projectRevision: session.project.revision,
-      title: 'World book',
+      metadataTitle: 'World book',
     });
     await expect(service.apply(7, worldBook.proposalId)).resolves.toMatchObject({
       documentId: worldBook.documentId,
@@ -851,7 +876,7 @@ describe('AgentProposalService', () => {
       operation: 'create',
       parentId: manuscriptId,
       projectRevision: session.project.revision,
-      title: 'Chapter',
+      metadataTitle: 'Chapter',
     });
     await service.apply(7, chapter.proposalId);
     const volume = await service.createStructureOperation(scope, {

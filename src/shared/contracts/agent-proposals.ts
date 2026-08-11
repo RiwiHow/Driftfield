@@ -71,6 +71,16 @@ export interface AgentMoveDocumentProposal {
   title: string;
 }
 
+export interface AgentRenameDocumentProposal {
+  documentId: string;
+  operation: 'rename_document';
+  previousTitle: string;
+  projectRevision: string;
+  proposalId: string;
+  requestId: string;
+  title: string;
+}
+
 export interface AgentStoryProposal {
   change: import('./project-story').ProjectStoryOperation;
   operation: 'story';
@@ -86,7 +96,8 @@ export type AgentDocumentProposal =
   | AgentDeleteDocumentProposal
   | AgentDeleteLoreCategoryProposal
   | AgentCreateDirectoryProposal
-  | AgentMoveDocumentProposal;
+  | AgentMoveDocumentProposal
+  | AgentRenameDocumentProposal;
 
 export type AgentProposal = AgentDocumentProposal | AgentStoryProposal;
 
@@ -107,6 +118,7 @@ export interface AgentProposalOutcome {
     | 'create_lore_category'
     | 'delete_lore_category'
     | 'move_document'
+    | 'rename_document'
     | 'story';
   proposalId: string;
   status: AgentProposalOutcomeStatus;
@@ -128,7 +140,7 @@ export type ApplyAgentProposalResult =
       documentId: string;
       project: import('./project').ProjectSnapshot;
       proposalId: string;
-      status: 'created' | 'deleted' | 'moved';
+      status: 'created' | 'deleted' | 'moved' | 'renamed';
     }
   | {
       directoryId: string;

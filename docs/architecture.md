@@ -65,6 +65,9 @@ Project responsibilities are separated behind stable entry points:
   revision-checked atomic saves; and `services/project/document-utils.ts`
   contains their shared path and revision
   primitives.
+- `services/project/structural-document-service.ts` owns reviewed document and
+  directory metadata changes, including metadata-title updates that preserve
+  stable IDs, physical filenames, and Markdown content.
 ## Tests and generated output
 
 All tests live under root `tests/` and mirror `src/main/`, `src/renderer/`, and

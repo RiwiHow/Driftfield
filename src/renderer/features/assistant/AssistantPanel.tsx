@@ -1081,6 +1081,8 @@ function ProposalCard({
           ? 'deleted'
           : operation === 'move_document'
             ? 'moved'
+            : operation === 'rename_document'
+              ? 'renamed'
             : operation === 'delete_lore_category'
               ? 'deletedLoreCategory'
               : operation === 'create_volume'
@@ -1114,6 +1116,14 @@ function ProposalCard({
                 source: proposal.sourceParentTitle,
                 target: proposal.targetParentTitle,
               })}</pre>
+            </section>
+          ) : null}
+          {'operation' in proposal && proposal.operation === 'rename_document' ? (
+            <section>
+              <span>{t('proposal.original')}</span>
+              <pre>{proposal.previousTitle}</pre>
+              <span>{t('proposal.proposed')}</span>
+              <pre>{proposal.title}</pre>
             </section>
           ) : null}
           {'operation' in proposal && (proposal.operation === 'create_volume' ||

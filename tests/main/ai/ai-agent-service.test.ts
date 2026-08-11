@@ -41,9 +41,10 @@ const writingContext = (): ProjectContextService => ({
     format: 'driftfield',
     manuscript: {
       children: [{
+        displayTitle: '1. Chapter',
         id: 'chapter-1',
         kind: 'chapter',
-        title: 'Chapter',
+        metadataTitle: 'Chapter',
         type: 'document',
       }],
       id: 'manuscript-root',
@@ -483,7 +484,7 @@ describe('AiAgentService', () => {
         operation: 'create',
         parentId: 'manuscript-root',
         projectRevision: 'a'.repeat(64),
-        title: 'Chapter One',
+        metadataTitle: 'Chapter One',
         writingAssignmentId: child.requestId,
       },
       requestId: 'request-1',
@@ -502,7 +503,7 @@ describe('AiAgentService', () => {
         operation: 'create',
         parentId: 'manuscript-root',
         projectRevision: 'a'.repeat(64),
-        title: 'Chapter One',
+        metadataTitle: 'Chapter One',
       },
     );
     expect(workers[0].messages).toContainEqual({
@@ -523,7 +524,7 @@ describe('AiAgentService', () => {
         operation: 'create',
         parentId: 'manuscript-root',
         projectRevision: 'a'.repeat(64),
-        title: 'Duplicate',
+        metadataTitle: 'Duplicate',
         writingAssignmentId: child.requestId,
       },
       requestId: 'request-1',
@@ -636,13 +637,7 @@ describe('AiAgentService', () => {
         scope.storyChanged?.(4);
         return {
           data: {
-            changes: [{
-              clientRef: null,
-              entityId: 'persona-1',
-              operation: 'create_persona' as const,
-              operationId: 'operation-1',
-            }],
-            operationIds: ['operation-1'],
+            appliedCount: 1,
             revision: 4,
             status: 'applied' as const,
           },

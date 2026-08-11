@@ -4,7 +4,6 @@ import path from 'node:path';
 
 import type {
   AgentStoryMaintenanceChange,
-  AgentStoryMaintenanceChangeResult,
 } from '../../../shared/contracts/agent-tools';
 import type {
   ProjectStoryOperation,
@@ -31,6 +30,13 @@ type StoryEntityKind =
 interface ResolvedStoryReference {
   id: string;
   kind: StoryEntityKind;
+}
+
+interface StoryMaintenanceChangeResult {
+  clientRef: string | null;
+  entityId: string | null;
+  operation: ProjectStoryOperation['operation'];
+  operationId: string;
 }
 
 export class StoryMaintenanceReferenceError extends Error {}
@@ -143,7 +149,7 @@ export class ProjectStoryService {
     changes: AgentStoryMaintenanceChange[],
     requestId: string,
   ): {
-    changes: AgentStoryMaintenanceChangeResult[];
+    changes: StoryMaintenanceChangeResult[];
     operationIds: string[];
     snapshot: ProjectStorySnapshot;
   } {
@@ -151,7 +157,7 @@ export class ProjectStoryService {
       throw new Error('Invalid story maintenance batch');
     }
     const entries = changes.map((change) => ({ change, operationId: randomUUID() }));
-    const results: AgentStoryMaintenanceChangeResult[] = [];
+    const results: StoryMaintenanceChangeResult[] = [];
     const snapshot = this.withRepository(session, (repository) =>
       repository.transaction(() => {
         const references = new Map<string, ResolvedStoryReference>();

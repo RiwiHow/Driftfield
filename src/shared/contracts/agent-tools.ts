@@ -19,13 +19,15 @@ export interface AgentDraftSnapshot {
 export interface AgentDocumentToolResult {
   baseRevision: string;
   contentRevision: string;
+  displayTitle: string;
   documentId: string;
   markdown: string;
+  metadataTitle: string;
   source: 'disk' | 'draft';
-  title: string;
 }
 
 export interface AgentStructureDocument {
+  displayTitle: string;
   id: string;
   kind:
     | 'chapter'
@@ -34,8 +36,8 @@ export interface AgentStructureDocument {
     | 'epilogue'
     | 'appendix'
     | 'entry';
+  metadataTitle: string;
   revision?: string;
-  title: string;
   type: 'document';
 }
 
@@ -86,8 +88,7 @@ export interface AgentProposalToolResult {
 }
 
 export interface AgentStoryMaintenanceToolResult {
-  changes: AgentStoryMaintenanceChangeResult[];
-  operationIds: string[];
+  appliedCount: number;
   revision: number;
   status: 'applied';
 }
@@ -103,13 +104,6 @@ export type AgentStoryMaintenanceChange =
       import('./project-story').ProjectStoryOperation,
       { operation: 'link_beat_event' }
     >;
-
-export interface AgentStoryMaintenanceChangeResult {
-  clientRef: string | null;
-  entityId: string | null;
-  operation: import('./project-story').ProjectStoryOperation['operation'];
-  operationId: string;
-}
 
 export interface AgentStoryQuestionToolResult {
   questionId: string;
@@ -168,7 +162,7 @@ export type AgentDocumentFileOperationArguments =
       operation: 'create';
       parentId: string;
       projectRevision: string;
-      title: string;
+      metadataTitle: string;
     } & AgentDocumentContentSource)
   | {
       baseRevision: string;
@@ -200,6 +194,12 @@ export type AgentProjectStructureOperationArguments =
       operation: 'move_document';
       projectRevision: string;
       targetParentId: string;
+    }
+  | {
+      documentId: string;
+      metadataTitle: string;
+      operation: 'rename_document';
+      projectRevision: string;
     };
 
 export interface AgentToolContractMap {
@@ -431,10 +431,10 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
       return (
         isDocumentId(value.parentId) &&
         isRevision(value.projectRevision) &&
-        typeof value.title === 'string' &&
-        value.title.trim().length > 0 &&
-        value.title.length <= 500 &&
-        !/[\u0000-\u001f\u007f]/u.test(value.title) &&
+        typeof value.metadataTitle === 'string' &&
+        value.metadataTitle.trim().length > 0 &&
+        value.metadataTitle.length <= 500 &&
+        !/[\u0000-\u001f\u007f]/u.test(value.metadataTitle) &&
         isDocumentContentSource(value) &&
         typeof value.kind === 'string' &&
         ['chapter', 'prologue', 'interlude', 'epilogue', 'appendix', 'entry'].includes(value.kind)
@@ -449,6 +449,19 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
     );
   }
   if (toolName === 'propose_project_structure_operation') {
+    if (
+      value.operation === 'rename_document' &&
+      Object.keys(value).length === 4
+    ) {
+      return (
+        isDocumentId(value.documentId) &&
+        isRevision(value.projectRevision) &&
+        typeof value.metadataTitle === 'string' &&
+        value.metadataTitle.trim().length > 0 &&
+        value.metadataTitle.length <= 500 &&
+        !/[\u0000-\u001f\u007f]/u.test(value.metadataTitle)
+      );
+    }
     if (
       value.operation === 'create_volume' &&
       Object.keys(value).length === 3
@@ -624,34 +637,11 @@ const isEditProposalResult = (value: unknown): boolean =>
 
 const isStoryMaintenanceResult = (value: unknown): boolean =>
   isRecord(value) &&
-  Object.keys(value).length === 4 &&
+  Object.keys(value).length === 3 &&
   value.status === 'applied' &&
-  Array.isArray(value.changes) && value.changes.length >= 1 &&
-  value.changes.length <= 24 && value.changes.every((change, index) =>
-    isRecord(change) && Object.keys(change).length === 4 &&
-    (change.clientRef === null || isStoryClientRef(change.clientRef)) &&
-    (change.entityId === null || isDocumentId(change.entityId)) &&
-    typeof change.operation === 'string' &&
-    [
-      'create_persona',
-      'create_timeline',
-      'create_moment',
-      'create_event',
-      'create_thread',
-      'create_beat',
-      'link_beat_event',
-    ].includes(change.operation) &&
-    (change.operation === 'link_beat_event'
-      ? change.entityId === null && change.clientRef === null
-      : isDocumentId(change.entityId)) &&
-    isDocumentId(change.operationId) &&
-    Array.isArray(value.operationIds) &&
-    value.operationIds[index] === change.operationId) &&
-  Array.isArray(value.operationIds) && value.operationIds.length >= 1 &&
-  value.operationIds.length === value.changes.length &&
-  value.operationIds.length <= 24 && value.operationIds.every((operationId) =>
-    typeof operationId === 'string' && operationId.length > 0 &&
-    operationId.length <= 128) &&
+  Number.isSafeInteger(value.appliedCount) &&
+  (value.appliedCount as number) >= 1 &&
+  (value.appliedCount as number) <= 24 &&
   Number.isSafeInteger(value.revision) &&
   (value.revision as number) > 0;
 
@@ -718,10 +708,12 @@ const isDocumentResult = (value: unknown): value is AgentDocumentToolResult =>
   isRecord(value) &&
   typeof value.baseRevision === 'string' &&
   typeof value.contentRevision === 'string' &&
+  typeof value.displayTitle === 'string' &&
   typeof value.documentId === 'string' &&
   typeof value.markdown === 'string' &&
+  typeof value.metadataTitle === 'string' &&
   (value.source === 'disk' || value.source === 'draft') &&
-  typeof value.title === 'string';
+  Object.keys(value).length === 7;
 
 const isNovelStructureResult = (
   value: unknown,
@@ -788,7 +780,8 @@ const isStructureNode = (
   return (
     value.type === 'document' &&
     typeof value.id === 'string' &&
-    typeof value.title === 'string' &&
+    typeof value.displayTitle === 'string' &&
+    typeof value.metadataTitle === 'string' &&
     (value.revision === undefined || typeof value.revision === 'string') &&
     [
       'chapter',

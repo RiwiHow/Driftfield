@@ -31,6 +31,7 @@ const createContext = async () => {
   await writeFile(
     path.join(directory, 'manuscript', PROJECT_INDEX_NAME),
     stringify({
+      chapterNumbering: { format: '{number}. {title}', mode: 'continuous' },
       children: [{ file: 'chapter.md', id: 'chapter-1', kind: 'chapter', title: 'Arrival' }],
       id: 'manuscript-1',
       kind: 'manuscript',
@@ -69,10 +70,11 @@ describe('ProjectContextService', () => {
 
     expect(result).toMatchObject({
       baseRevision,
+      displayTitle: '1. Arrival',
       documentId: 'chapter-1',
       markdown: '# Unsaved\n',
+      metadataTitle: 'Arrival',
       source: 'draft',
-      title: 'Arrival',
     });
     expect(result.contentRevision).not.toBe(baseRevision);
   });
@@ -103,8 +105,10 @@ describe('ProjectContextService', () => {
     ]);
 
     expect(document).toMatchObject({
+      displayTitle: '1. Arrival',
       documentId: 'chapter-1',
       markdown: '# Disk\n',
+      metadataTitle: 'Arrival',
       source: 'disk',
     });
     expect(structure).toMatchObject({
@@ -120,7 +124,12 @@ describe('ProjectContextService', () => {
         title: 'Lore',
       },
       manuscript: {
-        children: [{ id: 'chapter-1', kind: 'chapter', title: 'Arrival' }],
+        children: [{
+          displayTitle: '1. Arrival',
+          id: 'chapter-1',
+          kind: 'chapter',
+          metadataTitle: 'Arrival',
+        }],
         id: 'manuscript-1',
         title: 'Story',
       },

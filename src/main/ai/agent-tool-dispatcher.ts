@@ -25,6 +25,7 @@ import type {
   ResolvedDocumentFileOperationArguments,
 } from './agent-proposal-service';
 import type { AgentProposal } from '../../shared/contracts/agent-proposals';
+import { isProjectStoryOperation } from '../../shared/contracts/project-story';
 
 export interface AgentToolScope {
   claimWritingArtifact?: (
@@ -330,7 +331,7 @@ export class AgentToolDispatcher {
               operation: request.arguments.operation,
               parentId: request.arguments.parentId,
               projectRevision: request.arguments.projectRevision,
-              title: request.arguments.title,
+              metadataTitle: request.arguments.metadataTitle,
             } satisfies ResolvedDocumentFileOperationArguments
           : request.arguments;
         proposal = await this.withTimeout(
@@ -493,7 +494,7 @@ const nodeKindMismatch = (
       actualKind: node.type,
       expectedKind,
       nodeId,
-      title: node.title,
+      title: node.type === 'document' ? node.displayTitle : node.title,
     }),
   );
 
@@ -515,39 +516,306 @@ const toolArgumentShapeHint = (
     typeof args === 'object' && args !== null &&
     (args as { operation?: unknown }).operation === 'create'
   ) {
-    return 'Document creation requires exactly operation, parentId, projectRevision, title, kind, markdown, and writingAssignmentId. Supply direct markdown with writingAssignmentId null, or set markdown null and use the assignmentId returned by delegate_writing.';
+    return 'Document creation requires exactly operation, parentId, projectRevision, metadataTitle, kind, markdown, and writingAssignmentId. metadataTitle is the raw title without generated numbering. Supply direct markdown with writingAssignmentId null, or set markdown null and use the assignmentId returned by delegate_writing.';
+  }
+  if (
+    toolName === 'propose_project_structure_operation' &&
+    typeof args === 'object' && args !== null &&
+    (args as { operation?: unknown }).operation === 'rename_document'
+  ) {
+    return 'rename_document requires exactly operation, projectRevision, documentId, and metadataTitle. metadataTitle is the raw title without generated numbering; the physical filename is preserved.';
   }
   if (
     (toolName !== 'maintain_story_records' && toolName !== 'propose_story_operation') ||
     typeof args !== 'object' || args === null
   ) return undefined;
-  const change = toolName === 'maintain_story_records'
-    ? (args as { changes?: unknown }).changes instanceof Array
-      ? (args as { changes: unknown[] }).changes.find((item) =>
-          typeof item === 'object' && item !== null,
-        )
-      : undefined
-    : (args as { change?: unknown }).change;
-  if (typeof change !== 'object' || change === null) return undefined;
-  const operation = (change as { operation?: unknown }).operation;
-  if (typeof operation !== 'string') return undefined;
-  const hint = STORY_OPERATION_SHAPE_HINTS[operation];
-  if (
-    hint !== undefined &&
-    toolName === 'maintain_story_records' &&
-    operation.startsWith('create_')
-  ) {
-    return `${hint} Maintain create operations may additionally declare clientRef for later @clientRef references in the same changeset.`;
+  if (toolName === 'maintain_story_records') {
+    const changes = (args as { changes?: unknown }).changes;
+    if (!Array.isArray(changes)) return 'changes must be an array of 1 to 24 operations.';
+    for (const [index, change] of changes.entries()) {
+      const error = storyOperationArgumentError(change, `changes[${index}]`, true);
+      if (error !== undefined) return error;
+    }
+    return undefined;
   }
-  return hint;
+  return storyOperationArgumentError(
+    (args as { change?: unknown }).change,
+    'change',
+    false,
+  );
 };
 
-const STORY_OPERATION_SHAPE_HINTS: Record<string, string> = {
-  create_beat: 'create_beat requires exactly operation, threadId, parentId, kind, title, description, status, orderKey, dramaticPurpose, desiredOutcome; status must be planned, active, resolved, or abandoned.',
-  create_event: 'create_event requires operation, timelineId, startMomentId, endMomentId, title, summary, status, causes, consequences, participants, and optional sources; status must be planned or established.',
-  create_moment: 'create_moment requires exactly operation, timelineId, displayTime, precision, orderKey, note.',
-  create_persona: 'create_persona requires exactly operation, name, role, summary.',
-  create_thread: 'create_thread requires exactly operation, parentId, title, summary, status, orderKey; status must be planned, active, resolved, or abandoned.',
-  create_timeline: 'create_timeline requires exactly operation, title, summary, isPrimary.',
-  link_beat_event: 'link_beat_event requires exactly operation, beatId, eventId, relation.',
+const STORY_OPERATION_FIELDS: Record<string, {
+  optional?: string[];
+  required: string[];
+}> = {
+  create_beat: {
+    required: [
+      'operation',
+      'threadId',
+      'parentId',
+      'kind',
+      'title',
+      'description',
+      'status',
+      'orderKey',
+      'dramaticPurpose',
+      'desiredOutcome',
+    ],
+  },
+  create_event: {
+    optional: ['sources'],
+    required: [
+      'operation',
+      'timelineId',
+      'startMomentId',
+      'endMomentId',
+      'title',
+      'summary',
+      'status',
+      'causes',
+      'consequences',
+      'participants',
+    ],
+  },
+  create_moment: {
+    required: ['operation', 'timelineId', 'displayTime', 'precision', 'orderKey', 'note'],
+  },
+  create_persona: { required: ['operation', 'name', 'role', 'summary'] },
+  create_thread: {
+    required: ['operation', 'parentId', 'title', 'summary', 'status', 'orderKey'],
+  },
+  create_timeline: { required: ['operation', 'title', 'summary', 'isPrimary'] },
+  link_beat_event: { required: ['operation', 'beatId', 'eventId', 'relation'] },
+};
+
+const storyOperationArgumentError = (
+  value: unknown,
+  path: string,
+  allowClientRef: boolean,
+): string | undefined => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return `${path} must be an object.`;
+  }
+  const change = value as Record<string, unknown>;
+  const operation = change.operation;
+  if (typeof operation !== 'string' || STORY_OPERATION_FIELDS[operation] === undefined) {
+    return `${path}.operation must be a supported story operation.`;
+  }
+  const clientRef = change.clientRef;
+  if (clientRef !== undefined) {
+    if (!allowClientRef || operation === 'link_beat_event') {
+      return `${path}.clientRef is valid only on Maintain create operations.`;
+    }
+    if (typeof clientRef !== 'string' || !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/u.test(clientRef)) {
+      return `${path}.clientRef must start with a letter and contain at most 64 letters, digits, underscores, or hyphens.`;
+    }
+  }
+  const { optional = [], required } = STORY_OPERATION_FIELDS[operation];
+  const allowed = new Set([
+    ...required,
+    ...optional,
+    ...(allowClientRef ? ['clientRef'] : []),
+  ]);
+  const unexpected = Object.keys(change).find((key) => !allowed.has(key));
+  if (unexpected !== undefined) return `${path}.${unexpected} is not valid for ${operation}.`;
+  const missing = required.find((key) => change[key] === undefined);
+  if (missing !== undefined) {
+    return `${storyWirePath(path, operation, missing)} is required for ${operation}.`;
+  }
+  const { clientRef: _clientRef, ...canonical } = change;
+  if (isProjectStoryOperation(canonical)) return undefined;
+  return storyOperationValueError(canonical, path, operation);
+};
+
+const storyOperationValueError = (
+  change: Record<string, unknown>,
+  path: string,
+  operation: string,
+): string => {
+  const text = (field: string, max: number, allowEmpty: boolean): string | undefined =>
+    isBoundedStoryText(change[field], max, allowEmpty)
+      ? undefined
+      : `${path}.${field} must be ${allowEmpty ? 'a' : 'a non-empty'} string of at most ${max} characters.`;
+  const id = (field: string, nullable = false): string | undefined =>
+    (nullable && change[field] === null) || isStoryId(change[field])
+      ? undefined
+      : `${path}.${field} must be ${nullable ? 'null or ' : ''}a stable ID or compatible earlier @clientRef.`;
+  const integer = (field: string): string | undefined =>
+    Number.isSafeInteger(change[field]) ? undefined : `${path}.${field} must be an integer.`;
+  let checks: Array<string | undefined>;
+  switch (operation) {
+    case 'create_persona':
+      checks = [
+        text('name', 500, false),
+        change.role === null ? undefined : text('role', 500, true),
+        text('summary', 20_000, true),
+      ];
+      break;
+    case 'create_timeline':
+      checks = [
+        text('title', 500, false),
+        text('summary', 20_000, true),
+        typeof change.isPrimary === 'boolean'
+          ? undefined
+          : `${path}.isPrimary must be a boolean.`,
+      ];
+      break;
+    case 'create_moment':
+      checks = [
+        id('timelineId'),
+        text('displayTime', 500, false),
+        ['exact', 'day', 'month', 'season', 'approximate', 'unknown']
+          .includes(change.precision as string)
+          ? undefined
+          : `${path}.precision is invalid.`,
+        integer('orderKey'),
+        text('note', 10_000, true),
+      ];
+      break;
+    case 'create_event':
+      checks = [
+        id('timelineId'),
+        id('startMomentId'),
+        id('endMomentId', true),
+        text('title', 500, false),
+        text('summary', 30_000, true),
+        change.status === 'planned' || change.status === 'established'
+          ? undefined
+          : `${path}.eventStatus must be planned or established.`,
+        text('causes', 20_000, true),
+        text('consequences', 20_000, true),
+        storyParticipantsError(change.participants, `${path}.participants`),
+        change.sources === undefined
+          ? undefined
+          : storySourcesError(change.sources, `${path}.sources`),
+      ];
+      break;
+    case 'create_thread':
+      checks = [
+        id('parentId', true),
+        text('title', 500, false),
+        text('summary', 20_000, true),
+        isStoryThreadStatus(change.status)
+          ? undefined
+          : `${path}.threadStatus must be planned, active, resolved, or abandoned.`,
+        integer('orderKey'),
+      ];
+      break;
+    case 'create_beat':
+      checks = [
+        id('threadId'),
+        id('parentId', true),
+        ['beat', 'setup', 'turning_point', 'climax', 'resolution']
+          .includes(change.kind as string)
+          ? undefined
+          : `${path}.kind is invalid.`,
+        text('title', 500, false),
+        text('description', 30_000, true),
+        isStoryThreadStatus(change.status)
+          ? undefined
+          : `${path}.threadStatus must be planned, active, resolved, or abandoned.`,
+        integer('orderKey'),
+        text('dramaticPurpose', 10_000, true),
+        text('desiredOutcome', 10_000, true),
+      ];
+      break;
+    default:
+      checks = [
+        id('beatId'),
+        id('eventId'),
+        ['plans', 'realizes', 'reveals', 'foreshadows', 'resolves']
+          .includes(change.relation as string)
+          ? undefined
+          : `${path}.relation is invalid.`,
+      ];
+  }
+  return checks.find((error) => error !== undefined) ?? `${path} contains invalid nested values for ${operation}.`;
+};
+
+const storyWirePath = (path: string, operation: string, field: string): string =>
+  field !== 'status'
+    ? `${path}.${field}`
+    : operation === 'create_event'
+      ? `${path}.eventStatus`
+      : `${path}.threadStatus`;
+
+const isStoryId = (value: unknown): boolean =>
+  typeof value === 'string' && value.length > 0 && value.length <= 128;
+
+const isStoryThreadStatus = (value: unknown): boolean =>
+  typeof value === 'string' && ['planned', 'active', 'resolved', 'abandoned'].includes(value);
+
+const isBoundedStoryText = (
+  value: unknown,
+  maxLength: number,
+  allowEmpty: boolean,
+): boolean => typeof value === 'string' && value.length <= maxLength &&
+  (allowEmpty || value.trim().length > 0) &&
+  !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value);
+
+const storyParticipantsError = (
+  value: unknown,
+  path: string,
+): string | undefined => {
+  if (!Array.isArray(value) || value.length > 100) {
+    return `${path} must be an array of at most 100 participants.`;
+  }
+  for (const [index, participant] of value.entries()) {
+    const itemPath = `${path}[${index}]`;
+    if (typeof participant !== 'object' || participant === null || Array.isArray(participant)) {
+      return `${itemPath} must be an object.`;
+    }
+    const item = participant as Record<string, unknown>;
+    const keys = Object.keys(item);
+    if (keys.length !== 3 || keys.some((key) =>
+      !['description', 'personaId', 'role'].includes(key))) {
+      return `${itemPath} requires exactly description, personaId, and role.`;
+    }
+    if (!isStoryId(item.personaId)) {
+      return `${itemPath}.personaId must be a stable ID or compatible earlier @clientRef.`;
+    }
+    if (!['actor', 'target', 'witness', 'affected'].includes(item.role as string)) {
+      return `${itemPath}.role is invalid.`;
+    }
+    if (!isBoundedStoryText(item.description, 10_000, true)) {
+      return `${itemPath}.description must be a string of at most 10000 characters.`;
+    }
+  }
+  return undefined;
+};
+
+const storySourcesError = (
+  value: unknown,
+  path: string,
+): string | undefined => {
+  if (!Array.isArray(value) || value.length > 100) {
+    return `${path} must be an array of at most 100 manuscript sources.`;
+  }
+  for (const [index, source] of value.entries()) {
+    const itemPath = `${path}[${index}]`;
+    if (typeof source !== 'object' || source === null || Array.isArray(source)) {
+      return `${itemPath} must be an object.`;
+    }
+    const item = source as Record<string, unknown>;
+    const keys = Object.keys(item);
+    if (keys.length !== 5 || keys.some((key) =>
+      !['anchor', 'documentId', 'documentRevision', 'relation', 'sourceKind']
+        .includes(key))) {
+      return `${itemPath} requires exactly anchor, documentId, documentRevision, relation, and sourceKind.`;
+    }
+    if (item.anchor !== null && !isBoundedStoryText(item.anchor, 10_000, true)) {
+      return `${itemPath}.anchor must be null or a string of at most 10000 characters.`;
+    }
+    if (!isStoryId(item.documentId)) return `${itemPath}.documentId is invalid.`;
+    if (typeof item.documentRevision !== 'string' ||
+      !/^[a-f0-9]{64}$/u.test(item.documentRevision)) {
+      return `${itemPath}.documentRevision must be a SHA-256 revision.`;
+    }
+    if (!['depicted', 'mentioned', 'inferred'].includes(item.relation as string)) {
+      return `${itemPath}.relation is invalid.`;
+    }
+    if (item.sourceKind !== 'manuscript') return `${itemPath}.sourceKind must be manuscript.`;
+  }
+  return undefined;
 };

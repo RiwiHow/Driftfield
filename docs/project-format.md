@@ -65,6 +65,9 @@ opened.
   collision-safe display titles as their physical names. Stable IDs remain in
   metadata and never depend on those human-readable names. Renaming a title does
   not implicitly rename its physical path.
+- Agent-facing document context exposes the stored metadata title separately
+  from the formatted display title. Reviewed document-title changes update only
+  the owning index entry and preserve the stable ID, physical path, and Markdown.
 - Markdown files contain content. Filenames, paths, display titles, numbers,
   and array positions are not stable domain identity.
 

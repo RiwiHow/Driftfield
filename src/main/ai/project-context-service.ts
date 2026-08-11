@@ -17,7 +17,10 @@ import type {
   ManuscriptDocumentEntry,
 } from '../../shared/contracts/project-layout';
 import { PROJECT_ICON_IDS } from '../../shared/contracts/project-layout';
-import { loadProjectLayout } from '../services/project/layout-service';
+import {
+  loadProjectLayout,
+  type LoadedProjectLayout,
+} from '../services/project/layout-service';
 import {
   contentRevision,
   isPathInside,
@@ -76,8 +79,7 @@ export class ProjectContextService {
         requestId,
       );
       return {
-        changes: result.changes,
-        operationIds: result.operationIds,
+        appliedCount: result.changes.length,
         revision: result.snapshot.revision,
         status: 'applied',
       };
@@ -133,13 +135,18 @@ export class ProjectContextService {
       throw new ProjectContextError('document-not-found');
     }
     this.assertDocumentSize(draft.markdown);
+    const metadataTitle = await this.readMetadataTitle(
+      session.directoryPath,
+      draft.documentId,
+    ) ?? document?.name ?? draft.documentId;
     return {
       baseRevision: draft.baseRevision,
       contentRevision: contentRevision(draft.markdown),
+      displayTitle: document?.name ?? metadataTitle,
       documentId: draft.documentId,
       markdown: draft.markdown,
+      metadataTitle,
       source: 'draft',
-      title: document?.name ?? draft.documentId,
     };
   }
 
@@ -150,8 +157,9 @@ export class ProjectContextService {
     const session = this.requireSession(scope);
     const relativePath = session.documentPaths.get(documentId);
     const knownDocument = session.project.documents.find(({ id }) => id === documentId);
+    const layout = await loadProjectLayout(session.directoryPath);
+    const metadataTitle = findMetadataTitle(layout, documentId);
     if (relativePath === undefined || knownDocument === undefined) {
-      const layout = await loadProjectLayout(session.directoryPath);
       const loreEntry = layout?.lore?.entries.find(({ id }) => id === documentId);
       if (loreEntry === undefined) throw new ProjectContextError('document-not-found');
       return this.readDiskDocument(
@@ -159,13 +167,18 @@ export class ProjectContextService {
         loreEntry.relativePath,
         documentId,
         loreEntry.title,
+        loreEntry.title,
       );
+    }
+    if (metadataTitle === undefined) {
+      throw new ProjectContextError('document-not-found');
     }
     return this.readDiskDocument(
       session.directoryPath,
       relativePath,
       documentId,
       knownDocument.name,
+      metadataTitle,
     );
   }
 
@@ -258,7 +271,8 @@ export class ProjectContextService {
     projectDirectory: string,
     relativePath: string,
     documentId: string,
-    title: string,
+    displayTitle: string,
+    metadataTitle: string,
   ): Promise<AgentDocumentToolResult> {
     try {
       const canonicalProject = await realpath(projectDirectory);
@@ -278,10 +292,11 @@ export class ProjectContextService {
       return {
         baseRevision: revision,
         contentRevision: revision,
+        displayTitle,
         documentId,
         markdown: content.toString('utf8'),
+        metadataTitle,
         source: 'disk',
-        title,
       };
     } catch (error) {
       if (error instanceof ProjectContextError) throw error;
@@ -298,21 +313,55 @@ export class ProjectContextService {
     }
   }
 
+  private async readMetadataTitle(
+    projectDirectory: string,
+    documentId: string,
+  ): Promise<string | undefined> {
+    try {
+      return findMetadataTitle(await loadProjectLayout(projectDirectory), documentId);
+    } catch {
+      return undefined;
+    }
+  }
+
   private mapManuscriptDocument(
     entry: ManuscriptDocumentEntry,
     documents: Map<string, { name: string; revision: string }>,
   ): AgentStructureNode {
     const document = documents.get(entry.id);
     return {
+      displayTitle: document?.name ?? entry.title,
       id: entry.id,
       kind: entry.kind,
+      metadataTitle: entry.title,
       ...(document === undefined ? {} : { revision: document.revision }),
-      title: document?.name ?? entry.title,
       type: 'document',
     };
   }
 
   private mapLoreEntry(entry: LoreEntry): AgentStructureNode {
-    return { id: entry.id, kind: 'entry', title: entry.title, type: 'document' };
+    return {
+      displayTitle: entry.title,
+      id: entry.id,
+      kind: 'entry',
+      metadataTitle: entry.title,
+      type: 'document',
+    };
   }
 }
+
+const findMetadataTitle = (
+  layout: LoadedProjectLayout,
+  documentId: string,
+): string | undefined => {
+  const directManuscript = layout.manuscript.index.children.find(
+    (child): child is ManuscriptDocumentEntry =>
+      child.kind !== 'volume' && child.id === documentId,
+  );
+  if (directManuscript !== undefined) return directManuscript.title;
+  for (const volume of layout.manuscript.volumes) {
+    const entry = volume.index.children.find(({ id }) => id === documentId);
+    if (entry !== undefined) return entry.title;
+  }
+  return layout.lore?.entries.find(({ id }) => id === documentId)?.title;
+};

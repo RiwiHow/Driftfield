@@ -55,6 +55,16 @@ assert.match(
 );
 assert.match(
   workerBundle,
+  /rename_document/,
+  'The packaged Pi worker is missing reviewed document-title renaming.',
+);
+assert.match(
+  workerBundle,
+  /metadataTitle.*displayTitle|displayTitle.*metadataTitle/,
+  'The packaged Pi worker does not distinguish metadata and display titles.',
+);
+assert.match(
+  workerBundle,
   /read_novel_context/,
   'The packaged Pi worker is missing the unified novel-context read tool.',
 );

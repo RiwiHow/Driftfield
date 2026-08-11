@@ -779,6 +779,12 @@ const parseStoredProposal = (value: string): AgentProposal => {
             isId(proposal.targetParentId) &&
             typeof proposal.targetParentTitle === 'string' &&
             proposal.targetParentTitle.length <= 500
+          : proposal.operation === 'rename_document'
+            ? hasCommonFields &&
+              isId(proposal.documentId) &&
+              isRevision(proposal.projectRevision) &&
+              typeof proposal.previousTitle === 'string' &&
+              proposal.previousTitle.length <= 500
           : hasCommonFields &&
         isRevision(proposal.baseContentRevision) &&
         isRevision(proposal.baseRevision) &&

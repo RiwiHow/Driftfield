@@ -8,6 +8,7 @@ import type {
   AgentCreateDirectoryProposal,
   AgentEditProposal,
   AgentMoveDocumentProposal,
+  AgentRenameDocumentProposal,
   AgentStoryProposal,
   ApplyAgentProposalResult,
 } from '../../shared/contracts/agent-proposals';
@@ -35,6 +36,7 @@ import {
   getStructuredDocumentDescriptor,
   getStructuredRootDirectoryDescriptor,
   moveStructuredProjectDocument,
+  renameStructuredProjectDocument,
 } from '../services/project/structural-document-service';
 import { parseProjectTitle } from '../services/project/metadata-parser';
 
@@ -210,7 +212,7 @@ export class AgentProposalService {
       }
       let title: string;
       try {
-        title = parseProjectTitle(request.title);
+        title = parseProjectTitle(request.metadataTitle);
       } catch {
         throw new ProjectContextError('invalid-arguments');
       }
@@ -267,8 +269,12 @@ export class AgentProposalService {
   ): Promise<AgentDeleteLoreCategoryProposal>;
   async createStructureOperation(
     scope: ProposalScope,
+    request: Extract<AgentProjectStructureOperationArguments, { operation: 'rename_document' }>,
+  ): Promise<AgentRenameDocumentProposal>;
+  async createStructureOperation(
+    scope: ProposalScope,
     request: Exclude<AgentProjectStructureOperationArguments, {
-      operation: 'delete_lore_category' | 'move_document';
+      operation: 'delete_lore_category' | 'move_document' | 'rename_document';
     }>,
   ): Promise<AgentCreateDirectoryProposal>;
   async createStructureOperation(
@@ -277,7 +283,8 @@ export class AgentProposalService {
   ): Promise<
     AgentCreateDirectoryProposal |
     AgentDeleteLoreCategoryProposal |
-    AgentMoveDocumentProposal
+    AgentMoveDocumentProposal |
+    AgentRenameDocumentProposal
   >;
   async createStructureOperation(
     scope: ProposalScope,
@@ -285,7 +292,8 @@ export class AgentProposalService {
   ): Promise<
     AgentCreateDirectoryProposal |
     AgentDeleteLoreCategoryProposal |
-    AgentMoveDocumentProposal
+    AgentMoveDocumentProposal |
+    AgentRenameDocumentProposal
   > {
     const session = this.sessions.get(scope.ownerId);
     if (
@@ -301,7 +309,8 @@ export class AgentProposalService {
     let proposal:
       | AgentCreateDirectoryProposal
       | AgentDeleteLoreCategoryProposal
-      | AgentMoveDocumentProposal;
+      | AgentMoveDocumentProposal
+      | AgentRenameDocumentProposal;
     if (request.operation === 'move_document') {
       const [document, target] = await Promise.all([
         getStructuredDocumentDescriptor(session.directoryPath, request.documentId),
@@ -330,6 +339,30 @@ export class AgentProposalService {
         targetParentId: target.id,
         targetParentTitle: target.title,
         title: document.title,
+      };
+    } else if (request.operation === 'rename_document') {
+      const document = await getStructuredDocumentDescriptor(
+        session.directoryPath,
+        request.documentId,
+      );
+      if (document === null) throw new ProjectContextError('document-not-found');
+      let metadataTitle: string;
+      try {
+        metadataTitle = parseProjectTitle(request.metadataTitle);
+      } catch {
+        throw new ProjectContextError('invalid-arguments');
+      }
+      if (metadataTitle === document.title) {
+        throw new ProjectContextError('invalid-arguments');
+      }
+      proposal = {
+        documentId: request.documentId,
+        operation: 'rename_document',
+        previousTitle: document.title,
+        projectRevision: request.projectRevision,
+        proposalId: randomUUID(),
+        requestId: scope.requestId,
+        title: metadataTitle,
       };
     } else if (request.operation === 'delete_lore_category') {
       const [directory, parent] = await Promise.all([
@@ -420,6 +453,7 @@ export class AgentProposalService {
         result.status === 'created' ||
         result.status === 'deleted' ||
         result.status === 'moved' ||
+        result.status === 'renamed' ||
         result.status === 'created-directory' ||
         result.status === 'deleted-directory' ||
         result.status === 'story-updated'
@@ -610,6 +644,11 @@ export class AgentProposalService {
             documentId: proposal.documentId,
             targetParentId: proposal.targetParentId,
           });
+        } else if (proposal.operation === 'rename_document') {
+          await renameStructuredProjectDocument(session.directoryPath, {
+            documentId: proposal.documentId,
+            metadataTitle: proposal.title,
+          });
         } else {
           await createStructuredProjectDirectory(session.directoryPath, {
             directoryId: proposal.directoryId,
@@ -651,7 +690,9 @@ export class AgentProposalService {
           ? 'created'
           : proposal.operation === 'delete'
             ? 'deleted'
-            : 'moved',
+            : proposal.operation === 'move_document'
+              ? 'moved'
+              : 'renamed',
       };
     }
     const relativePath = session.documentPaths.get(proposal.documentId);

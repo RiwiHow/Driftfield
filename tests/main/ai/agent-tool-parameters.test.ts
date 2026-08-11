@@ -104,6 +104,7 @@ describe('Agent tool parameter schemas', () => {
       type: 'string',
     });
     expect(properties.markdown).toMatchObject({ type: ['string', 'null'] });
+    expect(properties.metadataTitle.description).toContain('raw document metadata title');
     expect(properties.writingAssignmentId).toMatchObject({ type: ['string', 'null'] });
     expect(JSON.stringify(schema)).not.toContain('anyOf');
     expect(JSON.stringify(schema)).not.toContain('const');
@@ -120,6 +121,7 @@ describe('Agent tool parameter schemas', () => {
         'create_lore_category',
         'delete_lore_category',
         'move_document',
+        'rename_document',
       ],
       type: 'string',
     });
@@ -127,6 +129,7 @@ describe('Agent tool parameter schemas', () => {
       enum: expect.arrayContaining(['earth', 'map', 'users']),
       type: 'string',
     });
+    expect(properties.metadataTitle.description).toContain('rename_document');
     expect(JSON.stringify(schema)).not.toContain('anyOf');
     expect(JSON.stringify(schema)).not.toContain('const');
   });

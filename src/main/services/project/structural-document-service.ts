@@ -27,7 +27,10 @@ import type {
 import { PROJECT_INDEX_NAME } from '../../../shared/contracts/project-layout';
 import { contentRevision, isPathInside } from './document-utils';
 import { loadProjectLayout, type LoadedProjectLayout } from './layout-service';
-import { MAX_PROJECT_METADATA_BYTES } from './metadata-parser';
+import {
+  MAX_PROJECT_METADATA_BYTES,
+  parseProjectTitle,
+} from './metadata-parser';
 
 interface LocatedDirectory {
   directoryPath: string;
@@ -68,6 +71,11 @@ interface MoveDocumentRequest {
   baseRevision: string;
   documentId: string;
   targetParentId: string;
+}
+
+interface RenameDocumentRequest {
+  documentId: string;
+  metadataTitle: string;
 }
 
 export interface StructuredDirectoryDescriptor {
@@ -493,6 +501,31 @@ export const moveStructuredProjectDocument = async (
       throw error;
     }
     await unlink(source.filePath).catch(() => undefined);
+  });
+};
+
+export const renameStructuredProjectDocument = async (
+  directoryPath: string,
+  request: RenameDocumentRequest,
+): Promise<void> => {
+  const projectPath = await realpath(directoryPath);
+  return enqueueMutation(projectPath, async () => {
+    const layout = await loadProjectLayout(projectPath);
+    const located = locateDocument(projectPath, layout, request.documentId);
+    if (located === null) throw new Error('Project document was not found');
+    const metadataTitle = parseProjectTitle(request.metadataTitle);
+    if (located.entry.title === metadataTitle) {
+      throw new Error('Project document already has this metadata title');
+    }
+    const nextIndex = {
+      ...located.index,
+      children: located.index.children.map((child) =>
+        'id' in child && child.id === request.documentId
+          ? { ...child, title: metadataTitle }
+          : child,
+      ),
+    } as ProjectDirectoryIndex;
+    await replaceIndex(located.indexPath, serializeIndex(nextIndex));
   });
 };
 

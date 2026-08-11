@@ -218,7 +218,7 @@ const isProposalOutcome = (value: unknown): value is AgentProposalOutcome => {
     Object.keys(value).length === 3 &&
     typeof outcome.proposalId === 'string' &&
     outcome.proposalId.length > 0 && outcome.proposalId.length <= 128 &&
-    ['edit', 'create', 'delete', 'create_volume', 'create_lore_category', 'delete_lore_category', 'move_document', 'story']
+    ['edit', 'create', 'delete', 'create_volume', 'create_lore_category', 'delete_lore_category', 'move_document', 'rename_document', 'story']
       .includes(outcome.operation ?? '') &&
     ['accepted', 'rejected', 'conflict', 'missing', 'stale', 'failed']
       .includes(outcome.status ?? '')

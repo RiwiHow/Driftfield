@@ -55,6 +55,8 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain('directoryIds only to read a directory’s immediate document children');
     expect(built.prompt).toContain('stable document identities');
     expect(built.prompt).toContain('create or delete a document');
+    expect(built.prompt).toContain('metadataTitle from formatted displayTitle');
+    expect(built.prompt).toContain('rename a document metadata title');
     expect(built.prompt).toContain('continue the same Agent run');
     expect(built.prompt).toContain('outside the user’s requested scope');
     expect(built.prompt).toContain('reconcile the exact accepted persisted prose');
@@ -64,7 +66,7 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain('automatically apply only clearly evidenced');
     expect(built.prompt).toContain('complete ordered dependency graph');
     expect(built.prompt).toContain('reference it as @clientRef');
-    expect(built.prompt).toContain('never treat returned audit operationIds as entity IDs');
+    expect(built.prompt).toContain('audit and entity IDs remain Main-owned');
     expect(built.prompt).toContain('Do not narrate tool planning');
     expect(built.prompt).toContain(
       'First check whether the accepted prose advances, turns, reveals, resolves, or abandons an existing Thread',

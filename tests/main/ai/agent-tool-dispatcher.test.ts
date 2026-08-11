@@ -12,10 +12,11 @@ afterEach(() => vi.useRealTimers());
 const documentResult = {
   baseRevision: 'base',
   contentRevision: 'content',
+  displayTitle: '1. Chapter',
   documentId: 'chapter-1',
   markdown: '# Chapter',
+  metadataTitle: 'Chapter',
   source: 'disk' as const,
-  title: 'Chapter',
 };
 
 const novelStructure = {
@@ -24,9 +25,10 @@ const novelStructure = {
   lore: {
     children: [{
       children: [{
+        displayTitle: 'World entry',
         id: 'lore-1',
         kind: 'entry' as const,
-        title: 'World entry',
+        metadataTitle: 'World entry',
         type: 'document' as const,
       }],
       id: 'world-directory',
@@ -41,9 +43,10 @@ const novelStructure = {
   },
   manuscript: {
     children: [{
+      displayTitle: '1. Chapter',
       id: 'chapter-1',
       kind: 'chapter' as const,
-      title: 'Chapter',
+      metadataTitle: 'Chapter',
       type: 'document' as const,
     }],
     id: 'manuscript-root',
@@ -325,13 +328,7 @@ describe('AgentToolDispatcher', () => {
     };
     const context = {
       maintainStoryRecords: vi.fn(() => ({
-        changes: [{
-          clientRef: null,
-          entityId: 'persona-1',
-          operation: 'create_persona' as const,
-          operationId: 'operation-1',
-        }],
-        operationIds: ['operation-1'],
+        appliedCount: 1,
         revision: 1,
         status: 'applied' as const,
       })),
@@ -347,13 +344,7 @@ describe('AgentToolDispatcher', () => {
       },
     )).resolves.toEqual({
       data: {
-        changes: [{
-          clientRef: null,
-          entityId: 'persona-1',
-          operation: 'create_persona',
-          operationId: 'operation-1',
-        }],
-        operationIds: ['operation-1'],
+        appliedCount: 1,
         revision: 1,
         status: 'applied',
       },
@@ -479,10 +470,47 @@ describe('AgentToolDispatcher', () => {
     })).resolves.toEqual({
       error: {
         code: 'invalid-arguments',
-        detail: 'create_timeline requires exactly operation, title, summary, isPrimary.',
+        detail: 'change.description is not valid for create_timeline.',
       },
       ok: false,
       toolName: 'propose_story_operation',
+    });
+  });
+
+  it('identifies the exact invalid item in a story maintenance batch', async () => {
+    const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
+    await expect(dispatcher.execute(scope, {
+      arguments: {
+        changes: [{
+          clientRef: 'hearing',
+          displayTime: 'Late spring',
+          note: '',
+          operation: 'create_moment',
+          orderKey: 2,
+          precision: 'season',
+          timelineId: 'timeline-1',
+        }, {
+          causes: '',
+          consequences: '',
+          endMomentId: null,
+          operation: 'create_event',
+          participants: [],
+          startMomentId: '@hearing',
+          status: undefined,
+          summary: '',
+          timelineId: 'timeline-1',
+          title: 'The hearing',
+        }],
+        storyRevision: 5,
+      },
+      toolName: 'maintain_story_records',
+    })).resolves.toEqual({
+      error: {
+        code: 'invalid-arguments',
+        detail: 'changes[1].eventStatus is required for create_event.',
+      },
+      ok: false,
+      toolName: 'maintain_story_records',
     });
   });
 
@@ -695,7 +723,7 @@ describe('AgentToolDispatcher', () => {
           operation: 'create',
           parentId: 'manuscript-1',
           projectRevision: 'a'.repeat(64),
-          title: 'Created',
+          metadataTitle: 'Created',
           writingAssignmentId: 'scribe-task-1',
         },
         toolName: 'propose_document_file_operation',
@@ -714,7 +742,7 @@ describe('AgentToolDispatcher', () => {
         operation: 'create',
         parentId: 'manuscript-1',
         projectRevision: 'a'.repeat(64),
-        title: 'Created',
+        metadataTitle: 'Created',
       },
     );
     expect(sendProposal).toHaveBeenCalledWith(proposal);
@@ -762,6 +790,53 @@ describe('AgentToolDispatcher', () => {
       ok: true,
       toolName: 'propose_project_structure_operation',
     });
+    expect(sendProposal).toHaveBeenCalledWith(proposal);
+  });
+
+  it('emits a reviewed document metadata-title proposal', async () => {
+    const proposal = {
+      documentId: 'chapter-3',
+      operation: 'rename_document' as const,
+      previousTitle: '3. Silent Island',
+      projectRevision: 'a'.repeat(64),
+      proposalId: 'proposal-rename',
+      requestId: 'request-1',
+      title: 'Silent Island',
+    };
+    const proposals = {
+      cancelRequest: vi.fn(),
+      createStructureOperation: vi.fn().mockResolvedValue(proposal),
+      waitForDecision: vi.fn().mockResolvedValue({
+        proposalId: proposal.proposalId,
+        status: 'accepted',
+      }),
+    } as unknown as AgentProposalService;
+    const sendProposal = vi.fn();
+    const dispatcher = new AgentToolDispatcher(
+      {} as ProjectContextService,
+      undefined,
+      proposals,
+    );
+
+    await expect(dispatcher.execute({ ...scope, sendProposal }, {
+      arguments: {
+        documentId: proposal.documentId,
+        metadataTitle: proposal.title,
+        operation: 'rename_document',
+        projectRevision: proposal.projectRevision,
+      },
+      toolName: 'propose_project_structure_operation',
+    })).resolves.toMatchObject({
+      data: { proposalId: proposal.proposalId, status: 'accepted' },
+      ok: true,
+    });
+    expect(proposals.createStructureOperation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        metadataTitle: 'Silent Island',
+        operation: 'rename_document',
+      }),
+    );
     expect(sendProposal).toHaveBeenCalledWith(proposal);
   });
 

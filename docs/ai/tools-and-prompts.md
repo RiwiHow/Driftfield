@@ -15,6 +15,10 @@ request order and limited to four total results. Main validates every requested
 node against the current structure before reading and returns only path-free
 application-owned data. Missing nodes, document/directory kind mismatches, and
 oversized selections return distinct bounded typed errors.
+Every document result separates its raw `metadataTitle` from its formatted
+`displayTitle`. Numbering and label templates affect only `displayTitle`; Agents
+use `metadataTitle` for creation and title changes and never copy generated
+numbering back into metadata.
 The current-document section is the immutable request-start editor draft,
 including unsaved edits; explicit document IDs deliberately read persisted
 content. The story-state section contains Personae, Chronicle, Threads, open
@@ -34,8 +38,9 @@ The bounded direct-maintenance surface contains:
   ledger, and returns the new revision. Ordered create operations may declare a
   bounded `clientRef`; later operations in the same changeset refer to the
   Main-generated entity as `@clientRef`. Main validates reference order and
-  entity kind, resolves references inside the transaction, and returns the
-  generated entity ID for every create item. It does not expose SQL and cannot
+  entity kind and resolves references inside the transaction. Its concise
+  result contains only `status`, `revision`, and `appliedCount`; audit and
+  generated entity IDs remain Main-owned. It does not expose SQL and cannot
   delete, merge, reorder, or edit Manuscript/Lore documents.
 - `record_story_question`, which records a deduplicated unresolved ambiguity
   without changing canonical story records or their revision. Questions carry
@@ -81,6 +86,9 @@ wire fields to the canonical repository `status` field before Main performs its
 strict operation-shape validation. This avoids advertising a status value for
 an operation that Main would reject. Invalid story shapes return a bounded
 operation-specific hint rather than only an opaque error code.
+Invalid Maintain batches report the exact failing array index and field using
+the provider-facing wire name, such as `changes[2].eventStatus`, rather than
+describing the first operation regardless of where validation failed.
 
 The reviewed mutation surface additionally contains:
 
@@ -90,12 +98,13 @@ The reviewed mutation surface additionally contains:
   draft content revision;
 - `propose_document_file_operation`, which proposes either creating a Markdown
   document under a stable directory ID or deleting a document by stable ID.
-  Creation carries a title, domain kind, and either direct Markdown or the
-  current request's unclaimed Scribe assignment ID. Deletion binds to both the
+  Creation carries a raw `metadataTitle`, domain kind, and either direct
+  Markdown or the current request's unclaimed Scribe assignment ID. Deletion binds to both the
   project revision and persisted document revision.
 - `propose_project_structure_operation`, which proposes creating a manuscript
   volume, creating an icon-bearing lore category, deleting an empty lore
-  category, or moving a document between compatible stable directory IDs.
+  category, moving a document between compatible stable directory IDs, or
+  changing a document's metadata title without renaming its physical file.
   `read_novel_context.structure` returns both each directory's selected icon and the
   complete fixed icon allow-list. Category creation accepts only an icon from
   that list. Category deletion is rejected until every contained document has

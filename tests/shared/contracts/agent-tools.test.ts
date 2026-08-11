@@ -48,10 +48,11 @@ describe('Agent proposal tool contract', () => {
         documents: [{
           baseRevision: 'a'.repeat(64),
           contentRevision: 'b'.repeat(64),
+          displayTitle: '1. Chapter One',
           documentId: 'chapter-1',
           markdown: '# Chapter',
+          metadataTitle: 'Chapter One',
           source: 'disk',
-          title: 'Chapter One',
         }],
       },
       ok: true,
@@ -223,27 +224,23 @@ describe('Agent proposal tool contract', () => {
     })).toBe(true);
     expect(isAgentToolExecutionResult({
       data: {
-        changes: [
-          {
-            clientRef: 'arrival',
-            entityId: 'moment-1',
-            operation: 'create_moment',
-            operationId: 'operation-1',
-          },
-          {
-            clientRef: null,
-            entityId: null,
-            operation: 'link_beat_event',
-            operationId: 'operation-2',
-          },
-        ],
-        operationIds: ['operation-1', 'operation-2'],
+        appliedCount: 2,
         revision: 1,
         status: 'applied',
       },
       ok: true,
       toolName: 'maintain_story_records',
     })).toBe(true);
+    expect(isAgentToolExecutionResult({
+      data: {
+        appliedCount: 2,
+        operationIds: ['internal-audit-id'],
+        revision: 1,
+        status: 'applied',
+      },
+      ok: true,
+      toolName: 'maintain_story_records',
+    })).toBe(false);
   });
 
   it('correlates validated proposal arguments and results', () => {
@@ -371,6 +368,24 @@ describe('Agent proposal tool contract', () => {
       },
       toolName: 'propose_project_structure_operation',
     })).toBe(false);
+    expect(isAgentToolRequest({
+      arguments: {
+        documentId: 'chapter-1',
+        metadataTitle: 'The silent island',
+        operation: 'rename_document',
+        projectRevision: 'a'.repeat(64),
+      },
+      toolName: 'propose_project_structure_operation',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: {
+        displayTitle: '3. The silent island',
+        documentId: 'chapter-1',
+        operation: 'rename_document',
+        projectRevision: 'a'.repeat(64),
+      },
+      toolName: 'propose_project_structure_operation',
+    })).toBe(false);
   });
 
   it('validates create and delete document proposal variants', () => {
@@ -381,7 +396,7 @@ describe('Agent proposal tool contract', () => {
         operation: 'create',
         parentId: 'manuscript-1',
         projectRevision: 'a'.repeat(64),
-        title: 'New chapter',
+        metadataTitle: 'New chapter',
         writingAssignmentId: null,
       },
       toolName: 'propose_document_file_operation',
@@ -393,7 +408,7 @@ describe('Agent proposal tool contract', () => {
         operation: 'create',
         parentId: 'manuscript-1',
         projectRevision: 'a'.repeat(64),
-        title: 'New chapter',
+        metadataTitle: 'New chapter',
         writingAssignmentId: 'scribe-task-1',
       },
       toolName: 'propose_document_file_operation',

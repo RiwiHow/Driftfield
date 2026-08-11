@@ -254,6 +254,34 @@ describe('Agent conversation persistence', () => {
     restoredService.dispose();
   });
 
+  it('restores a pending document-title proposal for main-owned revalidation', async () => {
+    const session = await createSession();
+    const service = new AgentConversationService();
+    const state = service.getState(session);
+    const proposal = {
+      documentId: 'chapter-3',
+      operation: 'rename_document' as const,
+      previousTitle: '3. Silent Island',
+      projectRevision: 'a'.repeat(64),
+      proposalId: 'proposal-rename',
+      requestId: 'assistant-rename',
+      title: 'Silent Island',
+    };
+    service.beginPrompt(session, {
+      conversationId: state.activeConversation.id,
+      prompt: 'Fix the chapter title.',
+      requestId: 'assistant-rename',
+      userMessageId: 'user-rename',
+    });
+    service.recordEvent({ proposal, requestId: 'assistant-rename', type: 'proposal' });
+    service.recordEvent({ requestId: 'assistant-rename', type: 'completed' });
+    service.dispose();
+
+    const restoredService = new AgentConversationService();
+    expect(restoredService.getProposal(session, proposal.proposalId)).toEqual(proposal);
+    restoredService.dispose();
+  });
+
   it('restores a pending story proposal for main-owned revalidation', async () => {
     const session = await createSession();
     const service = new AgentConversationService();

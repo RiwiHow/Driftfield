@@ -116,6 +116,10 @@ Preserve these properties when changing affected subsystems.
   parent/kind and current project/document revisions, updates metadata, and
   applies the structural mutation only after explicit acceptance. Renderer
   refuses deletion while its matching manuscript draft is dirty.
+- `propose_project_structure_operation` can submit a document metadata-title
+  change by stable ID and project revision. Acceptance updates only the owning
+  index; it preserves the physical filename and Markdown and remains safe while
+  the renderer has an unsaved manuscript draft.
 - Request-start draft snapshots preserve unsaved current-document content.
 - Pi works from application-owned Agent data, not the novel folder.
 - Assistant Markdown does not interpret raw HTML, load remote images, or permit

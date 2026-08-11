@@ -137,10 +137,11 @@ describe("Agent utility-process protocol", () => {
           data: { documents: [{
             baseRevision: "revision",
             contentRevision: "revision",
+            displayTitle: "1. Chapter",
             documentId: "chapter-1",
             markdown: "Chapter text",
+            metadataTitle: "Chapter",
             source: "disk",
-            title: "Chapter",
           }] },
           ok: true,
           toolName: "read_novel_context",

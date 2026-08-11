@@ -181,9 +181,10 @@ export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
       description: 'Current project revision returned by read_novel_context.structure.',
       pattern: '^[a-f0-9]{64}$',
     }),
-    title: Type.Optional(
+    metadataTitle: Type.Optional(
       Type.String({
-        description: 'Required for create: display title without generated numbering.',
+        description:
+          'Required for create: raw document metadata title. Never copy displayTitle; generated numbering is applied separately by Main.',
         maxLength: 500,
         minLength: 1,
       }),
@@ -210,7 +211,7 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
     ),
     documentId: Type.Optional(
       Type.String({
-        description: 'Required for move_document: stable document ID.',
+        description: 'Required for move_document and rename_document: stable document ID.',
         maxLength: 128,
         minLength: 1,
       }),
@@ -233,12 +234,21 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
         'create_lore_category',
         'delete_lore_category',
         'move_document',
+        'rename_document',
       ] as const,
     ),
     projectRevision: Type.String({
       description: 'Current project revision returned by read_novel_context.structure.',
       pattern: '^[a-f0-9]{64}$',
     }),
+    metadataTitle: Type.Optional(
+      Type.String({
+        description:
+          'Required for rename_document: new raw metadata title without generated numbering. Renaming does not change the physical filename.',
+        maxLength: 500,
+        minLength: 1,
+      }),
+    ),
     targetParentId: Type.Optional(
       Type.String({
         description: 'Required for move_document: stable destination directory ID.',

@@ -6,6 +6,7 @@ import type {
   AgentDeleteDocumentProposal,
   AgentEditProposal,
   AgentMoveDocumentProposal,
+  AgentRenameDocumentProposal,
 } from '../../../../src/shared/contracts/agent-proposals';
 
 const document: WorkspaceDocument = {
@@ -78,5 +79,18 @@ describe('Agent proposal state', () => {
       deletion,
       [{ ...document, isDirty: false, markdown: document.previousMarkdown }],
     )).toBe(true);
+  });
+
+  it('allows a metadata-only document rename while manuscript text is dirty', () => {
+    const rename: AgentRenameDocumentProposal = {
+      documentId: document.id,
+      operation: 'rename_document',
+      previousTitle: '3. Silent Island',
+      projectRevision: 'c'.repeat(64),
+      proposalId: 'proposal-rename',
+      requestId: 'request-1',
+      title: 'Silent Island',
+    };
+    expect(canApplyAgentProposal(document, rename, [document])).toBe(true);
   });
 });
