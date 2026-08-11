@@ -262,6 +262,19 @@ export const isProjectStoryOperation = (
   }
   if (value.operation === 'create_event') {
     return (keys.length === 10 || keys.length === 11) &&
+      keys.every((key) => [
+        'causes',
+        'consequences',
+        'endMomentId',
+        'operation',
+        'participants',
+        'sources',
+        'startMomentId',
+        'status',
+        'summary',
+        'timelineId',
+        'title',
+      ].includes(key)) &&
       isId(value.timelineId) &&
       isId(value.startMomentId) &&
       (value.endMomentId === null || isId(value.endMomentId)) &&

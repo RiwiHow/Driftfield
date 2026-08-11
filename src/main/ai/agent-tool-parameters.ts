@@ -287,9 +287,94 @@ export const STORY_OPERATION_PARAMETERS = Type.Object(
   { additionalProperties: false },
 );
 
+const maintenanceReferenceDescription = (kind: string): string =>
+  `Stable ${kind} ID, or @clientRef for a compatible entity created earlier in this same changeset.`;
+
+const STORY_MAINTENANCE_CHANGE_PARAMETERS = Type.Object(
+  {
+    ...STORY_CHANGE_PARAMETERS.properties,
+    beatId: Type.Optional(Type.String({
+      description: maintenanceReferenceDescription('beat'),
+      maxLength: 128,
+      minLength: 1,
+    })),
+    clientRef: Type.Optional(Type.String({
+      description:
+        'Optional local name for an entity created by this change. Later changes in this same array may reference it as @clientRef. Valid only on create operations; Main still generates the stable ID.',
+      maxLength: 64,
+      pattern: '^[A-Za-z][A-Za-z0-9_-]{0,63}$',
+    })),
+    endMomentId: Type.Optional(Type.Unsafe<string | null>({
+      description:
+        `${maintenanceReferenceDescription('moment')} Use null when the event has no end moment.`,
+      maxLength: 128,
+      type: ['string', 'null'],
+    })),
+    eventId: Type.Optional(Type.String({
+      description: maintenanceReferenceDescription('event'),
+      maxLength: 128,
+      minLength: 1,
+    })),
+    operation: stringEnum(
+      [
+        'create_persona',
+        'create_timeline',
+        'create_moment',
+        'create_event',
+        'create_thread',
+        'create_beat',
+        'link_beat_event',
+      ] as const,
+      {
+        description:
+          'Select one exact change shape. Create operations may add clientRef. Later changes may use @clientRef in ID fields, so dependent creates and links belong in this same ordered changeset rather than separate calls or rereads.',
+      },
+    ),
+    parentId: Type.Optional(Type.Unsafe<string | null>({
+      description:
+        `${maintenanceReferenceDescription('parent thread or beat')} Use null for a root entity.`,
+      maxLength: 128,
+      type: ['string', 'null'],
+    })),
+    participants: Type.Optional(Type.Array(Type.Object(
+      {
+        description: Type.String({ maxLength: 10_000 }),
+        personaId: Type.String({
+          description: maintenanceReferenceDescription('persona'),
+          maxLength: 128,
+          minLength: 1,
+        }),
+        role: stringEnum(['actor', 'target', 'witness', 'affected'] as const),
+      },
+      { additionalProperties: false },
+    ), { maxItems: 100 })),
+    startMomentId: Type.Optional(Type.String({
+      description: maintenanceReferenceDescription('moment'),
+      maxLength: 128,
+      minLength: 1,
+    })),
+    threadId: Type.Optional(Type.String({
+      description: maintenanceReferenceDescription('thread'),
+      maxLength: 128,
+      minLength: 1,
+    })),
+    timelineId: Type.Optional(Type.String({
+      description: maintenanceReferenceDescription('timeline'),
+      maxLength: 128,
+      minLength: 1,
+    })),
+  },
+  { additionalProperties: false },
+);
+
 export const STORY_MAINTENANCE_PARAMETERS = Type.Object(
   {
-    changes: Type.Array(STORY_CHANGE_PARAMETERS, { maxItems: 24, minItems: 1 }),
+    changes: Type.Array(STORY_MAINTENANCE_CHANGE_PARAMETERS, {
+      description:
+        'Ordered atomic changes. Declare clientRef on a create change and use @clientRef only in later changes that depend on it.',
+      maxItems: 24,
+      minItems: 1,
+    }),
     storyRevision: Type.Integer({ minimum: 0 }),
   },
   { additionalProperties: false },
@@ -382,8 +467,21 @@ export const normalizeStoryMaintenanceBatchArguments = (
     storyRevision: number;
   },
 ): AgentToolContractMap['maintain_story_records']['arguments'] => ({
-  changes: value.changes.map((change) =>
-    normalizeStoryMaintenanceArguments({ change, storyRevision: value.storyRevision }).change,
-  ),
+  changes: value.changes.map((change) => {
+    const { eventStatus, threadStatus, ...normalized } = change;
+    if (normalized.operation === 'create_event') {
+      return { ...normalized, status: eventStatus } as
+        AgentToolContractMap['maintain_story_records']['arguments']['changes'][number];
+    }
+    if (
+      normalized.operation === 'create_thread' ||
+      normalized.operation === 'create_beat'
+    ) {
+      return { ...normalized, status: threadStatus } as
+        AgentToolContractMap['maintain_story_records']['arguments']['changes'][number];
+    }
+    return normalized as
+      AgentToolContractMap['maintain_story_records']['arguments']['changes'][number];
+  }),
   storyRevision: value.storyRevision,
 });

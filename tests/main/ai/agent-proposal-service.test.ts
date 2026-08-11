@@ -50,6 +50,18 @@ describe('AgentProposalService', () => {
       revision: 1,
     });
     expect(result.operationIds).toHaveLength(2);
+    expect(result.changes).toEqual([
+      expect.objectContaining({
+        clientRef: null,
+        entityId: expect.any(String),
+        operation: 'create_persona',
+      }),
+      expect.objectContaining({
+        clientRef: null,
+        entityId: expect.any(String),
+        operation: 'create_persona',
+      }),
+    ]);
     const database = new ProjectDatabase(directoryPath);
     expect(database.connection.prepare(`
       SELECT base_revision, applied_revision, status
@@ -59,6 +71,180 @@ describe('AgentProposalService', () => {
       { applied_revision: 1, base_revision: 0, status: 'applied' },
     ]);
     database.close();
+  });
+
+  it('resolves an ordered maintenance dependency graph in one atomic changeset', async () => {
+    const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-maintain-refs-'));
+    await initializeProjectLayout(directoryPath);
+    const session = {
+      directoryPath,
+      documentPaths: new Map<string, string>(),
+      id: 'session-maintain-refs',
+      project: await createProjectSnapshot(directoryPath),
+    } as unknown as ProjectSession;
+    const stories = new ProjectStoryService();
+
+    const result = stories.maintainOperations(session, 0, [
+      {
+        clientRef: 'sera',
+        name: 'Sera',
+        operation: 'create_persona',
+        role: 'Protagonist',
+        summary: '',
+      },
+      {
+        clientRef: 'main',
+        isPrimary: true,
+        operation: 'create_timeline',
+        summary: '',
+        title: 'Primary Chronicle',
+      },
+      {
+        clientRef: 'arrival',
+        displayTime: 'Weaving Year 412, late spring',
+        note: '',
+        operation: 'create_moment',
+        orderKey: 1,
+        precision: 'season',
+        timelineId: '@main',
+      },
+      {
+        causes: '',
+        clientRef: 'return-event',
+        consequences: '',
+        endMomentId: null,
+        operation: 'create_event',
+        participants: [{
+          description: 'Returns to the islands.',
+          personaId: '@sera',
+          role: 'actor',
+        }],
+        startMomentId: '@arrival',
+        status: 'established',
+        summary: 'Sera returns and is summoned before the council.',
+        timelineId: '@main',
+        title: 'Sera returns',
+      },
+      {
+        clientRef: 'crystal-mystery',
+        operation: 'create_thread',
+        orderKey: 1,
+        parentId: null,
+        status: 'active',
+        summary: 'What is the blue crystal?',
+        title: 'The blue crystal mystery',
+      },
+      {
+        clientRef: 'arrival-clue',
+        description: 'Sera brings back anomalous evidence.',
+        desiredOutcome: '',
+        dramaticPurpose: 'Establish the investigation.',
+        kind: 'setup',
+        operation: 'create_beat',
+        orderKey: 1,
+        parentId: null,
+        status: 'active',
+        threadId: '@crystal-mystery',
+        title: 'The evidence returns',
+      },
+      {
+        beatId: '@arrival-clue',
+        eventId: '@return-event',
+        operation: 'link_beat_event',
+        relation: 'reveals',
+      },
+    ], 'request-maintain-refs');
+
+    const ids = Object.fromEntries(result.changes.map((change) => [
+      change.clientRef,
+      change.entityId,
+    ]));
+    expect(result.snapshot).toMatchObject({
+      beats: [{ id: ids['arrival-clue'], threadId: ids['crystal-mystery'] }],
+      eventLinks: [{
+        eventId: ids['return-event'],
+        relation: 'reveals',
+        threadBeatId: ids['arrival-clue'],
+      }],
+      eventParticipants: [{ eventId: ids['return-event'], personaId: ids.sera }],
+      events: [{ id: ids['return-event'], startMomentId: ids.arrival }],
+      moments: [{ id: ids.arrival, timelineId: ids.main }],
+      personae: [{ id: ids.sera }],
+      revision: 1,
+      threads: [{ id: ids['crystal-mystery'] }],
+      timelines: [{ id: ids.main }],
+    });
+    expect(result.changes.at(-1)).toMatchObject({
+      clientRef: null,
+      entityId: null,
+      operation: 'link_beat_event',
+    });
+    const database = new ProjectDatabase(directoryPath);
+    const ledgerPayloads = database.connection.prepare(`
+      SELECT payload_json FROM story_operations ORDER BY created_at, operation_id
+    `).all() as Array<{ payload_json: string }>;
+    expect(ledgerPayloads).toHaveLength(7);
+    expect(ledgerPayloads.every(({ payload_json }) =>
+      !payload_json.includes('@') && !payload_json.includes('clientRef'))).toBe(true);
+    expect(ledgerPayloads.map(({ payload_json }) => JSON.parse(payload_json)))
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          request: expect.objectContaining({
+            operation: 'create_event',
+            startMomentId: ids.arrival,
+            timelineId: ids.main,
+          }),
+        }),
+        expect.objectContaining({
+          request: expect.objectContaining({
+            beatId: ids['arrival-clue'],
+            eventId: ids['return-event'],
+            operation: 'link_beat_event',
+          }),
+        }),
+      ]));
+    database.close();
+  });
+
+  it('rolls back a maintenance changeset with a mistyped local reference', async () => {
+    const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-maintain-ref-error-'));
+    await initializeProjectLayout(directoryPath);
+    const session = {
+      directoryPath,
+      documentPaths: new Map<string, string>(),
+      id: 'session-maintain-ref-error',
+      project: await createProjectSnapshot(directoryPath),
+    } as unknown as ProjectSession;
+    const stories = new ProjectStoryService();
+
+    expect(() => stories.maintainOperations(session, 0, [
+      {
+        clientRef: 'main',
+        isPrimary: true,
+        operation: 'create_timeline',
+        summary: '',
+        title: 'Primary Chronicle',
+      },
+      {
+        causes: '',
+        consequences: '',
+        endMomentId: null,
+        operation: 'create_event',
+        participants: [],
+        startMomentId: '@main',
+        status: 'established',
+        summary: '',
+        timelineId: '@main',
+        title: 'Invalid event',
+      },
+    ], 'request-maintain-ref-error')).toThrow(
+      'startMomentId expects moment, but @main refers to timeline',
+    );
+    expect(stories.getSnapshot(session)).toMatchObject({
+      events: [],
+      revision: 0,
+      timelines: [],
+    });
   });
 
   it('rolls back every direct maintenance change when one item fails', async () => {

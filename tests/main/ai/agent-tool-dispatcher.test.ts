@@ -282,6 +282,12 @@ describe('AgentToolDispatcher', () => {
     };
     const context = {
       maintainStoryRecords: vi.fn(() => ({
+        changes: [{
+          clientRef: null,
+          entityId: 'persona-1',
+          operation: 'create_persona' as const,
+          operationId: 'operation-1',
+        }],
         operationIds: ['operation-1'],
         revision: 1,
         status: 'applied' as const,
@@ -297,7 +303,17 @@ describe('AgentToolDispatcher', () => {
         toolName: 'maintain_story_records',
       },
     )).resolves.toEqual({
-      data: { operationIds: ['operation-1'], revision: 1, status: 'applied' },
+      data: {
+        changes: [{
+          clientRef: null,
+          entityId: 'persona-1',
+          operation: 'create_persona',
+          operationId: 'operation-1',
+        }],
+        operationIds: ['operation-1'],
+        revision: 1,
+        status: 'applied',
+      },
       ok: true,
       toolName: 'maintain_story_records',
     });

@@ -65,6 +65,11 @@ assert.match(
 );
 assert.match(
   workerBundle,
+  /clientRef/,
+  'The packaged Pi worker is missing atomic story-maintenance references.',
+);
+assert.match(
+  workerBundle,
   /delegate_writing/,
   'The packaged Pi worker is missing the Curator-to-Scribe delegation tool.',
 );

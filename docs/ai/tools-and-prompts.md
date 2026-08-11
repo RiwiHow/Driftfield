@@ -25,14 +25,18 @@ stable IDs.
 
 The bounded direct-maintenance surface contains:
 
-- `maintain_story_records`, which applies one changeset of 1 to 24 independent
+- `maintain_story_records`, which applies one ordered changeset of 1 to 24
   typed additive or linking changes
   to Personae, Chronicle, or Threads within the user's explicit request or
   when unambiguously evidenced by accepted persisted prose. It
   requires the current story revision and stable IDs. Main validates and
   applies the changeset transactionally, records each item in the project
-  ledger, and returns the new revision. It does not expose SQL and cannot delete, merge,
-  reorder, or edit Manuscript/Lore documents.
+  ledger, and returns the new revision. Ordered create operations may declare a
+  bounded `clientRef`; later operations in the same changeset refer to the
+  Main-generated entity as `@clientRef`. Main validates reference order and
+  entity kind, resolves references inside the transaction, and returns the
+  generated entity ID for every create item. It does not expose SQL and cannot
+  delete, merge, reorder, or edit Manuscript/Lore documents.
 - `record_story_question`, which records a deduplicated unresolved ambiguity
   without changing canonical story records or their revision. Questions carry
   a bounded kind, author-facing wording, optional answer choices, request
@@ -114,13 +118,11 @@ multi-step run remains auditable even though it does not interrupt the user for
 each additive step. Renderer receives a bounded `story-changed` notification
 and refreshes its story snapshot. Maintain applies one atomic changeset per
 tool call: all items share the original base revision and resulting revision,
-and any item failure rolls the entire set back. Changes requiring IDs generated
-by an earlier set are submitted only after rereading story state. Concurrent
-reviewed story proposals from the same request and base
+and any item failure rolls the entire set back. Dependencies between items use
+ordered `clientRef` references within that changeset. Concurrent reviewed story
+proposals from the same request and base
 revision are grouped in the UI and applied atomically with one decision.
-Symbolic references between newly created records and user-facing undo are not
-yet implemented, so dependent changes may require a later grouped set after
-rereading stable IDs.
+User-facing undo is not yet implemented.
 
 Story reconciliation follows a risk split rather than universal approval:
 clear, low-risk, additive or linking facts from accepted persisted prose are
@@ -139,6 +141,11 @@ Thread requires evidence of a continuing goal, conflict, dramatic question,
 suspense, or relationship progression. A chapter, scene, or isolated Chronicle
 event does not by itself justify a Thread, and Thread records must not merely
 duplicate Chronicle or invent dramatic purpose to achieve category coverage.
+
+Routine synchronization is executed without narrating tool planning,
+intermediate identifiers, schema choices, or retries. The user receives a
+concise summary of canonical changes and any unresolved questions after the
+tool workflow finishes.
 
 A mutation tool call remains pending after the proposal is shown. Accepting or
 rejecting the proposal settles that exact tool call with a typed terminal result,

@@ -7,6 +7,7 @@ import { stringify } from 'yaml';
 import { ProjectContextService } from '../../../src/main/ai/project-context-service';
 import { initializeProjectLayout } from '../../../src/main/services/project/layout-service';
 import { createProjectSnapshot } from '../../../src/main/services/project/snapshot-service';
+import { ProjectStoryService } from '../../../src/main/services/project/story-service';
 import type {
   ProjectSession,
   ProjectSessionService,
@@ -48,7 +49,11 @@ const createContext = async () => {
     watcher: null,
   };
   const sessions = { get: (ownerId: number) => ownerId === 7 ? session : undefined } as ProjectSessionService;
-  return { context: new ProjectContextService(sessions), project, session };
+  return {
+    context: new ProjectContextService(sessions, new ProjectStoryService()),
+    project,
+    session,
+  };
 };
 
 describe('ProjectContextService', () => {
@@ -132,5 +137,40 @@ describe('ProjectContextService', () => {
     await expect(
       context.getDocument({ ownerId: 7, projectSessionId: 'session-1' }, 'missing'),
     ).rejects.toEqual(expect.objectContaining({ code: 'document-not-found' }));
+  });
+
+  it('returns a typed error for invalid local story references without partial writes', async () => {
+    const { context } = await createContext();
+    const scope = { ownerId: 7, projectSessionId: 'session-1' };
+
+    expect(() => context.maintainStoryRecords(scope, 'request-1', 0, [
+      {
+        clientRef: 'main',
+        isPrimary: true,
+        operation: 'create_timeline',
+        summary: '',
+        title: 'Primary Chronicle',
+      },
+      {
+        causes: '',
+        consequences: '',
+        endMomentId: null,
+        operation: 'create_event',
+        participants: [],
+        startMomentId: '@main',
+        status: 'established',
+        summary: '',
+        timelineId: '@main',
+        title: 'Invalid event',
+      },
+    ])).toThrow(expect.objectContaining({
+      code: 'invalid-arguments',
+      detail: expect.stringContaining('startMomentId expects moment'),
+    }));
+    await expect(context.getStoryState(scope)).resolves.toMatchObject({
+      events: [],
+      revision: 0,
+      timelines: [],
+    });
   });
 });

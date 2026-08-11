@@ -64,7 +64,10 @@ event is depicted in the documents.
 operations. Maintain inserts one applied ledger row per changeset item alongside
 the canonical additive/linking changes and single revision increment in one
 transaction; rows share the changeset's base and applied revision and
-the originating Agent request ID for audit grouping. Reviewed operations are
+the originating Agent request ID for audit grouping. Maintain may resolve
+ordered `@clientRef` dependencies inside that transaction; ledger payloads
+store only the resolved Main-generated stable IDs, never local references.
+Reviewed operations are
 inserted as pending before display, then applied or settled after a decision.
 The ledger is not an authorization mechanism: all validation, revision checks,
 transactions, and application remain Main-owned, and neither Renderer nor the

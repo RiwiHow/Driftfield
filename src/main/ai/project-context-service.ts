@@ -2,6 +2,7 @@ import { lstat, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 
 import type {
+  AgentStoryMaintenanceChange,
   AgentDocumentToolResult,
   AgentDraftSnapshot,
   AgentNovelStructureToolResult,
@@ -24,8 +25,8 @@ import {
 } from '../services/project/document-utils';
 import type { ProjectSessionService } from '../services/project/session-service';
 import type { ProjectStoryService } from '../services/project/story-service';
+import { StoryMaintenanceReferenceError } from '../services/project/story-service';
 import type {
-  ProjectStoryOperation,
   ProjectStorySnapshot,
 } from '../../shared/contracts/project-story';
 import { ProjectStoryRevisionConflictError } from '../database/project-story-repository';
@@ -63,7 +64,7 @@ export class ProjectContextService {
     scope: ProjectContextScope,
     requestId: string,
     storyRevision: number,
-    changes: ProjectStoryOperation[],
+    changes: AgentStoryMaintenanceChange[],
   ): AgentStoryMaintenanceToolResult {
     const session = this.requireSession(scope);
     if (this.stories === undefined) throw new ProjectContextError('internal-error');
@@ -75,6 +76,7 @@ export class ProjectContextService {
         requestId,
       );
       return {
+        changes: result.changes,
         operationIds: result.operationIds,
         revision: result.snapshot.revision,
         status: 'applied',
@@ -82,6 +84,9 @@ export class ProjectContextService {
     } catch (error) {
       if (error instanceof ProjectStoryRevisionConflictError) {
         throw new ProjectContextError('proposal-base-changed');
+      }
+      if (error instanceof StoryMaintenanceReferenceError) {
+        throw new ProjectContextError('invalid-arguments', error.message);
       }
       throw error;
     }

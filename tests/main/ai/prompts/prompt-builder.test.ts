@@ -45,6 +45,10 @@ describe('Agent prompt registry', () => {
       'explicitly check Personae, Chronicle, Threads, and open questions in turn',
     );
     expect(built.prompt).toContain('automatically apply only clearly evidenced');
+    expect(built.prompt).toContain('complete ordered dependency graph');
+    expect(built.prompt).toContain('reference it as @clientRef');
+    expect(built.prompt).toContain('never treat returned audit operationIds as entity IDs');
+    expect(built.prompt).toContain('Do not narrate tool planning');
     expect(built.prompt).toContain(
       'First check whether the accepted prose advances, turns, reveals, resolves, or abandons an existing Thread',
     );

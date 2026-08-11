@@ -60,12 +60,14 @@ Preserve these properties when changing affected subsystems.
   IDs. Explicit and expanded documents are deduplicated and limited to four
   total results; node kinds are checked before reading, and every result is
   bounded, path-free, and main-owned.
-- `maintain_story_records` applies a bounded changeset of 1 to 24 independent
+- `maintain_story_records` applies a bounded ordered changeset of 1 to 24
   additive or linking Personae, Chronicle, or Threads operations without
   per-step approval. It requires the
   current story revision, validates the active project session and references,
   and commits every canonical change, one revision increment, and individual
-  applied audit rows atomically. Any item failure rolls back the whole set.
+  applied audit rows atomically. Ordered local references let later items depend
+  on Main-generated entities created earlier in the same changeset; Main
+  validates reference order and entity kind. Any item failure rolls back the whole set.
   Renderer refreshes story state after each successful write.
 - Clear low-risk facts from accepted persisted prose use Maintain without a
   second approval. Ambiguous aliases, time, relationships, contradictions, and

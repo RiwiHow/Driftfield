@@ -118,8 +118,85 @@ describe('Agent proposal tool contract', () => {
       arguments: { changes: [], storyRevision: 0 },
       toolName: 'maintain_story_records',
     })).toBe(false);
+    expect(isAgentToolRequest({
+      arguments: {
+        changes: [
+          {
+            clientRef: 'arrival',
+            displayTime: 'Late spring',
+            note: '',
+            operation: 'create_moment',
+            orderKey: 1,
+            precision: 'season',
+            timelineId: 'timeline-1',
+          },
+          {
+            causes: '',
+            consequences: '',
+            endMomentId: null,
+            eventStatus: undefined,
+            operation: 'create_event',
+            participants: [],
+            startMomentId: '@arrival',
+            status: 'established',
+            summary: '',
+            timelineId: 'timeline-1',
+            title: 'Arrival',
+          },
+        ],
+        storyRevision: 1,
+      },
+      toolName: 'maintain_story_records',
+    })).toBe(false);
+    expect(isAgentToolRequest({
+      arguments: {
+        changes: [
+          {
+            clientRef: 'arrival',
+            displayTime: 'Late spring',
+            note: '',
+            operation: 'create_moment',
+            orderKey: 1,
+            precision: 'season',
+            timelineId: 'timeline-1',
+          },
+          {
+            causes: '',
+            consequences: '',
+            endMomentId: null,
+            operation: 'create_event',
+            participants: [],
+            startMomentId: '@arrival',
+            status: 'established',
+            summary: '',
+            timelineId: 'timeline-1',
+            title: 'Arrival',
+          },
+        ],
+        storyRevision: 1,
+      },
+      toolName: 'maintain_story_records',
+    })).toBe(true);
     expect(isAgentToolExecutionResult({
-      data: { operationIds: ['operation-1', 'operation-2'], revision: 1, status: 'applied' },
+      data: {
+        changes: [
+          {
+            clientRef: 'arrival',
+            entityId: 'moment-1',
+            operation: 'create_moment',
+            operationId: 'operation-1',
+          },
+          {
+            clientRef: null,
+            entityId: null,
+            operation: 'link_beat_event',
+            operationId: 'operation-2',
+          },
+        ],
+        operationIds: ['operation-1', 'operation-2'],
+        revision: 1,
+        status: 'applied',
+      },
       ok: true,
       toolName: 'maintain_story_records',
     })).toBe(true);

@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DOCUMENT_FILE_OPERATION_PARAMETERS,
+  normalizeStoryMaintenanceBatchArguments,
   normalizeStoryMaintenanceArguments,
   PROJECT_STRUCTURE_OPERATION_PARAMETERS,
+  STORY_MAINTENANCE_PARAMETERS,
   STORY_OPERATION_PARAMETERS,
   WRITING_ASSIGNMENT_PARAMETERS,
 } from '../../../src/main/ai/agent-tool-parameters';
@@ -116,6 +118,23 @@ describe('Agent tool parameter schemas', () => {
     expect(JSON.stringify(schema)).not.toContain('const');
   });
 
+  it('advertises ordered local references for atomic story maintenance', () => {
+    const schema = STORY_MAINTENANCE_PARAMETERS as unknown as Record<string, unknown>;
+    const properties = schema.properties as Record<string, Record<string, unknown>>;
+    const changes = properties.changes;
+    const change = changes.items as Record<string, unknown>;
+    const changeProperties = change.properties as Record<string, Record<string, unknown>>;
+
+    expect(changes.description).toContain('clientRef');
+    expect(changeProperties.clientRef).toMatchObject({
+      pattern: '^[A-Za-z][A-Za-z0-9_-]{0,63}$',
+      type: 'string',
+    });
+    expect(changeProperties.startMomentId.description).toContain('@clientRef');
+    expect(changeProperties.participants).toMatchObject({ type: 'array' });
+    expect(changeProperties.operation.description).toContain('one exact change shape');
+  });
+
   it('normalizes operation-specific wire statuses to canonical story operations', () => {
     expect(normalizeStoryMaintenanceArguments({
       change: {
@@ -164,6 +183,36 @@ describe('Agent tool parameter schemas', () => {
     }).change).toMatchObject({
       operation: 'create_event',
       status: 'established',
+    });
+
+    expect(normalizeStoryMaintenanceBatchArguments({
+      changes: [{
+        clientRef: 'arrival',
+        displayTime: 'Late spring',
+        note: '',
+        operation: 'create_moment',
+        orderKey: 1,
+        precision: 'season',
+        timelineId: 'timeline-1',
+      }, {
+        causes: '',
+        consequences: '',
+        endMomentId: null,
+        eventStatus: 'established',
+        operation: 'create_event',
+        participants: [],
+        startMomentId: '@arrival',
+        summary: '',
+        timelineId: 'timeline-1',
+        title: 'Arrival',
+      }],
+      storyRevision: 2,
+    })).toMatchObject({
+      changes: [
+        { clientRef: 'arrival', operation: 'create_moment' },
+        { operation: 'create_event', startMomentId: '@arrival', status: 'established' },
+      ],
+      storyRevision: 2,
     });
   });
 });

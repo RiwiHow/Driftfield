@@ -86,9 +86,29 @@ export interface AgentProposalToolResult {
 }
 
 export interface AgentStoryMaintenanceToolResult {
+  changes: AgentStoryMaintenanceChangeResult[];
   operationIds: string[];
   revision: number;
   status: 'applied';
+}
+
+type StoryCreateOperation = Exclude<
+  import('./project-story').ProjectStoryOperation,
+  { operation: 'link_beat_event' }
+>;
+
+export type AgentStoryMaintenanceChange =
+  | (StoryCreateOperation & { clientRef?: string })
+  | Extract<
+      import('./project-story').ProjectStoryOperation,
+      { operation: 'link_beat_event' }
+    >;
+
+export interface AgentStoryMaintenanceChangeResult {
+  clientRef: string | null;
+  entityId: string | null;
+  operation: import('./project-story').ProjectStoryOperation['operation'];
+  operationId: string;
 }
 
 export interface AgentStoryQuestionToolResult {
@@ -172,7 +192,7 @@ export interface AgentToolContractMap {
   };
   maintain_story_records: {
     arguments: {
-      changes: import('./project-story').ProjectStoryOperation[];
+      changes: AgentStoryMaintenanceChange[];
       storyRevision: number;
     };
     result: AgentStoryMaintenanceToolResult;
@@ -434,7 +454,7 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
       Number.isSafeInteger(value.storyRevision) &&
       (value.storyRevision as number) >= 0 &&
       Array.isArray(value.changes) && value.changes.length >= 1 &&
-      value.changes.length <= 24 && value.changes.every(isProjectStoryOperation)
+      value.changes.length <= 24 && value.changes.every(isStoryMaintenanceChange)
     );
   }
   if (toolName === 'record_story_question') {
@@ -537,14 +557,47 @@ const isEditProposalResult = (value: unknown): boolean =>
 
 const isStoryMaintenanceResult = (value: unknown): boolean =>
   isRecord(value) &&
-  Object.keys(value).length === 3 &&
+  Object.keys(value).length === 4 &&
   value.status === 'applied' &&
+  Array.isArray(value.changes) && value.changes.length >= 1 &&
+  value.changes.length <= 24 && value.changes.every((change, index) =>
+    isRecord(change) && Object.keys(change).length === 4 &&
+    (change.clientRef === null || isStoryClientRef(change.clientRef)) &&
+    (change.entityId === null || isDocumentId(change.entityId)) &&
+    typeof change.operation === 'string' &&
+    [
+      'create_persona',
+      'create_timeline',
+      'create_moment',
+      'create_event',
+      'create_thread',
+      'create_beat',
+      'link_beat_event',
+    ].includes(change.operation) &&
+    (change.operation === 'link_beat_event'
+      ? change.entityId === null && change.clientRef === null
+      : isDocumentId(change.entityId)) &&
+    isDocumentId(change.operationId) &&
+    Array.isArray(value.operationIds) &&
+    value.operationIds[index] === change.operationId) &&
   Array.isArray(value.operationIds) && value.operationIds.length >= 1 &&
+  value.operationIds.length === value.changes.length &&
   value.operationIds.length <= 24 && value.operationIds.every((operationId) =>
     typeof operationId === 'string' && operationId.length > 0 &&
     operationId.length <= 128) &&
   Number.isSafeInteger(value.revision) &&
   (value.revision as number) > 0;
+
+const isStoryMaintenanceChange = (value: unknown): boolean => {
+  if (!isRecord(value)) return false;
+  const { clientRef, ...operation } = value;
+  if (!isProjectStoryOperation(operation)) return false;
+  if (clientRef === undefined) return true;
+  return operation.operation !== 'link_beat_event' && isStoryClientRef(clientRef);
+};
+
+const isStoryClientRef = (value: unknown): value is string =>
+  typeof value === 'string' && /^[A-Za-z][A-Za-z0-9_-]{0,63}$/u.test(value);
 
 const isStoryQuestionResult = (value: unknown): boolean =>
   isRecord(value) && Object.keys(value).length === 3 &&

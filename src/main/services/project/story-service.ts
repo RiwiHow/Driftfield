@@ -3,6 +3,10 @@ import { lstatSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 
 import type {
+  AgentStoryMaintenanceChange,
+  AgentStoryMaintenanceChangeResult,
+} from '../../../shared/contracts/agent-tools';
+import type {
   ProjectStoryOperation,
   ProjectStorySnapshot,
   StoryQuestionEvidence,
@@ -15,6 +19,21 @@ import {
 } from '../../database/project-story-repository';
 import type { ProjectSession } from './session-service';
 import { contentRevision, isPathInside } from './document-utils';
+
+type StoryEntityKind =
+  | 'beat'
+  | 'event'
+  | 'moment'
+  | 'persona'
+  | 'thread'
+  | 'timeline';
+
+interface ResolvedStoryReference {
+  id: string;
+  kind: StoryEntityKind;
+}
+
+export class StoryMaintenanceReferenceError extends Error {}
 
 export class ProjectStoryService {
   getSnapshot(session: ProjectSession): ProjectStorySnapshot {
@@ -121,35 +140,70 @@ export class ProjectStoryService {
   maintainOperations(
     session: ProjectSession,
     expectedRevision: number,
-    operations: ProjectStoryOperation[],
+    changes: AgentStoryMaintenanceChange[],
     requestId: string,
-  ): { operationIds: string[]; snapshot: ProjectStorySnapshot } {
-    if (operations.length === 0 || operations.length > 24) {
+  ): {
+    changes: AgentStoryMaintenanceChangeResult[];
+    operationIds: string[];
+    snapshot: ProjectStorySnapshot;
+  } {
+    if (changes.length === 0 || changes.length > 24) {
       throw new Error('Invalid story maintenance batch');
     }
-    for (const operation of operations) this.assertOperationSources(session, operation);
-    const entries = operations.map((operation) => ({
-      audit: {
-        mode: 'direct' as const,
-        operationId: randomUUID(),
-        operationKind: operation.operation,
-        originRequestId: requestId,
-        payload: operation,
-      },
-      operation,
-    }));
+    const entries = changes.map((change) => ({ change, operationId: randomUUID() }));
+    const results: AgentStoryMaintenanceChangeResult[] = [];
     const snapshot = this.withRepository(session, (repository) =>
       repository.transaction(() => {
+        const references = new Map<string, ResolvedStoryReference>();
+        const existingEntities = indexStoryEntities(repository.getSnapshot());
         entries.forEach((entry, index) => {
-          this.applyWithRepository(
+          const operation = resolveMaintenanceOperation(
+            entry.change,
+            references,
+            existingEntities,
+            index,
+          );
+          this.assertOperationSources(session, operation);
+          const audit = {
+            mode: 'direct' as const,
+            operationId: entry.operationId,
+            operationKind: operation.operation,
+            originRequestId: requestId,
+            payload: operation,
+          };
+          const entityId = this.applyWithRepository(
             repository,
             expectedRevision + index,
-            entry.operation,
-            entry.audit,
+            operation,
+            audit,
           );
+          const clientRef = 'clientRef' in entry.change
+            ? entry.change.clientRef ?? null
+            : null;
+          if (clientRef !== null) {
+            const kind = createdEntityKind(operation);
+            if (kind === null || entityId === null) {
+              throw new StoryMaintenanceReferenceError(
+                `changes[${index}].clientRef is only valid on create operations.`,
+              );
+            }
+            if (references.has(clientRef)) {
+              throw new StoryMaintenanceReferenceError(
+                `Duplicate story maintenance clientRef: ${clientRef}.`,
+              );
+            }
+            references.set(clientRef, { id: entityId, kind });
+            existingEntities.set(entityId, { id: entityId, kind });
+          }
+          results.push({
+            clientRef,
+            entityId,
+            operation: operation.operation,
+            operationId: entry.operationId,
+          });
         });
         repository.collapseAppliedOperations(
-          entries.map(({ audit }) => audit.operationId),
+          entries.map(({ operationId }) => operationId),
           expectedRevision,
           expectedRevision + entries.length,
         );
@@ -157,7 +211,8 @@ export class ProjectStoryService {
       }),
     );
     return {
-      operationIds: entries.map(({ audit }) => audit.operationId),
+      changes: results,
+      operationIds: entries.map(({ operationId }) => operationId),
       snapshot,
     };
   }
@@ -229,26 +284,20 @@ export class ProjectStoryService {
     expectedRevision: number,
     operation: ProjectStoryOperation,
     audit?: StoryOperationAudit,
-  ): void {
+  ): string | null {
     switch (operation.operation) {
       case 'create_persona':
-        repository.createPersona(expectedRevision, operation, audit);
-        break;
+        return repository.createPersona(expectedRevision, operation, audit).id;
       case 'create_timeline':
-        repository.createTimeline(expectedRevision, operation, audit);
-        break;
+        return repository.createTimeline(expectedRevision, operation, audit).id;
       case 'create_moment':
-        repository.createMoment(expectedRevision, operation, audit);
-        break;
+        return repository.createMoment(expectedRevision, operation, audit).id;
       case 'create_event':
-        repository.createEvent(expectedRevision, operation, audit);
-        break;
+        return repository.createEvent(expectedRevision, operation, audit).id;
       case 'create_thread':
-        repository.createThread(expectedRevision, operation, audit);
-        break;
+        return repository.createThread(expectedRevision, operation, audit).id;
       case 'create_beat':
-        repository.createBeat(expectedRevision, operation, audit);
-        break;
+        return repository.createBeat(expectedRevision, operation, audit).id;
       case 'link_beat_event':
         repository.linkBeatToEvent(
           expectedRevision,
@@ -257,7 +306,135 @@ export class ProjectStoryService {
           operation.relation,
           audit,
         );
-        break;
+        return null;
     }
   }
 }
+
+const resolveMaintenanceOperation = (
+  change: AgentStoryMaintenanceChange,
+  references: Map<string, ResolvedStoryReference>,
+  existingEntities: Map<string, ResolvedStoryReference>,
+  index: number,
+): ProjectStoryOperation => {
+  const { clientRef: _clientRef, ...operation } = change as
+    AgentStoryMaintenanceChange & { clientRef?: string };
+  const resolve = (
+    value: string,
+    kinds: StoryEntityKind[],
+    field: string,
+  ): string => resolveStoryReference(
+    value,
+    kinds,
+    references,
+    existingEntities,
+    index,
+    field,
+  );
+  switch (operation.operation) {
+    case 'create_persona':
+    case 'create_timeline':
+      return operation;
+    case 'create_moment':
+      return {
+        ...operation,
+        timelineId: resolve(operation.timelineId, ['timeline'], 'timelineId'),
+      };
+    case 'create_event':
+      return {
+        ...operation,
+        endMomentId: operation.endMomentId === null
+          ? null
+          : resolve(operation.endMomentId, ['moment'], 'endMomentId'),
+        participants: operation.participants.map((participant, participantIndex) => ({
+          ...participant,
+          personaId: resolve(
+            participant.personaId,
+            ['persona'],
+            `participants[${participantIndex}].personaId`,
+          ),
+        })),
+        startMomentId: resolve(operation.startMomentId, ['moment'], 'startMomentId'),
+        timelineId: resolve(operation.timelineId, ['timeline'], 'timelineId'),
+      };
+    case 'create_thread':
+      return {
+        ...operation,
+        parentId: operation.parentId === null
+          ? null
+          : resolve(operation.parentId, ['thread'], 'parentId'),
+      };
+    case 'create_beat':
+      return {
+        ...operation,
+        parentId: operation.parentId === null
+          ? null
+          : resolve(operation.parentId, ['beat'], 'parentId'),
+        threadId: resolve(operation.threadId, ['thread'], 'threadId'),
+      };
+    case 'link_beat_event':
+      return {
+        ...operation,
+        beatId: resolve(operation.beatId, ['beat'], 'beatId'),
+        eventId: resolve(operation.eventId, ['event'], 'eventId'),
+      };
+  }
+};
+
+const resolveStoryReference = (
+  value: string,
+  expectedKinds: StoryEntityKind[],
+  references: Map<string, ResolvedStoryReference>,
+  existingEntities: Map<string, ResolvedStoryReference>,
+  index: number,
+  field: string,
+): string => {
+  const symbolic = value.startsWith('@');
+  const clientRef = symbolic ? value.slice(1) : null;
+  const resolved = symbolic
+    ? references.get(clientRef!)
+    : existingEntities.get(value);
+  if (resolved === undefined) {
+    throw new StoryMaintenanceReferenceError(
+      symbolic
+        ? `changes[${index}].${field} references unknown or later clientRef @${clientRef}.`
+        : `changes[${index}].${field} references missing story entity ${value}.`,
+    );
+  }
+  if (!expectedKinds.includes(resolved.kind)) {
+    throw new StoryMaintenanceReferenceError(
+      `changes[${index}].${field} expects ${expectedKinds.join(' or ')}, but ${symbolic ? `@${clientRef}` : value} refers to ${resolved.kind}.`,
+    );
+  }
+  return resolved.id;
+};
+
+const indexStoryEntities = (
+  snapshot: ProjectStorySnapshot,
+): Map<string, ResolvedStoryReference> => {
+  const entities = new Map<string, ResolvedStoryReference>();
+  const add = (kind: StoryEntityKind, records: Array<{ id: string }>): void => {
+    records.forEach(({ id }) => entities.set(id, { id, kind }));
+  };
+  add('beat', snapshot.beats);
+  add('event', snapshot.events);
+  add('moment', snapshot.moments);
+  add('persona', snapshot.personae);
+  add('thread', snapshot.threads);
+  add('timeline', snapshot.timelines);
+  return entities;
+};
+
+const createdEntityKind = (
+  operation: ProjectStoryOperation,
+): StoryEntityKind | null => {
+  switch (operation.operation) {
+    case 'create_persona': return 'persona';
+    case 'create_timeline': return 'timeline';
+    case 'create_moment': return 'moment';
+    case 'create_event': return 'event';
+    case 'create_thread': return 'thread';
+    case 'create_beat': return 'beat';
+    case 'link_beat_event': return null;
+  }
+};

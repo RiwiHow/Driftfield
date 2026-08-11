@@ -398,7 +398,17 @@ describe('AiAgentService', () => {
       execute: vi.fn(async (scope) => {
         scope.storyChanged?.(4);
         return {
-          data: { operationIds: ['operation-1'], revision: 4, status: 'applied' as const },
+          data: {
+            changes: [{
+              clientRef: null,
+              entityId: 'persona-1',
+              operation: 'create_persona' as const,
+              operationId: 'operation-1',
+            }],
+            operationIds: ['operation-1'],
+            revision: 4,
+            status: 'applied' as const,
+          },
           ok: true as const,
           toolName: 'maintain_story_records' as const,
         };

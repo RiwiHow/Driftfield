@@ -422,7 +422,15 @@ const toolArgumentShapeHint = (
   if (typeof change !== 'object' || change === null) return undefined;
   const operation = (change as { operation?: unknown }).operation;
   if (typeof operation !== 'string') return undefined;
-  return STORY_OPERATION_SHAPE_HINTS[operation];
+  const hint = STORY_OPERATION_SHAPE_HINTS[operation];
+  if (
+    hint !== undefined &&
+    toolName === 'maintain_story_records' &&
+    operation.startsWith('create_')
+  ) {
+    return `${hint} Maintain create operations may additionally declare clientRef for later @clientRef references in the same changeset.`;
+  }
+  return hint;
 };
 
 const STORY_OPERATION_SHAPE_HINTS: Record<string, string> = {
