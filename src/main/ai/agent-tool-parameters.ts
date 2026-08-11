@@ -77,6 +77,18 @@ export const WRITING_ASSIGNMENT_PARAMETERS = Type.Object(
   { additionalProperties: false },
 );
 
+export const WRITING_ARTIFACT_SUBMISSION_PARAMETERS = Type.Object(
+  {
+    markdown: Type.String({
+      description:
+        'The complete requested manuscript Markdown and nothing else. Exclude planning, commentary, status text, and persistence claims.',
+      maxLength: 512 * 1024,
+      minLength: 1,
+    }),
+  },
+  { additionalProperties: false },
+);
+
 export const DOCUMENT_EDIT_PARAMETERS = Type.Object(
   {
     baseContentRevision: Type.String({ pattern: '^[a-f0-9]{64}$' }),

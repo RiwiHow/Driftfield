@@ -4,6 +4,16 @@ import { AGENT_ROLES } from '../../../../src/shared/contracts/agent';
 import { buildAgentSystemPrompt } from '../../../../src/main/ai/prompts/prompt-builder';
 
 describe('Agent prompt registry', () => {
+  it('requires Scribe to submit only a machine-delimited manuscript artifact', () => {
+    const built = buildAgentSystemPrompt({
+      availableTools: ['read_novel_context', 'submit_writing_artifact'],
+      role: 'scribe',
+    });
+
+    expect(built.prompt).toContain('call submit_writing_artifact exactly once');
+    expect(built.prompt).toContain('Ordinary assistant text is never part of the artifact');
+  });
+
   it.each(AGENT_ROLES)('applies application boundaries to %s', (role) => {
     const built = buildAgentSystemPrompt({ availableTools: [], role });
     expect(built.profileId).toBe(role);

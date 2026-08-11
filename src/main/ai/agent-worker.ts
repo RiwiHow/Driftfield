@@ -31,6 +31,7 @@ import {
   STORY_OPERATION_PARAMETERS,
   STORY_MAINTENANCE_PARAMETERS,
   STORY_QUESTION_PARAMETERS,
+  WRITING_ARTIFACT_SUBMISSION_PARAMETERS,
   WRITING_ASSIGNMENT_PARAMETERS,
 } from "./agent-tool-parameters";
 import { didAssistantResponseFail } from './agent-response-status';
@@ -285,6 +286,22 @@ function createNovelTools(requestId: string) {
             toolCallId,
             "delegate_writing",
             params as AgentToolContractMap["delegate_writing"]["arguments"],
+          ),
+        ),
+    }),
+    defineTool({
+      description:
+        "Submit the final Scribe manuscript artifact. Put only the complete requested Markdown in markdown; exclude analysis, planning, commentary, status text, and persistence claims. Call this exactly once after any needed context reads. Ordinary assistant text is not part of the artifact.",
+      label: "Submit writing artifact",
+      name: "submit_writing_artifact",
+      parameters: WRITING_ARTIFACT_SUBMISSION_PARAMETERS,
+      execute: async (toolCallId, params) =>
+        textToolResult(
+          await requestTool(
+            requestId,
+            toolCallId,
+            "submit_writing_artifact",
+            params as AgentToolContractMap["submit_writing_artifact"]["arguments"],
           ),
         ),
     }),

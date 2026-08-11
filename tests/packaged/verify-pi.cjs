@@ -75,6 +75,11 @@ assert.match(
 );
 assert.match(
   workerBundle,
+  /submit_writing_artifact/,
+  'The packaged Pi worker is missing the delimited Scribe artifact submission tool.',
+);
+assert.match(
+  workerBundle,
   /writingAssignmentId/,
   'The packaged Pi worker is missing request-bound Scribe artifact proposals.',
 );

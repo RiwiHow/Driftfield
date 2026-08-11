@@ -232,6 +232,12 @@ describe('AiAgentService', () => {
     await waitFor(() => workers.length === 1);
     workers[0].emit('message', { type: 'ready' });
     await started;
+    const curatorStart = workers[0].messages.find((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { role?: unknown }).role === 'curator') as {
+        enabledTools: string[];
+      };
+    expect(curatorStart.enabledTools).not.toContain('submit_writing_artifact');
 
     workers[0].emit('message', {
       arguments: {
@@ -282,7 +288,22 @@ describe('AiAgentService', () => {
       type: 'tool-completed',
     });
     workers[0].emit('message', {
-      delta: '# Draft\n\nMara opened the door.',
+      delta: 'I will now provide the finished chapter.',
+      requestId: child.requestId,
+      type: 'text-delta',
+    });
+    workers[0].emit('message', {
+      arguments: { markdown: '# Draft\n\nMara opened the door.' },
+      requestId: child.requestId,
+      toolCallId: 'tool-submit-artifact',
+      toolName: 'submit_writing_artifact',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-submit-artifact'));
+    workers[0].emit('message', {
+      delta: 'The draft has been submitted.',
       requestId: child.requestId,
       type: 'text-delta',
     });
@@ -297,6 +318,7 @@ describe('AiAgentService', () => {
     expect(workers[0].messages).toContainEqual(expect.objectContaining({
       enabledTools: [
         'read_novel_context',
+        'submit_writing_artifact',
       ],
       role: 'scribe',
       type: 'start',
@@ -317,6 +339,16 @@ describe('AiAgentService', () => {
       toolCallId: 'tool-child-read',
       type: 'tool-started',
     }));
+    expect(workers[0].messages).toContainEqual({
+      requestId: child.requestId,
+      result: {
+        data: { status: 'submitted' },
+        ok: true,
+        toolName: 'submit_writing_artifact',
+      },
+      toolCallId: 'tool-submit-artifact',
+      type: 'tool-result',
+    });
     expect(workers[0].messages).toContainEqual({
       requestId: 'request-1',
       result: {

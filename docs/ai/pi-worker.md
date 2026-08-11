@@ -24,9 +24,10 @@ domain contracts.
 - Curator writing requests may create one Main-owned Scribe child task in the
   same utility process. Main assigns its task ID, binds it to the parent request,
   applies a five-minute timeout and 512 KiB artifact limit, propagates
-  cancellation, and exposes only the four read-only novel tools to Scribe.
-  Scribe output returns to Curator as an untrusted artifact and never bypasses
-  the existing proposal workflow.
+  cancellation, and exposes only the bounded novel-context reader plus a
+  terminal artifact-submission tool to Scribe. Only Markdown submitted through
+  that tool returns to Curator; ordinary assistant text is discarded. The
+  untrusted artifact never bypasses the existing proposal workflow.
 - Do not enable Pi coding tools, generic shell/filesystem tools, extensions, or
   unrestricted resource discovery by default.
 

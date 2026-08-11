@@ -48,15 +48,19 @@ Preserve these properties when changing affected subsystems.
 - Requests bind to project-session identity. Project switches cancel the owner;
   obsolete streamed output and tool calls are rejected.
 - Curator may commission at most one Scribe task per request. Main owns the
-  child task ID and parent binding, limits Scribe to read-only novel tools,
+  child task ID and parent binding, limits Scribe to the bounded novel-context
+  reader and a terminal artifact-submission tool,
   caps the returned Markdown at 512 KiB, times the task out after five minutes,
   validates non-null target document IDs against the current structure, and
   cancels it with its parent or project session. New-document assignments use a
   null target rather than a directory or placeholder ID. Completed output is a
   Main-owned, single-use artifact bound to the active parent request and its
   assigned new or existing document target; reviewed proposals reference its
-  assignment ID so Curator does not regenerate the Markdown. Scribe output
-  remains untrusted and cannot write or propose changes directly.
+  assignment ID so Curator does not regenerate the Markdown. Main accepts only
+  the Markdown argument of the single artifact-submission call and discards
+  ordinary Scribe assistant text, preventing planning or commentary from
+  entering the manuscript. Scribe output remains untrusted and cannot write or
+  propose changes directly.
 - Cancellation remains terminal when it races with completion or output.
 - The current `read_novel_context` tool batches only fixed typed sections,
   stable document IDs, and immediate document children of stable directory

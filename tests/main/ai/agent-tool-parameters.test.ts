@@ -8,10 +8,24 @@ import {
   PROJECT_STRUCTURE_OPERATION_PARAMETERS,
   STORY_MAINTENANCE_PARAMETERS,
   STORY_OPERATION_PARAMETERS,
+  WRITING_ARTIFACT_SUBMISSION_PARAMETERS,
   WRITING_ASSIGNMENT_PARAMETERS,
 } from '../../../src/main/ai/agent-tool-parameters';
 
 describe('Agent tool parameter schemas', () => {
+  it('defines a bounded terminal Scribe artifact submission', () => {
+    const schema = WRITING_ARTIFACT_SUBMISSION_PARAMETERS as unknown as Record<string, unknown>;
+    const properties = schema.properties as Record<string, Record<string, unknown>>;
+
+    expect(schema.required).toEqual(['markdown']);
+    expect(properties.markdown).toMatchObject({
+      description: expect.stringContaining('Exclude planning, commentary'),
+      maxLength: 512 * 1024,
+      minLength: 1,
+      type: 'string',
+    });
+  });
+
   it('supports direct Markdown or a Scribe assignment for document edits', () => {
     const schema = DOCUMENT_EDIT_PARAMETERS as unknown as Record<string, unknown>;
     const properties = schema.properties as Record<string, Record<string, unknown>>;

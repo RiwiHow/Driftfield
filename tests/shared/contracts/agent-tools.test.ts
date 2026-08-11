@@ -66,6 +66,19 @@ describe('Agent proposal tool contract', () => {
 
   it('validates bounded Curator-to-Scribe assignments and artifacts', () => {
     expect(isAgentToolRequest({
+      arguments: { markdown: '# Draft\n\nOnly manuscript prose.' },
+      toolName: 'submit_writing_artifact',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: { markdown: '   ' },
+      toolName: 'submit_writing_artifact',
+    })).toBe(false);
+    expect(isAgentToolExecutionResult({
+      data: { status: 'submitted' },
+      ok: true,
+      toolName: 'submit_writing_artifact',
+    })).toBe(true);
+    expect(isAgentToolRequest({
       arguments: {
         objective: 'Continue the confrontation scene.',
         requirements: ['Keep Mara in close third person.', 'End on the door opening.'],

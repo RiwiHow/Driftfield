@@ -6,6 +6,7 @@ import path from 'node:path';
 import type { AgentEvent } from '../../shared/contracts/agent';
 import {
   AGENT_TOOL_NAMES,
+  isAgentToolArguments,
   type AgentDraftSnapshot,
   type AgentToolName,
   type AgentWritingAssignment,
@@ -26,9 +27,12 @@ import type { AgentProposalOutcome } from '../../shared/contracts/agent-proposal
 
 const WORKER_START_TIMEOUT_MS = 15_000;
 const WRITING_TASK_TIMEOUT_MS = 5 * 60_000;
-const MAX_WRITING_ARTIFACT_BYTES = 512 * 1024;
-const SCRIBE_READ_TOOLS = [
+const CURATOR_TOOLS = AGENT_TOOL_NAMES.filter(
+  (toolName) => toolName !== 'submit_writing_artifact',
+);
+const SCRIBE_TOOLS = [
   'read_novel_context',
+  'submit_writing_artifact',
 ] as const satisfies readonly AgentToolName[];
 
 interface ActiveAgentRequest {
@@ -52,8 +56,7 @@ interface ActiveAgentRequest {
 }
 
 interface PendingWritingTask {
-  bytes: number;
-  markdown: string;
+  artifactMarkdown?: string;
   parentRequestId: string;
   reject: (error: Error) => void;
   resolve: (result: AgentWritingAssignmentToolResult) => void;
@@ -131,7 +134,7 @@ export class AiAgentService {
       worker.postMessage({
         authPath: path.join(directory, 'auth.json'),
         cwd: directory,
-        enabledTools: [...AGENT_TOOL_NAMES],
+        enabledTools: [...CURATOR_TOOLS],
         history: request.history,
         modelsPath: active.modelsPath,
         modelId: request.model.modelId,
@@ -453,8 +456,6 @@ export class AiAgentService {
         reject(new Error('Scribe task timed out'));
       }, WRITING_TASK_TIMEOUT_MS);
       this.writingTasks.set(taskId, {
-        bytes: 0,
-        markdown: '',
         parentRequestId,
         reject,
         resolve,
@@ -464,14 +465,14 @@ export class AiAgentService {
       this.worker!.postMessage({
         authPath: path.join(active.workingDirectory, 'auth.json'),
         cwd: active.workingDirectory,
-        enabledTools: [...SCRIBE_READ_TOOLS],
+        enabledTools: [...SCRIBE_TOOLS],
         history: [],
         modelId: active.model.modelId,
         modelsPath: active.modelsPath,
         prompt: [
           'Driftfield has assigned this bounded writing task:',
           JSON.stringify(assignment),
-          'Produce only the requested Markdown draft.',
+          'Submit the complete requested Markdown exactly once through submit_writing_artifact. Ordinary assistant text is not part of the draft.',
         ].join('\n'),
         proposalOutcomes: [],
         providerId: active.model.providerId,
@@ -498,20 +499,46 @@ export class AiAgentService {
       task.reject(new Error('Scribe task became obsolete'));
       return;
     }
-    if (message.type === 'text-delta') {
-      const bytes = Buffer.byteLength(message.delta, 'utf8');
-      if (task.bytes + bytes > MAX_WRITING_ARTIFACT_BYTES) {
-        this.worker?.postMessage({ requestId: message.requestId, type: 'cancel' });
-        this.finishWritingTask(message.requestId, active);
-        task.reject(new Error('Scribe artifact exceeded its size limit'));
+    if (message.type === 'text-delta') return;
+    if (message.type === 'tool-request') {
+      if (message.toolName === 'submit_writing_artifact') {
+        if (!isAgentToolArguments(message.toolName, message.arguments)) {
+          this.worker?.postMessage({
+            requestId: message.requestId,
+            result: {
+              error: { code: 'invalid-arguments' as const },
+              ok: false as const,
+              toolName: message.toolName,
+            },
+            toolCallId: message.toolCallId,
+            type: 'tool-result',
+          });
+          return;
+        }
+        const duplicate = task.artifactMarkdown !== undefined;
+        if (!duplicate) task.artifactMarkdown = message.arguments.markdown;
+        this.worker?.postMessage({
+          requestId: message.requestId,
+          result: duplicate
+            ? {
+                error: {
+                  code: 'invalid-arguments' as const,
+                  detail: 'The Scribe artifact was already submitted.',
+                },
+                ok: false as const,
+                toolName: message.toolName,
+              }
+            : {
+                data: { status: 'submitted' as const },
+                ok: true as const,
+                toolName: message.toolName,
+              },
+          toolCallId: message.toolCallId,
+          type: 'tool-result',
+        });
         return;
       }
-      task.bytes += bytes;
-      task.markdown += message.delta;
-      return;
-    }
-    if (message.type === 'tool-request') {
-      const toolAllowed = (SCRIBE_READ_TOOLS as readonly AgentToolName[])
+      const toolAllowed = (SCRIBE_TOOLS as readonly AgentToolName[])
         .includes(message.toolName);
       const result = !toolAllowed || this.toolDispatcher === undefined
         ? {
@@ -553,21 +580,21 @@ export class AiAgentService {
       return;
     }
     if (message.type === 'completed') {
-      if (task.markdown.trim().length === 0) {
+      if (task.artifactMarkdown === undefined) {
         this.finishWritingTask(message.requestId, active);
-        task.reject(new Error('Scribe returned an empty artifact'));
+        task.reject(new Error('Scribe did not submit a writing artifact'));
         return;
       }
       this.finishWritingTask(message.requestId, active);
       active.writingArtifact = {
         assignmentId: message.requestId,
         claimed: false,
-        markdown: task.markdown,
+        markdown: task.artifactMarkdown,
         targetDocumentId: task.targetDocumentId,
       };
       task.resolve({
         assignmentId: message.requestId,
-        markdown: task.markdown,
+        markdown: task.artifactMarkdown,
         status: 'completed',
       });
       return;

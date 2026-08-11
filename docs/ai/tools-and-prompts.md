@@ -56,8 +56,11 @@ The bounded collaboration surface contains:
   never a directory ID or invented placeholder. Main validates non-null target
   IDs against the current structure. Main creates and owns the child task
   identity, parentage, cancellation, timeout, and artifact-size limit. Scribe
-  receives only the read-only novel tools and returns Markdown to Curator; it
-  cannot delegate, propose, maintain story state, or persist content. Main
+  receives the read-only novel tools plus one terminal
+  `submit_writing_artifact` tool. Only the bounded Markdown submitted through
+  that tool becomes the draft; ordinary assistant text before or after the
+  submission is discarded, so planning or commentary cannot leak into the
+  manuscript. Scribe cannot delegate, propose, maintain story state, or persist content. Main
   retains the completed artifact only inside its parent request. Curator reviews
   the Markdown, then passes the returned assignment ID to one creation or
   replacement proposal. Main resolves that request- and target-bound reference

@@ -130,6 +130,10 @@ export interface AgentWritingAssignmentToolResult {
   status: 'completed';
 }
 
+export interface AgentWritingArtifactSubmissionToolResult {
+  status: 'submitted';
+}
+
 type AgentDocumentContentSource =
   | { markdown: string; writingAssignmentId: null }
   | { markdown: null; writingAssignmentId: string };
@@ -199,6 +203,10 @@ export interface AgentToolContractMap {
     };
     result: AgentNovelContextToolResult;
   };
+  submit_writing_artifact: {
+    arguments: { markdown: string };
+    result: AgentWritingArtifactSubmissionToolResult;
+  };
   maintain_story_records: {
     arguments: {
       changes: AgentStoryMaintenanceChange[];
@@ -246,6 +254,7 @@ export type AgentToolName = keyof AgentToolContractMap;
 export const AGENT_TOOL_NAMES = [
   'delegate_writing',
   'read_novel_context',
+  'submit_writing_artifact',
   'maintain_story_records',
   'record_story_question',
   'resolve_story_question',
@@ -365,6 +374,14 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
         (Number.isSafeInteger(value.targetLength) &&
           (value.targetLength as number) >= 1 &&
           (value.targetLength as number) <= 200_000))
+    );
+  }
+  if (toolName === 'submit_writing_artifact') {
+    return (
+      Object.keys(value).length === 1 &&
+      typeof value.markdown === 'string' &&
+      value.markdown.trim().length > 0 &&
+      new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024
     );
   }
   if (toolName === 'propose_document_edit') {
@@ -515,6 +532,8 @@ export const isAgentToolExecutionResult = (
 const isToolData = (toolName: AgentToolName, value: unknown): boolean =>
   toolName === 'delegate_writing'
     ? isWritingAssignmentResult(value)
+    : toolName === 'submit_writing_artifact'
+      ? isWritingArtifactSubmissionResult(value)
     : toolName === 'read_novel_context'
       ? isNovelContextResult(value)
     : toolName === 'maintain_story_records'
@@ -548,6 +567,11 @@ const isWritingAssignmentResult = (value: unknown): boolean =>
   value.markdown.trim().length > 0 &&
   new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024 &&
   value.status === 'completed';
+
+const isWritingArtifactSubmissionResult = (value: unknown): boolean =>
+  isRecord(value) &&
+  Object.keys(value).length === 1 &&
+  value.status === 'submitted';
 
 const isEditProposalResult = (value: unknown): boolean =>
   isRecord(value) &&
