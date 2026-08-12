@@ -1,6 +1,5 @@
 import {
   AGENT_THINKING_LEVELS,
-  DEFAULT_PROJECT_AGENT_SETTINGS,
   type ProjectAgentSettings,
   type UpdateProjectAgentSettingsRequest,
 } from '../../../shared/contracts/settings';
@@ -94,7 +93,11 @@ export class ProjectSettingsService {
   }
 
   reset(session: ProjectSession): ProjectAgentSettings {
-    return this.update(session, DEFAULT_PROJECT_AGENT_SETTINGS);
+    this.databases.get(session.directoryPath)?.close();
+    this.databases.delete(session.directoryPath);
+    const database = SettingsDatabase.recreate(session.directoryPath);
+    this.databases.set(session.directoryPath, database);
+    return this.get(session);
   }
 
   dispose(): void {

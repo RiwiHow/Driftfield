@@ -198,8 +198,23 @@ describe("IPC handler composition", () => {
     });
     expect(context.aiAgentService.reloadConfiguration).toHaveBeenCalledOnce();
     expect(context.agentCredentialService.reset).toHaveBeenCalledOnce();
-    expect(context.agentModelConfigService.reset).toHaveBeenCalledOnce();
+    expect(context.agentModelConfigService.reset).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'session-1' }),
+    );
     expect(context.projectSettingsService.reset).toHaveBeenCalledOnce();
+  });
+
+  it('resets global model state when no project is open', async () => {
+    const context = createContext();
+    vi.mocked(context.projectSessions.get).mockReturnValue(undefined);
+    registerIpcHandlers(context);
+    const reset = handlers.get(IPC_CHANNELS.resetAgentSettings);
+    if (reset === undefined) throw new Error('Agent reset handler was not registered');
+
+    await expect(reset({})).resolves.toMatchObject({ projectSettings: null });
+    expect(context.agentCredentialService.reset).toHaveBeenCalledOnce();
+    expect(context.agentModelConfigService.reset).toHaveBeenCalledWith(undefined);
+    expect(context.projectSettingsService.reset).not.toHaveBeenCalled();
   });
 
   it('returns story records only for the trusted active project session', async () => {

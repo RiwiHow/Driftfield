@@ -1,8 +1,36 @@
+import { existsSync, lstatSync, rmSync } from 'node:fs';
+import path from 'node:path';
+
 import { ProjectSqliteDatabase } from './project-sqlite-database';
 
 const DATABASE_VERSION = 2;
 
 export class SettingsDatabase extends ProjectSqliteDatabase {
+  static recreate(projectDirectory: string): SettingsDatabase {
+    const dataDirectory = path.join(projectDirectory, '.driftfield');
+    if (existsSync(dataDirectory)) {
+      const stats = lstatSync(dataDirectory);
+      if (!stats.isDirectory() || stats.isSymbolicLink()) {
+        throw new Error('Invalid Driftfield project data directory');
+      }
+    }
+    const databasePath = path.join(dataDirectory, 'settings.sqlite');
+    for (const candidate of [
+      databasePath,
+      `${databasePath}-journal`,
+      `${databasePath}-shm`,
+      `${databasePath}-wal`,
+    ]) {
+      if (!existsSync(candidate)) continue;
+      const stats = lstatSync(candidate);
+      if (!stats.isFile() || stats.isSymbolicLink()) {
+        throw new Error('Invalid Driftfield project settings database file');
+      }
+      rmSync(candidate);
+    }
+    return new SettingsDatabase(projectDirectory);
+  }
+
   constructor(projectDirectory: string) {
     super(projectDirectory, 'settings.sqlite');
     try {

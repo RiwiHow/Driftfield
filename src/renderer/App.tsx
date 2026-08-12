@@ -150,7 +150,9 @@ export function App({
           const result = await agentConfiguration.resetSettings();
           if (result === null) return false;
           replaceSettings(result.appSettings);
-          projectAgentSettings.replaceSettings(result.projectSettings);
+          if (result.projectSettings !== null) {
+            projectAgentSettings.replaceSettings(result.projectSettings);
+          }
           return true;
         }}
         onSetApiKey={agentConfiguration.setApiKey}

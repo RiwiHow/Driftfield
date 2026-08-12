@@ -1,6 +1,7 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -64,6 +65,33 @@ describe('project Agent settings', () => {
       useGlobal: true,
     });
     expect(service.reset(first)).toEqual({
+      defaultModel: null,
+      thinkingLevel: 'medium',
+      useGlobal: true,
+    });
+    service.dispose();
+  });
+
+  it('recreates an incompatible settings database during an explicit reset', async () => {
+    const session = await createSession();
+    const dataDirectory = path.join(session.directoryPath, '.driftfield');
+    await mkdir(dataDirectory, { recursive: true });
+    const database = new DatabaseSync(path.join(dataDirectory, 'settings.sqlite'));
+    database.exec(`
+      CREATE TABLE schema_migrations (
+        version INTEGER PRIMARY KEY,
+        applied_at TEXT NOT NULL
+      ) STRICT;
+      INSERT INTO schema_migrations(version, applied_at)
+      VALUES (999, datetime('now'));
+    `);
+    database.close();
+    const service = new ProjectSettingsService();
+
+    expect(() => service.get(session)).toThrow(
+      'Settings database was created by a newer Driftfield version',
+    );
+    expect(service.reset(session)).toEqual({
       defaultModel: null,
       thinkingLevel: 'medium',
       useGlobal: true,

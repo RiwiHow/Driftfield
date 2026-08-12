@@ -147,7 +147,6 @@ export function AgentModelSettingsPanel({
         <div className="settings-field-control">
           <Button
             className="h-8 px-3 text-xs text-destructive hover:text-destructive"
-            disabled={isSaving || projectAgentSettings === null}
             onClick={() => {
               setResetError(false);
               setIsResetDialogOpen(true);

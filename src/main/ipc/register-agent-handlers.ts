@@ -152,11 +152,13 @@ export const registerAgentIpcHandlers = ({
   );
 
   ipcMain.handle(IPC_CHANNELS.resetAgentSettings, async (event) => {
-    const { session } = getProjectSession(event);
+    const window = getTrustedSenderWindow(event);
+    const session = projectSessions.get(window.webContents.id);
     aiAgentService.reloadConfiguration();
     await agentCredentialService.reset();
-    await agentModelConfigService.reset();
-    const projectSettings = projectSettingsService.reset(session);
+    await agentModelConfigService.reset(session);
+    const projectSettings =
+      session === undefined ? null : projectSettingsService.reset(session);
     const appSettings = await settingsService.update({
       agent: DEFAULT_APP_SETTINGS.agent,
     });

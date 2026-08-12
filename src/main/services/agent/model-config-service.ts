@@ -349,8 +349,12 @@ export class AgentModelConfigService {
     return this.runtimePath;
   }
 
-  async reset(): Promise<void> {
+  async reset(projectSession?: ProjectSession): Promise<void> {
     const operation = this.updateQueue.then(async () => {
+      if (projectSession !== undefined) {
+        this.databases.get(projectSession.directoryPath)?.close();
+        this.databases.delete(projectSession.directoryPath);
+      }
       await rm(path.join(path.dirname(this.runtimePath), 'projects'), {
         force: true,
         recursive: true,
