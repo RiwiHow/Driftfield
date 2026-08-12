@@ -49,10 +49,15 @@ export const registerSettingsIpcHandlers = ({
     }
     const settings = await settingsService.update(update);
     if (update.theme !== undefined) {
-      updateMainWindowTheme(window, settings.theme);
+      updateMainWindowTheme(
+        window,
+        settings.theme,
+        settings.zoomPercent,
+        process.platform,
+      );
     }
     if (update.zoomPercent !== undefined) {
-      updateMainWindowZoom(window, settings.zoomPercent);
+      updateMainWindowZoom(window, settings.zoomPercent, settings.theme);
     }
     return settings;
   });

@@ -4,6 +4,7 @@ import {
   nativeTheme,
   type BrowserWindowConstructorOptions,
   type Event,
+  type TitleBarOverlayOptions,
 } from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -34,13 +35,31 @@ interface MainWindowRegistration {
   window: BrowserWindow;
 }
 
-// Keep the native overlay one CSS pixel shorter than the renderer titlebar so
-// its bottom border remains visible beneath the Windows caption controls.
+// The renderer titlebar is 38 CSS pixels high. Keep the native overlay one
+// scaled CSS pixel shorter so its bottom border remains visible while page zoom
+// changes the renderer's physical titlebar height.
 const WINDOWS_CAPTION_CONTROL_HEIGHT = 37;
+
+export const getWindowsCaptionControlHeight = (
+  zoomPercent: AppZoomPercent,
+): number => Math.round(WINDOWS_CAPTION_CONTROL_HEIGHT * zoomPercent / 100);
+
+const getWindowsTitleBarOverlay = (
+  theme: AppTheme,
+  zoomPercent: AppZoomPercent,
+): TitleBarOverlayOptions => {
+  const chrome = APP_THEME_WINDOW_CHROME[theme];
+  return {
+    color: chrome.background,
+    height: getWindowsCaptionControlHeight(zoomPercent),
+    symbolColor: chrome.symbol,
+  };
+};
 
 export const getMainWindowChromeOptions = (
   platform: NodeJS.Platform,
   theme: AppTheme,
+  zoomPercent: AppZoomPercent = 100,
 ): Pick<
   BrowserWindowConstructorOptions,
   'autoHideMenuBar' | 'titleBarOverlay' | 'titleBarStyle'
@@ -49,14 +68,9 @@ export const getMainWindowChromeOptions = (
     return { titleBarStyle: 'hiddenInset' };
   }
 
-  const chrome = APP_THEME_WINDOW_CHROME[theme];
   return {
     autoHideMenuBar: true,
-    titleBarOverlay: {
-      color: chrome.background,
-      height: WINDOWS_CAPTION_CONTROL_HEIGHT,
-      symbolColor: chrome.symbol,
-    },
+    titleBarOverlay: getWindowsTitleBarOverlay(theme, zoomPercent),
     titleBarStyle: 'hidden',
   };
 };
@@ -64,26 +78,29 @@ export const getMainWindowChromeOptions = (
 export const updateMainWindowTheme = (
   window: BrowserWindow,
   preference: AppThemePreference,
+  zoomPercent: AppZoomPercent = 100,
   platform: NodeJS.Platform = process.platform,
   prefersDark: boolean = nativeTheme.shouldUseDarkColors,
 ): void => {
   const theme = resolveAppTheme(preference, prefersDark);
   window.setBackgroundColor(APP_THEME_WINDOW_BACKGROUNDS[theme]);
   if (platform === 'win32') {
-    const chrome = APP_THEME_WINDOW_CHROME[theme];
-    window.setTitleBarOverlay({
-      color: chrome.background,
-      height: WINDOWS_CAPTION_CONTROL_HEIGHT,
-      symbolColor: chrome.symbol,
-    });
+    window.setTitleBarOverlay(getWindowsTitleBarOverlay(theme, zoomPercent));
   }
 };
 
 export const updateMainWindowZoom = (
   window: BrowserWindow,
   zoomPercent: AppZoomPercent,
+  preference: AppThemePreference,
+  platform: NodeJS.Platform = process.platform,
+  prefersDark: boolean = nativeTheme.shouldUseDarkColors,
 ): void => {
   window.webContents.setZoomFactor(zoomPercent / 100);
+  if (platform === 'win32') {
+    const theme = resolveAppTheme(preference, prefersDark);
+    window.setTitleBarOverlay(getWindowsTitleBarOverlay(theme, zoomPercent));
+  }
 };
 
 export const createMainWindow = ({
@@ -100,7 +117,8 @@ export const createMainWindow = ({
         ),
       ).href;
   const navigationPolicy = createRendererNavigationPolicy(rendererUrl);
-  const themePreference = settingsService.get().theme;
+  const settings = settingsService.get();
+  const themePreference = settings.theme;
   const theme = resolveAppTheme(
     themePreference,
     nativeTheme.shouldUseDarkColors,
@@ -113,7 +131,7 @@ export const createMainWindow = ({
     useContentSize: true,
     backgroundColor: APP_THEME_WINDOW_BACKGROUNDS[theme],
     show: false,
-    ...getMainWindowChromeOptions(process.platform, theme),
+    ...getMainWindowChromeOptions(process.platform, theme, settings.zoomPercent),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -122,12 +140,22 @@ export const createMainWindow = ({
     },
   });
 
-  updateMainWindowZoom(window, settingsService.get().zoomPercent);
+  updateMainWindowZoom(
+    window,
+    settings.zoomPercent,
+    settings.theme,
+  );
 
   const webContentsId = window.webContents.id;
   const updateSystemTheme = (): void => {
     if (settingsService.get().theme === 'system') {
-      updateMainWindowTheme(window, 'system');
+      updateMainWindowTheme(
+        window,
+        'system',
+        settingsService.get().zoomPercent,
+        process.platform,
+        nativeTheme.shouldUseDarkColors,
+      );
     }
   };
   nativeTheme.on('updated', updateSystemTheme);

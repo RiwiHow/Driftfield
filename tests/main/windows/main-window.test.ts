@@ -58,6 +58,7 @@ vi.mock('electron', () => ({
 import {
   createMainWindow,
   getMainWindowChromeOptions,
+  getWindowsCaptionControlHeight,
   updateMainWindowTheme,
   updateMainWindowZoom,
 } from '../../../src/main/windows/main-window';
@@ -108,17 +109,41 @@ describe('main window', () => {
   it('converts a zoom percentage to Electron zoom factor', () => {
     const window = { webContents: { setZoomFactor: vi.fn() } };
 
-    updateMainWindowZoom(window as never, 150);
+    updateMainWindowZoom(
+      window as never,
+      150,
+      'github-light',
+      'darwin',
+    );
 
     expect(window.webContents.setZoomFactor).toHaveBeenCalledWith(1.5);
   });
 
+  it('scales the Windows caption overlay with the renderer zoom', () => {
+    expect(getWindowsCaptionControlHeight(100)).toBe(37);
+    expect(getWindowsCaptionControlHeight(125)).toBe(46);
+    expect(getWindowsCaptionControlHeight(150)).toBe(56);
+
+    const window = {
+      setTitleBarOverlay: vi.fn(),
+      webContents: { setZoomFactor: vi.fn() },
+    };
+
+    updateMainWindowZoom(window as never, 150, 'github-dark', 'win32');
+
+    expect(window.setTitleBarOverlay).toHaveBeenCalledWith({
+      color: '#151b23',
+      height: 56,
+      symbolColor: '#9198a1',
+    });
+  });
+
   it('integrates the renderer titlebar with the Windows caption controls', () => {
-    expect(getMainWindowChromeOptions('win32', 'github-dark')).toEqual({
+    expect(getMainWindowChromeOptions('win32', 'github-dark', 150)).toEqual({
       autoHideMenuBar: true,
       titleBarOverlay: {
         color: '#151b23',
-        height: 37,
+        height: 56,
         symbolColor: '#9198a1',
       },
       titleBarStyle: 'hidden',
@@ -137,12 +162,18 @@ describe('main window', () => {
       setTitleBarOverlay: vi.fn(),
     };
 
-    updateMainWindowTheme(window as never, 'github-light', 'win32');
+    updateMainWindowTheme(
+      window as never,
+      'github-light',
+      125,
+      'win32',
+      false,
+    );
 
     expect(window.setBackgroundColor).toHaveBeenCalledWith('#ffffff');
     expect(window.setTitleBarOverlay).toHaveBeenCalledWith({
       color: '#f6f8fa',
-      height: 37,
+      height: 46,
       symbolColor: '#59636e',
     });
   });
@@ -153,7 +184,7 @@ describe('main window', () => {
       setTitleBarOverlay: vi.fn(),
     };
 
-    updateMainWindowTheme(window as never, 'system', 'win32', true);
+    updateMainWindowTheme(window as never, 'system', 100, 'win32', true);
 
     expect(window.setBackgroundColor).toHaveBeenCalledWith('#0d1117');
     expect(window.setTitleBarOverlay).toHaveBeenCalledWith({

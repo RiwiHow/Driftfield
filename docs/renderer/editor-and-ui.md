@@ -29,7 +29,10 @@ does not duplicate those effects or introduce a global state store.
 - The persisted interface scale applies to the complete Renderer through
   Electron's window zoom factor. The Interface settings selector and
   `Ctrl/Cmd` with `+`, `-`, or `0` share the same validated zoom levels; do not
-  replace this with CSS transforms or an editor-only font adjustment.
+  replace this with CSS transforms or an editor-only font adjustment. On
+  Windows, keep the native title-bar overlay height synchronized with that zoom
+  and reserve its caption-control width through the title-bar area environment
+  variables rather than a zoomed fixed inset.
 - The editor status bar derives its writing count from reader-visible Markdown
   text rather than source length: each Han character and each non-Han word or
   number counts as one unit, while syntax and link targets do not count.
