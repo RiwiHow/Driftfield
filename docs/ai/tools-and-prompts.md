@@ -200,7 +200,9 @@ intermediate identifiers, schema choices, or retries. The user receives a
 concise summary of canonical changes and any unresolved questions after the
 tool workflow finishes.
 
-The worker retains the final provider stop reason. A `length` response and a
+The worker retains the final provider stop reason. A completed but unclaimed
+Scribe artifact is a protocol error and receives one corrective continuation
+that must submit the artifact through a reviewed proposal. A `length` response and a
 response that prints known tool-call markup as ordinary text receive one
 application-owned concise corrective continuation. If the retry is still
 truncated, contains pseudo tool markup, or leaves a required reconciliation

@@ -11,7 +11,7 @@ describe('Agent run protocol', () => {
   it('recognizes output truncation and preserves known stop reasons', () => {
     expect(normalizeStopReason('length')).toBe('length');
     expect(normalizeStopReason('vendor-specific')).toBe('unknown');
-    expect(responseProtocolIssue('', 'length', false, [])).toBe('length');
+    expect(responseProtocolIssue('', 'length', false, false, [])).toBe('length');
     expect(protocolCorrection('length')).toContain('output-token limit');
   });
 
@@ -32,10 +32,16 @@ describe('Agent run protocol', () => {
   });
 
   it('keeps an accepted-writing run incomplete until reconciliation closes', () => {
-    expect(responseProtocolIssue('', 'stop', true, [])).toBe('reconciliation');
-    expect(responseProtocolIssue('完成。', 'stop', false, [])).toBeNull();
+    expect(responseProtocolIssue('', 'stop', true, false, [])).toBe('reconciliation');
+    expect(responseProtocolIssue('完成。', 'stop', false, false, [])).toBeNull();
     expect(protocolCorrection('reconciliation')).toContain(
       'complete_story_reconciliation',
     );
+  });
+
+  it('keeps an unclaimed Scribe artifact incomplete until it reaches review', () => {
+    expect(responseProtocolIssue('', 'stop', false, true, []))
+      .toBe('writing-artifact');
+    expect(protocolCorrection('writing-artifact')).toContain('assignmentId');
   });
 });

@@ -73,7 +73,8 @@ Preserve these properties when changing affected subsystems.
 - Cancellation remains terminal when it races with completion or output.
 - The worker preserves the provider stop reason, retries output truncation or
   printed pseudo tool-call markup at most once, and never reports a still-open
-  accepted-manuscript reconciliation workflow as completed. Main validates the
+  accepted-manuscript reconciliation workflow or completed-but-unclaimed Scribe
+  artifact as completed. Main validates the
   reconciliation checkpoint independently; pseudo tool markup is never
   interpreted as an operation.
 - The current `read_novel_context` tool batches only fixed typed sections,

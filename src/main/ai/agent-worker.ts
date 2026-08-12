@@ -56,6 +56,7 @@ interface ActiveRequest {
   cancelled: boolean;
   reconciliationPending: boolean;
   session: AgentSession | null;
+  writingArtifactPending: boolean;
 }
 
 const activeRequests = new Map<string, ActiveRequest>();
@@ -141,6 +142,7 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
     cancelled: false,
     reconciliationPending: false,
     session: null,
+    writingArtifactPending: false,
   };
   activeRequests.set(command.requestId, active);
   let session: AgentSession | null = null;
@@ -249,6 +251,7 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
         responseState.assistantText,
         responseState.stopReason,
         active.reconciliationPending,
+        active.writingArtifactPending,
         enabledToolNames,
       );
       if (!active.cancelled && protocolIssue !== null) {
@@ -259,6 +262,7 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
           responseState.assistantText,
           responseState.stopReason,
           active.reconciliationPending,
+          active.writingArtifactPending,
           enabledToolNames,
         );
       }
@@ -587,6 +591,18 @@ const observeToolProtocol = <Name extends AgentToolName>(
   if (!result.ok) return;
   const active = activeRequests.get(requestId);
   if (active === undefined) return;
+  if (toolName === 'delegate_writing') {
+    active.writingArtifactPending = true;
+    return;
+  }
+  if (
+    (toolName === 'propose_document_edit' ||
+      toolName === 'propose_document_file_operation') &&
+    'writingAssignmentId' in args &&
+    args.writingAssignmentId !== null
+  ) {
+    active.writingArtifactPending = false;
+  }
   if (
     (toolName === 'propose_document_edit' ||
       toolName === 'propose_document_file_operation') &&
