@@ -83,10 +83,13 @@ describe('AgentReferenceRegistry', () => {
     expect(() => refs.resolve(documentRef, 'directory')).toThrow(
       expect.objectContaining({
         code: 'invalid-arguments',
-        detail: expect.stringContaining('Unknown or wrong-kind request reference'),
+        detail: expect.stringContaining('Wrong-kind request reference'),
       }),
     );
     expect(() => new AgentReferenceRegistry().resolve(documentRef, 'document'))
-      .toThrow(expect.objectContaining({ code: 'invalid-arguments' }));
+      .toThrow(expect.objectContaining({
+        code: 'expired-request-reference',
+        detail: expect.stringContaining('not issued in this request or has expired'),
+      }));
   });
 });

@@ -84,6 +84,12 @@ Preserve these properties when changing affected subsystems.
   bounded, path-free, and main-owned. Persistent IDs and SHA-256 revisions are
   replaced with short refs in every model-facing result; Main owns and releases
   the per-request reverse mapping.
+- Request-scoped refs are lazy per-request leases, not ambient context. Main's
+  model-history projection marks refs from earlier turns as expired without
+  changing persisted conversation text or Renderer Tool audit. A well-formed
+  ref absent from the active registry fails with the typed
+  `expired-request-reference` error; at most one such failure is refunded from
+  the normal call budget to permit a bounded minimal-context recovery.
 - Accepted Scribe-backed manuscript reconciliation has a request-scoped context
   view that exposes semantic Persona, Thread, and primary-timeline refs instead
   of persistent UUIDs. The focused reconciliation mutation resolves those refs,

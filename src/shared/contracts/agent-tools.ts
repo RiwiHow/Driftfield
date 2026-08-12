@@ -453,6 +453,7 @@ export type AgentToolSuccessResult<
 
 export type AgentToolErrorCode =
   | 'invalid-arguments'
+  | 'expired-request-reference'
   | 'project-session-changed'
   | 'document-not-found'
   | 'node-not-found'
@@ -466,6 +467,7 @@ export type AgentToolErrorCode =
 
 export const AGENT_TOOL_ERROR_CODES = [
   'invalid-arguments',
+  'expired-request-reference',
   'project-session-changed',
   'document-not-found',
   'node-not-found',

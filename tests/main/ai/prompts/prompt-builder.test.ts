@@ -52,6 +52,10 @@ describe('Agent prompt registry', () => {
       role: 'curator',
     });
     expect(built.prompt).toContain('native tool calling');
+    expect(built.prompt).toContain('leases for the current user request only');
+    expect(built.prompt).toContain('replayed conversation history as expired');
+    expect(built.prompt).toContain('empty documentIds and directoryIds');
+    expect(built.prompt).toContain('expired-request-reference');
     expect(built.prompt).toContain('request all already-known required sections');
     expect(built.prompt).toContain('directoryIds only to read a directory’s immediate document children');
     expect(built.prompt).toContain('request-scoped document refs');

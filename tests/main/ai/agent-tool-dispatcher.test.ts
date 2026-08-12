@@ -1296,6 +1296,58 @@ describe('AgentToolDispatcher', () => {
     expect(context.getDocument).not.toHaveBeenCalled();
   });
 
+  it('returns a typed expired-ref error and preserves one bounded recovery call', async () => {
+    const context = {
+      getNovelStructure: vi.fn().mockResolvedValue(novelStructure),
+    } as unknown as ProjectContextService;
+    const dispatcher = new AgentToolDispatcher(context, {
+      maxCalls: 1,
+      maxResultBytes: 10_000,
+      maxTotalResultBytes: 10_000,
+      timeoutMs: 1_000,
+    });
+
+    await expect(dispatcher.execute(scope, {
+      arguments: {
+        directoryIds: ['directory:5'],
+        documentIds: [],
+        include: ['structure'],
+      },
+      toolName: 'read_novel_context',
+    })).resolves.toEqual({
+      error: {
+        code: 'expired-request-reference',
+        detail: expect.stringContaining('Read the required context without reference selectors'),
+      },
+      ok: false,
+      toolName: 'read_novel_context',
+    });
+
+    await expect(dispatcher.execute(scope, {
+      arguments: { directoryIds: [], documentIds: [], include: ['structure'] },
+      toolName: 'read_novel_context',
+    })).resolves.toMatchObject({
+      data: {
+        documents: [],
+        structure: {
+          lore: { id: 'directory:2' },
+          manuscript: { id: 'directory:1' },
+        },
+      },
+      ok: true,
+      toolName: 'read_novel_context',
+    });
+
+    await expect(dispatcher.execute(scope, {
+      arguments: { directoryIds: [], documentIds: [], include: ['structure'] },
+      toolName: 'read_novel_context',
+    })).resolves.toEqual({
+      error: { code: 'tool-budget-exceeded' },
+      ok: false,
+      toolName: 'read_novel_context',
+    });
+  });
+
   it('returns a typed timeout error', async () => {
     vi.useFakeTimers();
     const context = {

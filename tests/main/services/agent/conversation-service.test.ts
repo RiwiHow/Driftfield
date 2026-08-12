@@ -185,6 +185,47 @@ describe('Agent conversation persistence', () => {
     service.dispose();
   });
 
+  it('expires request refs only in replayed model history', async () => {
+    const session = await createSession();
+    const service = new AgentConversationService();
+    const state = service.getState(session);
+    service.beginPrompt(session, {
+      conversationId: state.activeConversation.id,
+      prompt: 'Create the World entry.',
+      requestId: 'assistant-with-refs',
+      userMessageId: 'user-with-refs',
+    });
+    const visibleText =
+      'Use directory:5 with revision:2, then reconcile document:accepted on timeline:primary.';
+    service.recordEvent({
+      delta: visibleText,
+      requestId: 'assistant-with-refs',
+      type: 'text-delta',
+    });
+    service.recordEvent({ requestId: 'assistant-with-refs', type: 'completed' });
+
+    const next = service.beginPrompt(session, {
+      conversationId: state.activeConversation.id,
+      prompt: 'Continue.',
+      requestId: 'assistant-after-refs',
+      userMessageId: 'user-after-refs',
+    });
+
+    expect(next.history).toEqual([
+      { content: 'Create the World entry.', role: 'user' },
+      {
+        content:
+          'Use [expired request-scoped directory ref] with [expired request-scoped revision ref], then reconcile [expired request-scoped document ref] on [expired request-scoped timeline ref].',
+        role: 'assistant',
+      },
+    ]);
+    expect(
+      service.getState(session).activeConversation.messages
+        .find(({ id }) => id === 'assistant-with-refs')?.content,
+    ).toBe(visibleText);
+    service.dispose();
+  });
+
   it('restores a pending edit proposal for main-owned revalidation', async () => {
     const session = await createSession();
     const service = new AgentConversationService();

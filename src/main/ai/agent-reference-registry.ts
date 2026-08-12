@@ -54,10 +54,16 @@ export class AgentReferenceRegistry {
     // Keep the Main-side dispatcher compatible with in-flight calls from older
     // workers. New model-facing results never publish these canonical values.
     if (entry === undefined && !/^[a-z]+:[1-9][0-9]*$/u.test(ref)) return ref;
-    if (entry === undefined || !kinds.includes(entry.kind)) {
+    if (entry === undefined) {
+      throw new ProjectContextError(
+        'expired-request-reference',
+        `Request-scoped reference was not issued in this request or has expired: ${ref}. Read the required context without reference selectors before retrying.`,
+      );
+    }
+    if (!kinds.includes(entry.kind)) {
       throw new ProjectContextError(
         'invalid-arguments',
-        `Unknown or wrong-kind request reference: ${ref}`,
+        `Wrong-kind request reference: ${ref}`,
       );
     }
     return entry.value;

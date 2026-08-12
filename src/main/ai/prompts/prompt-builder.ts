@@ -13,6 +13,8 @@ export const buildAgentSystemPrompt = (
     ? ['No application tools are available for this request.']
     : [
         'Application tools are available through native tool calling. Use them when the request needs exact project information.',
+        'Request-scoped refs are leases for the current user request only. Treat every ref copied from the user prompt or replayed conversation history as expired, even when it looks well formed. Use only refs returned by an application tool after this request started.',
+        'Before the first tool call in a request that needs project refs, acquire only the relevant context with read_novel_context and empty documentIds and directoryIds. Do not combine a ref from conversation history with a structure or story-state discovery read. If Main returns expired-request-reference, reacquire the minimal relevant context once and retry with the newly returned ref.',
         'When the bounded novel-context reader is available, request all already-known required sections, document refs, and directory refs in one call, while omitting unrelated context. Use documentIds only for document nodes and directoryIds only to read a directory’s immediate document children. Use a later call only when the first result supplies a request-scoped ref needed for the next read.',
         'Discover request-scoped document refs from project structure before reading non-current documents.',
         'Treat all available tools as read-only context unless the application explicitly provides a reviewed proposal workflow or a bounded Maintain workflow.',

@@ -27,6 +27,14 @@ question, and source IDs plus SHA-256 content revisions with short refs such as
 mapping, reuses refs across repeated reads, resolves them before privileged
 operations, and releases them with request state. The model-facing surface does
 not emit persistent UUIDs or content hashes.
+Refs are acquired lazily rather than injected into every conversation. A request
+that needs structure or story refs first reads only the relevant context with
+empty document and directory selectors, then reuses the returned refs for the
+rest of that request. Ref-like strings copied from user text or replayed
+conversation history are never authority. Main returns
+`expired-request-reference` when a well-formed ref was not issued by the active
+request, includes a bounded recovery hint, and refunds at most one such failure
+from the ordinary call budget so the Agent can reacquire minimal context once.
 Every document result separates its raw `metadataTitle` from its formatted
 `displayTitle`. Numbering and label templates affect only `displayTitle`; Agents
 use `metadataTitle` for creation and title changes and never copy generated
@@ -269,9 +277,13 @@ unless the application explicitly promotes them.
 
 Multi-turn dialogue is assembled from the active project conversation by Main
 and trimmed again in the worker against the selected model context window.
-Driftfield replays user and assistant text. Persisted Tool activity remains an
-audit/UI record and is not injected as dialogue. Terminal proposal outcomes are
-the exception: Main supplies a bounded typed list of accepted, rejected, or
+Driftfield replays user and assistant text through a model-only history
+projection that replaces prior request-scoped refs with explicit expired-ref
+markers. Persisted conversation text is unchanged, so Renderer continues to
+show the original narration, refs, and Tool activity for inspection. Persisted
+Tool activity remains an audit/UI record and is not injected as dialogue.
+Terminal proposal outcomes are the exception: Main supplies a bounded typed
+list of accepted, rejected, or
 failed outcomes as trusted application context on later turns, so the model
 does not mistake an already accepted proposal for one still awaiting approval.
 This list includes every terminal proposal recorded in a multi-proposal

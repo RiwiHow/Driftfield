@@ -358,6 +358,14 @@ describe('Agent proposal tool contract', () => {
       toolName: 'read_novel_context',
     })).toBe(true);
     expect(isAgentToolExecutionResult({
+      error: {
+        code: 'expired-request-reference',
+        detail: 'Read structure again without selectors.',
+      },
+      ok: false,
+      toolName: 'read_novel_context',
+    })).toBe(true);
+    expect(isAgentToolExecutionResult({
       error: { code: 'invalid-arguments', detail: 'x'.repeat(1_001) },
       ok: false,
       toolName: 'maintain_story_records',

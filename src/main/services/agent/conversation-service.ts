@@ -21,6 +21,7 @@ import { isAgentToolAuditName } from '../../../shared/contracts/agent-tools';
 import { PROJECT_ICON_IDS } from '../../../shared/contracts/project-layout';
 import { ProjectDatabase } from '../../database/project-database';
 import type { ProjectSession } from '../project/session-service';
+import { expireRequestScopedReferences } from './model-history';
 
 const DEFAULT_TITLE = '';
 const MAX_CONTEXT_CHARACTERS = 120_000;
@@ -496,9 +497,16 @@ export class AgentConversationService {
     let characters = 0;
     for (const row of rows) {
       if (row.content.length === 0) continue;
-      if (selected.length > 0 && characters + row.content.length > MAX_CONTEXT_CHARACTERS) break;
-      selected.push(row);
-      characters += row.content.length;
+      const historyRow = {
+        ...row,
+        content: expireRequestScopedReferences(row.content),
+      };
+      if (
+        selected.length > 0 &&
+        characters + historyRow.content.length > MAX_CONTEXT_CHARACTERS
+      ) break;
+      selected.push(historyRow);
+      characters += historyRow.content.length;
       if (selected.length >= MAX_CONTEXT_MESSAGES) break;
     }
     return selected.reverse();

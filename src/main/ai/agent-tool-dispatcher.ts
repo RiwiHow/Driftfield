@@ -82,6 +82,7 @@ export const DEFAULT_AGENT_TOOL_POLICY: AgentToolPolicy = {
 
 interface RequestBudget {
   calls: number;
+  referenceRecoveries: number;
   resultBytes: number;
 }
 
@@ -114,7 +115,11 @@ export class AgentToolDispatcher {
     scope: AgentToolScope,
     request: { arguments: unknown; toolName: AgentToolName },
   ): Promise<AgentToolExecutionResult> {
-    const budget = this.budgets.get(scope.requestId) ?? { calls: 0, resultBytes: 0 };
+    const budget = this.budgets.get(scope.requestId) ?? {
+      calls: 0,
+      referenceRecoveries: 0,
+      resultBytes: 0,
+    };
     if (budget.calls >= this.policy.maxCalls) {
       return this.error(request.toolName, 'tool-budget-exceeded');
     }
@@ -145,6 +150,13 @@ export class AgentToolDispatcher {
       return result;
     } catch (error) {
       if (error instanceof ProjectContextError) {
+        if (
+          error.code === 'expired-request-reference' &&
+          budget.referenceRecoveries === 0
+        ) {
+          budget.calls -= 1;
+          budget.referenceRecoveries += 1;
+        }
         return this.error(request.toolName, error.code, error.detail);
       }
       if (error instanceof ToolTimeoutError) return this.error(request.toolName, 'tool-timeout');

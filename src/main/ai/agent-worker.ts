@@ -372,7 +372,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Read one bounded batch of novel context. include may contain structure, current_document (the immutable request-start draft), story_state, and accepted_reconciliation. Persistent IDs and content hashes are replaced with short request-scoped refs in every result. Document results distinguish raw metadataTitle from formatted displayTitle. documentIds reads persisted manuscript or lore documents by ref. directoryIds reads only immediate document children. Explicit and expanded documents are deduplicated and limited to four total.",
+        "Read one bounded batch of novel context. include may contain structure, current_document (the immutable request-start draft), story_state, and accepted_reconciliation. Persistent IDs and content hashes are replaced with short refs valid only for this user request. For the first discovery read, leave documentIds and directoryIds empty; never reuse refs from user text or conversation history. Document results distinguish raw metadataTitle from formatted displayTitle. documentIds reads persisted manuscript or lore documents by current-request ref. directoryIds reads only immediate document children. Explicit and expanded documents are deduplicated and limited to four total.",
       label: "Read novel context",
       name: "read_novel_context",
       parameters: NOVEL_CONTEXT_PARAMETERS,
