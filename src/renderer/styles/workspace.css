@@ -16,8 +16,8 @@
   position: relative;
   z-index: 20;
   display: grid;
-  height: 38px;
-  min-height: 38px;
+  height: var(--df-titlebar-height);
+  min-height: var(--df-titlebar-height);
   grid-template-columns: 1fr minmax(180px, 40%) 1fr;
   align-items: center;
   padding: 0 8px 0 78px;

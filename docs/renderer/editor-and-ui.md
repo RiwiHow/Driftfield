@@ -32,7 +32,10 @@ does not duplicate those effects or introduce a global state store.
   replace this with CSS transforms or an editor-only font adjustment. On
   Windows, keep the native title-bar overlay height synchronized with that zoom
   and reserve its caption-control width through the title-bar area environment
-  variables rather than a zoomed fixed inset.
+  variables rather than a zoomed fixed inset. Native caption controls always
+  render above the DOM, so Windows modal shading and large-dialog bounds begin
+  below the complete titlebar instead of asynchronously repainting native
+  controls.
 - The editor status bar derives its writing count from reader-visible Markdown
   text rather than source length: each Han character and each non-Han word or
   number counts as one unit, while syntax and link targets do not count.

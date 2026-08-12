@@ -3,6 +3,10 @@
   border-color: var(--border);
 }
 
+:root {
+  --df-titlebar-height: 38px;
+}
+
 html,
 body,
 #root {
@@ -40,6 +44,17 @@ button,
   height: auto;
   max-width: none;
   translate: none;
+}
+
+/* Windows caption controls are native and always remain above Renderer DOM.
+   Keep the whole titlebar outside modal shading and large-dialog bounds rather
+   than trying to repaint native controls asynchronously. */
+html[data-platform="win32"] .dialog-overlay {
+  top: var(--df-titlebar-height);
+}
+
+html[data-platform="win32"] .adaptive-dialog {
+  inset-block-start: max(calc(var(--df-titlebar-height) + 8px), 5vh);
 }
 
 .adaptive-dialog[data-state="open"] {

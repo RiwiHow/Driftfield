@@ -13,6 +13,8 @@ if (!root) {
   throw new Error('Renderer root element was not found.');
 }
 
+document.documentElement.dataset.platform = window.driftfield.platform;
+
 const bootstrap = async (): Promise<void> => {
   let initialSettings = DEFAULT_APP_SETTINGS;
   let initialProject: ProjectSnapshot | null = null;
