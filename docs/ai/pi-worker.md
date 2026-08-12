@@ -26,16 +26,18 @@ domain contracts.
   continuation; a second failure is terminal and typed, never a successful
   completion. Main independently gates accepted Scribe-backed manuscript runs
   on a validated story-reconciliation checkpoint.
-- Curator writing requests may create one Main-owned Scribe child task in the
+- Curator Manuscript or Lore writing requests may create one Main-owned Scribe child task in the
   same utility process. Main assigns its task ID, binds it to the parent request,
   applies a five-minute timeout and 512 KiB artifact limit, propagates
   cancellation, and exposes only the bounded novel-context reader plus a
-  terminal artifact-submission tool to Scribe. Only Markdown submitted through
-  that tool returns to Curator; ordinary assistant text is discarded. The
-  untrusted artifact never bypasses the existing proposal workflow. Curator can
-  apply a bounded atomic batch of exact counted replacements to an unclaimed
-  artifact for mechanical corrections without retransmitting the full draft or
-  starting another Scribe task.
+  terminal artifact-submission tool to Scribe. Main retains the submitted
+  Markdown and returns only an assignment/domain/size receipt to Curator;
+  ordinary assistant text is discarded. The untrusted artifact never bypasses
+  the existing proposal workflow, and Renderer still shows the full proposal.
+- Accepted Scribe-backed Manuscript proposals create durable project-database
+  reconciliation jobs. Their pending state is supplied when a Curator request
+  starts, so an interrupted run resumes the accepted-document workflow. Lore
+  proposals do not open that checkpoint.
 - Do not enable Pi coding tools, generic shell/filesystem tools, extensions, or
   unrestricted resource discovery by default.
 

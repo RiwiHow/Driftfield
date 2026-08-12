@@ -8,6 +8,7 @@ import {
   AGENT_TOOL_NAMES,
   isAgentToolArguments,
   type AgentDraftSnapshot,
+  type AgentDocumentDomain,
   type AgentToolName,
   type AgentWritingAssignment,
   type AgentWritingAssignmentToolResult,
@@ -28,6 +29,11 @@ import type { AgentProposalOutcome } from '../../shared/contracts/agent-proposal
 import type { AppLanguage } from '../../shared/i18n/languages';
 import { ProjectDatabase } from '../database/project-database';
 import {
+  ProjectReconciliationRepository,
+  type StoryReconciliationJob,
+  type StoryReconciliationOutcome,
+} from '../database/project-reconciliation-repository';
+import {
   validateManuscriptMarkdown,
   type ManuscriptMarkdownValidationCode,
 } from '../services/project/manuscript-markdown-validator';
@@ -36,7 +42,9 @@ const WORKER_START_TIMEOUT_MS = 15_000;
 const WRITING_TASK_TIMEOUT_MS = 5 * 60_000;
 const MAX_WRITING_ARTIFACT_BYTES = 512 * 1024;
 const CURATOR_TOOLS = AGENT_TOOL_NAMES.filter(
-  (toolName) => toolName !== 'submit_writing_artifact',
+  (toolName) =>
+    toolName !== 'submit_writing_artifact' &&
+    toolName !== 'revise_writing_artifact',
 );
 const SCRIBE_TOOLS = [
   'read_novel_context',
@@ -55,6 +63,8 @@ interface ActiveAgentRequest {
     acceptedDocumentRead: boolean;
     applied: boolean;
     documentId?: string;
+    documentRevision?: string;
+    jobId?: string;
     pending: boolean;
     questionsRecorded: boolean;
     storyStateRead: boolean;
@@ -67,8 +77,10 @@ interface ActiveAgentRequest {
   writingArtifact?: {
     assignmentId: string;
     claimed: boolean;
+    documentDomain: AgentDocumentDomain;
     markdown: string;
     parentRequestId: string;
+    proposedDocumentId?: string;
     revised: boolean;
     targetDocumentId: string | null;
     targetLength: number | null;
@@ -79,6 +91,7 @@ interface PendingWritingTask {
   artifactMarkdown?: string;
   artifactSubmitted: boolean;
   artifactValidationCode?: ManuscriptMarkdownValidationCode;
+  documentDomain: AgentDocumentDomain;
   parentRequestId: string;
   reject: (error: Error) => void;
   resolve: (result: AgentWritingAssignmentToolResult) => void;
@@ -163,6 +176,7 @@ export class AiAgentService {
     this.activeRequests.set(request.requestId, active);
 
     try {
+      this.restorePendingReconciliation(active);
       await mkdir(directory, { recursive: true });
       const worker = await this.getWorker();
       if (active.cancelled) throw new Error('Agent request was cancelled');
@@ -177,6 +191,7 @@ export class AiAgentService {
         prompt: request.prompt,
         proposalOutcomes: request.proposalOutcomes,
         providerId: request.model.providerId,
+        reconciliationPending: active.reconciliation.pending,
         requestId: request.requestId,
         responseLanguage: request.responseLanguage,
         role: 'curator',
@@ -356,15 +371,26 @@ export class AiAgentService {
               ...(active.reconciliation.documentId === undefined
                 ? {}
                 : { acceptedDocumentId: active.reconciliation.documentId }),
+              ...(active.reconciliation.documentRevision === undefined
+                ? {}
+                : {
+                    acceptedDocumentRevision:
+                      active.reconciliation.documentRevision,
+                  }),
               ownerId: active.ownerId,
               projectSessionId: active.projectSessionId,
               requestId: message.requestId,
-              claimWritingArtifact: (assignmentId, targetDocumentId) => {
+              claimWritingArtifact: (
+                assignmentId,
+                targetDocumentId,
+                documentDomain,
+              ) => {
                 const artifact = active.writingArtifact;
                 if (
                   artifact === undefined ||
                   artifact.assignmentId !== assignmentId ||
                   artifact.targetDocumentId !== targetDocumentId ||
+                  artifact.documentDomain !== documentDomain ||
                   artifact.claimed
                 ) return undefined;
                 artifact.claimed = true;
@@ -372,11 +398,19 @@ export class AiAgentService {
               },
               completeStoryReconciliation: (status) =>
                 this.completeStoryReconciliation(active, status),
+              completeFocusedStoryReconciliation: () =>
+                this.completeReconciliationJob(active, 'applied'),
               delegateWriting: (assignment, resolvedTargetDocumentId) => {
+                if (active.reconciliation.pending) {
+                  throw new ProjectContextError(
+                    'invalid-arguments',
+                    'Complete the pending accepted-Manuscript reconciliation before starting another writing assignment.',
+                  );
+                }
                 if (active.writingTasks >= 1 || active.childTaskId !== undefined) {
                   throw new ProjectContextError(
                     'tool-budget-exceeded',
-                    'Only one Scribe delegation is available per user request. Revise an unclaimed completed artifact with revise_writing_artifact; do not retry delegation.',
+                    'Only one Scribe delegation is available per user request; do not retry delegation.',
                   );
                 }
                 return this.runWritingTask(
@@ -392,10 +426,17 @@ export class AiAgentService {
                   'documentId' in proposal &&
                   (!('operation' in proposal) || proposal.operation === 'create')
                 ) {
-                  active.reconciliation.documentId = proposal.documentId;
+                  active.writingArtifact.proposedDocumentId = proposal.documentId;
                 }
                 if (active.writingArtifact?.claimed === true) {
-                  this.persistWritingArtifact(active, 'proposed');
+                  this.persistWritingArtifact(
+                    active,
+                    'proposed',
+                    proposal.proposalId,
+                    'documentId' in proposal
+                      ? proposal.documentId
+                      : active.writingArtifact.targetDocumentId,
+                  );
                 }
                 active.sendEvent({
                   proposal,
@@ -574,7 +615,8 @@ export class AiAgentService {
         ? result.data.status
         : null;
       if (status === 'accepted') {
-        this.persistWritingArtifact(active, 'accepted');
+        const job = this.acceptWritingArtifact(active);
+        if (job !== null) this.setReconciliationJob(active, job);
       } else if (status !== null) {
         this.persistWritingArtifact(active, 'rejected');
       }
@@ -588,16 +630,6 @@ export class AiAgentService {
       message.arguments.writingAssignmentId !== null &&
       isAcceptedProposalResult(result)
     ) {
-      active.reconciliation = {
-        acceptedDocumentRead: false,
-        applied: false,
-        ...(active.reconciliation.documentId === undefined
-          ? {}
-          : { documentId: active.reconciliation.documentId }),
-        pending: true,
-        questionsRecorded: false,
-        storyStateRead: false,
-      };
       return;
     }
     if (
@@ -607,7 +639,6 @@ export class AiAgentService {
       'writingAssignmentId' in message.arguments &&
       message.arguments.writingAssignmentId !== null
     ) {
-      active.reconciliation.documentId = undefined;
       return;
     }
     if (!active.reconciliation.pending) return;
@@ -684,6 +715,12 @@ export class AiAgentService {
         ok: false,
       };
     }
+    if (!this.completeReconciliationJob(active, status)) {
+      return {
+        detail: 'The durable story reconciliation job could not be completed.',
+        ok: false,
+      };
+    }
     reconciliation.pending = false;
     return { ok: true };
   }
@@ -713,6 +750,7 @@ export class AiAgentService {
       }, WRITING_TASK_TIMEOUT_MS);
       this.writingTasks.set(taskId, {
         artifactSubmitted: false,
+        documentDomain: assignment.documentDomain,
         parentRequestId,
         reject,
         resolve,
@@ -734,6 +772,7 @@ export class AiAgentService {
         ].join('\n'),
         proposalOutcomes: [],
         providerId: active.model.providerId,
+        reconciliationPending: false,
         requestId: taskId,
         responseLanguage: active.responseLanguage,
         role: 'scribe',
@@ -877,6 +916,7 @@ export class AiAgentService {
       active.writingArtifact = {
         assignmentId: message.requestId,
         claimed: false,
+        documentDomain: task.documentDomain,
         markdown: task.artifactMarkdown,
         parentRequestId: task.parentRequestId,
         revised: false,
@@ -885,7 +925,8 @@ export class AiAgentService {
       };
       task.resolve({
         assignmentId: message.requestId,
-        markdown: task.artifactMarkdown,
+        characterCount: task.artifactMarkdown.length,
+        documentDomain: task.documentDomain,
         status: 'completed',
       });
       return;
@@ -961,6 +1002,8 @@ export class AiAgentService {
   private persistWritingArtifact(
     active: ActiveAgentRequest,
     state: 'accepted' | 'proposed' | 'rejected' | 'validated',
+    proposalId: string | null = null,
+    proposedDocumentId: string | null = active.writingArtifact?.proposedDocumentId ?? null,
   ): void {
     const artifact = active.writingArtifact;
     if (
@@ -978,17 +1021,131 @@ export class AiAgentService {
       database.connection.prepare(`
         UPDATE writing_artifacts
         SET state = ?, markdown = ?, target_document_id = ?,
+            proposal_id = COALESCE(?, proposal_id),
+            proposed_document_id = COALESCE(?, proposed_document_id),
             validation_code = NULL, updated_at = ?
         WHERE artifact_id = ? AND request_id = ?
       `).run(
         state,
         artifact.markdown,
         state === 'accepted'
-          ? active.reconciliation.documentId ?? artifact.targetDocumentId
+          ? artifact.proposedDocumentId ?? artifact.targetDocumentId
           : artifact.targetDocumentId,
+        proposalId,
+        proposedDocumentId,
         new Date().toISOString(),
         artifact.assignmentId,
         artifact.parentRequestId,
+      );
+    } finally {
+      database.close();
+    }
+  }
+
+  private acceptWritingArtifact(
+    active: ActiveAgentRequest,
+  ): StoryReconciliationJob | null {
+    const artifact = active.writingArtifact;
+    if (
+      artifact === undefined ||
+      active.projectSessionId === undefined ||
+      this.getProjectDirectory === undefined
+    ) return null;
+    const projectDirectory = this.getProjectDirectory(
+      active.ownerId,
+      active.projectSessionId,
+    );
+    if (projectDirectory === undefined) return null;
+    const database = new ProjectDatabase(projectDirectory);
+    try {
+      return database.transaction(() => {
+        const result = database.connection.prepare(`
+          UPDATE writing_artifacts
+          SET state = 'accepted', markdown = ?, target_document_id = ?,
+              validation_code = NULL, updated_at = ?
+          WHERE artifact_id = ? AND request_id = ?
+        `).run(
+          artifact.markdown,
+          artifact.proposedDocumentId ?? artifact.targetDocumentId,
+          new Date().toISOString(),
+          artifact.assignmentId,
+          artifact.parentRequestId,
+        );
+        if (result.changes !== 1) {
+          throw new Error('Accepted writing artifact is missing');
+        }
+        return new ProjectReconciliationRepository(database)
+          .ensureAcceptedArtifact(artifact.assignmentId);
+      });
+    } finally {
+      database.close();
+    }
+  }
+
+  private restorePendingReconciliation(active: ActiveAgentRequest): void {
+    if (
+      active.projectSessionId === undefined ||
+      this.getProjectDirectory === undefined
+    ) return;
+    const projectDirectory = this.getProjectDirectory(
+      active.ownerId,
+      active.projectSessionId,
+    );
+    if (projectDirectory === undefined) return;
+    const database = new ProjectDatabase(projectDirectory);
+    try {
+      this.setReconciliationJob(
+        active,
+        new ProjectReconciliationRepository(database).recoverPending(),
+      );
+    } finally {
+      database.close();
+    }
+  }
+
+  private setReconciliationJob(
+    active: ActiveAgentRequest,
+    job: StoryReconciliationJob | null,
+  ): void {
+    active.reconciliation = job === null
+      ? {
+          acceptedDocumentRead: false,
+          applied: false,
+          pending: false,
+          questionsRecorded: false,
+          storyStateRead: false,
+        }
+      : {
+          acceptedDocumentRead: false,
+          applied: false,
+          documentId: job.documentId,
+          documentRevision: job.documentRevision,
+          jobId: job.id,
+          pending: true,
+          questionsRecorded: false,
+          storyStateRead: false,
+        };
+  }
+
+  private completeReconciliationJob(
+    active: ActiveAgentRequest,
+    outcome: StoryReconciliationOutcome,
+  ): boolean {
+    if (active.reconciliation.jobId === undefined) return false;
+    if (
+      active.projectSessionId === undefined ||
+      this.getProjectDirectory === undefined
+    ) return false;
+    const projectDirectory = this.getProjectDirectory(
+      active.ownerId,
+      active.projectSessionId,
+    );
+    if (projectDirectory === undefined) return false;
+    const database = new ProjectDatabase(projectDirectory);
+    try {
+      return new ProjectReconciliationRepository(database).complete(
+        active.reconciliation.jobId,
+        outcome,
       );
     } finally {
       database.close();

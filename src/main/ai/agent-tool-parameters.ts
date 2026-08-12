@@ -55,6 +55,10 @@ export const NOVEL_CONTEXT_PARAMETERS = Type.Object(
 
 export const WRITING_ASSIGNMENT_PARAMETERS = Type.Object(
   {
+    documentDomain: stringEnum(['manuscript', 'lore'] as const, {
+      description:
+        'Use manuscript for chapter-like prose and lore for a World/Lore document. The assignment and eventual proposal target must use the same domain.',
+    }),
     objective: Type.String({ maxLength: 4_000, minLength: 1 }),
     requirements: Type.Array(
       Type.String({ maxLength: 1_000, minLength: 1 }),
@@ -81,7 +85,7 @@ export const WRITING_ARTIFACT_SUBMISSION_PARAMETERS = Type.Object(
   {
     markdown: Type.String({
       description:
-        'The complete requested manuscript Markdown and nothing else. Exclude planning, commentary, status text, and persistence claims.',
+        'The complete requested Manuscript or Lore Markdown and nothing else. Exclude planning, commentary, status text, and persistence claims.',
       maxLength: 512 * 1024,
       minLength: 1,
     }),

@@ -4,6 +4,10 @@ Agents receive novel data only through bounded, application-owned domain tools.
 Main-process services and repositories remain authoritative for files, metadata,
 future databases, permissions, and persistence.
 
+The composition, context-budget, compact-receipt, and durable reconciliation
+rules for these tools are defined in
+[Domain Workflows and Context](domain-workflows-and-context.md).
+
 ## Current read-only tool
 
 The Agent data surface contains one bounded `read_novel_context` tool. One call
@@ -77,8 +81,8 @@ The bounded direct-maintenance surface contains:
   closes the reconciliation checkpoint. Missing, stale, cross-request, or
   wrong-kind refs fail closed. Low-level Maintain remains available for clear
   shapes outside this focused path.
-- `complete_story_reconciliation`, which closes the Main-owned reconciliation
-  checkpoint after an accepted Scribe-backed manuscript proposal when the
+- `complete_story_reconciliation`, which closes the Main-owned durable
+  reconciliation job after an accepted Scribe-backed Manuscript proposal when the
   focused reconciliation tool did not already close it. Main requires
   post-acceptance reads of both the persisted document and story state, and
   validates that `applied` or
@@ -99,31 +103,36 @@ The bounded direct-maintenance surface contains:
 The bounded collaboration surface contains:
 
 - `delegate_writing`, which lets the Curator commission one Scribe draft for a
-  user-authorized manuscript-writing request. The assignment contains a bounded
-  objective, requirements, nullable request-scoped target-document ref, and nullable
-  target length. New-document assignments use `targetDocumentId: null`;
+  user-authorized Manuscript or Lore writing request. The assignment contains
+  an explicit `documentDomain`, bounded objective and requirements, nullable
+  request-scoped target-document ref, and nullable target length. New-document
+  assignments use `targetDocumentId: null`;
   existing-document assignments use a document ref returned by structure,
   never a directory ref or invented placeholder. Main resolves and validates
-  non-null targets against the current structure. Main creates and owns the child task
+  non-null targets and rejects a domain mismatch. Main creates and owns the child task
   identity, parentage, cancellation, timeout, and artifact-size limit. Scribe
   receives the read-only novel tools plus one terminal
   `submit_writing_artifact` tool. Only the bounded Markdown submitted through
   that tool becomes the draft; ordinary assistant text before or after the
   submission is discarded, so planning or commentary cannot leak into the
-  manuscript. Scribe cannot delegate, propose, maintain story state, or persist content. Main
-  retains the completed artifact only inside its parent request. Curator reviews
-  the Markdown. One Scribe delegation is available per user request and cannot
-  be retried. For directly verified typos or formatting defects, Curator may call
-  `revise_writing_artifact` with up to twelve ordered exact replacements and an
-  expected occurrence count for each. Main applies the entire revision to the
-  unclaimed transient artifact or none of it, preserving the same assignment
-  and target binding. Continuity, gender, tone, and phrasing choices are not
-  mechanical revisions. A rejected exact-replacement batch is not retried;
-  Curator proceeds with the unchanged artifact. Curator then passes the assignment ID to one creation or
-  replacement proposal. Main resolves that request- and target-bound reference
-  exactly once to the reviewed Markdown, so Curator never regenerates it and no
-  placeholder or persisted intermediate draft is created. Substantive rewrites
-  and uncertain editorial choices are not artifact revisions.
+  document. Scribe cannot delegate, propose, maintain story state, or persist
+  content. Main persists the artifact lifecycle and returns to Curator only a
+  compact receipt containing assignment ref, domain, character count, and
+  status; the complete Markdown is not duplicated into Curator context. One
+  Scribe delegation is available per request and cannot be retried. Curator
+  passes the assignment ref to one domain-matching creation or replacement
+  proposal. Main resolves that request- and target-bound reference exactly once
+  to the retained Markdown. Renderer shows the complete proposal for review.
+
+Acceptance of a Scribe-backed Manuscript proposal creates or ensures one
+durable `story_reconciliation_jobs` row bound to the accepted document and its
+exact content revision. The normal Curator run completes it; a later run
+restores any pending job after interruption. Proposal-to-artifact linkage lets
+recovery roll forward the narrow window where the document proposal was saved
+before the Agent observed its result, but only when the observed document hash
+matches the retained artifact. Lore acceptance never creates this job.
+Main blocks a new Scribe assignment until any restored pending job is settled,
+so later Lore or Manuscript work cannot hide an older checkpoint.
 
 The provider-facing Maintain schema keeps Chronicle event lifecycle and Thread
 lifecycle distinct: `create_event` uses `eventStatus` (`planned` or

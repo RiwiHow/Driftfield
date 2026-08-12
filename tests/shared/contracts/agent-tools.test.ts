@@ -112,6 +112,7 @@ describe('Agent proposal tool contract', () => {
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: {
+        documentDomain: 'manuscript',
         objective: 'Continue the confrontation scene.',
         requirements: ['Keep Mara in close third person.', 'End on the door opening.'],
         targetDocumentId: 'chapter-1',
@@ -121,6 +122,7 @@ describe('Agent proposal tool contract', () => {
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: {
+        documentDomain: 'manuscript',
         objective: 'Write a new opening chapter.',
         requirements: ['Return a complete Markdown draft.'],
         targetDocumentId: null,
@@ -130,6 +132,7 @@ describe('Agent proposal tool contract', () => {
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: {
+        documentDomain: 'manuscript',
         objective: '',
         requirements: [],
         targetDocumentId: null,
@@ -140,7 +143,8 @@ describe('Agent proposal tool contract', () => {
     expect(isAgentToolExecutionResult({
       data: {
         assignmentId: 'scribe-task-1',
-        markdown: '# Draft',
+        characterCount: 7,
+        documentDomain: 'manuscript',
         status: 'completed',
       },
       ok: true,

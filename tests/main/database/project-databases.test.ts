@@ -36,12 +36,18 @@ describe('project databases', () => {
     expect(project.hasTable('agent_settings')).toBe(true);
     expect(project.hasTable('project_nodes')).toBe(true);
     expect(project.hasTable('writing_artifacts')).toBe(true);
+    expect(project.hasTable('story_reconciliation_jobs')).toBe(true);
     expect(project.hasTable('project_operations')).toBe(true);
     expect(
       project.connection.prepare(`
         SELECT version FROM schema_migrations ORDER BY version
       `).all(),
-    ).toEqual([{ version: 2 }, { version: 3 }, { version: 4 }]);
+    ).toEqual([
+      { version: 2 },
+      { version: 3 },
+      { version: 4 },
+      { version: 5 },
+    ]);
     project.close();
   });
 
@@ -85,7 +91,7 @@ describe('project databases', () => {
     current.initializeProjectMetadata('project-1', 2, 'Project One');
     current.connection.prepare(`
       INSERT INTO schema_migrations(version, applied_at)
-      VALUES (5, datetime('now'))
+      VALUES (6, datetime('now'))
     `).run();
     current.close();
 

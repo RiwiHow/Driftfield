@@ -284,7 +284,11 @@ describe('AgentToolDispatcher', () => {
     expect(isAgentToolExecutionResult(readResult)).toBe(true);
 
     const storyChanged = vi.fn();
-    const writeResult = await dispatcher.execute({ ...acceptedScope, storyChanged }, {
+    const writeResult = await dispatcher.execute({
+      ...acceptedScope,
+      completeFocusedStoryReconciliation: () => true,
+      storyChanged,
+    }, {
       arguments: {
         events: [{
           displayTime: 'Year 1, late spring',
@@ -426,7 +430,10 @@ describe('AgentToolDispatcher', () => {
       },
       toolName: 'read_novel_context',
     });
-    const result = await dispatcher.execute(acceptedScope, {
+    const result = await dispatcher.execute({
+      ...acceptedScope,
+      completeFocusedStoryReconciliation: () => true,
+    }, {
       arguments: {
         events: [{
           displayTime: '晨晓',
@@ -593,7 +600,8 @@ describe('AgentToolDispatcher', () => {
     } as unknown as ProjectContextService);
     const delegateWriting = vi.fn(async () => ({
       assignmentId: 'scribe-task-1',
-      markdown: '# Draft',
+      characterCount: 7,
+      documentDomain: 'manuscript' as const,
       status: 'completed' as const,
     }));
 
@@ -608,6 +616,7 @@ describe('AgentToolDispatcher', () => {
       requestId: 'request-1',
     }, {
       arguments: {
+        documentDomain: 'manuscript',
         objective: 'Write the next scene.',
         requirements: ['Keep the established point of view.'],
         targetDocumentId: 'document:1',
@@ -617,13 +626,15 @@ describe('AgentToolDispatcher', () => {
     })).resolves.toEqual({
       data: {
         assignmentId: 'assignment:1',
-        markdown: '# Draft',
+        characterCount: 7,
+        documentDomain: 'manuscript',
         status: 'completed',
       },
       ok: true,
       toolName: 'delegate_writing',
     });
     expect(delegateWriting).toHaveBeenCalledWith({
+      documentDomain: 'manuscript',
       objective: 'Write the next scene.',
       requirements: ['Keep the established point of view.'],
       targetDocumentId: 'document:1',
@@ -639,7 +650,8 @@ describe('AgentToolDispatcher', () => {
     } as unknown as ProjectContextService);
     const delegateWriting = vi.fn(async () => ({
       assignmentId: 'scribe-task-1',
-      markdown: '# Draft',
+      characterCount: 7,
+      documentDomain: 'manuscript' as const,
       status: 'completed' as const,
     }));
 
@@ -648,6 +660,7 @@ describe('AgentToolDispatcher', () => {
       delegateWriting,
     }, {
       arguments: {
+        documentDomain: 'manuscript',
         objective: 'Write a new opening chapter.',
         requirements: ['Return complete Markdown.'],
         targetDocumentId: null,
@@ -662,6 +675,7 @@ describe('AgentToolDispatcher', () => {
       delegateWriting,
     }, {
       arguments: {
+        documentDomain: 'manuscript',
         objective: 'Write a new opening chapter.',
         requirements: ['Return complete Markdown.'],
         targetDocumentId: 'manuscript-root',
@@ -684,11 +698,60 @@ describe('AgentToolDispatcher', () => {
     expect(delegateWriting).toHaveBeenCalledOnce();
   });
 
+  it('binds existing writing assignments to the target document domain', async () => {
+    const dispatcher = new AgentToolDispatcher({
+      getNovelStructure: vi.fn().mockResolvedValue(novelStructure),
+    } as unknown as ProjectContextService);
+    const delegateWriting = vi.fn(async (assignment) => ({
+      assignmentId: 'scribe-task-1',
+      characterCount: 20,
+      documentDomain: assignment.documentDomain,
+      status: 'completed' as const,
+    }));
+    await dispatcher.execute(scope, {
+      arguments: { directoryIds: [], documentIds: [], include: ['structure'] },
+      toolName: 'read_novel_context',
+    });
+
+    await expect(dispatcher.execute({ ...scope, delegateWriting }, {
+      arguments: {
+        documentDomain: 'lore',
+        objective: 'Expand the world entry.',
+        requirements: [],
+        targetDocumentId: 'document:2',
+        targetLength: null,
+      },
+      toolName: 'delegate_writing',
+    })).resolves.toMatchObject({
+      data: { documentDomain: 'lore' },
+      ok: true,
+    });
+
+    await expect(dispatcher.execute({ ...scope, delegateWriting }, {
+      arguments: {
+        documentDomain: 'manuscript',
+        objective: 'Misroute the world entry.',
+        requirements: [],
+        targetDocumentId: 'document:2',
+        targetLength: null,
+      },
+      toolName: 'delegate_writing',
+    })).resolves.toEqual({
+      error: {
+        code: 'invalid-arguments',
+        detail: 'The writing assignment domain does not match the target document.',
+      },
+      ok: false,
+      toolName: 'delegate_writing',
+    });
+  });
+
   it('returns a recoverable hint for malformed writing assignments', async () => {
     const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
 
     await expect(dispatcher.execute(scope, {
       arguments: {
+        documentDomain: 'manuscript',
         objective: 'Write a new opening chapter.',
         requirements: [],
         targetDocumentId: '',
@@ -984,7 +1047,7 @@ describe('AgentToolDispatcher', () => {
     const sendProposal = vi.fn();
     const claimWritingArtifact = vi.fn(() => proposal.markdown);
     const dispatcher = new AgentToolDispatcher(
-      {} as ProjectContextService,
+      { getNovelStructure: vi.fn().mockResolvedValue(novelStructure) } as unknown as ProjectContextService,
       undefined,
       proposals,
     );
@@ -1006,7 +1069,11 @@ describe('AgentToolDispatcher', () => {
       ok: true,
       toolName: 'propose_document_edit',
     });
-    expect(claimWritingArtifact).toHaveBeenCalledWith('scribe-task-1', 'chapter-1');
+    expect(claimWritingArtifact).toHaveBeenCalledWith(
+      'scribe-task-1',
+      'chapter-1',
+      'manuscript',
+    );
     expect(proposals.create).toHaveBeenCalledWith(
       expect.anything(),
       {
@@ -1029,7 +1096,7 @@ describe('AgentToolDispatcher', () => {
     const claimWritingArtifact = vi.fn(() => '# Proposed');
     const releaseWritingArtifactClaim = vi.fn();
     const dispatcher = new AgentToolDispatcher(
-      {} as ProjectContextService,
+      { getNovelStructure: vi.fn().mockResolvedValue(novelStructure) } as unknown as ProjectContextService,
       undefined,
       proposals,
     );
@@ -1084,7 +1151,7 @@ describe('AgentToolDispatcher', () => {
     } as unknown as AgentProposalService;
     const sendProposal = vi.fn();
     const dispatcher = new AgentToolDispatcher(
-      {} as ProjectContextService,
+      { getNovelStructure: vi.fn().mockResolvedValue(novelStructure) } as unknown as ProjectContextService,
       { maxCalls: 2, maxResultBytes: 10_000, maxTotalResultBytes: 10_000, timeoutMs: 10 },
       proposals,
     );
@@ -1158,7 +1225,11 @@ describe('AgentToolDispatcher', () => {
       ok: true,
       toolName: 'propose_document_file_operation',
     });
-    expect(claimWritingArtifact).toHaveBeenCalledWith('scribe-task-1', null);
+    expect(claimWritingArtifact).toHaveBeenCalledWith(
+      'scribe-task-1',
+      null,
+      'manuscript',
+    );
     expect(proposals.createFileOperation).toHaveBeenCalledWith(
       expect.anything(),
       {

@@ -51,24 +51,22 @@ Preserve these properties when changing affected subsystems.
   The worker uses that enum only as Curator's default conversational language;
   explicit language requests take precedence, and Scribe manuscript language
   remains determined by the assignment and existing prose.
-- Curator may commission at most one Scribe task per request. Main owns the
+- Curator may commission at most one Scribe task per request for either the
+  Manuscript or Lore domain. Main owns the
   child task ID and parent binding, limits Scribe to the bounded novel-context
   reader and a terminal artifact-submission tool,
   caps the returned Markdown at 512 KiB, times the task out after five minutes,
   resolves and validates non-null target document refs against the current structure, and
   cancels it with its parent or project session. New-document assignments use a
   null target rather than a directory or placeholder ID. Completed output is a
-  Main-owned, single-use artifact bound to the active parent request and its
-  assigned new or existing document target; reviewed proposals reference its
-  assignment ID so Curator does not regenerate the Markdown. Main accepts only
+  Main-owned, persisted, single-use artifact bound to the active parent request,
+  domain, and assigned new or existing document target. Curator receives only
+  its compact assignment/domain/size receipt; reviewed proposals reference its
+  assignment ID so the full Markdown is not duplicated into model context. Main accepts only
   the Markdown argument of the single artifact-submission call and discards
   ordinary Scribe assistant text, preventing planning or commentary from
-  entering the manuscript. Scribe output remains untrusted and cannot write or
-  propose changes directly. A completed unclaimed artifact may receive one
-  atomic batch of bounded exact replacements for obvious mechanical defects;
-  every replacement carries an expected occurrence count, any mismatch rejects
-  the whole batch, and the resulting artifact remains size-bounded, target-bound,
-  single-use, and subject to proposal review. A second delegation returns a
+  entering the document. Scribe output remains untrusted and cannot write or
+  propose changes directly. A second delegation returns a
   typed non-retryable budget error rather than an internal error.
 - Cancellation remains terminal when it races with completion or output.
 - The worker preserves the provider stop reason, retries output truncation or
@@ -90,12 +88,20 @@ Preserve these properties when changing affected subsystems.
   ref absent from the active registry fails with the typed
   `expired-request-reference` error; at most one such failure is refunded from
   the normal call budget to permit a bounded minimal-context recovery.
-- Accepted Scribe-backed manuscript reconciliation has a request-scoped context
+- Accepted Scribe-backed Manuscript reconciliation has a request-scoped context
   view that exposes semantic Persona, Thread, and primary-timeline refs instead
   of persistent UUIDs. The focused reconciliation mutation resolves those refs,
   the accepted document revision, the story revision, and append order in Main,
   then delegates to the same atomic Maintain transaction. Refs never cross a
   request or project session and are released with request state.
+- The reconciliation checkpoint is a durable project-database job keyed by the
+  accepted writing artifact and exact persisted document revision. Main links
+  the artifact to its proposal before review, restores a saved-but-unobserved
+  acceptance after restart only when the retained Markdown hashes to the
+  catalog's observed document revision, and resumes the oldest pending job on
+  the next Agent run. Lore artifacts do not create reconciliation jobs. If a focused
+  story transaction committed before its job completion marker, recovery
+  detects the matching depicted source and completes the job idempotently.
 - Focused accepted-document reconciliation can bootstrap an empty story store
   in one transaction: call-local new Persona refs may participate in the event,
   Main creates a missing primary timeline, and clearly established new Threads

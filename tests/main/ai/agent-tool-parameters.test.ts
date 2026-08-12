@@ -62,6 +62,7 @@ describe('Agent tool parameter schemas', () => {
     const properties = schema.properties as Record<string, Record<string, unknown>>;
 
     expect(schema.required).toEqual([
+      'documentDomain',
       'objective',
       'requirements',
       'targetDocumentId',

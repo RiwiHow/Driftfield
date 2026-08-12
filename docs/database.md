@@ -14,6 +14,8 @@ The database owns:
 - project Agent model inheritance and selection;
 - Agent conversations, messages, ordered parts, proposal outcomes, and
   writing-artifact lifecycle;
+- durable accepted-Manuscript reconciliation jobs and proposal-to-artifact
+  recovery linkage;
 - Personae, Chronicle, Threads, story questions, and story mutation records;
 - cross-database/filesystem operation coordination and recovery metadata.
 
@@ -28,7 +30,7 @@ domains include:
 - `project_metadata`, `project_catalog_state`, `project_nodes`;
 - `agent_settings`, plus bounded legacy override handoff rows;
 - `conversations`, `conversation_state`, `conversation_messages`;
-- `writing_artifacts`;
+- `writing_artifacts`, `story_reconciliation_jobs`;
 - Personae, Chronicle, Threads, story operations, and questions;
 - `project_operations` and `project_operation_files`.
 
@@ -48,7 +50,10 @@ validated stable IDs.
   file state, Markdown, and content revisions before privileged mutation.
 - Convert failures to small typed serializable errors at IPC boundaries.
 - Never treat conversation/tool audit rows as authority for catalog or story
-  state.
+  state. A saved proposal outcome may roll a linked writing artifact forward to
+  `accepted` during recovery only when the retained Markdown matches the
+  catalog's observed document revision. That revision and the reconciliation
+  job—not assistant narration—bind subsequent story work.
 
 ## Backup and migration
 

@@ -153,10 +153,24 @@ generated → validated → proposed → accepted | rejected
 Invalid artifacts are valid terminal workflow outcomes. The schema reserves a
 discarded state for a future reviewed discard surface. An artifact is never
 forced into a proposal merely because Scribe returned it.
+The optional proposal linkage is written before review, allowing Main to
+recover a proposal that reached `saved` before the active Agent observed the
+decision. The proposed document ID is stored separately from the catalog-backed
+target foreign key because a newly proposed document does not exist yet.
+Recovery also requires the observed document content revision to match the
+retained Markdown. Curator receives a compact receipt rather than the Markdown
+body; the full artifact stays available to Main and the reviewed proposal UI.
 Validation records bounded deterministic reason codes such as `raw-html`,
 `protocol-markup`, `parse-failed`, `truncated`, and
 `severely-under-target`. Length quality may be advisory; unsupported Markdown,
 protocol markup, and parser failure are hard rejections.
+
+`story_reconciliation_jobs` contains one idempotent job per accepted
+Scribe-backed Manuscript artifact. It binds the source request, stable document
+ID, and exact accepted content revision, and records a pending/completed status
+plus completion outcome. Lore artifacts do not create jobs. Recovery can safely
+complete a pending job whose matching depicted Chronicle source already exists,
+covering a crash between the story transaction and the completion marker.
 
 ### Story state
 
@@ -225,7 +239,6 @@ producer and consumer uses it:
 - project scan/open;
 - user save;
 - Scribe artifact submission;
-- artifact revision;
 - direct document proposal;
 - proposal acceptance;
 - external-change refresh;

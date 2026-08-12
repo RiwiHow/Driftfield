@@ -16,6 +16,8 @@ export interface AgentDraftSnapshot {
   markdown: string;
 }
 
+export type AgentDocumentDomain = 'lore' | 'manuscript';
+
 export interface AgentDocumentToolResult {
   baseRevision: string;
   contentRevision: string;
@@ -232,6 +234,7 @@ export type AgentCanonicalStoryQuestionArguments = Omit<
 > & { evidence: import('./project-story').StoryQuestionEvidence | null };
 
 export interface AgentWritingAssignment {
+  documentDomain: AgentDocumentDomain;
   objective: string;
   requirements: string[];
   targetDocumentId: string | null;
@@ -240,7 +243,8 @@ export interface AgentWritingAssignment {
 
 export interface AgentWritingAssignmentToolResult {
   assignmentId: string;
-  markdown: string;
+  characterCount: number;
+  documentDomain: AgentDocumentDomain;
   status: 'completed';
 }
 
@@ -512,7 +516,8 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
   if (!isRecord(value)) return false;
   if (toolName === 'delegate_writing') {
     return (
-      Object.keys(value).length === 4 &&
+      Object.keys(value).length === 5 &&
+      (value.documentDomain === 'lore' || value.documentDomain === 'manuscript') &&
       isBoundedText(value.objective, 4_000, false) &&
       Array.isArray(value.requirements) &&
       value.requirements.length <= 20 &&
@@ -778,11 +783,12 @@ const isNovelContextResult = (
 
 const isWritingAssignmentResult = (value: unknown): boolean =>
   isRecord(value) &&
-  Object.keys(value).length === 3 &&
+  Object.keys(value).length === 4 &&
   isDocumentId(value.assignmentId) &&
-  typeof value.markdown === 'string' &&
-  value.markdown.trim().length > 0 &&
-  new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024 &&
+  Number.isSafeInteger(value.characterCount) &&
+  (value.characterCount as number) >= 1 &&
+  (value.characterCount as number) <= 512 * 1024 &&
+  (value.documentDomain === 'lore' || value.documentDomain === 'manuscript') &&
   value.status === 'completed';
 
 const isAgentStorySnapshot = (value: unknown): boolean => {

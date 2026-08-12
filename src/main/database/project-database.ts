@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { ProjectSqliteDatabase } from './project-sqlite-database';
 import { DRIFTFIELD_PROJECT_MARKER } from '../../shared/contracts/project-layout';
 
-const DATABASE_VERSION = 4;
+const DATABASE_VERSION = 5;
 
 export interface ProjectMetadataRecord {
   formatVersion: number;
@@ -380,13 +380,18 @@ export class ProjectDatabase extends ProjectSqliteDatabase {
       });
       this.migrateVersion3();
       this.migrateVersion4();
+      this.migrateVersion5();
       return;
     }
     if (row.version === 2) {
       this.migrateVersion3();
       this.migrateVersion4();
+      this.migrateVersion5();
     } else if (row.version === 3) {
       this.migrateVersion4();
+      this.migrateVersion5();
+    } else if (row.version === 4) {
+      this.migrateVersion5();
     } else if (row.version !== DATABASE_VERSION) {
       throw new Error('Project database schema is outdated');
     }
@@ -573,6 +578,47 @@ export class ProjectDatabase extends ProjectSqliteDatabase {
     });
   }
 
+  private migrateVersion5(): void {
+    this.transaction(() => {
+      this.connection.exec(`
+        ALTER TABLE writing_artifacts ADD COLUMN proposal_id TEXT
+          CHECK(proposal_id IS NULL OR length(proposal_id) BETWEEN 1 AND 128);
+        ALTER TABLE writing_artifacts ADD COLUMN proposed_document_id TEXT
+          CHECK(
+            proposed_document_id IS NULL OR
+            length(proposed_document_id) BETWEEN 1 AND 128
+          );
+        CREATE UNIQUE INDEX writing_artifacts_by_proposal
+          ON writing_artifacts(proposal_id) WHERE proposal_id IS NOT NULL;
+        CREATE TABLE story_reconciliation_jobs (
+          job_id TEXT PRIMARY KEY CHECK(length(job_id) BETWEEN 1 AND 128),
+          artifact_id TEXT NOT NULL UNIQUE
+            REFERENCES writing_artifacts(artifact_id) ON DELETE CASCADE,
+          source_request_id TEXT NOT NULL
+            CHECK(length(source_request_id) BETWEEN 1 AND 128),
+          document_id TEXT NOT NULL
+            REFERENCES project_nodes(node_id) ON DELETE RESTRICT,
+          document_revision TEXT NOT NULL CHECK(length(document_revision) = 64),
+          status TEXT NOT NULL CHECK(status IN ('pending', 'completed')),
+          outcome TEXT CHECK(outcome IS NULL OR outcome IN (
+            'applied', 'questions_recorded', 'no_changes'
+          )),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          completed_at TEXT,
+          CHECK(
+            (status = 'pending' AND outcome IS NULL AND completed_at IS NULL) OR
+            (status = 'completed' AND outcome IS NOT NULL AND completed_at IS NOT NULL)
+          )
+        ) STRICT;
+        CREATE INDEX story_reconciliation_jobs_by_status
+          ON story_reconciliation_jobs(status, created_at, job_id);
+        INSERT INTO schema_migrations(version, applied_at)
+        VALUES (5, datetime('now'));
+      `);
+    });
+  }
+
   private assertCurrentSchema(): void {
     const columns = this.connection.prepare(`
       PRAGMA table_info(project_metadata)
@@ -601,6 +647,7 @@ export class ProjectDatabase extends ProjectSqliteDatabase {
       'project_story_state',
       'story_operations',
       'story_questions',
+      'story_reconciliation_jobs',
       'thread_beats',
       'thread_event_links',
       'threads',

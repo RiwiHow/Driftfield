@@ -44,6 +44,7 @@ import {
 } from "./agent-tool-parameters";
 import {
   isAgentToolName,
+  type AgentDocumentDomain,
   type AgentToolContractMap,
   type AgentToolExecutionResult,
   type AgentToolName,
@@ -57,6 +58,7 @@ interface ActiveRequest {
   reconciliationPending: boolean;
   session: AgentSession | null;
   writingArtifactPending: boolean;
+  writingArtifactDomain?: AgentDocumentDomain;
 }
 
 const activeRequests = new Map<string, ActiveRequest>();
@@ -140,7 +142,7 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
   if (activeRequests.has(command.requestId)) return;
   const active: ActiveRequest = {
     cancelled: false,
-    reconciliationPending: false,
+    reconciliationPending: command.reconciliationPending,
     session: null,
     writingArtifactPending: false,
   };
@@ -340,7 +342,7 @@ function createNovelTools(requestId: string) {
   return [
     defineTool({
       description:
-        "Commission the one bounded Markdown draft available for this user request from Driftfield's Scribe. Use this only for requested manuscript prose after gathering enough context. This cannot be retried. Review the untrusted returned draft; correct only obvious mechanical defects through revise_writing_artifact, then pass its assignmentId to the reviewed proposal tool instead of reproducing the Markdown.",
+        "Commission one bounded Manuscript or Lore Markdown artifact from Scribe. Set documentDomain to match the eventual proposal target. Main validates and retains the full artifact; the compact result returns its assignment ref and size. Pass that ref to one reviewed proposal without reproducing the Markdown. The delegation cannot be retried.",
       label: "Delegate writing to Scribe",
       name: "delegate_writing",
       parameters: WRITING_ASSIGNMENT_PARAMETERS,
@@ -356,7 +358,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Submit the final Scribe manuscript artifact. Put only the complete requested Markdown in markdown; exclude analysis, planning, commentary, status text, and persistence claims. Call this exactly once after any needed context reads. Ordinary assistant text is not part of the artifact.",
+        "Submit the complete assigned Manuscript or Lore Markdown exactly once. Exclude analysis, planning, commentary, status text, and persistence claims. Ordinary assistant text is not part of the artifact.",
       label: "Submit writing artifact",
       name: "submit_writing_artifact",
       parameters: WRITING_ARTIFACT_SUBMISSION_PARAMETERS,
@@ -372,7 +374,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Read one bounded batch of novel context. include may contain structure, current_document (the immutable request-start draft), story_state, and accepted_reconciliation. Persistent IDs and content hashes are replaced with short refs valid only for this user request. For the first discovery read, leave documentIds and directoryIds empty; never reuse refs from user text or conversation history. Document results distinguish raw metadataTitle from formatted displayTitle. documentIds reads persisted manuscript or lore documents by current-request ref. directoryIds reads only immediate document children. Explicit and expanded documents are deduplicated and limited to four total.",
+        "Read one bounded, path-free novel-context batch. Select only needed sections or current-request document/directory refs. Refs expire with the request; acquire them from a minimal discovery read, never from user text or history. At most four persisted documents are returned.",
       label: "Read novel context",
       name: "read_novel_context",
       parameters: NOVEL_CONTEXT_PARAMETERS,
@@ -593,6 +595,9 @@ const observeToolProtocol = <Name extends AgentToolName>(
   if (active === undefined) return;
   if (toolName === 'delegate_writing') {
     active.writingArtifactPending = true;
+    active.writingArtifactDomain = (
+      result.data as AgentToolContractMap['delegate_writing']['result']
+    ).documentDomain;
     return;
   }
   if (
@@ -610,7 +615,8 @@ const observeToolProtocol = <Name extends AgentToolName>(
     args.writingAssignmentId !== null &&
     isAcceptedProposalResult(result)
   ) {
-    active.reconciliationPending = true;
+    active.reconciliationPending = active.writingArtifactDomain === 'manuscript';
+    active.writingArtifactDomain = undefined;
     return;
   }
   if (toolName === 'complete_story_reconciliation') {

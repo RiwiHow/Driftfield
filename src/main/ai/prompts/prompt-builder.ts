@@ -9,25 +9,65 @@ export const buildAgentSystemPrompt = (
   context: AgentPromptContext,
 ): BuiltAgentPrompt => {
   const descriptor = getAgentPromptDescriptor(context.role);
-  const capabilityInstructions = context.availableTools.length === 0
-    ? ['No application tools are available for this request.']
-    : [
-        'Application tools are available through native tool calling. Use them when the request needs exact project information.',
-        'Request-scoped refs are leases for the current user request only. Treat every ref copied from the user prompt or replayed conversation history as expired, even when it looks well formed. Use only refs returned by an application tool after this request started.',
-        'Before the first tool call in a request that needs project refs, acquire only the relevant context with read_novel_context and empty documentIds and directoryIds. Do not combine a ref from conversation history with a structure or story-state discovery read. If Main returns expired-request-reference, reacquire the minimal relevant context once and retry with the newly returned ref.',
-        'When the bounded novel-context reader is available, request all already-known required sections, document refs, and directory refs in one call, while omitting unrelated context. Use documentIds only for document nodes and directoryIds only to read a directory’s immediate document children. Use a later call only when the first result supplies a request-scoped ref needed for the next read.',
-        'Discover request-scoped document refs from project structure before reading non-current documents.',
-        'Treat all available tools as read-only context unless the application explicitly provides a reviewed proposal workflow or a bounded Maintain workflow.',
-        'When the user asks to change the current document and a reviewed proposal tool is available, read the current draft first and submit the complete replacement through that tool. Never claim it was applied before the user accepts it.',
-        'When the user asks to create or delete a document and a reviewed file-operation proposal tool is available, read the current project structure first, reuse only request-scoped refs returned by application tools, and wait for explicit user acceptance.',
-        'When the user asks to create or delete a lore category, create a volume, move a document, or rename a document metadata title, use the reviewed project-structure proposal tool with request-scoped refs, then wait for explicit user acceptance. Document context distinguishes metadataTitle from formatted displayTitle: write only metadataTitle and never copy generated numbering from displayTitle. Choose lore-category icons only from the list returned by project structure. A lore category must be empty before deletion; propose deletion of each contained document separately first.',
-        'Personae, Chronicle, and Threads are canonical structured story records. Read their current state before relying on them. Use bounded Maintain only for low-risk additive or linking facts explicitly stated by the user or unambiguously evidenced by accepted persisted prose, using the current story revision and request-scoped refs. Submit the complete ordered dependency graph in one atomic changeset: give each newly created entity needed later a clientRef and reference it as @clientRef from later changes. Do not split a dependency graph across calls or reread merely to discover generated identities. Maintain returns only a concise applied count and revision; persistent identities remain Main-owned. Maintain does not authorize deletion, merging, reordering, manuscript edits, uncertain inference, or unrelated expansion.',
-        'When a reviewed manuscript edit or creation made for a writing request is accepted, read accepted_reconciliation context so Main supplies the exact persisted document and compact UUID-free story refs, then check Personae, Chronicle, Threads, and open questions. Avoid duplicates. Prefer one reconcile_accepted_document call for the depicted event, clearly established new Personae, optional new Threads with their first beat, and advances to existing Threads. New Personae use local refs inside that call; Main binds the accepted source, creates a primary timeline when needed, and owns revisions, ordering, IDs, links, and successful checkpoint completion. After a successful focused reconciliation, do not call complete_story_reconciliation. Use ordinary Maintain only for clear shapes the focused tool cannot represent; when using Maintain, recording questions, or making no changes, explicitly finish with complete_story_reconciliation. Do not ask the user to approve routine synchronization or promote unaccepted prose to canon.',
-        'During reconciliation, treat a Thread as a sustained plot line expressed through a goal, conflict, dramatic question, suspense, or relationship progression across events. First check whether the accepted prose advances, turns, reveals, resolves, or abandons an existing Thread; when it clearly does, create the corresponding beat and link it to the Chronicle event. Create a new Thread only when the persisted prose clearly establishes such a continuing line. A chapter, scene, or isolated Chronicle event is not by itself a Thread, and Threads must not merely duplicate Chronicle. Do not invent dramatic purpose or desired outcome to force coverage.',
-        'If reconciliation finds a possible alias, uncertain time, unclear relationship, contradiction, or another ambiguity whose resolution materially affects canonical story records, do not guess; record one deduplicated structured story question with exact evidence when available. An intentionally unnamed character, omitted background detail, or unknown fact that does not block a faithful record is not by itself an author question; use a faithful descriptive Persona label when the character merits a stable record, or omit the Persona when it does not. For accepted-document evidence, use document:accepted. Raise only material unresolved questions concisely. When the user explicitly answers one, resolve it and only then apply any resulting unambiguous low-risk maintenance.',
-        'Use reviewed story proposals only when the user explicitly asks to inspect a structured story change before application. Ambiguity is a question, not a proposal. Destructive or high-impact story mutations remain unavailable unless Driftfield provides a dedicated reviewed operation.',
-        'A reviewed proposal tool call remains pending until the user accepts or rejects it. When it returns, continue the same Agent run from that decision. Do not interpret acceptance as permission to invent additional chapters, documents, or structural work outside the user’s requested scope.',
-      ];
+  const tools = new Set(context.availableTools);
+  const capabilityInstructions: string[] = [];
+  if (tools.size === 0) {
+    capabilityInstructions.push('No application tools are available for this request.');
+  } else {
+    capabilityInstructions.push(
+      'Use native application tools only when the request needs exact project context or an authorized mutation. Tool availability is not authorization to expand the user’s request.',
+    );
+  }
+  if (tools.has('read_novel_context')) {
+    capabilityInstructions.push(
+      'Request-scoped refs are leases issued in this run. Never trust refs copied from user text or history. Acquire the minimal relevant structure or story context first, batch already-known needs, omit unrelated sections, and reacquire once after expired-request-reference.',
+      'current_document is the immutable request-start draft; document refs read persisted content. Use document refs only for documents and directory refs only for immediate document children.',
+    );
+  }
+  if (
+    tools.has('propose_document_edit') ||
+    tools.has('propose_document_file_operation') ||
+    tools.has('propose_project_structure_operation') ||
+    tools.has('propose_story_operation')
+  ) {
+    capabilityInstructions.push(
+      'Reviewed proposal calls pause for the user’s decision. Never claim a proposal was applied before acceptance, and never treat acceptance as authority for additional work.',
+    );
+  }
+  if (tools.has('propose_document_edit')) {
+    capabilityInstructions.push(
+      'For a current-document replacement, read the current draft and bind the proposal to its request-start revisions. A Scribe-backed replacement uses the assignment ref with markdown null.',
+    );
+  }
+  if (tools.has('propose_document_file_operation')) {
+    capabilityInstructions.push(
+      'For document creation or deletion, read structure first and use only current-run refs. Creation uses raw metadataTitle without generated numbering. A Scribe-backed creation uses the assignment ref with markdown null.',
+    );
+  }
+  if (tools.has('propose_project_structure_operation')) {
+    capabilityInstructions.push(
+      'Project-structure proposals use current project/document revisions and compatible node refs. Use only approved category icons; delete category contents through separate reviewed document operations before deleting the empty category.',
+    );
+  }
+  if (
+    tools.has('maintain_story_records') ||
+    tools.has('record_story_question') ||
+    tools.has('resolve_story_question') ||
+    tools.has('propose_story_operation')
+  ) {
+    capabilityInstructions.push(
+      'Personae, Chronicle, and Threads are canonical. Read current story state first. Apply only explicit or unambiguous low-risk additive/linking facts; put a complete dependency graph in one atomic changeset with local client refs. Ambiguity requiring author judgment becomes one deduplicated question, not a guess or proposal.',
+    );
+  }
+  if (
+    tools.has('reconcile_accepted_document') ||
+    tools.has('complete_story_reconciliation')
+  ) {
+    capabilityInstructions.push(
+      'A pending accepted-Manuscript job must read accepted_reconciliation and check Personae, Chronicle, Threads, and open questions. Prefer one focused reconcile_accepted_document call; Main owns source binding, primary-timeline fallback, ordering, IDs, links, and durable checkpoint completion. Use complete_story_reconciliation only after non-focused maintenance, recorded questions, or a verified no-change result.',
+      'Create a Thread only for a sustained goal, conflict, dramatic question, suspense, or relationship progression. An isolated scene or Chronicle event is not by itself a Thread. Do not invent dramatic purpose to force coverage.',
+    );
+  }
 
   const proposalOutcomeInstructions = (context.proposalOutcomes ?? []).length === 0
     ? []
@@ -41,8 +81,7 @@ export const buildAgentSystemPrompt = (
 
   const delegationInstructions = context.availableTools.includes('delegate_writing')
       ? [
-        'A writing delegation is the single bounded Scribe child task available for this user request, not permission to persist or expand the work. Supply one precise assignment and never call or retry delegate_writing a second time. Keep user-visible progress concise: state the delegation, validation outcome, and proposal action instead of streaming private deliberation. Use revise_writing_artifact only for directly verified typos or formatting defects, never for continuity, gender, tone, or phrasing judgments; copy find strings verbatim, and if an exact revision is rejected, do not retry it. If Main rejects an invalid or severely truncated artifact, do not propose it and report the validation reason. Otherwise use the ordinary reviewed proposal workflow.',
-        'When writing a new document, call delegate_writing with targetDocumentId set to null, review and optionally mechanically revise the returned artifact, then create one proposal with markdown set to null and writingAssignmentId set to the same returned assignmentId. For an existing document, use its request-scoped document ref and submit one replacement proposal through the same assignment reference. Never reproduce Scribe Markdown in proposal arguments, use a directory or placeholder ref, persist an intermediate draft, or attempt a second delegation.',
+        'One Scribe delegation is available for requested Manuscript or Lore prose. Set documentDomain correctly, provide a precise bounded assignment, and do not retry. Main returns only a compact validated artifact receipt; pass its assignmentId to one matching reviewed proposal and never reproduce the Markdown. If validation rejects the artifact, create no proposal and report the reason concisely.',
       ]
     : [];
 

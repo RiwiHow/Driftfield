@@ -16,6 +16,8 @@ import { AiAgentService } from '../../../src/main/ai/ai-agent-service';
 import { AgentToolDispatcher } from '../../../src/main/ai/agent-tool-dispatcher';
 import type { AgentProposalService } from '../../../src/main/ai/agent-proposal-service';
 import type { ProjectContextService } from '../../../src/main/ai/project-context-service';
+import { ProjectDatabase } from '../../../src/main/database/project-database';
+import { ProjectReconciliationRepository } from '../../../src/main/database/project-reconciliation-repository';
 import type { AgentEvent } from '../../../src/shared/contracts/agent';
 
 class FakeUtilityProcess extends EventEmitter {
@@ -55,6 +57,36 @@ const writingContext = (): ProjectContextService => ({
     project: { id: 'project-1', revision: 'revision', title: 'Novel' },
   }),
 } as unknown as ProjectContextService);
+
+const seedPendingReconciliation = (projectDirectory: string): void => {
+  const database = new ProjectDatabase(projectDirectory);
+  database.initializeProjectMetadata('project-1', 3, 'Novel');
+  database.connection.prepare(`
+    INSERT INTO project_nodes(
+      node_id, parent_node_id, node_type, kind, metadata_title, icon,
+      relative_path, sort_key, numbering_mode, numbering_format,
+      content_revision, backing_status, created_at, updated_at
+    ) VALUES (?, NULL, 'directory', 'manuscript', 'Manuscript', NULL,
+              'manuscript', 0, 'continuous', NULL, NULL, 'present', 'now', 'now')
+  `).run('manuscript-root');
+  database.connection.prepare(`
+    INSERT INTO project_nodes(
+      node_id, parent_node_id, node_type, kind, metadata_title, icon,
+      relative_path, sort_key, numbering_mode, numbering_format,
+      content_revision, backing_status, created_at, updated_at
+    ) VALUES (?, ?, 'document', 'chapter', 'Chapter', NULL,
+              'manuscript/chapter.md', 0, NULL, NULL, ?, 'present', 'now', 'now')
+  `).run('chapter-1', 'manuscript-root', 'a'.repeat(64));
+  database.connection.prepare(`
+    INSERT INTO writing_artifacts(
+      artifact_id, request_id, target_document_id, state, markdown,
+      validation_code, created_at, updated_at
+    ) VALUES (?, ?, ?, 'accepted', ?, NULL, 'now', 'now')
+  `).run('artifact-1', 'source-request', 'chapter-1', '# Chapter');
+  expect(new ProjectReconciliationRepository(database)
+    .ensureAcceptedArtifact('artifact-1')).not.toBeNull();
+  database.close();
+};
 
 describe('AiAgentService', () => {
   let userDataPath: string;
@@ -207,14 +239,13 @@ describe('AiAgentService', () => {
     );
   });
 
-  it('runs one Main-owned Scribe child task and returns its draft to Curator', async () => {
+  it('runs one Main-owned Scribe child task and returns a compact artifact receipt', async () => {
     const events: AgentEvent[] = [];
     const flawedMarkdown = '# Draft\n\n织母议会议会。塞拉认得那白袍。\n\n织母议会议会予你返回科瓦里斯的权与名。';
-    const revisedMarkdown = '# Draft\n\n织母议会。塞拉认得那白袍。\n\n议会予你返回科瓦里斯的权与名。';
     const proposal = {
       documentId: 'chapter-created',
       documentKind: 'chapter' as const,
-      markdown: revisedMarkdown,
+      markdown: flawedMarkdown,
       operation: 'create' as const,
       parentId: 'manuscript-root',
       parentTitle: 'Manuscript',
@@ -248,6 +279,7 @@ describe('AiAgentService', () => {
 
     workers[0].emit('message', {
       arguments: {
+        documentDomain: 'manuscript',
         objective: 'Write a new chapter.',
         requirements: ['Keep close third person.'],
         targetDocumentId: null,
@@ -266,6 +298,7 @@ describe('AiAgentService', () => {
       (message as { role?: unknown }).role === 'scribe') as { requestId: string };
     workers[0].emit('message', {
       arguments: {
+        documentDomain: 'manuscript',
         objective: 'Attempt a nested task.',
         requirements: [],
         targetDocumentId: null,
@@ -363,7 +396,8 @@ describe('AiAgentService', () => {
       result: {
         data: {
           assignmentId: 'assignment:1',
-          markdown: flawedMarkdown,
+          characterCount: flawedMarkdown.length,
+          documentDomain: 'manuscript',
           status: 'completed',
         },
         ok: true,
@@ -375,6 +409,7 @@ describe('AiAgentService', () => {
 
     workers[0].emit('message', {
       arguments: {
+        documentDomain: 'manuscript',
         objective: 'Retry the chapter.',
         requirements: [],
         targetDocumentId: null,
@@ -399,83 +434,6 @@ describe('AiAgentService', () => {
         toolName: 'delegate_writing',
       },
       toolCallId: 'tool-repeat-delegate',
-      type: 'tool-result',
-    });
-
-    workers[0].emit('message', {
-      arguments: {
-        replacements: [
-          {
-            expectedOccurrences: 1,
-            find: '织母议会议会。塞拉认得',
-            replace: '织母议会。塞拉认得',
-          },
-          {
-            expectedOccurrences: 2,
-            find: '织母议会议会予你返回',
-            replace: '议会予你返回',
-          },
-        ],
-        writingAssignmentId: 'assignment:1',
-      },
-      requestId: 'request-1',
-      toolCallId: 'tool-revise-mismatch',
-      toolName: 'revise_writing_artifact',
-      type: 'tool-request',
-    });
-    await waitFor(() => workers[0].messages.some((message) =>
-      typeof message === 'object' && message !== null &&
-      (message as { toolCallId?: unknown }).toolCallId === 'tool-revise-mismatch'));
-    expect(workers[0].messages).toContainEqual({
-      requestId: 'request-1',
-      result: {
-        error: {
-          code: 'invalid-arguments',
-          detail: 'Replacement 2 expected 2 occurrence(s) but found 1; no changes were applied.',
-        },
-        ok: false,
-        toolName: 'revise_writing_artifact',
-      },
-      toolCallId: 'tool-revise-mismatch',
-      type: 'tool-result',
-    });
-
-    workers[0].emit('message', {
-      arguments: {
-        replacements: [
-          {
-            expectedOccurrences: 1,
-            find: '织母议会议会。塞拉认得',
-            replace: '织母议会。塞拉认得',
-          },
-          {
-            expectedOccurrences: 1,
-            find: '织母议会议会予你返回',
-            replace: '议会予你返回',
-          },
-        ],
-        writingAssignmentId: 'assignment:1',
-      },
-      requestId: 'request-1',
-      toolCallId: 'tool-revise-artifact',
-      toolName: 'revise_writing_artifact',
-      type: 'tool-request',
-    });
-    await waitFor(() => workers[0].messages.some((message) =>
-      typeof message === 'object' && message !== null &&
-      (message as { toolCallId?: unknown }).toolCallId === 'tool-revise-artifact'));
-    expect(workers[0].messages).toContainEqual({
-      requestId: 'request-1',
-      result: {
-        data: {
-          assignmentId: 'assignment:1',
-          replacementsApplied: 2,
-          status: 'revised',
-        },
-        ok: true,
-        toolName: 'revise_writing_artifact',
-      },
-      toolCallId: 'tool-revise-artifact',
       type: 'tool-result',
     });
 
@@ -561,6 +519,7 @@ describe('AiAgentService', () => {
     await started;
     workers[0].emit('message', {
       arguments: {
+        documentDomain: 'manuscript',
         objective: 'Write a complete second chapter.',
         requirements: [],
         targetDocumentId: null,
@@ -632,6 +591,7 @@ describe('AiAgentService', () => {
     await started;
     workers[0].emit('message', {
       arguments: {
+        documentDomain: 'manuscript',
         objective: 'Continue the chapter.',
         requirements: [],
         targetDocumentId: 'chapter-1',
@@ -757,15 +717,14 @@ describe('AiAgentService', () => {
 
   it('refuses to complete while accepted writing still needs reconciliation', async () => {
     const events: AgentEvent[] = [];
-    const dispatcher = {
-      execute: vi.fn(async (_scope, request) => ({
-        data: { proposalId: 'proposal-1', status: 'accepted' as const },
-        ok: true as const,
-        toolName: request.toolName,
-      })),
-      release: vi.fn(),
-    } as unknown as AgentToolDispatcher;
-    const service = new AiAgentService(userDataPath, () => true, dispatcher);
+    const projectDirectory = path.join(userDataPath, 'project');
+    seedPendingReconciliation(projectDirectory);
+    const service = new AiAgentService(
+      userDataPath,
+      () => true,
+      new AgentToolDispatcher(writingContext()),
+      () => projectDirectory,
+    );
     const started = start(service, 'request-1', (event) => events.push(event));
     await waitFor(() => workers.length === 1);
     workers[0].emit('message', { type: 'ready' });
@@ -773,20 +732,32 @@ describe('AiAgentService', () => {
 
     workers[0].emit('message', {
       arguments: {
-        baseContentRevision: 'a'.repeat(64),
-        baseRevision: 'a'.repeat(64),
-        documentId: 'chapter-1',
-        markdown: null,
-        writingAssignmentId: 'scribe-1',
+        documentDomain: 'lore',
+        objective: 'Write a world entry.',
+        requirements: [],
+        targetDocumentId: null,
+        targetLength: null,
       },
       requestId: 'request-1',
-      toolCallId: 'tool-proposal',
-      toolName: 'propose_document_edit',
+      toolCallId: 'tool-blocked-delegate',
+      toolName: 'delegate_writing',
       type: 'tool-request',
     });
     await waitFor(() => workers[0].messages.some((message) =>
       typeof message === 'object' && message !== null &&
-      (message as { toolCallId?: unknown }).toolCallId === 'tool-proposal'));
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-blocked-delegate'));
+    expect(workers[0].messages).toContainEqual(expect.objectContaining({
+      result: {
+        error: {
+          code: 'invalid-arguments',
+          detail: 'Complete the pending accepted-Manuscript reconciliation before starting another writing assignment.',
+        },
+        ok: false,
+        toolName: 'delegate_writing',
+      },
+      toolCallId: 'tool-blocked-delegate',
+      type: 'tool-result',
+    }));
 
     workers[0].emit('message', {
       requestId: 'request-1',
@@ -805,15 +776,10 @@ describe('AiAgentService', () => {
 
   it('allows completion after the reconciliation checkpoint is validated', async () => {
     const events: AgentEvent[] = [];
+    const projectDirectory = path.join(userDataPath, 'project');
+    seedPendingReconciliation(projectDirectory);
     const dispatcher = {
       execute: vi.fn(async (scope, request) => {
-        if (request.toolName === 'propose_document_edit') {
-          return {
-            data: { proposalId: 'proposal-1', status: 'accepted' as const },
-            ok: true as const,
-            toolName: request.toolName,
-          };
-        }
         if (request.toolName === 'read_novel_context') {
           return { data: { documents: [] }, ok: true as const, toolName: request.toolName };
         }
@@ -824,28 +790,17 @@ describe('AiAgentService', () => {
       }),
       release: vi.fn(),
     } as unknown as AgentToolDispatcher;
-    const service = new AiAgentService(userDataPath, () => true, dispatcher);
+    const service = new AiAgentService(
+      userDataPath,
+      () => true,
+      dispatcher,
+      () => projectDirectory,
+    );
     const started = start(service, 'request-1', (event) => events.push(event));
     await waitFor(() => workers.length === 1);
     workers[0].emit('message', { type: 'ready' });
     await started;
 
-    workers[0].emit('message', {
-      arguments: {
-        baseContentRevision: 'a'.repeat(64),
-        baseRevision: 'a'.repeat(64),
-        documentId: 'chapter-1',
-        markdown: null,
-        writingAssignmentId: 'scribe-1',
-      },
-      requestId: 'request-1',
-      toolCallId: 'tool-proposal',
-      toolName: 'propose_document_edit',
-      type: 'tool-request',
-    });
-    await waitFor(() => workers[0].messages.some((message) =>
-      typeof message === 'object' && message !== null &&
-      (message as { toolCallId?: unknown }).toolCallId === 'tool-proposal'));
     workers[0].emit('message', {
       arguments: {
         directoryIds: [],
@@ -916,18 +871,14 @@ describe('AiAgentService', () => {
 
   it('automatically completes the checkpoint after focused reconciliation', async () => {
     const events: AgentEvent[] = [];
+    const projectDirectory = path.join(userDataPath, 'project');
+    seedPendingReconciliation(projectDirectory);
     const dispatcher = {
-      execute: vi.fn(async (_scope, request) => {
-        if (request.toolName === 'propose_document_edit') {
-          return {
-            data: { proposalId: 'proposal-1', status: 'accepted' as const },
-            ok: true as const,
-            toolName: request.toolName,
-          };
-        }
+      execute: vi.fn(async (scope, request) => {
         if (request.toolName === 'read_novel_context') {
           return { data: { documents: [] }, ok: true as const, toolName: request.toolName };
         }
+        expect(scope.completeFocusedStoryReconciliation?.()).toBe(true);
         return {
           data: {
             appliedCount: 3,
@@ -941,28 +892,17 @@ describe('AiAgentService', () => {
       }),
       release: vi.fn(),
     } as unknown as AgentToolDispatcher;
-    const service = new AiAgentService(userDataPath, () => true, dispatcher);
+    const service = new AiAgentService(
+      userDataPath,
+      () => true,
+      dispatcher,
+      () => projectDirectory,
+    );
     const started = start(service, 'request-1', (event) => events.push(event));
     await waitFor(() => workers.length === 1);
     workers[0].emit('message', { type: 'ready' });
     await started;
 
-    workers[0].emit('message', {
-      arguments: {
-        baseContentRevision: 'a'.repeat(64),
-        baseRevision: 'a'.repeat(64),
-        documentId: 'chapter-1',
-        markdown: null,
-        writingAssignmentId: 'scribe-1',
-      },
-      requestId: 'request-1',
-      toolCallId: 'tool-proposal',
-      toolName: 'propose_document_edit',
-      type: 'tool-request',
-    });
-    await waitFor(() => workers[0].messages.some((message) =>
-      typeof message === 'object' && message !== null &&
-      (message as { toolCallId?: unknown }).toolCallId === 'tool-proposal'));
     workers[0].emit('message', {
       arguments: {
         directoryIds: [],

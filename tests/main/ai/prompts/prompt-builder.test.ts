@@ -51,41 +51,14 @@ describe('Agent prompt registry', () => {
       responseLanguage: 'en',
       role: 'curator',
     });
-    expect(built.prompt).toContain('native tool calling');
-    expect(built.prompt).toContain('leases for the current user request only');
-    expect(built.prompt).toContain('replayed conversation history as expired');
-    expect(built.prompt).toContain('empty documentIds and directoryIds');
+    expect(built.prompt).toContain('native application tools');
+    expect(built.prompt).toContain('Request-scoped refs are leases issued in this run');
     expect(built.prompt).toContain('expired-request-reference');
-    expect(built.prompt).toContain('request all already-known required sections');
-    expect(built.prompt).toContain('directoryIds only to read a directory’s immediate document children');
-    expect(built.prompt).toContain('request-scoped document refs');
-    expect(built.prompt).toContain('create or delete a document');
-    expect(built.prompt).toContain('metadataTitle from formatted displayTitle');
-    expect(built.prompt).toContain('rename a document metadata title');
-    expect(built.prompt).toContain('continue the same Agent run');
-    expect(built.prompt).toContain('outside the user’s requested scope');
-    expect(built.prompt).toContain('read accepted_reconciliation context');
-    expect(built.prompt).toContain('Prefer one reconcile_accepted_document call');
-    expect(built.prompt).toContain(
-      'check Personae, Chronicle, Threads, and open questions',
-    );
-    expect(built.prompt).toContain('Use ordinary Maintain only for clear shapes');
-    expect(built.prompt).toContain('do not call complete_story_reconciliation');
-    expect(built.prompt).toContain('complete ordered dependency graph');
-    expect(built.prompt).toContain('reference it as @clientRef');
-    expect(built.prompt).toContain('persistent identities remain Main-owned');
-    expect(built.prompt).not.toContain('Do not narrate tool planning');
-    expect(built.prompt).toContain(
-      'First check whether the accepted prose advances, turns, reveals, resolves, or abandons an existing Thread',
-    );
-    expect(built.prompt).toContain(
-      'A chapter, scene, or isolated Chronicle event is not by itself a Thread',
-    );
-    expect(built.prompt).toContain(
-      'Do not invent dramatic purpose or desired outcome to force coverage',
-    );
-    expect(built.prompt).toContain('structured story question');
-    expect(built.prompt).not.toContain('A writing delegation is the single bounded Scribe child task');
+    expect(built.prompt).toContain('batch already-known needs');
+    expect(built.prompt).toContain('current_document is the immutable request-start draft');
+    expect(built.prompt).not.toContain('Prefer one reconcile_accepted_document call');
+    expect(built.prompt).not.toContain('propose_document_file_operation');
+    expect(built.prompt).not.toContain('One Scribe delegation is available');
     expect(built.prompt).not.toContain('get_current_document:');
     expect(built.prompt).not.toContain('get_novel_structure:');
     expect(built.prompt).not.toContain('get_document:');
@@ -99,17 +72,15 @@ describe('Agent prompt registry', () => {
       responseLanguage: 'en',
       role: 'curator',
     });
-    expect(built.prompt).toContain('A writing delegation is the single bounded Scribe child task');
-    expect(built.prompt).toContain('Keep user-visible progress concise');
-    expect(built.prompt).toContain('do not propose it and report the validation reason');
-    expect(built.prompt).toContain('targetDocumentId set to null');
-    expect(built.prompt).toContain('writingAssignmentId set to the same returned assignmentId');
-    expect(built.prompt).toContain('Never reproduce Scribe Markdown');
-    expect(built.prompt).toContain('one replacement proposal');
-    expect(built.prompt).toContain('never call or retry delegate_writing a second time');
-    expect(built.prompt).toContain('Use revise_writing_artifact only for directly verified typos');
-    expect(built.prompt).toContain('never for continuity, gender, tone, or phrasing judgments');
-    expect(built.prompt).toContain('if an exact revision is rejected, do not retry it');
+    expect(built.prompt).toContain('One Scribe delegation is available');
+    expect(built.prompt).toContain('requested Manuscript or Lore prose');
+    expect(built.prompt).toContain('Set documentDomain correctly');
+    expect(built.prompt).toContain('compact validated artifact receipt');
+    expect(built.prompt).toContain('pass its assignmentId to one matching reviewed proposal');
+    expect(built.prompt).toContain('never reproduce the Markdown');
+    expect(built.prompt).toContain('Do not hide all operational narration');
+    expect(built.prompt).toContain('do not retry');
+    expect(built.prompt).not.toContain('revise_writing_artifact');
   });
 
   it('uses the interface locale for conversation but not manuscript language', () => {

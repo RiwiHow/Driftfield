@@ -26,6 +26,7 @@ export interface AgentWorkerStartCommand {
   prompt: string;
   proposalOutcomes: AgentProposalOutcome[];
   providerId: string;
+  reconciliationPending: boolean;
   requestId: string;
   responseLanguage: AppLanguage;
   role: AgentRole;
@@ -205,6 +206,7 @@ export const isAgentWorkerCommand = (
     command.proposalOutcomes.length <= 50 &&
     command.proposalOutcomes.every(isProposalOutcome) &&
     typeof command.providerId === "string" &&
+    typeof command.reconciliationPending === 'boolean' &&
     isAppLanguage(command.responseLanguage) &&
     typeof command.role === "string" &&
     AGENT_ROLES.includes(command.role as AgentRole) &&

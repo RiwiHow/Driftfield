@@ -3,6 +3,7 @@ import type {
   AgentAcceptedReconciliationContext,
   AgentDocumentToolResult,
   AgentDraftSnapshot,
+  AgentDocumentDomain,
   AgentNovelStructureToolResult,
   AgentProjectStructureOperationArguments,
   AgentStructureNode,
@@ -40,13 +41,16 @@ import { AgentReferenceRegistry } from './agent-reference-registry';
 
 export interface AgentToolScope {
   acceptedDocumentId?: string;
+  acceptedDocumentRevision?: string;
   claimWritingArtifact?: (
     assignmentId: string,
     targetDocumentId: string | null,
+    documentDomain: AgentDocumentDomain,
   ) => string | undefined;
   completeStoryReconciliation?: (
     status: 'applied' | 'no_changes' | 'questions_recorded',
   ) => { detail?: string; ok: boolean };
+  completeFocusedStoryReconciliation?: () => boolean;
   delegateWriting?: (
     assignment: AgentWritingAssignment,
     resolvedTargetDocumentId: string | null,
@@ -203,6 +207,12 @@ export class AgentToolDispatcher {
             node,
           );
         }
+        if (documentDomainForKind(node.kind) !== request.arguments.documentDomain) {
+          throw new ProjectContextError(
+            'invalid-arguments',
+            'The writing assignment domain does not match the target document.',
+          );
+        }
       }
       const result = await scope.delegateWriting(
         request.arguments,
@@ -264,6 +274,16 @@ export class AgentToolDispatcher {
             ? this.context.getDocument(contextScope, scope.acceptedDocumentId!)
             : undefined,
         ]);
+      if (
+        acceptedDocument !== undefined &&
+        scope.acceptedDocumentRevision !== undefined &&
+        acceptedDocument.contentRevision !== scope.acceptedDocumentRevision
+      ) {
+        throw new ProjectContextError(
+          'proposal-base-changed',
+          'The accepted manuscript revision changed before story reconciliation.',
+        );
+      }
       const nodes = resolvedStructure === undefined
         ? new Map<string, AgentStructureNode>()
         : indexStructureNodes(resolvedStructure);
@@ -388,6 +408,12 @@ export class AgentToolDispatcher {
         registry.storyRevision,
         changes,
       );
+      if (scope.completeFocusedStoryReconciliation?.() !== true) {
+        throw new ProjectContextError(
+          'internal-error',
+          'The durable story reconciliation job could not be completed.',
+        );
+      }
       scope.storyChanged?.(data.revision);
       return {
         data: { ...data, reconciliationStatus: 'complete' },
@@ -466,10 +492,19 @@ export class AgentToolDispatcher {
         throw new ProjectContextError('internal-error');
       }
       const documentId = refs.resolve(request.arguments.documentId, 'document');
+      const structure = await this.context.getNovelStructure(contextScope);
+      const documentNode = indexStructureNodes(structure).get(documentId);
+      if (documentNode === undefined) {
+        throw nodeNotFound(request.arguments.documentId);
+      }
+      if (documentNode.type !== 'document') {
+        throw nodeKindMismatch(request.arguments.documentId, 'document', documentNode);
+      }
       const content = claimDocumentContent(
         scope,
         resolveDocumentContentReference(refs, request.arguments),
         documentId,
+        documentDomainForKind(documentNode.kind),
       );
       let proposal: ReturnType<AgentProposalService['create']>;
       try {
@@ -510,6 +545,7 @@ export class AgentToolDispatcher {
             scope,
             resolveDocumentContentReference(refs, request.arguments),
             null,
+            documentDomainForKind(request.arguments.kind),
           )
         : null;
       let proposal: Awaited<ReturnType<AgentProposalService['createFileOperation']>>;
@@ -998,6 +1034,7 @@ const claimDocumentContent = (
   scope: AgentToolScope,
   source: { markdown: string | null; writingAssignmentId: string | null },
   targetDocumentId: string | null,
+  documentDomain: AgentDocumentDomain,
 ): { markdown: string; release: () => void } => {
   if (source.markdown !== null) {
     return { markdown: source.markdown, release: () => {} };
@@ -1009,7 +1046,11 @@ const claimDocumentContent = (
       'A Scribe-backed proposal requires the current request’s writingAssignmentId.',
     );
   }
-  const markdown = scope.claimWritingArtifact(assignmentId, targetDocumentId);
+  const markdown = scope.claimWritingArtifact(
+    assignmentId,
+    targetDocumentId,
+    documentDomain,
+  );
   if (markdown === undefined) {
     throw new ProjectContextError(
       'invalid-arguments',
@@ -1035,6 +1076,10 @@ const indexStructureNodes = (
   return nodes;
 };
 
+const documentDomainForKind = (
+  kind: import('../../shared/contracts/agent-tools').AgentStructureDocument['kind'],
+): AgentDocumentDomain => kind === 'entry' ? 'lore' : 'manuscript';
+
 const nodeNotFound = (nodeId: string): ProjectContextError =>
   new ProjectContextError('node-not-found', JSON.stringify({ nodeId }));
 
@@ -1058,7 +1103,7 @@ const toolArgumentShapeHint = (
   args: unknown,
 ): string | undefined => {
   if (toolName === 'delegate_writing') {
-    return 'delegate_writing requires exactly objective, requirements, targetDocumentId, and targetLength. It is available at most once per user request and must not be retried for draft corrections. For a new document, set targetDocumentId to null; for an existing document, use its request-scoped document ref, never a directory ref or placeholder. Set targetLength to an integer from 1 to 200000, or null when unspecified.';
+    return 'delegate_writing requires exactly documentDomain, objective, requirements, targetDocumentId, and targetLength. Use manuscript for chapter-like prose and lore for a World/Lore document. It is available at most once per user request. For a new document, set targetDocumentId to null; for an existing document, use its current request-scoped document ref. Set targetLength to an integer from 1 to 200000, or null when unspecified.';
   }
   if (toolName === 'revise_writing_artifact') {
     return 'revise_writing_artifact requires exactly writingAssignmentId and 1 to 12 ordered replacements. Each replacement requires exactly find, replace, and expectedOccurrences; find must be non-empty and differ from replace.';
