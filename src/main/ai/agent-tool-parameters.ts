@@ -496,6 +496,68 @@ export const ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS = Type.Object(
       maxItems: 1,
       minItems: 1,
     }),
+    newPersonae: Type.Array(Type.Object(
+      {
+        clientRef: Type.String({
+          description:
+            'Local ref for this new Persona. Event participants may refer to it as @clientRef in this same call.',
+          maxLength: 64,
+          minLength: 1,
+          pattern: '^[A-Za-z][A-Za-z0-9_-]{0,63}$',
+        }),
+        name: Type.String({ maxLength: 500, minLength: 1 }),
+        role: Type.Unsafe<string | null>({
+          maxLength: 500,
+          type: ['string', 'null'],
+        }),
+        summary: Type.String({ maxLength: 20_000 }),
+      },
+      { additionalProperties: false },
+    ), {
+      description:
+        'Clearly established new Personae needed by this accepted document. Do not create a question merely because a depicted character is intentionally unnamed; use a faithful descriptive name only when it is useful as a stable story label.',
+      maxItems: 6,
+    }),
+    newThreads: Type.Array(Type.Object(
+      {
+        beat: Type.Object(
+          {
+            description: Type.String({ maxLength: 30_000 }),
+            desiredOutcome: Type.Optional(Type.String({ maxLength: 10_000 })),
+            dramaticPurpose: Type.Optional(Type.String({ maxLength: 10_000 })),
+            kind: stringEnum(
+              ['beat', 'setup', 'turning_point', 'climax', 'resolution'] as const,
+            ),
+            relation: stringEnum(
+              ['plans', 'realizes', 'reveals', 'foreshadows', 'resolves'] as const,
+            ),
+            title: Type.String({ maxLength: 500, minLength: 1 }),
+          },
+          { additionalProperties: false },
+        ),
+        summary: Type.String({ maxLength: 20_000 }),
+        threadStatus: stringEnum(
+          ['planned', 'active', 'resolved', 'abandoned'] as const,
+        ),
+        title: Type.String({ maxLength: 500, minLength: 1 }),
+      },
+      { additionalProperties: false },
+    ), {
+      description:
+        'New sustained Threads clearly established by the accepted prose, each with its first beat linked to the accepted event. Leave empty for a scene-level hook that has not yet become a continuing plot line.',
+      maxItems: 2,
+    }),
+    primaryTimeline: Type.Optional(Type.Object(
+      {
+        summary: Type.String({ maxLength: 20_000 }),
+        title: Type.String({ maxLength: 500, minLength: 1 }),
+      },
+      {
+        additionalProperties: false,
+        description:
+          'Optional semantic title and summary used only when accepted_reconciliation reports no primary timeline. If omitted, Main creates a neutral primary timeline automatically.',
+      },
+    )),
     threadAdvances: Type.Array(Type.Object(
       {
         description: Type.String({ maxLength: 30_000 }),
@@ -514,7 +576,7 @@ export const ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS = Type.Object(
     ), {
       description:
         'Existing Threads advanced by this accepted-document event, using refs from accepted_reconciliation context. Main creates and links beats atomically.',
-      maxItems: 11,
+      maxItems: 4,
     }),
   },
   { additionalProperties: false },

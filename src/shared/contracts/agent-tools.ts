@@ -142,6 +142,29 @@ export interface AgentAcceptedDocumentReconciliationArguments {
     summary: string;
     title: string;
   }>;
+  newPersonae: Array<{
+    clientRef: string;
+    name: string;
+    role: string | null;
+    summary: string;
+  }>;
+  newThreads: Array<{
+    beat: {
+      description: string;
+      desiredOutcome?: string;
+      dramaticPurpose?: string;
+      kind: import('./project-story').ThreadBeatKind;
+      relation: import('./project-story').ThreadEventRelation;
+      title: string;
+    };
+    summary: string;
+    threadStatus: import('./project-story').ThreadStatus;
+    title: string;
+  }>;
+  primaryTimeline?: {
+    summary: string;
+    title: string;
+  };
   threadAdvances: Array<{
     description: string;
     desiredOutcome?: string;
@@ -162,6 +185,11 @@ export interface AgentStoryMaintenanceToolResult {
   appliedCount: number;
   revision: number;
   status: 'applied';
+}
+
+export interface AgentAcceptedDocumentReconciliationToolResult
+  extends AgentStoryMaintenanceToolResult {
+  reconciliationStatus: 'complete';
 }
 
 export interface AgentStoryReconciliationCompletionToolResult {
@@ -334,7 +362,7 @@ export interface AgentToolContractMap {
   };
   reconcile_accepted_document: {
     arguments: AgentAcceptedDocumentReconciliationArguments;
-    result: AgentStoryMaintenanceToolResult;
+    result: AgentAcceptedDocumentReconciliationToolResult;
   };
   record_story_question: {
     arguments: AgentStoryQuestionArguments;
@@ -625,11 +653,28 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
       isBoundedText(value.reason, 2_000, false);
   }
   if (toolName === 'reconcile_accepted_document') {
-    return Object.keys(value).length === 2 &&
+    const keys = Object.keys(value);
+    const newPersonae = value.newPersonae;
+    return keys.length >= 4 && keys.length <= 5 &&
+      keys.every((key) => [
+        'events',
+        'newPersonae',
+        'newThreads',
+        'primaryTimeline',
+        'threadAdvances',
+      ].includes(key)) &&
       Array.isArray(value.events) && value.events.length === 1 &&
       value.events.every(isAcceptedReconciliationEvent) &&
+      Array.isArray(newPersonae) && newPersonae.length <= 6 &&
+      newPersonae.every(isAcceptedNewPersona) &&
+      new Set(newPersonae.map((persona) =>
+        isRecord(persona) ? persona.clientRef : undefined)).size === newPersonae.length &&
+      Array.isArray(value.newThreads) && value.newThreads.length <= 2 &&
+      value.newThreads.every(isAcceptedNewThread) &&
+      (value.primaryTimeline === undefined ||
+        isAcceptedPrimaryTimeline(value.primaryTimeline)) &&
       Array.isArray(value.threadAdvances) &&
-      value.threadAdvances.length <= 11 &&
+      value.threadAdvances.length <= 4 &&
       value.threadAdvances.every(isAcceptedThreadAdvance);
   }
   if (toolName === 'record_story_question') {
@@ -699,7 +744,7 @@ const isToolData = (toolName: AgentToolName, value: unknown): boolean =>
     : toolName === 'complete_story_reconciliation'
       ? isStoryReconciliationCompletionResult(value)
     : toolName === 'reconcile_accepted_document'
-      ? isStoryMaintenanceResult(value)
+      ? isAcceptedDocumentReconciliationResult(value)
     : toolName === 'record_story_question' || toolName === 'resolve_story_question'
       ? isStoryQuestionResult(value)
     : toolName === 'propose_document_edit' ||
@@ -796,6 +841,15 @@ const isStoryMaintenanceResult = (value: unknown): boolean =>
   Number.isSafeInteger(value.revision) &&
   (value.revision as number) > 0;
 
+const isAcceptedDocumentReconciliationResult = (value: unknown): boolean =>
+  isRecord(value) && Object.keys(value).length === 4 &&
+  value.reconciliationStatus === 'complete' &&
+  isStoryMaintenanceResult({
+    appliedCount: value.appliedCount,
+    revision: value.revision,
+    status: value.status,
+  });
+
 const isStoryReconciliationCompletionResult = (value: unknown): boolean =>
   isRecord(value) && Object.keys(value).length === 1 &&
   value.status === 'complete';
@@ -816,20 +870,18 @@ const isAcceptedReconciliationEvent = (value: unknown): boolean =>
     typeof participant.role === 'string' &&
     ['actor', 'target', 'witness', 'affected'].includes(participant.role));
 
-const isAcceptedThreadAdvance = (value: unknown): boolean => {
+const isAcceptedThreadBeat = (value: unknown): boolean => {
   if (!isRecord(value)) return false;
   const keys = Object.keys(value);
-  return keys.length >= 5 && keys.length <= 7 &&
+  return keys.length >= 4 && keys.length <= 6 &&
     keys.every((key) => [
       'description',
       'desiredOutcome',
       'dramaticPurpose',
       'kind',
       'relation',
-      'threadRef',
       'title',
     ].includes(key)) &&
-    isBoundedText(value.threadRef, 64, false) &&
     isBoundedText(value.title, 500, false) &&
     isBoundedText(value.description, 30_000, true) &&
     (value.desiredOutcome === undefined ||
@@ -843,6 +895,34 @@ const isAcceptedThreadAdvance = (value: unknown): boolean => {
     ['plans', 'realizes', 'reveals', 'foreshadows', 'resolves']
       .includes(value.relation);
 };
+
+const isAcceptedThreadAdvance = (value: unknown): boolean =>
+  isRecord(value) && Object.keys(value).includes('threadRef') &&
+  isBoundedText(value.threadRef, 64, false) &&
+  isAcceptedThreadBeat(Object.fromEntries(
+    Object.entries(value).filter(([key]) => key !== 'threadRef'),
+  ));
+
+const isAcceptedNewPersona = (value: unknown): boolean =>
+  isRecord(value) && Object.keys(value).length === 4 &&
+  typeof value.clientRef === 'string' &&
+  /^[A-Za-z][A-Za-z0-9_-]{0,63}$/u.test(value.clientRef) &&
+  isBoundedText(value.name, 500, false) &&
+  (value.role === null || isBoundedText(value.role, 500, true)) &&
+  isBoundedText(value.summary, 20_000, true);
+
+const isAcceptedNewThread = (value: unknown): boolean =>
+  isRecord(value) && Object.keys(value).length === 4 &&
+  isBoundedText(value.title, 500, false) &&
+  isBoundedText(value.summary, 20_000, true) &&
+  typeof value.threadStatus === 'string' &&
+  ['planned', 'active', 'resolved', 'abandoned'].includes(value.threadStatus) &&
+  isAcceptedThreadBeat(value.beat);
+
+const isAcceptedPrimaryTimeline = (value: unknown): boolean =>
+  isRecord(value) && Object.keys(value).length === 2 &&
+  isBoundedText(value.title, 500, false) &&
+  isBoundedText(value.summary, 20_000, true);
 
 const isAcceptedReconciliationContext = (value: unknown): boolean =>
   isRecord(value) && Object.keys(value).length === 7 &&

@@ -842,4 +842,103 @@ describe('AiAgentService', () => {
       type: 'completed',
     });
   });
+
+  it('automatically completes the checkpoint after focused reconciliation', async () => {
+    const events: AgentEvent[] = [];
+    const dispatcher = {
+      execute: vi.fn(async (_scope, request) => {
+        if (request.toolName === 'propose_document_edit') {
+          return {
+            data: { proposalId: 'proposal-1', status: 'accepted' as const },
+            ok: true as const,
+            toolName: request.toolName,
+          };
+        }
+        if (request.toolName === 'read_novel_context') {
+          return { data: { documents: [] }, ok: true as const, toolName: request.toolName };
+        }
+        return {
+          data: {
+            appliedCount: 3,
+            reconciliationStatus: 'complete' as const,
+            revision: 1,
+            status: 'applied' as const,
+          },
+          ok: true as const,
+          toolName: request.toolName,
+        };
+      }),
+      release: vi.fn(),
+    } as unknown as AgentToolDispatcher;
+    const service = new AiAgentService(userDataPath, () => true, dispatcher);
+    const started = start(service, 'request-1', (event) => events.push(event));
+    await waitFor(() => workers.length === 1);
+    workers[0].emit('message', { type: 'ready' });
+    await started;
+
+    workers[0].emit('message', {
+      arguments: {
+        baseContentRevision: 'a'.repeat(64),
+        baseRevision: 'a'.repeat(64),
+        documentId: 'chapter-1',
+        markdown: null,
+        writingAssignmentId: 'scribe-1',
+      },
+      requestId: 'request-1',
+      toolCallId: 'tool-proposal',
+      toolName: 'propose_document_edit',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-proposal'));
+    workers[0].emit('message', {
+      arguments: {
+        directoryIds: [],
+        documentIds: [],
+        include: ['accepted_reconciliation'],
+      },
+      requestId: 'request-1',
+      toolCallId: 'tool-read',
+      toolName: 'read_novel_context',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-read'));
+    workers[0].emit('message', {
+      arguments: {
+        events: [{
+          displayTime: 'Dawn',
+          participants: [],
+          precision: 'approximate',
+          summary: 'The chapter event.',
+          title: 'Arrival',
+        }],
+        newPersonae: [],
+        newThreads: [],
+        threadAdvances: [],
+      },
+      requestId: 'request-1',
+      toolCallId: 'tool-reconcile',
+      toolName: 'reconcile_accepted_document',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-reconcile'));
+
+    workers[0].emit('message', {
+      requestId: 'request-1',
+      stopReason: 'stop',
+      type: 'completed',
+    });
+    await waitFor(() => events.some((event) => event.type === 'completed'));
+
+    expect(events.at(-1)).toEqual({
+      requestId: 'request-1',
+      stopReason: 'stop',
+      type: 'completed',
+    });
+  });
 });

@@ -195,8 +195,12 @@ describe('Agent tool parameter schemas', () => {
     const advances = properties.threadAdvances;
 
     expect(properties.events).toMatchObject({ minItems: 1, maxItems: 1 });
-    expect(advances).toMatchObject({ maxItems: 11 });
+    expect(properties.newPersonae).toMatchObject({ maxItems: 6 });
+    expect(properties.newThreads).toMatchObject({ maxItems: 2 });
+    expect(advances).toMatchObject({ maxItems: 4 });
     expect(JSON.stringify(eventProperties.participants)).toContain('personaRef');
+    expect(JSON.stringify(properties.newPersonae)).toContain('clientRef');
+    expect(JSON.stringify(properties.primaryTimeline)).toContain('Main creates');
     expect(JSON.stringify(advances)).toContain('threadRef');
     expect(JSON.stringify(schema)).not.toContain('storyRevision');
     expect(JSON.stringify(schema)).not.toContain('documentId');

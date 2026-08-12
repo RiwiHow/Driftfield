@@ -468,7 +468,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Complete the required reconciliation checkpoint after an accepted Scribe-backed manuscript proposal. Call this only after rereading the accepted persisted document and current story state, and after applying every clear low-risk change or recording each author question. This does not write story data. Use no_changes only when the checked accepted prose requires no canonical story update.",
+        "Complete the required reconciliation checkpoint after an accepted Scribe-backed manuscript proposal when reconcile_accepted_document did not already complete it automatically. Call this only after rereading the accepted persisted document and current story state, and after applying every clear low-risk change through ordinary Maintain, recording each material author question, or finding no changes. This does not write story data. Use no_changes only when the checked accepted prose requires no canonical story update.",
       label: "Complete story reconciliation",
       name: "complete_story_reconciliation",
       parameters: STORY_RECONCILIATION_COMPLETION_PARAMETERS,
@@ -484,7 +484,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Atomically add the Chronicle event depicted by the accepted Scribe-backed manuscript document and advance existing Threads without stable IDs. First read read_novel_context with accepted_reconciliation, then use only its timeline, persona, and thread refs. Main supplies the accepted document source/revision, story revision, order keys, UUIDs, empty optional prose, and event-to-beat links. Use ordinary Maintain only for shapes this focused tool cannot represent.",
+        "Atomically reconcile the Chronicle event depicted by the accepted Scribe-backed manuscript document, including clearly established new Personae, optional new Threads with their first linked beat, and advances to existing Threads. First read accepted_reconciliation. Existing entities use its refs; new Personae declare clientRef and event participants reference them as @clientRef in this same call. If no primary timeline exists, optionally supply its semantic title and summary or let Main create a neutral default. Main owns the accepted source/revision, story revision, timeline fallback, moments, ordering, IDs, links, and successful checkpoint completion. Use ordinary Maintain only for shapes this focused tool cannot represent.",
       label: "Reconcile accepted document",
       name: "reconcile_accepted_document",
       parameters: ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS,
@@ -500,7 +500,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Record one unresolved author question without changing canonical Personae, Chronicle, or Threads. Use this for possible aliases, uncertain fictional time, unclear relationships, contradictions, or any other ambiguity that requires author judgment. Read story state first, do not duplicate an existing open question, and attach exact evidence when available. After accepted_reconciliation, use evidence sourceRef document:accepted so Main binds the persisted document ID and revision. Options are suggestions, not decisions.",
+        "Record one unresolved author question without changing canonical Personae, Chronicle, or Threads. Use this for possible aliases, uncertain fictional time, unclear relationships, contradictions, or another ambiguity whose answer materially affects canonical records. An intentionally unnamed character, omitted background detail, or unknown fact that does not block a faithful record is not by itself a question. Read story state first, do not duplicate an existing open question, and attach exact evidence when available. After accepted_reconciliation, use evidence sourceRef document:accepted so Main binds the persisted document ID and revision. Options are suggestions, not decisions.",
       label: "Record story question",
       name: "record_story_question",
       parameters: STORY_QUESTION_PARAMETERS,

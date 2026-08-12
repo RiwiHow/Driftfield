@@ -57,15 +57,21 @@ The bounded direct-maintenance surface contains:
   delete, merge, reorder, or edit Manuscript/Lore documents.
 - `reconcile_accepted_document`, which consumes only refs returned by the
   current request's `accepted_reconciliation` read. It accepts one depicted
-  Chronicle event and zero or more advances to existing Threads. Main resolves
-  the accepted document source and revision, story revision, primary timeline,
-  Persona and Thread UUIDs, moment and beat order keys, generated IDs, and
-  event-to-beat links, then applies the complete graph through the same atomic
-  Maintain transaction. Missing, stale, cross-request, or wrong-kind refs fail
-  closed. Low-level Maintain remains available for clear shapes outside this
-  focused path.
+  Chronicle event, clearly established new Personae, optional new Threads with
+  their first linked beat, and zero or more advances to existing Threads. New
+  Personae use call-local refs so the same event can link them without a second
+  read. When the project has no primary timeline, Main creates one in the same
+  transaction using an optional semantic title supplied by the Agent or a
+  neutral fallback. Main resolves the accepted document source and revision,
+  story revision, Persona and Thread UUIDs, moment, Thread and beat order keys,
+  generated IDs, and event-to-beat links, then applies the complete graph
+  through the same atomic Maintain transaction. A successful focused call also
+  closes the reconciliation checkpoint. Missing, stale, cross-request, or
+  wrong-kind refs fail closed. Low-level Maintain remains available for clear
+  shapes outside this focused path.
 - `complete_story_reconciliation`, which closes the Main-owned reconciliation
-  checkpoint after an accepted Scribe-backed manuscript proposal. Main requires
+  checkpoint after an accepted Scribe-backed manuscript proposal when the
+  focused reconciliation tool did not already close it. Main requires
   post-acceptance reads of both the persisted document and story state, and
   validates that `applied` or
   `questions_recorded` matches successful tool activity. `no_changes` is valid
@@ -195,10 +201,12 @@ suspense, or relationship progression. A chapter, scene, or isolated Chronicle
 event does not by itself justify a Thread, and Thread records must not merely
 duplicate Chronicle or invent dramatic purpose to achieve category coverage.
 
-Routine synchronization is executed without narrating tool planning,
-intermediate identifiers, schema choices, or retries. The user receives a
-concise summary of canonical changes and any unresolved questions after the
-tool workflow finishes.
+Routine synchronization keeps concise progress narration, tool activity, and
+failures visible so the user can inspect whether the application workflow is
+behaving correctly. The final response summarizes canonical changes and any
+material unresolved questions. Intentionally unnamed characters and omitted
+background facts do not become questions unless resolving them materially
+affects canonical records.
 
 The worker retains the final provider stop reason. A completed but unclaimed
 Scribe artifact is a protocol error and receives one corrective continuation

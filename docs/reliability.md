@@ -90,6 +90,11 @@ Preserve these properties when changing affected subsystems.
   the accepted document revision, the story revision, and append order in Main,
   then delegates to the same atomic Maintain transaction. Refs never cross a
   request or project session and are released with request state.
+- Focused accepted-document reconciliation can bootstrap an empty story store
+  in one transaction: call-local new Persona refs may participate in the event,
+  Main creates a missing primary timeline, and clearly established new Threads
+  include their first beat and event link. Successful focused reconciliation
+  closes its checkpoint without a separate completion call.
 - `maintain_story_records` applies a bounded ordered changeset of 1 to 24
   additive or linking Personae, Chronicle, or Threads operations without
   per-step approval. It requires the

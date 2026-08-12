@@ -297,6 +297,8 @@ describe('AgentToolDispatcher', () => {
           summary: 'The mirror glows blue and Serra turns back.',
           title: 'The mirror glows',
         }],
+        newPersonae: [],
+        newThreads: [],
         threadAdvances: [{
           description: 'Serra chooses to investigate.',
           kind: 'turning_point',
@@ -308,7 +310,12 @@ describe('AgentToolDispatcher', () => {
       toolName: 'reconcile_accepted_document',
     });
     expect(writeResult).toEqual({
-      data: { appliedCount: 4, revision: 7, status: 'applied' },
+      data: {
+        appliedCount: 4,
+        reconciliationStatus: 'complete',
+        revision: 7,
+        status: 'applied',
+      },
       ok: true,
       toolName: 'reconcile_accepted_document',
     });
@@ -374,6 +381,139 @@ describe('AgentToolDispatcher', () => {
         },
       }),
     );
+  });
+
+  it('bootstraps first-chapter Personae, Chronicle, and a new Thread atomically', async () => {
+    const story = {
+      beats: [],
+      eventLinks: [],
+      eventParticipants: [],
+      eventSources: [],
+      events: [],
+      moments: [],
+      personae: [],
+      questions: [],
+      revision: 0,
+      threads: [],
+      timelines: [],
+    };
+    const maintainStoryRecords = vi.fn((
+      _scope: unknown,
+      _requestId: string,
+      _revision: number,
+      _changes: Array<Record<string, unknown>>,
+    ) => ({
+      appliedCount: 8,
+      revision: 1,
+      status: 'applied' as const,
+    }));
+    const context = {
+      getDocument: vi.fn().mockResolvedValue({
+        ...documentResult,
+        contentRevision: 'a'.repeat(64),
+      }),
+      getStoryState: vi.fn().mockResolvedValue(story),
+      maintainStoryRecords,
+    } as unknown as ProjectContextService;
+    const dispatcher = new AgentToolDispatcher(context);
+    const acceptedScope = { ...scope, acceptedDocumentId: 'chapter-1' };
+
+    await dispatcher.execute(acceptedScope, {
+      arguments: {
+        directoryIds: [],
+        documentIds: [],
+        include: ['accepted_reconciliation'],
+      },
+      toolName: 'read_novel_context',
+    });
+    const result = await dispatcher.execute(acceptedScope, {
+      arguments: {
+        events: [{
+          displayTime: '晨晓',
+          participants: [{
+            description: '立下识字约定。',
+            personaRef: '@shan',
+            role: 'actor',
+          }, {
+            description: '以塔灯历史交换识字。',
+            personaRef: '@reader',
+            role: 'actor',
+          }],
+          precision: 'approximate',
+          summary: '珊在水道遇见持书女孩并立下约定。',
+          title: '晨湾水道初遇',
+        }],
+        newPersonae: [{
+          clientRef: 'shan',
+          name: '珊',
+          role: '主角',
+          summary: '迁居晨湾的共学所学生。',
+        }, {
+          clientRef: 'reader',
+          name: '持书女孩',
+          role: null,
+          summary: '在水道遇见珊的无名学生。',
+        }],
+        newThreads: [{
+          beat: {
+            description: '两人以识字交换塔灯历史。',
+            kind: 'setup',
+            relation: 'foreshadows',
+            title: '识字之约',
+          },
+          summary: '珊通过教女孩识字探寻塔灯历史。',
+          threadStatus: 'active',
+          title: '塔灯之谜',
+        }],
+        primaryTimeline: {
+          summary: '晨湾故事的主要时序。',
+          title: '晨湾主时间线',
+        },
+        threadAdvances: [],
+      },
+      toolName: 'reconcile_accepted_document',
+    });
+
+    expect(result).toEqual({
+      data: {
+        appliedCount: 8,
+        reconciliationStatus: 'complete',
+        revision: 1,
+        status: 'applied',
+      },
+      ok: true,
+      toolName: 'reconcile_accepted_document',
+    });
+    const changes = maintainStoryRecords.mock.calls[0]![3];
+    expect(changes).toHaveLength(8);
+    expect(changes[0]).toMatchObject({
+      clientRef: 'accepted_persona_1',
+      name: '珊',
+      operation: 'create_persona',
+    });
+    expect(changes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        clientRef: 'accepted_timeline',
+        isPrimary: true,
+        operation: 'create_timeline',
+      }),
+      expect.objectContaining({
+        operation: 'create_event',
+        participants: expect.arrayContaining([
+          expect.objectContaining({ personaId: '@accepted_persona_1' }),
+          expect.objectContaining({ personaId: '@accepted_persona_2' }),
+        ]),
+      }),
+      expect.objectContaining({
+        operation: 'create_thread',
+        title: '塔灯之谜',
+      }),
+      expect.objectContaining({
+        beatId: '@accepted_new_beat_1',
+        eventId: '@accepted_event',
+        operation: 'link_beat_event',
+      }),
+    ]));
   });
 
   it('returns a typed node-kind error before reading a directory as a document', async () => {

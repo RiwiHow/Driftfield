@@ -94,6 +94,7 @@ interface ReconciliationRegistry {
   personaIds: Map<string, string>;
   primaryTimelineId: string | null;
   storyRevision: number;
+  threadOrderKey: number;
   threadIds: Map<string, string>;
   threadStatuses: Map<string, import('../../shared/contracts/project-story').ThreadStatus>;
 }
@@ -376,7 +377,11 @@ export class AgentToolDispatcher {
         changes,
       );
       scope.storyChanged?.(data.revision);
-      return { data, ok: true, toolName: request.toolName };
+      return {
+        data: { ...data, reconciliationStatus: 'complete' },
+        ok: true,
+        toolName: request.toolName,
+      };
     }
     if (request.toolName === 'complete_story_reconciliation') {
       if (scope.completeStoryReconciliation === undefined) {
@@ -662,6 +667,10 @@ export class AgentToolDispatcher {
       personaIds,
       primaryTimelineId: primaryTimeline?.id ?? null,
       storyRevision: story.revision,
+      threadOrderKey: story.threads.reduce(
+        (maximum, thread) => Math.max(maximum, thread.orderKey),
+        -1,
+      ),
       threadIds,
       threadStatuses,
     };
@@ -738,15 +747,49 @@ const buildAcceptedDocumentChanges = (
   registry: ReconciliationRegistry,
   input: AgentAcceptedDocumentReconciliationArguments,
 ): AgentStoryMaintenanceChange[] => {
-  if (registry.primaryTimelineId === null) {
+  if (
+    registry.primaryTimelineId !== null &&
+    input.primaryTimeline !== undefined
+  ) {
     throw new ProjectContextError(
       'invalid-arguments',
-      'The accepted reconciliation context has no primary timeline.',
+      'primaryTimeline is valid only when accepted_reconciliation has no primary timeline.',
     );
+  }
+  const newPersonaRefs = new Map<string, string>();
+  const changes: AgentStoryMaintenanceChange[] = input.newPersonae.map(
+    (persona, index) => {
+      const internalRef = `accepted_persona_${index + 1}`;
+      newPersonaRefs.set(persona.clientRef, `@${internalRef}`);
+      return {
+        clientRef: internalRef,
+        name: persona.name,
+        operation: 'create_persona',
+        role: persona.role,
+        summary: persona.summary,
+      };
+    },
+  );
+  let timelineId = registry.primaryTimelineId;
+  if (timelineId === null) {
+    const timeline = input.primaryTimeline ?? {
+      summary: '',
+      title: 'Main timeline',
+    };
+    changes.push({
+      clientRef: 'accepted_timeline',
+      isPrimary: true,
+      operation: 'create_timeline',
+      summary: timeline.summary,
+      title: timeline.title,
+    });
+    timelineId = '@accepted_timeline';
   }
   const event = input.events[0];
   const participants = event.participants.map((participant) => {
-    const personaId = registry.personaIds.get(participant.personaRef);
+    const personaId = participant.personaRef.startsWith('@')
+      ? newPersonaRefs.get(participant.personaRef.slice(1))
+      : registry.personaIds.get(participant.personaRef);
     if (personaId === undefined) {
       throw new ProjectContextError(
         'invalid-arguments',
@@ -759,7 +802,7 @@ const buildAcceptedDocumentChanges = (
       role: participant.role,
     };
   });
-  const changes: AgentStoryMaintenanceChange[] = [
+  changes.push(
     {
       clientRef: 'accepted_moment',
       displayTime: event.displayTime,
@@ -767,7 +810,7 @@ const buildAcceptedDocumentChanges = (
       operation: 'create_moment',
       orderKey: registry.momentOrderKey + 1,
       precision: event.precision,
-      timelineId: registry.primaryTimelineId,
+      timelineId,
     },
     {
       causes: '',
@@ -786,10 +829,42 @@ const buildAcceptedDocumentChanges = (
       startMomentId: '@accepted_moment',
       status: 'established',
       summary: event.summary,
-      timelineId: registry.primaryTimelineId,
+      timelineId,
       title: event.title,
     },
-  ];
+  );
+  input.newThreads.forEach((thread, index) => {
+    const threadRef = `accepted_thread_${index + 1}`;
+    const beatRef = `accepted_new_beat_${index + 1}`;
+    changes.push({
+      clientRef: threadRef,
+      operation: 'create_thread',
+      orderKey: registry.threadOrderKey + index + 1,
+      parentId: null,
+      status: thread.threadStatus,
+      summary: thread.summary,
+      title: thread.title,
+    });
+    changes.push({
+      clientRef: beatRef,
+      description: thread.beat.description,
+      desiredOutcome: thread.beat.desiredOutcome ?? '',
+      dramaticPurpose: thread.beat.dramaticPurpose ?? '',
+      kind: thread.beat.kind,
+      operation: 'create_beat',
+      orderKey: 0,
+      parentId: null,
+      status: thread.threadStatus,
+      threadId: `@${threadRef}`,
+      title: thread.beat.title,
+    });
+    changes.push({
+      beatId: `@${beatRef}`,
+      eventId: '@accepted_event',
+      operation: 'link_beat_event',
+      relation: thread.beat.relation,
+    });
+  });
   const beatOrderKeys = new Map(registry.beatOrderKeys);
   input.threadAdvances.forEach((advance, index) => {
     const threadId = registry.threadIds.get(advance.threadRef);
@@ -977,7 +1052,7 @@ const toolArgumentShapeHint = (
     return 'revise_writing_artifact requires exactly writingAssignmentId and 1 to 12 ordered replacements. Each replacement requires exactly find, replace, and expectedOccurrences; find must be non-empty and differ from replace.';
   }
   if (toolName === 'reconcile_accepted_document') {
-    return 'reconcile_accepted_document requires exactly events and threadAdvances. events must contain exactly one event with displayTime, precision, title, summary, and participants. Participants use personaRef from accepted_reconciliation. Thread advances use threadRef from that same read and require kind, title, description, and relation; dramaticPurpose and desiredOutcome are optional.';
+    return 'reconcile_accepted_document requires events, newPersonae, newThreads, and threadAdvances, plus optional primaryTimeline only when accepted_reconciliation has none. events contains exactly one event. Existing participants use personaRef from accepted_reconciliation; new Personae declare clientRef and are referenced as @clientRef in the same call. Existing Thread advances use threadRef; newThreads embeds its first linked beat. Main owns timeline fallback, moments, sources, ordering, IDs, and checkpoint completion.';
   }
   if (toolName === 'complete_story_reconciliation') {
     return 'complete_story_reconciliation requires exactly status and reason. Read accepted_reconciliation after acceptance first. Use applied only after a successful reconciliation mutation, questions_recorded only after recording a question, or no_changes only when neither occurred.';

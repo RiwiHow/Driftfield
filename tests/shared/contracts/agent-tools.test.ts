@@ -243,6 +243,56 @@ describe('Agent proposal tool contract', () => {
     })).toBe(false);
   });
 
+  it('validates one-call first-chapter reconciliation', () => {
+    const request = {
+      arguments: {
+        events: [{
+          displayTime: 'Dawn',
+          participants: [{
+            description: 'Makes the agreement.',
+            personaRef: '@shan',
+            role: 'actor',
+          }],
+          precision: 'approximate',
+          summary: 'Shan meets the reader by the canal.',
+          title: 'Canal meeting',
+        }],
+        newPersonae: [{
+          clientRef: 'shan',
+          name: 'Shan',
+          role: 'protagonist',
+          summary: 'A student newly arrived in Morning Bay.',
+        }],
+        newThreads: [],
+        primaryTimeline: { summary: '', title: 'Morning Bay timeline' },
+        threadAdvances: [],
+      },
+      toolName: 'reconcile_accepted_document',
+    };
+
+    expect(isAgentToolRequest(request)).toBe(true);
+    expect(isAgentToolExecutionResult({
+      data: {
+        appliedCount: 4,
+        reconciliationStatus: 'complete',
+        revision: 1,
+        status: 'applied',
+      },
+      ok: true,
+      toolName: 'reconcile_accepted_document',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      ...request,
+      arguments: {
+        ...request.arguments,
+        newPersonae: [
+          request.arguments.newPersonae[0],
+          request.arguments.newPersonae[0],
+        ],
+      },
+    })).toBe(false);
+  });
+
   it('correlates validated proposal arguments and results', () => {
     expect(isAgentToolRequest({
       arguments: {

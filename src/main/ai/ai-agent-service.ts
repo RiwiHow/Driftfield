@@ -598,6 +598,9 @@ export class AiAgentService {
       message.toolName === 'reconcile_accepted_document'
     ) {
       active.reconciliation.applied = true;
+      if (message.toolName === 'reconcile_accepted_document') {
+        active.reconciliation.pending = false;
+      }
       return;
     }
     if (message.toolName === 'record_story_question') {
@@ -624,7 +627,7 @@ export class AiAgentService {
     }
     if (status === 'applied' && !reconciliation.applied) {
       return {
-        detail: 'The applied status requires a successful maintain_story_records call after acceptance.',
+        detail: 'The applied status requires a successful story-record mutation after acceptance.',
         ok: false,
       };
     }

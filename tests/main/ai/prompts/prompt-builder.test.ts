@@ -61,12 +61,12 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain('continue the same Agent run');
     expect(built.prompt).toContain('outside the user’s requested scope');
     expect(built.prompt).toContain('read accepted_reconciliation context');
-    expect(built.prompt).toContain('Prefer reconcile_accepted_document');
+    expect(built.prompt).toContain('Prefer one reconcile_accepted_document call');
     expect(built.prompt).toContain(
-      'explicitly check Personae, Chronicle, Threads, and open questions in turn',
+      'check Personae, Chronicle, Threads, and open questions',
     );
     expect(built.prompt).toContain('Use ordinary Maintain only for clear shapes');
-    expect(built.prompt).toContain('call complete_story_reconciliation');
+    expect(built.prompt).toContain('do not call complete_story_reconciliation');
     expect(built.prompt).toContain('complete ordered dependency graph');
     expect(built.prompt).toContain('reference it as @clientRef');
     expect(built.prompt).toContain('persistent identities remain Main-owned');
