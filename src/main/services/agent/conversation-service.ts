@@ -19,7 +19,7 @@ import {
 } from '../../../shared/contracts/agent';
 import { isAgentToolAuditName } from '../../../shared/contracts/agent-tools';
 import { PROJECT_ICON_IDS } from '../../../shared/contracts/project-layout';
-import { ConversationDatabase } from '../../database/conversation-database';
+import { ProjectDatabase } from '../../database/project-database';
 import type { ProjectSession } from '../project/session-service';
 
 const DEFAULT_TITLE = '';
@@ -46,7 +46,7 @@ interface ConversationRow {
 }
 
 interface ActiveRequest {
-  database: ConversationDatabase;
+  database: ProjectDatabase;
   message: AgentConversationMessage;
   outcome: 'running' | 'completed' | 'cancelled' | 'failed' | 'interrupted';
   timer: ReturnType<typeof setTimeout> | null;
@@ -63,7 +63,7 @@ export interface AgentPromptHistory {
 }
 
 export class AgentConversationService {
-  private readonly databases = new Map<string, ConversationDatabase>();
+  private readonly databases = new Map<string, ProjectDatabase>();
   private readonly activeRequests = new Map<string, ActiveRequest>();
 
   getState(session: ProjectSession): AgentConversationState {
@@ -406,16 +406,21 @@ export class AgentConversationService {
     this.databases.clear();
   }
 
-  private getDatabase(session: ProjectSession): ConversationDatabase {
+  private getDatabase(session: ProjectSession): ProjectDatabase {
     let database = this.databases.get(session.directoryPath);
     if (database === undefined) {
-      database = new ConversationDatabase(session.directoryPath);
+      database = new ProjectDatabase(session.directoryPath);
+      database.connection.prepare(`
+        UPDATE conversation_messages
+        SET terminal = 'interrupted', run_status = 'interrupted', updated_at = ?
+        WHERE role = 'assistant' AND run_status = 'running'
+      `).run(new Date().toISOString());
       this.databases.set(session.directoryPath, database);
     }
     return database;
   }
 
-  private ensureActiveConversation(database: ConversationDatabase): string {
+  private ensureActiveConversation(database: ProjectDatabase): string {
     const active = database.connection.prepare(`
       SELECT c.id FROM conversation_state s
       JOIN conversations c ON c.id = s.active_conversation_id
@@ -439,14 +444,14 @@ export class AgentConversationService {
     return id;
   }
 
-  private assertConversation(database: ConversationDatabase, id: string): void {
+  private assertConversation(database: ProjectDatabase, id: string): void {
     const row = database.connection.prepare(`
       SELECT 1 AS found FROM conversations WHERE id = ? AND deleted_at IS NULL
     `).get(id);
     if (row === undefined) throw new Error('Unknown conversation');
   }
 
-  private readState(database: ConversationDatabase, id: string): AgentConversationState {
+  private readState(database: ProjectDatabase, id: string): AgentConversationState {
     this.assertConversation(database, id);
     const conversations = database.connection.prepare(`
       SELECT id, title, created_at, updated_at FROM conversations
@@ -474,7 +479,7 @@ export class AgentConversationService {
   }
 
   private buildHistory(
-    database: ConversationDatabase,
+    database: ProjectDatabase,
     conversationId: string,
     requestId: string,
   ): AgentHistoryMessage[] {
@@ -500,7 +505,7 @@ export class AgentConversationService {
   }
 
   private buildProposalOutcomes(
-    database: ConversationDatabase,
+    database: ProjectDatabase,
     conversationId: string,
     requestId: string,
   ): AgentProposalOutcome[] {

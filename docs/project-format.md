@@ -1,129 +1,99 @@
 # Project Format
 
-A Driftfield project is a portable, versioned directory. A newly initialized
-project has three project databases and lowercase manuscript and lore
-roots:
+Driftfield Project Format v3 stores prose as ordinary Markdown and all
+project-owned structured state in one Main-owned SQLite database. The detailed
+implementation contract is [Project Format v3](project-format-v3.md).
 
 ```text
 novel/
 ├── .driftfield/
 │   ├── project.sqlite
-│   ├── conversations.sqlite
-│   └── settings.sqlite
+│   ├── recovery/
+│   ├── staging/
+│   └── trash/
 ├── manuscript/
-│   └── _index.yaml
 └── lore/
-    ├── _index.yaml
-    ├── Personae/
-    │   └── _index.yaml
-    ├── Locations/
-    │   └── _index.yaml
-    └── World/
-        └── _index.yaml
 ```
 
-Selecting an empty folder initializes all of these entries. A missing
-`lore/` in an existing project never prevents the manuscript from opening.
-Only a truly empty selected directory is initialized. A nonempty directory is
-recognized only when `.driftfield/project.sqlite` is a regular, non-symlink
-SQLite database containing Driftfield's fixed project marker, stable project
-ID, and a positive format version. A missing database is reported separately
-from a damaged database. Project format versions are recorded but are not yet
-used to reject a project; database schema compatibility remains fail-closed.
+New projects do not create `_index.yaml`, `conversations.sqlite`, or
+`settings.sqlite`.
 
-`.driftfield` is an application-owned hidden data directory. It is ignored by
-manuscript scanning and watcher refresh decisions. Users and Agents do not edit
-it directly; credentials never enter it. Its databases travel together with
-ordinary folder copies and backups. Driftfield does not create or depend on Git
-metadata.
+## Authority
 
-The product vocabulary distinguishes five domains: Manuscript is the authored
-novel, Lore is its design book, Chronicle is fictional-world time and events,
-Threads is plot structure, and Personae is the character registry. Manuscript
-and Lore are the two document roots shown above. Chronicle, Threads, and
-Personae are structured domains owned by `project.sqlite`; they are not sibling
-filesystem roots.
+- Markdown files under registered Manuscript and Lore document nodes own prose.
+- `.driftfield/project.sqlite` owns stable project and node IDs, hierarchy,
+  sibling order, titles, numbering policy, file locators and revisions, project
+  Agent settings, conversations, writing artifacts, Personae, Chronicle,
+  Threads, questions, and mutation ledgers.
+- Application language, appearance, global model configuration, credentials,
+  and last-opened-project state remain under Electron `userData`.
+- Paths, filenames, generated labels, and array positions are not identities.
 
-New projects seed the Lore root with the ordered `Personae`, `Locations`, and
-`World` categories. These are ordinary Lore document categories, not additional
-database-backed domain roots. Existing projects are not silently migrated when
-opened.
+Renderer and Agent workers never open the database or construct project paths.
+They use serializable stable IDs or request-scoped references through narrow
+Main-owned operations.
 
-## Physical names and metadata ownership
+## Project recognition
 
-- Keep the physical roots exactly `manuscript` and `lore`. New projects create
-  both; existing projects may omit `lore`. Lowercase spelling is part
-  of the format.
-- `project.sqlite` owns the fixed Driftfield marker, stable project identity,
-  project title, optional reviewed icon ID, and format/schema versions.
-- Each semantic directory `_index.yaml` owns that directory's stable ID, kind,
-  title, optional reviewed icon ID, child order, and inherited child-label or
-  numbering policy.
-- UI labels may be renamed or localized without changing physical paths. Do not
-  duplicate the same metadata in parent and child indexes.
-- Newly created semantic directories and Markdown documents use sanitized,
-  collision-safe display titles as their physical names. Stable IDs remain in
-  metadata and never depend on those human-readable names. Renaming a title does
-  not implicitly rename its physical path.
-- Agent-facing document context exposes the stored metadata title separately
-  from the formatted display title. Reviewed document-title changes update only
-  the owning index entry and preserve the stable ID, physical path, and Markdown.
-- Markdown files contain content. Filenames, paths, display titles, numbers,
-  and array positions are not stable domain identity.
+A nonempty project is recognized through `.driftfield/project.sqlite`, the
+fixed marker `driftfield-project`, a stable project ID, and supported positive
+format version. Missing and damaged databases are different typed errors. A
+newer project format is rejected instead of being opened with guessed
+semantics.
 
-Icon values come from Driftfield's fixed Lucide-backed registry. YAML cannot
-inject SVG, HTML, URLs, filesystem paths, or executable icon definitions.
-The bounded Agent structure view exposes selected directory icons and the fixed
-allow-list. Reviewed category creation accepts only those IDs; Agents still do
-not read or edit YAML directly.
+The physical roots must use the exact lowercase names `manuscript` and `lore`.
+Every registered locator is normalized, canonically contained, checked against
+the expected regular file or directory kind, and limited to `.md` or
+`.markdown` for documents. `.driftfield` is never scanned as content.
 
-## Ordering, numbering, and formatting
+## Catalog
 
-- Store child order explicitly in `children` arrays instead of inferring it from
-  filenames.
-- Keep numbering structured and separate from labels. Supported behavior
-  includes continuous, per-volume, manual, and none.
-- A directory `title` controls its own UI label. A constrained `format` controls
-  child labels only.
-- Formatters are data templates, never executable code. Allow only documented
-  placeholders; reject unknown placeholders and bound their size.
-- Never permit expressions, property traversal, environment access, custom YAML
-  tags, or formatter-derived file paths and IDs.
+`project_nodes` is the authoritative catalog. It stores stable IDs, parent IDs,
+directory/document kind, metadata title, reviewed icon, normalized relative
+path, explicit sort key, directory numbering policy, last content revision,
+and backing-file status.
 
-## Parsing and authority
+Structural changes never edit metadata files. Main validates and serializes the
+operation, stages or trashes affected files, records it in
+`project_operations`, performs the filesystem step, updates the catalog, and
+marks the operation completed. An unfinished operation blocks normal opening
+with `project-recovery-required`; Driftfield preserves the operation and files
+instead of silently guessing or overwriting.
 
-- Parse YAML in main with a safe schema and strict runtime validation.
-- Bound file size, depth, aliases, collection size, strings, and child count.
-- Reject unsupported keys, kinds, and icon IDs.
-- Require regular, non-symlink metadata and content files.
-- Canonicalize and contain every referenced path under its owning project and
-  semantic root.
-- Main project services own initialization, metadata reads, migrations,
-  revisions, serialized atomic writes, and conflicts.
-- Renderer features and Agent workers do not parse, mutate, or construct project
-  metadata paths.
-- Agents access structure through bounded domain tools and request-scoped refs
-  that Main resolves to stable IDs. They
-  never edit YAML directly.
-- Structural mutations must use propose, preview, approve, revision-check, and
-  main-owned apply semantics.
+## Markdown
 
-Whether application writes must preserve user-authored YAML comments and exact
-formatting remains undecided. Do not promise round-trip preservation until the
-product decision and parser strategy are explicit.
+Driftfield supports Markdown, not MDX or arbitrary HTML. One Main-owned
+validator is used for generated artifacts, proposals, proposal acceptance,
+document creation, and save. It enforces size limits, rejects raw HTML,
+Agent/prompt protocol remnants, forbidden control characters, parse failures,
+and severely truncated assigned artifacts. Externally damaged Markdown may be
+shown through source-mode recovery, but generated content cannot use that path
+to bypass validation.
 
-## Markdown documents
+## External changes
 
-The project snapshot exposes separate ordered Manuscript and Lore trees through
-narrow main-process IPC. Documents from both roots use the same stable-ID-based,
-revision-checked open, edit, recovery, and save lifecycle. Existing `.md` and
-`.markdown` documents can be saved through validated, conflict-aware handlers.
-General `.mdx` and JSX files are unsupported.
+- Content edits to a registered file use SHA-256 revision conflicts.
+- Missing registered files retain their stable catalog record.
+- Unregistered Markdown is not silently adopted.
+- External rename or move is not guessed from names or similar content.
+- Legacy `_index.yaml` found after migration is ignored and has no authority.
 
-The last successfully opened project directory is persisted in global
-application settings and restored at startup after main-owned validation. Open
-documents and unsaved edits remain session-only. Project Agent inheritance and
-optional overrides are restored from `settings.sqlite`; global Agent defaults
-come from application settings. Conversations and generation records are
-restored from `conversations.sqlite`. Future approved world and plot state
-belongs in `project.sqlite`.
+## V2 migration
+
+Opening a valid v2 project performs a Main-owned pre-release migration:
+
+1. Copy `project.sqlite`, legacy sidecar databases, and every metadata index to
+   a unique `.driftfield/recovery/migration-v3-*` backup.
+2. Validate the existing YAML hierarchy and Markdown files with the strict v2
+   reader.
+3. Add the v3 schema to `project.sqlite`, import the catalog, project settings,
+   model-override handoff records, conversations, messages, and content
+   revisions, then atomically change the project format version to 3.
+4. Move live `_index.yaml`, `conversations.sqlite`, and `settings.sqlite` into
+   the recovery backup. V3 ignores any legacy file that remains after an
+   interrupted retirement step.
+
+Migration never deletes prose or the recovery backup. Invalid optional legacy
+settings or conversation sidecars are preserved and reported in the migration
+manifest while the project opens with safe defaults; invalid project identity,
+catalog metadata, or prose structure still blocks migration.

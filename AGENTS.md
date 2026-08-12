@@ -86,44 +86,38 @@ New-format projects use:
 novel/
 ├── .driftfield/
 │   ├── project.sqlite
-│   ├── conversations.sqlite
-│   └── settings.sqlite
+│   ├── recovery/
+│   ├── staging/
+│   └── trash/
 ├── manuscript/
-│   └── _index.yaml
 └── lore/
-    └── _index.yaml
 ```
 
-- New projects create lowercase physical `manuscript` and `lore` roots.
-  Existing projects may omit `lore`; its absence must never block opening a
-  manuscript.
-- Selecting an empty directory initializes the databases, manuscript, and
-  lore indexes.
+- New projects create exact lowercase physical `manuscript` and `lore` roots.
+- Selecting an empty directory initializes the one database, catalog, and roots.
 - Recognize a nonempty project through the fixed marker, stable ID, and positive
   format version in `.driftfield/project.sqlite`. Report a missing database
-  separately from a damaged database. The project format version is not yet a
-  compatibility gate.
-- `project.sqlite` owns stable project identity and future authoritative world,
-  timeline, plot, and mutation-ledger state. `conversations.sqlite` owns Agent
-  conversations and generation/tool audit data. `settings.sqlite` owns
-  project-level model selection and overrides.
-- Cross-database references use validated stable IDs and never SQLite foreign
-  keys. Conversation records may refer to tool operations, but they are not the
-  authority for world state.
-- `project.sqlite` owns the project title and optional reviewed icon ID.
-- Each semantic directory `_index.yaml` owns its stable ID, kind, display title,
-  explicit child order, and inherited numbering/label policy.
+  separately from a damaged database. Reject unsupported newer format versions.
+- `project.sqlite` owns project identity and presentation, the semantic catalog,
+  project settings, conversations and artifacts, story state, and mutation
+  ledgers. Markdown remains authoritative for prose.
+- Use internal foreign keys within the unified project database. Conversation
+  and tool audit rows are not authority for catalog or story state.
+- `project_nodes` owns stable node identity, kind, display title, explicit child
+  order, inherited numbering policy, physical locator, and observed revision.
 - Paths, filenames, titles, numbers, and array positions are not stable IDs.
-- Parse YAML only in main with a safe schema, strict runtime validation, bounded
-  input, exact keys/kinds, regular-file checks, and canonical containment.
+- Parse legacy v2 YAML only in main during migration, with a safe schema, strict
+  runtime validation, bounded input, exact keys/kinds, regular-file checks, and
+  canonical containment. V3 never creates or writes YAML indexes.
 - Formatters are constrained data templates, never executable expressions and
   never sources of paths or IDs.
 - Renderer and Agent workers do not parse, construct, or mutate metadata paths.
-- Agents never edit YAML directly. Structural changes use propose, preview,
-  approve, revision-check, and main-owned apply.
+- Agents never edit the catalog directly. Structural changes use propose,
+  preview, approve, revision-check, and main-owned apply through the durable
+  project operation ledger.
 - Support manuscript `.md` and `.markdown`, not general MDX/JSX.
-- Do not promise YAML comment/format preservation until that product decision is
-  explicit.
+- Preserve v2 YAML and sidecar databases in a recovery backup during migration;
+  do not promise YAML comment/format round trips.
 - `.driftfield` is main-owned mutable project data. Scanners and watchers ignore
   it; credentials never enter it, and it is not a generic Agent filesystem.
 

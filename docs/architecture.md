@@ -55,8 +55,13 @@ services root rather than being forced into an unrelated domain.
 
 Project responsibilities are separated behind stable entry points:
 
-- `services/project/metadata-parser.ts` performs bounded,
-  filesystem-independent YAML parsing and runtime schema validation.
+- Project Format v3 consolidates project-owned structured state behind one
+  SQLite control plane while keeping Markdown authoritative for prose. Its
+  implementation contract, migration, and recovery protocol are defined in
+  [Project Format v3](project-format-v3.md).
+
+- `services/project/metadata-parser.ts` validates catalog values and contains
+  the bounded, strict legacy-YAML reader used only during v2 migration.
 - `services/project/layout-service.ts` reads and validates an existing layout,
   while `services/project/layout-initializer.ts` exclusively stages new project
   structures.
@@ -105,20 +110,17 @@ added or removed.
 Database drivers belong in `src/main/database/`. Renderer features call typed
 preload methods that reach validated main-process handlers and repositories.
 
-Project-owned structured state is split by lifecycle under `.driftfield`:
-`project.sqlite` owns identity and future authoritative world state,
-`conversations.sqlite` owns Agent history and generation/tool audit records, and
-`settings.sqlite` owns project-level model inheritance and selection state (and
-retains its legacy model-override table for migration). Global UI settings, the
-default Agent model selection, model overrides, and credentials remain under
-Electron `userData`. Pi configuration files under `userData` are rebuildable
-runtime caches, not authoritative
-settings. See [Project Databases](database.md).
+Project-owned structured state uses one `.driftfield/project.sqlite` database.
+Domain repositories remain separate but share its schema migration, transaction,
+and backup boundary. Global UI settings, default Agent model selection, model
+overrides, and credentials remain under Electron `userData`. Pi configuration
+files under `userData` are rebuildable runtime caches, not authoritative
+settings. See [Project Database](database.md).
 
 - Introduce migrations with the first persisted schema.
 - Keep SQL and driver records behind repositories.
-- Do not use cross-database foreign keys. Join domains in main-owned services
-  through validated stable IDs when a workflow needs them.
+- Use internal foreign keys where domains share the project database. References
+  to global stores still use validated stable IDs.
 - Keep domain types independent of the selected database library.
 - Use transactions for multi-record changes.
 - Do not expose SQL, handles, repositories, or unrestricted query tools to

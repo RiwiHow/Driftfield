@@ -7,8 +7,9 @@ import {
 import path from 'node:path';
 
 import {
+  DRIFTFIELD_PROJECT_FORMAT_VERSION,
   DRIFTFIELD_PROJECT_MARKER,
-  PROJECT_INDEX_NAME,
+  LEGACY_PROJECT_INDEX_NAME,
   PROJECT_ROOT_DIRECTORIES,
   type LoreCategoryIndex,
   type LoreIndex,
@@ -18,12 +19,27 @@ import {
   type VolumeIndex,
 } from '../../../shared/contracts/project-layout';
 import {
+  ProjectCatalogRepository,
+  type ProjectCatalogNode,
+} from '../../database/project-catalog-repository';
+import {
   ProjectDatabase,
+  readExistingProjectFormatVersion,
   validateExistingProjectDatabase,
 } from '../../database/project-database';
 import { initializeProjectLayoutFiles } from './layout-initializer';
+import { isPathInside } from './document-utils';
+import {
+  migrateLegacyProjectToV3,
+  prepareLegacyProjectBackup,
+} from './project-format-migration';
+import {
+  ProjectMutationCoordinator,
+  ProjectRecoveryRequiredError,
+} from './project-mutation-coordinator';
 import {
   MAX_PROJECT_METADATA_BYTES,
+  parseChapterNumberingPolicy,
   parseLoreCategoryIndex,
   parseLoreIndex,
   parseManuscriptIndex,
@@ -55,7 +71,9 @@ export interface LoadedProjectLayout {
 }
 
 export type ProjectLayoutErrorCode =
-  'project-database-corrupt' | 'project-database-missing';
+  | 'project-database-corrupt'
+  | 'project-database-missing'
+  | 'project-recovery-required';
 
 export class ProjectLayoutError extends Error {
   constructor(
@@ -201,7 +219,225 @@ const assertUnique = (values: string[], message: string): void => {
   if (new Set(values).size !== values.length) throw new Error(message);
 };
 
-export const loadProjectLayout = async (
+const catalogDirectoryEntryName = (node: ProjectCatalogNode): string =>
+  path.basename(node.relativePath);
+
+const catalogDocumentEntry = (
+  node: ProjectCatalogNode,
+): import('../../../shared/contracts/project-layout').LoreEntry |
+  import('../../../shared/contracts/project-layout').ManuscriptDocumentEntry => ({
+    file: path.basename(node.relativePath),
+    id: node.id,
+    kind: node.kind as
+      import('../../../shared/contracts/project-layout').ManuscriptDocumentKind | 'entry',
+    title: node.title,
+  });
+
+const loadCatalogProjectLayout = async (
+  projectPath: string,
+  database: ProjectDatabase,
+): Promise<LoadedProjectLayout> => {
+  const hasLore = await assertExactRootEntries(projectPath);
+  if (!hasLore) throw new Error('Driftfield project is missing lore');
+  const metadata = database.getProjectMetadata();
+  if (
+    metadata === null ||
+    metadata.marker !== DRIFTFIELD_PROJECT_MARKER ||
+    metadata.formatVersion !== DRIFTFIELD_PROJECT_FORMAT_VERSION
+  ) {
+    throw new Error('Driftfield v3 project identity is invalid');
+  }
+  const catalog = new ProjectCatalogRepository(database);
+  const nodes = catalog.list();
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const childrenOf = (parentId: string): ProjectCatalogNode[] =>
+    nodes
+      .filter((node) => node.parentId === parentId)
+      .sort((left, right) => left.sortKey - right.sortKey);
+  const manuscriptRoot = nodes.find(
+    ({ kind, parentId, type }) =>
+      kind === 'manuscript' && parentId === null && type === 'directory',
+  );
+  const loreRoot = nodes.find(
+    ({ kind, parentId, type }) =>
+      kind === 'lore' && parentId === null && type === 'directory',
+  );
+  if (manuscriptRoot === undefined || loreRoot === undefined) {
+    throw new Error('Driftfield project catalog roots are missing');
+  }
+
+  for (const node of nodes) {
+    parseProjectId(node.id);
+    parseProjectTitle(node.title);
+    if (node.icon !== null) parseProjectIcon(node.icon);
+    if (node.parentId === null) {
+      if (
+        (node.kind === 'manuscript' && node.relativePath !== 'manuscript') ||
+        (node.kind === 'lore' && node.relativePath !== 'lore')
+      ) {
+        throw new Error('Project catalog contains an invalid root path');
+      }
+    } else {
+      const parent = byId.get(node.parentId);
+      if (parent === undefined || parent.type !== 'directory') {
+        throw new Error('Project catalog contains an unknown parent');
+      }
+      const validChild = node.type === 'directory'
+        ? (parent.kind === 'manuscript' && node.kind === 'volume') ||
+          (parent.kind === 'lore' && node.kind === 'category')
+        : parent.kind === 'manuscript' || parent.kind === 'volume'
+          ? node.kind !== 'entry'
+          : (parent.kind === 'lore' || parent.kind === 'category') &&
+            node.kind === 'entry';
+      if (
+        !validChild ||
+        path.posix.dirname(node.relativePath) !== parent.relativePath
+      ) {
+        throw new Error('Project catalog contains an invalid hierarchy');
+      }
+    }
+    const normalizedRelativePath = node.relativePath.split('/').join(path.sep);
+    const absolutePath = path.resolve(projectPath, normalizedRelativePath);
+    if (
+      path.isAbsolute(node.relativePath) ||
+      node.relativePath.includes('\\') ||
+      normalizeCatalogRelativePath(normalizedRelativePath) !== node.relativePath ||
+      !isPathInside(projectPath, absolutePath)
+    ) {
+      throw new Error('Project catalog contains an invalid relative path');
+    }
+    const stats = await lstat(absolutePath);
+    if (stats.isSymbolicLink()) throw new Error('Project catalog path is a symlink');
+    if (node.type === 'directory') {
+      if (!stats.isDirectory()) throw new Error('Project catalog directory is invalid');
+    } else {
+      if (!stats.isFile()) throw new Error('Project catalog document is invalid');
+      const extension = path.extname(node.relativePath).toLowerCase();
+      if (extension !== '.md' && extension !== '.markdown') {
+        throw new Error('Project catalog references an unsupported document');
+      }
+    }
+  }
+
+  const manuscriptChildren = childrenOf(manuscriptRoot.id);
+  const manuscriptNumbering = manuscriptRoot.numberingMode === null
+    ? undefined
+    : parseChapterNumberingPolicy({
+        ...(manuscriptRoot.numberingFormat === null
+          ? {}
+          : { format: manuscriptRoot.numberingFormat }),
+        mode: manuscriptRoot.numberingMode,
+      });
+  const manuscriptIndex: ManuscriptIndex = {
+    ...(manuscriptNumbering === undefined
+      ? {}
+      : { chapterNumbering: manuscriptNumbering }),
+    children: manuscriptChildren.map((child) =>
+      child.type === 'directory'
+        ? { directory: catalogDirectoryEntryName(child), kind: 'volume' as const }
+        : catalogDocumentEntry(child) as
+            import('../../../shared/contracts/project-layout').ManuscriptDocumentEntry,
+    ),
+    id: manuscriptRoot.id,
+    ...(manuscriptRoot.icon === null ? {} : { icon: manuscriptRoot.icon }),
+    kind: 'manuscript',
+    title: manuscriptRoot.title,
+  };
+  const volumes = manuscriptChildren
+    .filter((node) => node.type === 'directory')
+    .map((volume) => {
+      if (volume.kind !== 'volume') throw new Error('Invalid Manuscript directory kind');
+      const volumeNumbering = volume.numberingMode === null
+        ? undefined
+        : parseChapterNumberingPolicy({
+            ...(volume.numberingFormat === null
+              ? {}
+              : { format: volume.numberingFormat }),
+            mode: volume.numberingMode,
+          });
+      const index: VolumeIndex = {
+        ...(volumeNumbering === undefined
+          ? {}
+          : { chapterNumbering: volumeNumbering }),
+        children: childrenOf(volume.id).map((child) => {
+          if (child.type !== 'document' || child.kind === 'entry') {
+            throw new Error('Invalid Volume child');
+          }
+          return catalogDocumentEntry(child) as
+            import('../../../shared/contracts/project-layout').ManuscriptDocumentEntry;
+        }),
+        id: volume.id,
+        ...(volume.icon === null ? {} : { icon: volume.icon }),
+        kind: 'volume',
+        title: volume.title,
+      };
+      return { directory: catalogDirectoryEntryName(volume), index };
+    });
+
+  const loreChildren = childrenOf(loreRoot.id);
+  const loreIndex: LoreIndex = {
+    children: loreChildren.map((child) =>
+      child.type === 'directory'
+        ? { directory: catalogDirectoryEntryName(child), kind: 'category' as const }
+        : catalogDocumentEntry(child) as
+            import('../../../shared/contracts/project-layout').LoreEntry,
+    ),
+    id: loreRoot.id,
+    ...(loreRoot.icon === null ? {} : { icon: loreRoot.icon }),
+    kind: 'lore',
+    title: loreRoot.title,
+  };
+  const categories = loreChildren
+    .filter((node) => node.type === 'directory')
+    .map((category) => {
+      if (category.kind !== 'category') throw new Error('Invalid Lore directory kind');
+      const index: LoreCategoryIndex = {
+        children: childrenOf(category.id).map((child) => {
+          if (child.type !== 'document' || child.kind !== 'entry') {
+            throw new Error('Invalid Lore category child');
+          }
+          return catalogDocumentEntry(child) as
+            import('../../../shared/contracts/project-layout').LoreEntry;
+        }),
+        id: category.id,
+        ...(category.icon === null ? {} : { icon: category.icon }),
+        kind: 'category',
+        title: category.title,
+      };
+      return { directory: catalogDirectoryEntryName(category), index };
+    });
+  const entries = nodes
+    .filter((node) => node.type === 'document' && node.kind === 'entry')
+    .map((node) => ({
+      id: node.id,
+      relativePath: node.relativePath,
+      title: node.title,
+    }));
+  return {
+    lore: { categories, entries, index: loreIndex },
+    manifest: {
+      formatVersion: metadata.formatVersion,
+      id: parseProjectId(metadata.projectId),
+      ...(metadata.icon === null ? {} : { icon: parseProjectIcon(metadata.icon) }),
+      kind: 'novel',
+      title: parseProjectTitle(metadata.title),
+    },
+    manuscript: { index: manuscriptIndex, volumes },
+    metadataSources: [
+      JSON.stringify({
+        catalogRevision: catalog.getRevision(),
+        formatVersion: metadata.formatVersion,
+        nodes,
+        projectId: metadata.projectId,
+      }),
+    ],
+  };
+};
+
+const normalizeCatalogRelativePath = (relativePath: string): string =>
+  path.normalize(relativePath).split(path.sep).join('/');
+
+const loadLegacyProjectLayout = async (
   directoryPath: string,
 ): Promise<LoadedProjectLayout> => {
   const projectPath = await realpath(directoryPath);
@@ -225,14 +461,14 @@ export const loadProjectLayout = async (
     PROJECT_ROOT_DIRECTORIES.lore,
   );
   await assertDirectory(manuscriptPath);
-  await assertExactEntryName(manuscriptPath, PROJECT_INDEX_NAME);
+  await assertExactEntryName(manuscriptPath, LEGACY_PROJECT_INDEX_NAME);
   if (hasLore) {
     await assertDirectory(lorePath);
-    await assertExactEntryName(lorePath, PROJECT_INDEX_NAME);
+    await assertExactEntryName(lorePath, LEGACY_PROJECT_INDEX_NAME);
   }
 
   const manuscriptYaml = await readYaml(
-    path.join(manuscriptPath, PROJECT_INDEX_NAME),
+    path.join(manuscriptPath, LEGACY_PROJECT_INDEX_NAME),
   );
   let database: ProjectDatabase;
   try {
@@ -295,9 +531,9 @@ export const loadProjectLayout = async (
     const volumePath = path.join(manuscriptPath, child.directory);
     await assertExactEntryName(manuscriptPath, child.directory);
     await assertDirectory(volumePath);
-    await assertExactEntryName(volumePath, PROJECT_INDEX_NAME);
+    await assertExactEntryName(volumePath, LEGACY_PROJECT_INDEX_NAME);
     const volumeYaml = await readYaml(
-      path.join(volumePath, PROJECT_INDEX_NAME),
+      path.join(volumePath, LEGACY_PROJECT_INDEX_NAME),
     );
     const index = parseVolumeIndex(volumeYaml.value);
     assertUnique(
@@ -314,7 +550,7 @@ export const loadProjectLayout = async (
   let lore: LoadedLoreLayout | null = null;
   if (hasLore) {
     const loreYaml = await readYaml(
-      path.join(lorePath, PROJECT_INDEX_NAME),
+      path.join(lorePath, LEGACY_PROJECT_INDEX_NAME),
     );
     const loreIndex = parseLoreIndex(loreYaml.value);
     metadataSources.push(loreYaml.source);
@@ -342,9 +578,9 @@ export const loadProjectLayout = async (
       const categoryPath = path.join(lorePath, child.directory);
       await assertExactEntryName(lorePath, child.directory);
       await assertDirectory(categoryPath);
-      await assertExactEntryName(categoryPath, PROJECT_INDEX_NAME);
+      await assertExactEntryName(categoryPath, LEGACY_PROJECT_INDEX_NAME);
       const categoryYaml = await readYaml(
-        path.join(categoryPath, PROJECT_INDEX_NAME),
+        path.join(categoryPath, LEGACY_PROJECT_INDEX_NAME),
       );
       const index = parseLoreCategoryIndex(categoryYaml.value);
       assertUnique(
@@ -400,6 +636,64 @@ export const loadProjectLayout = async (
     manuscript: { index: manuscriptIndex, volumes },
     metadataSources,
   };
+};
+
+export const loadProjectLayout = async (
+  directoryPath: string,
+): Promise<LoadedProjectLayout> => {
+  const projectPath = await realpath(directoryPath);
+  const databasePath = await assertProjectDatabaseFile(projectPath);
+  try {
+    validateExistingProjectDatabase(databasePath);
+  } catch {
+    throw new ProjectLayoutError(
+      'project-database-corrupt',
+      'Driftfield project database is damaged or invalid',
+    );
+  }
+  const formatVersion = readExistingProjectFormatVersion(databasePath);
+  if (formatVersion > DRIFTFIELD_PROJECT_FORMAT_VERSION) {
+    throw new ProjectLayoutError(
+      'project-database-corrupt',
+      'Driftfield project was created by a newer application version',
+    );
+  }
+  if (formatVersion < 2) {
+    throw new ProjectLayoutError(
+      'project-database-corrupt',
+      'Driftfield project format is no longer supported',
+    );
+  }
+  if (formatVersion === 2) {
+    const backup = await prepareLegacyProjectBackup(projectPath);
+    const legacyLayout = await loadLegacyProjectLayout(projectPath);
+    await migrateLegacyProjectToV3(projectPath, legacyLayout, backup);
+  }
+  try {
+    ProjectMutationCoordinator.assertNoUnfinishedOperations(projectPath);
+  } catch (error) {
+    if (error instanceof ProjectRecoveryRequiredError) {
+      throw new ProjectLayoutError(
+        'project-recovery-required',
+        'Driftfield project has an unfinished recoverable file operation',
+      );
+    }
+    throw error;
+  }
+  let database: ProjectDatabase;
+  try {
+    database = new ProjectDatabase(projectPath);
+  } catch {
+    throw new ProjectLayoutError(
+      'project-database-corrupt',
+      'Driftfield project database is damaged or invalid',
+    );
+  }
+  try {
+    return await loadCatalogProjectLayout(projectPath, database);
+  } finally {
+    database.close();
+  }
 };
 
 export const initializeProjectLayout = async (

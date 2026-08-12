@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { ProjectSqliteDatabase } from './project-sqlite-database';
 import { DRIFTFIELD_PROJECT_MARKER } from '../../shared/contracts/project-layout';
 
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 4;
 
 export interface ProjectMetadataRecord {
   formatVersion: number;
@@ -59,6 +59,26 @@ export const validateExistingProjectDatabase = (
     ) {
       throw new Error('Driftfield project identity is invalid');
     }
+  } finally {
+    connection.close();
+  }
+};
+
+export const readExistingProjectFormatVersion = (
+  databasePath: string,
+): number => {
+  const connection = new DatabaseSync(databasePath, {
+    allowExtension: false,
+    readOnly: true,
+  });
+  try {
+    const row = connection.prepare(`
+      SELECT format_version FROM project_metadata WHERE singleton = 1
+    `).get() as { format_version: number } | undefined;
+    if (row === undefined || !Number.isSafeInteger(row.format_version)) {
+      throw new Error('Driftfield project identity is invalid');
+    }
+    return row.format_version;
   } finally {
     connection.close();
   }
@@ -146,6 +166,18 @@ export class ProjectDatabase extends ProjectSqliteDatabase {
     `,
       )
       .run(title, icon);
+    if (result.changes !== 1) {
+      throw new Error('Driftfield project identity is missing');
+    }
+  }
+
+  setProjectFormatVersion(formatVersion: number): void {
+    if (!Number.isSafeInteger(formatVersion) || formatVersion < 1) {
+      throw new Error('Invalid Driftfield project format version');
+    }
+    const result = this.connection.prepare(`
+      UPDATE project_metadata SET format_version = ? WHERE singleton = 1
+    `).run(formatVersion);
     if (result.changes !== 1) {
       throw new Error('Driftfield project identity is missing');
     }
@@ -346,12 +378,199 @@ export class ProjectDatabase extends ProjectSqliteDatabase {
           VALUES (2, datetime('now'));
         `);
       });
+      this.migrateVersion3();
+      this.migrateVersion4();
       return;
     }
-    if (row.version !== DATABASE_VERSION) {
+    if (row.version === 2) {
+      this.migrateVersion3();
+      this.migrateVersion4();
+    } else if (row.version === 3) {
+      this.migrateVersion4();
+    } else if (row.version !== DATABASE_VERSION) {
       throw new Error('Project database schema is outdated');
     }
     this.assertCurrentSchema();
+  }
+
+  private migrateVersion3(): void {
+    this.transaction(() => {
+      this.connection.exec(`
+        CREATE TABLE project_catalog_state (
+          singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+          revision INTEGER NOT NULL CHECK(revision >= 0)
+        ) STRICT;
+        INSERT INTO project_catalog_state(singleton, revision) VALUES (1, 0);
+
+        CREATE TABLE project_nodes (
+          node_id TEXT PRIMARY KEY CHECK(length(node_id) BETWEEN 1 AND 128),
+          parent_node_id TEXT REFERENCES project_nodes(node_id) ON DELETE RESTRICT,
+          node_type TEXT NOT NULL CHECK(node_type IN ('directory', 'document')),
+          kind TEXT NOT NULL CHECK(kind IN (
+            'manuscript', 'lore', 'volume', 'category', 'chapter',
+            'prologue', 'interlude', 'epilogue', 'appendix', 'entry'
+          )),
+          metadata_title TEXT NOT NULL CHECK(length(metadata_title) BETWEEN 1 AND 500),
+          icon TEXT CHECK(icon IS NULL OR length(icon) BETWEEN 1 AND 100),
+          relative_path TEXT NOT NULL UNIQUE CHECK(length(relative_path) BETWEEN 1 AND 2000),
+          sort_key INTEGER NOT NULL,
+          numbering_mode TEXT CHECK(numbering_mode IS NULL OR numbering_mode IN (
+            'continuous', 'per-volume', 'manual', 'none'
+          )),
+          numbering_format TEXT CHECK(
+            numbering_format IS NULL OR length(numbering_format) <= 500
+          ),
+          content_revision TEXT CHECK(
+            content_revision IS NULL OR length(content_revision) = 64
+          ),
+          backing_status TEXT NOT NULL CHECK(backing_status IN ('present', 'missing')),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE(parent_node_id, sort_key),
+          CHECK(
+            (node_type = 'directory' AND kind IN (
+              'manuscript', 'lore', 'volume', 'category'
+            ) AND content_revision IS NULL) OR
+            (node_type = 'document' AND kind IN (
+              'chapter', 'prologue', 'interlude', 'epilogue', 'appendix', 'entry'
+            ) AND numbering_mode IS NULL AND numbering_format IS NULL AND icon IS NULL)
+          ),
+          CHECK(
+            (parent_node_id IS NULL AND kind IN ('manuscript', 'lore')) OR
+            parent_node_id IS NOT NULL
+          )
+        ) STRICT;
+        CREATE UNIQUE INDEX project_one_root_per_kind
+          ON project_nodes(kind) WHERE parent_node_id IS NULL;
+        CREATE INDEX project_nodes_by_parent
+          ON project_nodes(parent_node_id, sort_key, node_id);
+
+        CREATE TABLE agent_settings (
+          singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+          provider_id TEXT CHECK(provider_id IS NULL OR length(provider_id) BETWEEN 1 AND 255),
+          model_id TEXT CHECK(model_id IS NULL OR length(model_id) BETWEEN 1 AND 255),
+          thinking_level TEXT NOT NULL CHECK(thinking_level IN (
+            'off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'
+          )),
+          use_global INTEGER NOT NULL CHECK(use_global IN (0, 1)),
+          CHECK((provider_id IS NULL) = (model_id IS NULL))
+        ) STRICT;
+        INSERT INTO agent_settings(singleton, provider_id, model_id, thinking_level, use_global)
+        VALUES (1, NULL, NULL, 'medium', 1);
+
+        CREATE TABLE conversations (
+          id TEXT PRIMARY KEY CHECK(length(id) BETWEEN 1 AND 128),
+          title TEXT NOT NULL CHECK(length(title) <= 200),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          deleted_at TEXT
+        ) STRICT;
+        CREATE TABLE conversation_state (
+          singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+          active_conversation_id TEXT REFERENCES conversations(id)
+        ) STRICT;
+        INSERT INTO conversation_state(singleton, active_conversation_id)
+        VALUES (1, NULL);
+        CREATE TABLE conversation_messages (
+          id TEXT PRIMARY KEY CHECK(length(id) BETWEEN 1 AND 128),
+          conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+          sequence INTEGER NOT NULL,
+          role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+          content TEXT NOT NULL,
+          parts_json TEXT,
+          terminal TEXT CHECK(terminal IN ('cancelled', 'empty', 'failed', 'interrupted')),
+          proposal_id TEXT UNIQUE,
+          proposal_json TEXT,
+          proposal_status TEXT CHECK(proposal_status IN (
+            'pending', 'applying', 'saved', 'rejected', 'conflict',
+            'missing', 'stale', 'failed'
+          )),
+          run_status TEXT CHECK(run_status IN (
+            'running', 'completed', 'cancelled', 'failed', 'interrupted'
+          )),
+          active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0, 1)),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+        CREATE UNIQUE INDEX conversation_messages_active_sequence
+          ON conversation_messages(conversation_id, sequence) WHERE active = 1;
+        CREATE INDEX conversation_messages_active
+          ON conversation_messages(conversation_id, active, sequence);
+
+        CREATE TABLE writing_artifacts (
+          artifact_id TEXT PRIMARY KEY CHECK(length(artifact_id) BETWEEN 1 AND 128),
+          request_id TEXT NOT NULL CHECK(length(request_id) BETWEEN 1 AND 128),
+          target_document_id TEXT REFERENCES project_nodes(node_id) ON DELETE SET NULL,
+          state TEXT NOT NULL CHECK(state IN (
+            'generated', 'validated', 'invalid', 'proposed', 'accepted',
+            'rejected', 'discarded'
+          )),
+          markdown TEXT NOT NULL CHECK(length(markdown) <= 524288),
+          validation_code TEXT CHECK(
+            validation_code IS NULL OR length(validation_code) <= 100
+          ),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+
+        CREATE TABLE project_operations (
+          operation_id TEXT PRIMARY KEY CHECK(length(operation_id) BETWEEN 1 AND 128),
+          operation_kind TEXT NOT NULL CHECK(length(operation_kind) BETWEEN 1 AND 100),
+          state TEXT NOT NULL CHECK(state IN (
+            'prepared', 'filesystem_applied', 'completed',
+            'failed_recoverable', 'failed_terminal'
+          )),
+          base_project_revision INTEGER NOT NULL CHECK(base_project_revision >= 0),
+          payload_json TEXT NOT NULL CHECK(length(payload_json) <= 524288),
+          error_code TEXT CHECK(error_code IS NULL OR length(error_code) <= 100),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX project_operations_by_state
+          ON project_operations(state, created_at, operation_id);
+        CREATE TABLE project_operation_files (
+          operation_id TEXT NOT NULL REFERENCES project_operations(operation_id) ON DELETE CASCADE,
+          ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+          old_relative_path TEXT CHECK(
+            old_relative_path IS NULL OR length(old_relative_path) BETWEEN 1 AND 2000
+          ),
+          new_relative_path TEXT CHECK(
+            new_relative_path IS NULL OR length(new_relative_path) BETWEEN 1 AND 2000
+          ),
+          old_revision TEXT CHECK(old_revision IS NULL OR length(old_revision) = 64),
+          new_revision TEXT CHECK(new_revision IS NULL OR length(new_revision) = 64),
+          staging_relative_path TEXT CHECK(
+            staging_relative_path IS NULL OR length(staging_relative_path) BETWEEN 1 AND 2000
+          ),
+          recovery_relative_path TEXT CHECK(
+            recovery_relative_path IS NULL OR length(recovery_relative_path) BETWEEN 1 AND 2000
+          ),
+          trash_relative_path TEXT CHECK(
+            trash_relative_path IS NULL OR length(trash_relative_path) BETWEEN 1 AND 2000
+          ),
+          PRIMARY KEY(operation_id, ordinal)
+        ) STRICT;
+
+        INSERT INTO schema_migrations(version, applied_at)
+        VALUES (3, datetime('now'));
+      `);
+    });
+  }
+
+  private migrateVersion4(): void {
+    this.transaction(() => {
+      this.connection.exec(`
+        CREATE TABLE legacy_agent_model_overrides (
+          provider_id TEXT NOT NULL CHECK(length(provider_id) BETWEEN 1 AND 255),
+          model_id TEXT NOT NULL CHECK(length(model_id) BETWEEN 1 AND 255),
+          override_json TEXT NOT NULL CHECK(length(override_json) <= 65536),
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY(provider_id, model_id)
+        ) STRICT;
+        INSERT INTO schema_migrations(version, applied_at)
+        VALUES (4, datetime('now'));
+      `);
+    });
   }
 
   private assertCurrentSchema(): void {
@@ -385,6 +604,16 @@ export class ProjectDatabase extends ProjectSqliteDatabase {
       'thread_beats',
       'thread_event_links',
       'threads',
+      'agent_settings',
+      'conversation_messages',
+      'conversation_state',
+      'conversations',
+      'legacy_agent_model_overrides',
+      'project_catalog_state',
+      'project_nodes',
+      'project_operation_files',
+      'project_operations',
+      'writing_artifacts',
     ];
     if (requiredTables.some((tableName) => !this.hasTable(tableName))) {
       throw new Error('Project database schema is invalid');

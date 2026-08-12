@@ -5,21 +5,26 @@ implemented or authorized.
 
 ## Projects and persistence
 
+- Project Format v3 and its tested v2 import path are implemented as described
+  in [Project Format](project-format.md) and
+  [Project Format v3](project-format-v3.md).
+
 - The last successfully opened project is restored after relaunch. Open tabs,
   the active document, editor position, and unsaved drafts remain session-only.
   Agent conversations are project-scoped and persisted through the main-owned
-  conversation database.
+  unified project database.
 - Watcher retry and close/quit behavior have unit coverage but not complete
   packaged Electron end-to-end coverage on every supported platform.
-- YAML comment and exact-format round-trip preservation remains undecided.
-- Project databases have transactional migrations, strict schemas, and bounded
-  access, but there is no application-owned integrity check, corruption-recovery
-  workflow, coordinated three-database backup, or packaged database smoke test.
-  Define these before project databases become irreplaceable released user data.
+- V3 retains legacy YAML only in migration recovery backups; it does not promise
+  comment or exact-format round-trip preservation.
+- Cross-domain file operations have a durable ledger and block normal opening
+  when interrupted. Deterministic automatic roll-forward/rollback UI,
+  application-owned integrity checks, retention cleanup, and packaged database
+  smoke coverage remain unfinished.
 - Driftfield does not currently claim an application-wide single-instance lock
   or a project-level writer lease. Before supporting multiple application
-  instances, define how concurrent access to the same manuscript and its three
-  SQLite databases is detected and resolved; otherwise enforce single-instance
+  instances, define how concurrent access to the same manuscript and its one
+  SQLite database is detected and resolved; otherwise enforce single-instance
   ownership explicitly.
 
 ## Editor and renderer

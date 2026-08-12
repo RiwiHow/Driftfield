@@ -26,6 +26,11 @@ import { ProjectContextError } from './project-context-service';
 import type { AgentHistoryMessage } from '../services/agent/conversation-service';
 import type { AgentProposalOutcome } from '../../shared/contracts/agent-proposals';
 import type { AppLanguage } from '../../shared/i18n/languages';
+import { ProjectDatabase } from '../database/project-database';
+import {
+  validateManuscriptMarkdown,
+  type ManuscriptMarkdownValidationCode,
+} from '../services/project/manuscript-markdown-validator';
 
 const WORKER_START_TIMEOUT_MS = 15_000;
 const WRITING_TASK_TIMEOUT_MS = 5 * 60_000;
@@ -63,17 +68,22 @@ interface ActiveAgentRequest {
     assignmentId: string;
     claimed: boolean;
     markdown: string;
+    parentRequestId: string;
     revised: boolean;
     targetDocumentId: string | null;
+    targetLength: number | null;
   };
 }
 
 interface PendingWritingTask {
   artifactMarkdown?: string;
+  artifactSubmitted: boolean;
+  artifactValidationCode?: ManuscriptMarkdownValidationCode;
   parentRequestId: string;
   reject: (error: Error) => void;
   resolve: (result: AgentWritingAssignmentToolResult) => void;
   targetDocumentId: string | null;
+  targetLength: number | null;
   timeout: ReturnType<typeof setTimeout>;
 }
 
@@ -113,6 +123,10 @@ export class AiAgentService {
       projectSessionId: string,
     ) => boolean = () => true,
     private readonly toolDispatcher?: AgentToolDispatcher,
+    private readonly getProjectDirectory?: (
+      ownerId: number,
+      projectSessionId: string,
+    ) => string | undefined,
   ) {}
 
   async start(request: StartAgentRequest): Promise<string> {
@@ -380,6 +394,9 @@ export class AiAgentService {
                 ) {
                   active.reconciliation.documentId = proposal.documentId;
                 }
+                if (active.writingArtifact?.claimed === true) {
+                  this.persistWritingArtifact(active, 'proposed');
+                }
                 active.sendEvent({
                   proposal,
                   requestId: message.requestId,
@@ -420,14 +437,19 @@ export class AiAgentService {
                   markdown = markdown.split(replacement.find).join(replacement.replace);
                   replacementsApplied += occurrences;
                 }
-                if (Buffer.byteLength(markdown, 'utf8') > MAX_WRITING_ARTIFACT_BYTES) {
+                const validation = validateManuscriptMarkdown(markdown, {
+                  maxBytes: MAX_WRITING_ARTIFACT_BYTES,
+                  targetLength: artifact.targetLength,
+                });
+                if (!validation.ok) {
                   return {
-                    detail: 'The revised Scribe artifact exceeds the size limit; no changes were applied.',
+                    detail: `The revised Scribe artifact was rejected (${validation.code}); no changes were applied.`,
                     ok: false as const,
                   };
                 }
                 artifact.markdown = markdown;
                 artifact.revised = true;
+                this.persistWritingArtifact(active, 'validated');
                 return {
                   ok: true as const,
                   result: {
@@ -541,6 +563,22 @@ export class AiAgentService {
     message: Extract<AgentWorkerMessage, { type: 'tool-request' }>,
     result: import('../../shared/contracts/agent-tools').AgentToolExecutionResult,
   ): void {
+    if (
+      active.writingArtifact?.claimed === true &&
+      (message.toolName === 'propose_document_edit' ||
+        message.toolName === 'propose_document_file_operation')
+    ) {
+      const status = result.ok &&
+        typeof result.data === 'object' && result.data !== null &&
+        'status' in result.data && typeof result.data.status === 'string'
+        ? result.data.status
+        : null;
+      if (status === 'accepted') {
+        this.persistWritingArtifact(active, 'accepted');
+      } else if (status !== null) {
+        this.persistWritingArtifact(active, 'rejected');
+      }
+    }
     if (!result.ok) return;
     if (
       (message.toolName === 'propose_document_edit' ||
@@ -674,10 +712,12 @@ export class AiAgentService {
         reject(new Error('Scribe task timed out'));
       }, WRITING_TASK_TIMEOUT_MS);
       this.writingTasks.set(taskId, {
+        artifactSubmitted: false,
         parentRequestId,
         reject,
         resolve,
         targetDocumentId: resolvedTargetDocumentId,
+        targetLength: assignment.targetLength,
         timeout,
       });
       this.worker!.postMessage({
@@ -734,8 +774,20 @@ export class AiAgentService {
           });
           return;
         }
-        const duplicate = task.artifactMarkdown !== undefined;
-        if (!duplicate) task.artifactMarkdown = message.arguments.markdown;
+        const duplicate = task.artifactSubmitted;
+        if (!duplicate) {
+          task.artifactSubmitted = true;
+          task.artifactMarkdown = message.arguments.markdown;
+          const validation = validateManuscriptMarkdown(
+            message.arguments.markdown,
+            {
+              maxBytes: MAX_WRITING_ARTIFACT_BYTES,
+              targetLength: task.targetLength,
+            },
+          );
+          if (!validation.ok) task.artifactValidationCode = validation.code;
+          this.persistPendingWritingArtifact(active, message.requestId, task);
+        }
         this.worker?.postMessage({
           requestId: message.requestId,
           result: duplicate
@@ -747,11 +799,20 @@ export class AiAgentService {
                 ok: false as const,
                 toolName: message.toolName,
               }
-            : {
+            : task.artifactValidationCode === undefined
+              ? {
                 data: { status: 'submitted' as const },
                 ok: true as const,
                 toolName: message.toolName,
-              },
+                }
+              : {
+                  error: {
+                    code: 'invalid-arguments' as const,
+                    detail: `The Scribe artifact was rejected: ${task.artifactValidationCode}.`,
+                  },
+                  ok: false as const,
+                  toolName: message.toolName,
+                },
           toolCallId: message.toolCallId,
           type: 'tool-result',
         });
@@ -799,9 +860,17 @@ export class AiAgentService {
       return;
     }
     if (message.type === 'completed') {
-      if (task.artifactMarkdown === undefined) {
+      if (
+        task.artifactMarkdown === undefined ||
+        task.artifactValidationCode !== undefined
+      ) {
         this.finishWritingTask(message.requestId, active);
-        task.reject(new Error('Scribe did not submit a writing artifact'));
+        task.reject(new ProjectContextError(
+          'invalid-arguments',
+          task.artifactValidationCode === undefined
+            ? 'Scribe did not submit a writing artifact'
+            : `Scribe submitted an invalid writing artifact: ${task.artifactValidationCode}`,
+        ));
         return;
       }
       this.finishWritingTask(message.requestId, active);
@@ -809,8 +878,10 @@ export class AiAgentService {
         assignmentId: message.requestId,
         claimed: false,
         markdown: task.artifactMarkdown,
+        parentRequestId: task.parentRequestId,
         revised: false,
         targetDocumentId: task.targetDocumentId,
+        targetLength: task.targetLength,
       };
       task.resolve({
         assignmentId: message.requestId,
@@ -842,6 +913,86 @@ export class AiAgentService {
     if (task !== undefined) clearTimeout(task.timeout);
     this.writingTasks.delete(taskId);
     if (active?.childTaskId === taskId) active.childTaskId = undefined;
+  }
+
+  private persistPendingWritingArtifact(
+    active: ActiveAgentRequest,
+    assignmentId: string,
+    task: PendingWritingTask,
+  ): void {
+    if (
+      active.projectSessionId === undefined ||
+      task.artifactMarkdown === undefined ||
+      this.getProjectDirectory === undefined
+    ) return;
+    const projectDirectory = this.getProjectDirectory(
+      active.ownerId,
+      active.projectSessionId,
+    );
+    if (projectDirectory === undefined) return;
+    const now = new Date().toISOString();
+    const database = new ProjectDatabase(projectDirectory);
+    try {
+      database.connection.prepare(`
+        INSERT INTO writing_artifacts(
+          artifact_id, request_id, target_document_id, state, markdown,
+          validation_code, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(artifact_id) DO UPDATE SET
+          state = excluded.state,
+          markdown = excluded.markdown,
+          validation_code = excluded.validation_code,
+          updated_at = excluded.updated_at
+      `).run(
+        assignmentId,
+        task.parentRequestId,
+        task.targetDocumentId,
+        task.artifactValidationCode === undefined ? 'validated' : 'invalid',
+        task.artifactMarkdown,
+        task.artifactValidationCode ?? null,
+        now,
+        now,
+      );
+    } finally {
+      database.close();
+    }
+  }
+
+  private persistWritingArtifact(
+    active: ActiveAgentRequest,
+    state: 'accepted' | 'proposed' | 'rejected' | 'validated',
+  ): void {
+    const artifact = active.writingArtifact;
+    if (
+      artifact === undefined ||
+      active.projectSessionId === undefined ||
+      this.getProjectDirectory === undefined
+    ) return;
+    const projectDirectory = this.getProjectDirectory(
+      active.ownerId,
+      active.projectSessionId,
+    );
+    if (projectDirectory === undefined) return;
+    const database = new ProjectDatabase(projectDirectory);
+    try {
+      database.connection.prepare(`
+        UPDATE writing_artifacts
+        SET state = ?, markdown = ?, target_document_id = ?,
+            validation_code = NULL, updated_at = ?
+        WHERE artifact_id = ? AND request_id = ?
+      `).run(
+        state,
+        artifact.markdown,
+        state === 'accepted'
+          ? active.reconciliation.documentId ?? artifact.targetDocumentId
+          : artifact.targetDocumentId,
+        new Date().toISOString(),
+        artifact.assignmentId,
+        artifact.parentRequestId,
+      );
+    } finally {
+      database.close();
+    }
   }
 
   private rejectWritingTasks(message: string): void {

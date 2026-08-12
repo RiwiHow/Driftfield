@@ -72,7 +72,7 @@ describe('project Agent settings', () => {
     service.dispose();
   });
 
-  it('recreates an incompatible settings database during an explicit reset', async () => {
+  it('ignores an incompatible retired settings sidecar during an explicit reset', async () => {
     const session = await createSession();
     const dataDirectory = path.join(session.directoryPath, '.driftfield');
     await mkdir(dataDirectory, { recursive: true });
@@ -88,9 +88,11 @@ describe('project Agent settings', () => {
     database.close();
     const service = new ProjectSettingsService();
 
-    expect(() => service.get(session)).toThrow(
-      'Settings database was created by a newer Driftfield version',
-    );
+    expect(service.get(session)).toEqual({
+      defaultModel: null,
+      thinkingLevel: 'medium',
+      useGlobal: true,
+    });
     expect(service.reset(session)).toEqual({
       defaultModel: null,
       thinkingLevel: 'medium',

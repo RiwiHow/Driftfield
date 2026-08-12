@@ -96,7 +96,8 @@ describe('Agent prompt registry', () => {
       role: 'curator',
     });
     expect(built.prompt).toContain('A writing delegation is the single bounded Scribe child task');
-    expect(built.prompt).toContain('Review the returned Markdown');
+    expect(built.prompt).toContain('Keep user-visible progress concise');
+    expect(built.prompt).toContain('do not propose it and report the validation reason');
     expect(built.prompt).toContain('targetDocumentId set to null');
     expect(built.prompt).toContain('writingAssignmentId set to the same returned assignmentId');
     expect(built.prompt).toContain('Never reproduce Scribe Markdown');

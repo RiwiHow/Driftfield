@@ -166,6 +166,12 @@ void app.whenReady().then(async () => {
       (ownerId, projectSessionId) =>
         projectSessions.get(ownerId)?.id === projectSessionId,
       agentToolDispatcher,
+      (ownerId, projectSessionId) => {
+        const session = projectSessions.get(ownerId);
+        return session?.id === projectSessionId
+          ? session.directoryPath
+          : undefined;
+      },
     );
     disposeActiveServices = () => {
       aiAgentService.dispose();

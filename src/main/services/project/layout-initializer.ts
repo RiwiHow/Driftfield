@@ -5,28 +5,17 @@ import {
   realpath,
   rename,
   rm,
-  writeFile,
 } from 'node:fs/promises';
 import path from 'node:path';
-import { stringify } from 'yaml';
 
 import {
   DRIFTFIELD_PROJECT_FORMAT_VERSION,
-  PROJECT_INDEX_NAME,
   PROJECT_ROOT_DIRECTORIES,
-  type LoreCategoryIndex,
-  type LoreIndex,
-  type ManuscriptIndex,
 } from '../../../shared/contracts/project-layout';
-import { ConversationDatabase } from '../../database/conversation-database';
+import { ProjectCatalogRepository } from '../../database/project-catalog-repository';
 import { ProjectDatabase } from '../../database/project-database';
-import { SettingsDatabase } from '../../database/settings-database';
 
-const INITIAL_LORE_CATEGORIES = [
-  { directory: 'Personae', icon: 'users', title: 'Personae' },
-  { directory: 'Locations', icon: 'map', title: 'Locations' },
-  { directory: 'World', icon: 'earth', title: 'World' },
-] as const;
+const INITIAL_LORE_CATEGORIES = ['Personae', 'Locations', 'World'] as const;
 
 export const initializeProjectLayoutFiles = async (
   directoryPath: string,
@@ -48,62 +37,15 @@ export const initializeProjectLayoutFiles = async (
   const lorePath = path.join(stagingPath, PROJECT_ROOT_DIRECTORIES.lore);
   const projectId = randomUUID();
   const projectTitle = path.basename(projectPath) || 'Untitled Novel';
-  const manuscript: ManuscriptIndex = {
-    chapterNumbering: { format: '{number}. {title}', mode: 'continuous' },
-    children: [],
-    id: randomUUID(),
-    kind: 'manuscript',
-    title: 'Manuscript',
-  };
-  const lore: LoreIndex = {
-    children: INITIAL_LORE_CATEGORIES.map(({ directory }) => ({
-      directory,
-      kind: 'category',
-    })),
-    id: randomUUID(),
-    kind: 'lore',
-    title: 'Lore',
-  };
-  const loreCategories: Array<{
-    directory: string;
-    index: LoreCategoryIndex;
-  }> = INITIAL_LORE_CATEGORIES.map(({ directory, icon, title }) => ({
-    directory,
-    index: {
-      children: [],
-      icon,
-      id: randomUUID(),
-      kind: 'category',
-      title,
-    },
-  }));
 
   await Promise.all([
-    mkdir(manuscriptPath, { recursive: true }),
-    mkdir(lorePath, { recursive: true }),
-    ...loreCategories.map(({ directory }) =>
-      mkdir(path.join(lorePath, directory), { recursive: true }),
+    mkdir(manuscriptPath, { recursive: true, mode: 0o700 }),
+    mkdir(lorePath, { recursive: true, mode: 0o700 }),
+    ...INITIAL_LORE_CATEGORIES.map((directory) =>
+      mkdir(path.join(lorePath, directory), { recursive: true, mode: 0o700 }),
     ),
   ]);
   try {
-    await Promise.all([
-      writeFile(
-        path.join(manuscriptPath, PROJECT_INDEX_NAME),
-        stringify(manuscript),
-        { encoding: 'utf8', mode: 0o600 },
-      ),
-      writeFile(path.join(lorePath, PROJECT_INDEX_NAME), stringify(lore), {
-        encoding: 'utf8',
-        mode: 0o600,
-      }),
-      ...loreCategories.map(({ directory, index }) =>
-        writeFile(
-          path.join(lorePath, directory, PROJECT_INDEX_NAME),
-          stringify(index),
-          { encoding: 'utf8', mode: 0o600 },
-        ),
-      ),
-    ]);
     const database = new ProjectDatabase(stagingPath);
     try {
       database.initializeProjectMetadata(
@@ -111,11 +53,17 @@ export const initializeProjectLayoutFiles = async (
         DRIFTFIELD_PROJECT_FORMAT_VERSION,
         projectTitle,
       );
+      new ProjectCatalogRepository(database).initializeDefault();
     } finally {
       database.close();
     }
-    new ConversationDatabase(stagingPath).close();
-    new SettingsDatabase(stagingPath).close();
+    await Promise.all(
+      ['recovery', 'staging', 'trash'].map((directory) =>
+        mkdir(path.join(stagingPath, '.driftfield', directory), {
+          mode: 0o700,
+        }),
+      ),
+    );
     await rename(
       path.join(stagingPath, PROJECT_ROOT_DIRECTORIES.manuscript),
       path.join(projectPath, PROJECT_ROOT_DIRECTORIES.manuscript),

@@ -27,9 +27,9 @@ Preserve these properties when changing affected subsystems.
 - Recursive `fs.watch` is only a change signal. Sessions debounce and
   revision-deduplicate scans, report health, retain manual refresh, and retry
   failures.
-- Main strictly validates physical root/index casing, regular non-symlink files,
-  stable-ID uniqueness, bounded YAML, explicit order, safe formatters, and
-  referenced Markdown before exposing a snapshot.
+- Main strictly validates physical root casing, regular non-symlink files,
+  database-owned stable-ID uniqueness, explicit catalog order, safe formatters,
+  contained locators, and referenced Markdown before exposing a snapshot.
 - Project recognition requires a regular `.driftfield/project.sqlite` with the
   fixed Driftfield marker, stable project ID, and positive format version.
   Missing and damaged project databases produce distinct internal error codes.
@@ -140,7 +140,7 @@ Preserve these properties when changing affected subsystems.
   refuses deletion while its matching manuscript draft is dirty.
 - `propose_project_structure_operation` can submit a document metadata-title
   change by request-scoped refs. Acceptance updates only the owning
-  index; it preserves the physical filename and Markdown and remains safe while
+  catalog node; it preserves the physical filename and Markdown and remains safe while
   the renderer has an unsaved manuscript draft.
 - Request-start draft snapshots preserve unsaved current-document content.
 - Pi works from application-owned Agent data, not the novel folder.
@@ -148,8 +148,8 @@ Preserve these properties when changing affected subsystems.
   link navigation.
 - Packaged Pi smoke starts `agent-worker.mjs` from ASAR and verifies local model
   discovery for every exposed API-key provider without billable requests.
-- Pi model overrides are main-owned, project-scoped in `settings.sqlite`,
-  bounded, and reloaded through a per-project generated runtime cache only while
+- Pi model overrides are main-owned, globally persisted under application data,
+  bounded, and reloaded through a generated runtime cache only while
   the worker is idle. UI-authored values cannot invoke shell commands
   or environment interpolation, and sensitive authorization headers are denied.
 - Project-scoped conversations survive relaunch independently from Pi session
@@ -164,7 +164,8 @@ Preserve these properties when changing affected subsystems.
 ## Coverage
 
 Focused tests cover path containment, scanning, revisions and conflicts,
-settings validation, strict project YAML, stable IDs, ordering and labels, dirty
+settings validation, v3 catalog validation, strict legacy migration YAML,
+stable IDs, ordering and labels, dirty
 decisions, snapshot merges, navigation policy, Agent protocol and state,
 cancellation races, project invalidation, credentials, worker restart, tool
 timeouts and budgets, targeted reads, path-free structure, safe Markdown,

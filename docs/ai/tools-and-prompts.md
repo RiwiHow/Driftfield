@@ -365,14 +365,16 @@ remain future work.
 - A create proposal carries complete Markdown and a stable parent directory ID.
   Main chooses the stable document ID and physical filename, enforces the
   parent/kind relationship, extension, containment, size, and non-overwrite
-  behavior, then updates the owning `_index.yaml`.
+  behavior, then applies the reviewed catalog/file mutation through Main's
+  project operation coordinator.
 - A delete proposal carries a stable document ID and reviewed base revisions.
-  Main removes the document from its owning index before deleting the regular,
-  non-symlink Markdown file, restoring the index if deletion fails.
+  Main moves the regular, non-symlink Markdown file to project trash and removes
+  its catalog node through the durable operation ledger, restoring the file if
+  the database step fails.
 - An empty Lore-category deletion proposal carries its stable directory ID and
   project revision. Main rejects nonempty categories and untracked files, then
-  removes the category from the Lore index before deleting its metadata-only
-  directory.
+  moves the directory to project trash and removes its catalog node through the
+  same durable operation ledger.
 - An edit proposal identifies a document and SHA-256 `baseRevision`, and carries
   application-owned structured replacements or a patch against that revision.
 - Prefer exact-text anchors or ranges in the base snapshot over bare line

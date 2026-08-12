@@ -94,7 +94,7 @@ describe('Agent conversation persistence', () => {
       { content: 'I will remember it.', role: 'assistant', terminal: undefined },
     ]);
     expect(
-      (await stat(path.join(session.directoryPath, '.driftfield', 'conversations.sqlite')))
+      (await stat(path.join(session.directoryPath, '.driftfield', 'project.sqlite')))
         .isFile(),
     ).toBe(true);
     expect(restored.activeConversation.messages.at(-1)?.parts).toContainEqual(

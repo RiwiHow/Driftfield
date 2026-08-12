@@ -39,6 +39,7 @@ import {
   renameStructuredProjectDocument,
 } from '../services/project/structural-document-service';
 import { parseProjectTitle } from '../services/project/metadata-parser';
+import { assertValidManuscriptMarkdown } from '../services/project/manuscript-markdown-validator';
 
 interface CreateProposalRequest {
   baseContentRevision: string;
@@ -132,6 +133,13 @@ export class AgentProposalService {
   }
 
   create(scope: ProposalScope, request: CreateProposalRequest): AgentEditProposal {
+    try {
+      assertValidManuscriptMarkdown(request.markdown, {
+        maxBytes: MAX_AGENT_DOCUMENT_BYTES,
+      });
+    } catch {
+      throw new ProjectContextError('invalid-arguments');
+    }
     const draft = scope.draftSnapshot;
     const session = this.sessions.get(scope.ownerId);
     if (
@@ -198,6 +206,13 @@ export class AgentProposalService {
 
     let proposal: AgentCreateDocumentProposal | AgentDeleteDocumentProposal;
     if (request.operation === 'create') {
+      try {
+        assertValidManuscriptMarkdown(request.markdown, {
+          maxBytes: MAX_AGENT_DOCUMENT_BYTES,
+        });
+      } catch {
+        throw new ProjectContextError('invalid-arguments');
+      }
       const parent = await getStructuredDirectoryDescriptor(
         session.directoryPath,
         request.parentId,

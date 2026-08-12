@@ -1,8 +1,7 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { stringify } from 'yaml';
 
 import { ProjectContextService } from '../../../src/main/ai/project-context-service';
 import { initializeProjectLayout } from '../../../src/main/services/project/layout-service';
@@ -12,7 +11,9 @@ import type {
   ProjectSession,
   ProjectSessionService,
 } from '../../../src/main/services/project/session-service';
-import { PROJECT_INDEX_NAME } from '../../../src/shared/contracts/project-layout';
+import { createStructuredProjectDocument } from '../../../src/main/services/project/structural-document-service';
+import { ProjectCatalogRepository } from '../../../src/main/database/project-catalog-repository';
+import { ProjectDatabase } from '../../../src/main/database/project-database';
 
 const temporaryDirectories: string[] = [];
 
@@ -27,18 +28,20 @@ afterEach(async () => {
 const createContext = async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'driftfield-context-'));
   temporaryDirectories.push(directory);
-  await initializeProjectLayout(directory);
-  await writeFile(
-    path.join(directory, 'manuscript', PROJECT_INDEX_NAME),
-    stringify({
-      chapterNumbering: { format: '{number}. {title}', mode: 'continuous' },
-      children: [{ file: 'chapter.md', id: 'chapter-1', kind: 'chapter', title: 'Arrival' }],
-      id: 'manuscript-1',
-      kind: 'manuscript',
-      title: 'Story',
-    }),
+  const layout = await initializeProjectLayout(directory);
+  const database = new ProjectDatabase(directory);
+  new ProjectCatalogRepository(database).updateTitle(
+    layout.manuscript.index.id,
+    'Story',
   );
-  await writeFile(path.join(directory, 'manuscript', 'chapter.md'), '# Disk\n');
+  database.close();
+  await createStructuredProjectDocument(directory, {
+    documentId: 'chapter-1',
+    kind: 'chapter',
+    markdown: '# Disk\n',
+    parentId: layout.manuscript.index.id,
+    title: 'Arrival',
+  });
   const project = await createProjectSnapshot(directory);
   const session: ProjectSession = {
     directoryPath: directory,
@@ -130,7 +133,7 @@ describe('ProjectContextService', () => {
           kind: 'chapter',
           metadataTitle: 'Arrival',
         }],
-        id: 'manuscript-1',
+        id: expect.any(String),
         title: 'Story',
       },
     });

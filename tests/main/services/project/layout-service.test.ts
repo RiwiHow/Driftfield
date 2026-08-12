@@ -11,7 +11,6 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { stringify } from 'yaml';
 
 import {
   initializeProjectLayout,
@@ -19,7 +18,7 @@ import {
   openProjectLayout,
 } from '../../../../src/main/services/project/layout-service';
 import { ProjectDatabase } from '../../../../src/main/database/project-database';
-import { PROJECT_INDEX_NAME } from '../../../../src/shared/contracts/project-layout';
+import { LEGACY_PROJECT_INDEX_NAME } from '../../../../src/shared/contracts/project-layout';
 
 const temporaryDirectories: string[] = [];
 
@@ -44,20 +43,17 @@ describe('Driftfield project layout', () => {
     const layout = await openProjectLayout(directory);
 
     expect(layout?.manifest).toMatchObject({
-      formatVersion: 2,
+      formatVersion: 3,
       kind: 'novel',
       title: path.basename(directory),
     });
     expect(await readdir(directory)).toEqual(
       expect.arrayContaining(['.driftfield', 'lore', 'manuscript']),
     );
-    expect(await readdir(directory)).not.toContain(PROJECT_INDEX_NAME);
-    expect(await readdir(path.join(directory, 'manuscript'))).toContain(
-      PROJECT_INDEX_NAME,
-    );
+    expect(await readdir(directory)).not.toContain(LEGACY_PROJECT_INDEX_NAME);
+    expect(await readdir(path.join(directory, 'manuscript'))).toEqual([]);
     expect(await readdir(path.join(directory, 'lore'))).toEqual(
       expect.arrayContaining([
-        PROJECT_INDEX_NAME,
         'Locations',
         'Personae',
         'World',
@@ -65,9 +61,10 @@ describe('Driftfield project layout', () => {
     );
     expect(await readdir(path.join(directory, '.driftfield'))).toEqual(
       expect.arrayContaining([
-        'conversations.sqlite',
         'project.sqlite',
-        'settings.sqlite',
+        'recovery',
+        'staging',
+        'trash',
       ]),
     );
     expect(layout?.lore?.index).toMatchObject({
@@ -101,7 +98,7 @@ describe('Driftfield project layout', () => {
       readFile(path.join(directory, 'chapter.md'), 'utf8'),
     ).resolves.toBe('# Existing\n');
     await expect(
-      readFile(path.join(directory, PROJECT_INDEX_NAME), 'utf8'),
+      readFile(path.join(directory, LEGACY_PROJECT_INDEX_NAME), 'utf8'),
     ).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
@@ -121,24 +118,12 @@ describe('Driftfield project layout', () => {
   it('rejects unsupported formatter placeholders', async () => {
     const directory = await createTemporaryDirectory();
     await initializeProjectLayout(directory);
-    const manuscriptIndexPath = path.join(
-      directory,
-      'manuscript',
-      PROJECT_INDEX_NAME,
-    );
-    await writeFile(
-      manuscriptIndexPath,
-      stringify({
-        chapterNumbering: {
-          format: '{title} {process.env.SECRET}',
-          mode: 'continuous',
-        },
-        children: [],
-        id: 'manuscript-1',
-        kind: 'manuscript',
-        title: 'Manuscript',
-      }),
-    );
+    const database = new ProjectDatabase(directory);
+    database.connection.prepare(`
+      UPDATE project_nodes SET numbering_format = '{title} {process.env.SECRET}'
+      WHERE kind = 'manuscript' AND parent_node_id IS NULL
+    `).run();
+    database.close();
 
     await expect(loadProjectLayout(directory)).rejects.toThrow(
       'Unknown project label placeholder',
@@ -204,7 +189,7 @@ describe('Driftfield project layout', () => {
     reopened.close();
   });
 
-  it('records but does not reject a different project format version', async () => {
+  it('rejects a project created by a newer format version', async () => {
     const directory = await createTemporaryDirectory();
     await initializeProjectLayout(directory);
     const database = new ProjectDatabase(directory);
@@ -217,18 +202,18 @@ describe('Driftfield project layout', () => {
       .run();
     database.close();
 
-    await expect(loadProjectLayout(directory)).resolves.toMatchObject({
-      manifest: { formatVersion: 99 },
-    });
+    await expect(loadProjectLayout(directory)).rejects.toThrow(
+      'newer application version',
+    );
   });
 
-  it('rejects YAML aliases', async () => {
+  it('ignores legacy YAML after the v3 authority switch', async () => {
     const directory = await createTemporaryDirectory();
     await initializeProjectLayout(directory);
     const manuscriptIndexPath = path.join(
       directory,
       'manuscript',
-      PROJECT_INDEX_NAME,
+      LEGACY_PROJECT_INDEX_NAME,
     );
     await writeFile(
       manuscriptIndexPath,
@@ -247,81 +232,57 @@ describe('Driftfield project layout', () => {
       ].join('\n'),
     );
 
-    await expect(loadProjectLayout(directory)).rejects.toThrow();
+    await expect(loadProjectLayout(directory)).resolves.toMatchObject({
+      manifest: { formatVersion: 3 },
+      manuscript: { index: { children: [] } },
+    });
   });
 
   it('rejects path traversal segments', async () => {
     const directory = await createTemporaryDirectory();
     await initializeProjectLayout(directory);
     await writeFile(path.join(directory, 'outside.md'), '# Outside\n');
-    await writeFile(
-      path.join(directory, 'manuscript', PROJECT_INDEX_NAME),
-      stringify({
-        children: [
-          {
-            file: '../outside.md',
-            id: 'chapter-1',
-            kind: 'chapter',
-            title: 'Outside',
-          },
-        ],
-        id: 'manuscript-1',
-        kind: 'manuscript',
-        title: 'Manuscript',
-      }),
-    );
+    const database = new ProjectDatabase(directory);
+    database.connection.prepare(`
+      INSERT INTO project_nodes(
+        node_id, parent_node_id, node_type, kind, metadata_title, icon,
+        relative_path, sort_key, numbering_mode, numbering_format,
+        content_revision, backing_status, created_at, updated_at
+      ) SELECT 'chapter-1', node_id, 'document', 'chapter', 'Outside', NULL,
+               '../outside.md', 0, NULL, NULL, ?, 'present', 'now', 'now'
+        FROM project_nodes WHERE kind = 'manuscript' AND parent_node_id IS NULL
+    `).run('a'.repeat(64));
+    database.close();
 
     await expect(loadProjectLayout(directory)).rejects.toThrow(
-      'invalid path segment',
+      'invalid',
     );
   });
 
-  it('rejects duplicate stable IDs across manuscript and lore', async () => {
+  it('enforces unique stable IDs in the database catalog', async () => {
     const directory = await createTemporaryDirectory();
     await initializeProjectLayout(directory);
-    await Promise.all([
-      writeFile(
-        path.join(directory, 'manuscript', PROJECT_INDEX_NAME),
-        stringify({
-          children: [
-            {
-              file: 'chapter.md',
-              id: 'shared-id',
-              kind: 'chapter',
-              title: 'Chapter',
-            },
-          ],
-          id: 'manuscript-1',
-          kind: 'manuscript',
-          title: 'Manuscript',
-        }),
-      ),
-      writeFile(
-        path.join(directory, 'manuscript', 'chapter.md'),
-        '# Chapter\n',
-      ),
-      writeFile(
-        path.join(directory, 'lore', PROJECT_INDEX_NAME),
-        stringify({
-          children: [
-            {
-              file: 'world.md',
-              id: 'shared-id',
-              kind: 'entry',
-              title: 'World',
-            },
-          ],
-          id: 'lore-1',
-          kind: 'lore',
-          title: 'Lore',
-        }),
-      ),
-      writeFile(path.join(directory, 'lore', 'world.md'), '# World\n'),
-    ]);
-
-    await expect(loadProjectLayout(directory)).rejects.toThrow(
-      'duplicate stable IDs',
-    );
+    const database = new ProjectDatabase(directory);
+    const parentId = (database.connection.prepare(`
+      SELECT node_id FROM project_nodes
+      WHERE kind = 'manuscript' AND parent_node_id IS NULL
+    `).get() as { node_id: string }).node_id;
+    const insert = database.connection.prepare(`
+      INSERT INTO project_nodes(
+        node_id, parent_node_id, node_type, kind, metadata_title, icon,
+        relative_path, sort_key, numbering_mode, numbering_format,
+        content_revision, backing_status, created_at, updated_at
+      ) VALUES ('shared-id', ?, 'document', 'chapter', 'Chapter', NULL,
+                ?, ?, NULL, NULL, ?, 'present', 'now', 'now')
+    `);
+    insert.run(parentId, 'manuscript/one.md', 0, 'a'.repeat(64));
+    expect(() => insert.run(
+      parentId,
+      'manuscript/two.md',
+      1,
+      'b'.repeat(64),
+    )).toThrow('UNIQUE constraint failed');
+    database.close();
   });
 });
 

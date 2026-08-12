@@ -251,7 +251,7 @@ describe('AiAgentService', () => {
         objective: 'Write a new chapter.',
         requirements: ['Keep close third person.'],
         targetDocumentId: null,
-        targetLength: 800,
+        targetLength: null,
       },
       requestId: 'request-1',
       toolCallId: 'tool-delegate',
@@ -548,6 +548,77 @@ describe('AiAgentService', () => {
         toolName: 'propose_document_file_operation',
       },
       toolCallId: 'tool-reuse-scribe',
+      type: 'tool-result',
+    });
+  });
+
+  it('terminates an invalid or severely truncated Scribe artifact without proposing it', async () => {
+    const dispatcher = new AgentToolDispatcher(writingContext());
+    const service = new AiAgentService(userDataPath, () => true, dispatcher);
+    const started = start(service, 'request-invalid');
+    await waitFor(() => workers.length === 1);
+    workers[0].emit('message', { type: 'ready' });
+    await started;
+    workers[0].emit('message', {
+      arguments: {
+        objective: 'Write a complete second chapter.',
+        requirements: [],
+        targetDocumentId: null,
+        targetLength: 3_000,
+      },
+      requestId: 'request-invalid',
+      toolCallId: 'tool-delegate-invalid',
+      toolName: 'delegate_writing',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { role?: unknown }).role === 'scribe'));
+    const child = workers[0].messages.find((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { role?: unknown }).role === 'scribe') as { requestId: string };
+    workers[0].emit('message', {
+      arguments: { markdown: '短稿\n\n<prompt>unfinished</prompt>' },
+      requestId: child.requestId,
+      toolCallId: 'tool-submit-invalid',
+      toolName: 'submit_writing_artifact',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-submit-invalid'));
+    expect(workers[0].messages).toContainEqual({
+      requestId: child.requestId,
+      result: {
+        error: {
+          code: 'invalid-arguments',
+          detail: 'The Scribe artifact was rejected: protocol-markup.',
+        },
+        ok: false,
+        toolName: 'submit_writing_artifact',
+      },
+      toolCallId: 'tool-submit-invalid',
+      type: 'tool-result',
+    });
+    workers[0].emit('message', {
+      requestId: child.requestId,
+      stopReason: 'stop',
+      type: 'completed',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-delegate-invalid'));
+    expect(workers[0].messages).toContainEqual({
+      requestId: 'request-invalid',
+      result: {
+        error: {
+          code: 'invalid-arguments',
+          detail: 'Scribe submitted an invalid writing artifact: protocol-markup',
+        },
+        ok: false,
+        toolName: 'delegate_writing',
+      },
+      toolCallId: 'tool-delegate-invalid',
       type: 'tool-result',
     });
   });

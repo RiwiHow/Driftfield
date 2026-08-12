@@ -131,7 +131,9 @@ const parseFormat = (value: unknown): string => {
   return value;
 };
 
-const parseNumbering = (value: unknown): ChapterNumberingPolicy => {
+export const parseChapterNumberingPolicy = (
+  value: unknown,
+): ChapterNumberingPolicy => {
   if (!isRecord(value)) throw new Error('Invalid chapter numbering policy');
   assertExactKeys(value, ['mode'], ['format']);
   if (
@@ -219,7 +221,7 @@ export const parseManuscriptIndex = (value: unknown): ManuscriptIndex => {
   return {
     ...(value.chapterNumbering === undefined
       ? {}
-      : { chapterNumbering: parseNumbering(value.chapterNumbering) }),
+      : { chapterNumbering: parseChapterNumberingPolicy(value.chapterNumbering) }),
     children: parseChildren(value.children, parseManuscriptRootChild),
     id: parseProjectId(value.id),
     ...(value.icon === undefined ? {} : { icon: parseProjectIcon(value.icon) }),
@@ -239,7 +241,7 @@ export const parseVolumeIndex = (value: unknown): VolumeIndex => {
   return {
     ...(value.chapterNumbering === undefined
       ? {}
-      : { chapterNumbering: parseNumbering(value.chapterNumbering) }),
+      : { chapterNumbering: parseChapterNumberingPolicy(value.chapterNumbering) }),
     children: parseChildren(value.children, parseManuscriptDocument),
     id: parseProjectId(value.id),
     ...(value.icon === undefined ? {} : { icon: parseProjectIcon(value.icon) }),

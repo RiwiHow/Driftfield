@@ -11,31 +11,26 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import path from 'node:path';
-import { stringify } from 'yaml';
-
 import type {
   LoreEntry,
-  LoreCategoryIndex,
-  LoreIndex,
   ManuscriptDocumentEntry,
   ManuscriptDocumentKind,
-  ManuscriptIndex,
   ProjectIconId,
   ProjectDirectoryIndex,
-  VolumeIndex,
 } from '../../../shared/contracts/project-layout';
-import { PROJECT_INDEX_NAME } from '../../../shared/contracts/project-layout';
+import { ProjectCatalogRepository } from '../../database/project-catalog-repository';
+import { ProjectDatabase } from '../../database/project-database';
 import { contentRevision, isPathInside } from './document-utils';
 import { loadProjectLayout, type LoadedProjectLayout } from './layout-service';
+import { assertValidManuscriptMarkdown } from './manuscript-markdown-validator';
+import { ProjectMutationCoordinator } from './project-mutation-coordinator';
 import {
-  MAX_PROJECT_METADATA_BYTES,
   parseProjectTitle,
 } from './metadata-parser';
 
 interface LocatedDirectory {
   directoryPath: string;
   index: ProjectDirectoryIndex;
-  indexPath: string;
 }
 
 interface LocatedDocument extends LocatedDirectory {
@@ -97,6 +92,9 @@ export interface StructuredDocumentDescriptor {
 }
 
 const mutationQueues = new Map<string, Promise<void>>();
+
+const projectRelativePath = (projectPath: string, targetPath: string): string =>
+  path.relative(projectPath, targetPath).split(path.sep).join('/');
 
 const MAX_PHYSICAL_NAME_BYTES = 255;
 const WINDOWS_RESERVED_NAME =
@@ -163,6 +161,25 @@ const enqueueMutation = async <T>(
   }
 };
 
+const withCatalog = <T>(
+  projectPath: string,
+  operation: (catalog: ProjectCatalogRepository) => T,
+): T => {
+  const database = new ProjectDatabase(projectPath);
+  try {
+    return operation(new ProjectCatalogRepository(database));
+  } finally {
+    database.close();
+  }
+};
+
+const nextCatalogSortKey = (
+  catalog: ProjectCatalogRepository,
+  parentId: string,
+): number => catalog.list()
+  .filter((node) => node.parentId === parentId)
+  .reduce((maximum, node) => Math.max(maximum, node.sortKey), -1) + 1;
+
 const locateDirectory = (
   projectPath: string,
   layout: LoadedProjectLayout,
@@ -173,7 +190,6 @@ const locateDirectory = (
     return {
       directoryPath,
       index: layout.manuscript.index,
-      indexPath: path.join(directoryPath, PROJECT_INDEX_NAME),
     };
   }
   for (const volume of layout.manuscript.volumes) {
@@ -182,7 +198,6 @@ const locateDirectory = (
       return {
         directoryPath,
         index: volume.index,
-        indexPath: path.join(directoryPath, PROJECT_INDEX_NAME),
       };
     }
   }
@@ -191,7 +206,6 @@ const locateDirectory = (
     return {
       directoryPath,
       index: layout.lore.index,
-      indexPath: path.join(directoryPath, PROJECT_INDEX_NAME),
     };
   }
   for (const category of layout.lore?.categories ?? []) {
@@ -200,7 +214,6 @@ const locateDirectory = (
       return {
         directoryPath,
         index: category.index,
-        indexPath: path.join(directoryPath, PROJECT_INDEX_NAME),
       };
     }
   }
@@ -255,32 +268,6 @@ const assertRegularContainedFile = async (
   const canonicalFile = await realpath(filePath);
   if (!isPathInside(projectPath, canonicalFile)) {
     throw new Error('Document path escapes project');
-  }
-};
-
-const serializeIndex = (index: ProjectDirectoryIndex): string => {
-  const source = stringify(index);
-  if (Buffer.byteLength(source, 'utf8') > MAX_PROJECT_METADATA_BYTES) {
-    throw new Error('Project metadata file is too large');
-  }
-  return source;
-};
-
-const replaceIndex = async (indexPath: string, source: string): Promise<void> => {
-  const stats = await lstat(indexPath);
-  if (!stats.isFile() || stats.isSymbolicLink()) {
-    throw new Error('Project metadata is not a regular file');
-  }
-  const temporaryPath = path.join(
-    path.dirname(indexPath),
-    `.${PROJECT_INDEX_NAME}.driftfield-${process.pid}-${randomUUID()}.tmp`,
-  );
-  try {
-    await writeFile(temporaryPath, source, { encoding: 'utf8', mode: stats.mode });
-    await rename(temporaryPath, indexPath);
-  } catch (error) {
-    await unlink(temporaryPath).catch(() => undefined);
-    throw error;
   }
 };
 
@@ -362,36 +349,29 @@ export const createStructuredProjectDirectory = async (
     if (!isPathInside(projectPath, createdPath)) {
       throw new Error('Project directory path escapes project');
     }
-    const childIndex: VolumeIndex | LoreCategoryIndex = request.kind === 'volume'
-      ? { children: [], id: request.directoryId, kind: 'volume', title: request.title }
-      : {
-          children: [],
-          ...(request.icon === undefined ? {} : { icon: request.icon }),
+    const relativePath = projectRelativePath(projectPath, createdPath);
+    await new ProjectMutationCoordinator(projectPath).execute({
+        applyDatabase: () => withCatalog(projectPath, (catalog) => catalog.create({
+          backingStatus: 'present',
+          contentRevision: null,
+          icon: request.icon ?? null,
           id: request.directoryId,
-          kind: 'category',
+          kind: request.kind,
+          numberingFormat: null,
+          numberingMode: null,
+          parentId: root.index.id,
+          relativePath,
+          sortKey: nextCatalogSortKey(catalog, root.index.id),
           title: request.title,
-        };
-    const nextRoot = {
-      ...root.index,
-      children: [
-        ...root.index.children,
-        request.kind === 'volume'
-          ? { directory: physicalName, kind: 'volume' as const }
-          : { directory: physicalName, kind: 'category' as const },
-      ],
-    } as ManuscriptIndex | LoreIndex;
-    await mkdir(createdPath, { mode: 0o700 });
-    try {
-      await writeFile(
-        path.join(createdPath, PROJECT_INDEX_NAME),
-        serializeIndex(childIndex),
-        { encoding: 'utf8', flag: 'wx', mode: 0o600 },
-      );
-      await replaceIndex(root.indexPath, serializeIndex(nextRoot));
-    } catch (error) {
-      await rm(createdPath, { force: true, recursive: true }).catch(() => undefined);
-      throw error;
-    }
+          type: 'directory',
+        })),
+        applyFilesystem: () => mkdir(createdPath, { mode: 0o700 }).then(() => undefined),
+        baseProjectRevision: withCatalog(projectPath, (catalog) => catalog.getRevision()),
+        files: [{ newRelativePath: relativePath }],
+        operationKind: 'create-directory',
+        payload: { directoryId: request.directoryId, kind: request.kind, relativePath },
+        rollbackFilesystem: () => rm(createdPath, { force: true, recursive: true }),
+    });
   });
 };
 
@@ -412,34 +392,25 @@ export const deleteStructuredLoreCategory = async (
     }
     const categoryPath = path.join(projectPath, 'lore', category.directory);
     const entries = await readdir(categoryPath);
-    if (entries.length !== 1 || entries[0] !== PROJECT_INDEX_NAME) {
+    if (entries.length !== 0) {
       throw new Error('Lore category contains untracked files');
     }
-    await assertRegularContainedFile(
-      projectPath,
-      path.join(categoryPath, PROJECT_INDEX_NAME),
-    );
-    const root = locateDirectory(projectPath, layout, layout.lore.index.id);
-    if (root === null) throw new Error('Lore root was not found');
-    const nextRoot: LoreIndex = {
-      ...layout.lore.index,
-      children: layout.lore.index.children.filter(
-        (child) =>
-          child.kind !== 'category' || child.directory !== category.directory,
-      ),
-    };
-    const tombstonePath = path.join(
-      path.dirname(categoryPath),
-      `.driftfield-delete-${randomUUID()}`,
-    );
-    await rename(categoryPath, tombstonePath);
-    try {
-      await replaceIndex(root.indexPath, serializeIndex(nextRoot));
-    } catch (error) {
-      await rename(tombstonePath, categoryPath).catch(() => undefined);
-      throw error;
-    }
-    await rm(tombstonePath, { recursive: true }).catch(() => undefined);
+    const trashDirectory = path.join(projectPath, '.driftfield', 'trash');
+    await mkdir(trashDirectory, { recursive: true, mode: 0o700 });
+    const tombstonePath = path.join(trashDirectory, randomUUID());
+    await new ProjectMutationCoordinator(projectPath).execute({
+        applyDatabase: () => withCatalog(projectPath, (catalog) =>
+          catalog.delete(request.directoryId)),
+        applyFilesystem: () => rename(categoryPath, tombstonePath),
+        baseProjectRevision: withCatalog(projectPath, (catalog) => catalog.getRevision()),
+        files: [{
+          oldRelativePath: projectRelativePath(projectPath, categoryPath),
+          trashRelativePath: projectRelativePath(projectPath, tombstonePath),
+        }],
+        operationKind: 'delete-directory',
+        payload: { directoryId: request.directoryId },
+        rollbackFilesystem: () => rename(tombstonePath, categoryPath),
+    });
   });
 };
 
@@ -475,32 +446,27 @@ export const moveStructuredProjectDocument = async (
     );
     const targetFilePath = path.join(target.directoryPath, targetFilename);
     if (!isPathInside(projectPath, targetFilePath)) throw new Error('Document path escapes project');
-    const movedEntry = { ...source.entry, file: targetFilename };
-    const nextSource = {
-      ...source.index,
-      children: source.index.children.filter(
-        (child) => !('id' in child) || child.id !== request.documentId,
-      ),
-    } as ProjectDirectoryIndex;
-    const nextTarget = {
-      ...target.index,
-      children: [...target.index.children, movedEntry],
-    } as ProjectDirectoryIndex;
-    const previousSource = await readFile(source.indexPath, 'utf8');
-    await writeFile(targetFilePath, markdown, { flag: 'wx', mode: 0o600 });
-    try {
-      await replaceIndex(source.indexPath, serializeIndex(nextSource));
-      try {
-        await replaceIndex(target.indexPath, serializeIndex(nextTarget));
-      } catch (error) {
-        await replaceIndex(source.indexPath, previousSource).catch(() => undefined);
-        throw error;
-      }
-    } catch (error) {
-      await unlink(targetFilePath).catch(() => undefined);
-      throw error;
-    }
-    await unlink(source.filePath).catch(() => undefined);
+    const sourceRelativePath = projectRelativePath(projectPath, source.filePath);
+    const targetRelativePath = projectRelativePath(projectPath, targetFilePath);
+    await new ProjectMutationCoordinator(projectPath).execute({
+        applyDatabase: () => withCatalog(projectPath, (catalog) => catalog.updateDocumentLocation(
+          request.documentId,
+          target.index.id,
+          targetRelativePath,
+          nextCatalogSortKey(catalog, target.index.id),
+        )),
+        applyFilesystem: () => rename(source.filePath, targetFilePath),
+        baseProjectRevision: withCatalog(projectPath, (catalog) => catalog.getRevision()),
+        files: [{
+          newRelativePath: targetRelativePath,
+          newRevision: request.baseRevision,
+          oldRelativePath: sourceRelativePath,
+          oldRevision: request.baseRevision,
+        }],
+        operationKind: 'move-document',
+        payload: { documentId: request.documentId, targetParentId: target.index.id },
+        rollbackFilesystem: () => rename(targetFilePath, source.filePath),
+    });
   });
 };
 
@@ -517,15 +483,8 @@ export const renameStructuredProjectDocument = async (
     if (located.entry.title === metadataTitle) {
       throw new Error('Project document already has this metadata title');
     }
-    const nextIndex = {
-      ...located.index,
-      children: located.index.children.map((child) =>
-        'id' in child && child.id === request.documentId
-          ? { ...child, title: metadataTitle }
-          : child,
-      ),
-    } as ProjectDirectoryIndex;
-    await replaceIndex(located.indexPath, serializeIndex(nextIndex));
+    withCatalog(projectPath, (catalog) =>
+      catalog.updateTitle(request.documentId, metadataTitle));
   });
 };
 
@@ -542,6 +501,7 @@ export const createStructuredProjectDocument = async (
     if ((isLore && request.kind !== 'entry') || (!isLore && request.kind === 'entry')) {
       throw new Error('Document kind is invalid for its parent');
     }
+    assertValidManuscriptMarkdown(request.markdown);
     const filename = await chooseReadablePhysicalName(
       parent.directoryPath,
       request.title,
@@ -549,29 +509,34 @@ export const createStructuredProjectDocument = async (
     );
     const documentPath = path.join(parent.directoryPath, filename);
     if (!isPathInside(projectPath, documentPath)) throw new Error('Document path escapes project');
-    const entry: LoreEntry | ManuscriptDocumentEntry = isLore
-      ? { file: filename, id: request.documentId, kind: 'entry', title: request.title }
-      : {
-          file: filename,
+    const relativePath = projectRelativePath(projectPath, documentPath);
+    const revision = contentRevision(request.markdown);
+    await new ProjectMutationCoordinator(projectPath).execute({
+        applyDatabase: () => withCatalog(projectPath, (catalog) => catalog.create({
+          backingStatus: 'present',
+          contentRevision: revision,
+          icon: null,
           id: request.documentId,
-          kind: request.kind as ManuscriptDocumentKind,
+          kind: request.kind,
+          numberingFormat: null,
+          numberingMode: null,
+          parentId: parent.index.id,
+          relativePath,
+          sortKey: nextCatalogSortKey(catalog, parent.index.id),
           title: request.title,
-        };
-    const nextIndex = {
-      ...parent.index,
-      children: [...parent.index.children, entry],
-    } as ProjectDirectoryIndex;
-    await writeFile(documentPath, request.markdown, {
-      encoding: 'utf8',
-      flag: 'wx',
-      mode: 0o600,
+          type: 'document',
+        })),
+        applyFilesystem: () => writeFile(documentPath, request.markdown, {
+          encoding: 'utf8',
+          flag: 'wx',
+          mode: 0o600,
+        }),
+        baseProjectRevision: withCatalog(projectPath, (catalog) => catalog.getRevision()),
+        files: [{ newRelativePath: relativePath, newRevision: revision }],
+        operationKind: 'create-document',
+        payload: { documentId: request.documentId, parentId: parent.index.id },
+        rollbackFilesystem: () => unlink(documentPath),
     });
-    try {
-      await replaceIndex(parent.indexPath, serializeIndex(nextIndex));
-    } catch (error) {
-      await unlink(documentPath).catch(() => undefined);
-      throw error;
-    }
   });
 };
 
@@ -589,19 +554,22 @@ export const deleteStructuredProjectDocument = async (
     if (contentRevision(markdown) !== request.baseRevision) {
       throw new Error('Project document revision changed');
     }
-    const previousIndexSource = await readFile(located.indexPath, 'utf8');
-    const nextIndex = {
-      ...located.index,
-      children: located.index.children.filter(
-        (child) => !('id' in child) || child.id !== request.documentId,
-      ),
-    } as ProjectDirectoryIndex;
-    await replaceIndex(located.indexPath, serializeIndex(nextIndex));
-    try {
-      await unlink(located.filePath);
-    } catch (error) {
-      await replaceIndex(located.indexPath, previousIndexSource).catch(() => undefined);
-      throw error;
-    }
+    const trashDirectory = path.join(projectPath, '.driftfield', 'trash');
+    await mkdir(trashDirectory, { recursive: true, mode: 0o700 });
+    const tombstonePath = path.join(trashDirectory, `${randomUUID()}.md`);
+    await new ProjectMutationCoordinator(projectPath).execute({
+        applyDatabase: () => withCatalog(projectPath, (catalog) =>
+          catalog.delete(request.documentId)),
+        applyFilesystem: () => rename(located.filePath, tombstonePath),
+        baseProjectRevision: withCatalog(projectPath, (catalog) => catalog.getRevision()),
+        files: [{
+          oldRelativePath: projectRelativePath(projectPath, located.filePath),
+          oldRevision: request.baseRevision,
+          trashRelativePath: projectRelativePath(projectPath, tombstonePath),
+        }],
+        operationKind: 'delete-document',
+        payload: { documentId: request.documentId },
+        rollbackFilesystem: () => rename(tombstonePath, located.filePath),
+    });
   });
 };

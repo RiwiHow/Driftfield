@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { SettingsDatabase } from '../../database/settings-database';
+import { ProjectDatabase } from '../../database/project-database';
 import type { ProjectSession } from '../project/session-service';
 
 import {
@@ -303,7 +303,7 @@ const toStoredOverride = (
 
 export class AgentModelConfigService {
   private updateQueue: Promise<void> = Promise.resolve();
-  private readonly databases = new Map<string, SettingsDatabase>();
+  private readonly databases = new Map<string, ProjectDatabase>();
   private readonly runtimePath: string;
   private readonly storePath: string;
 
@@ -354,6 +354,16 @@ export class AgentModelConfigService {
       if (projectSession !== undefined) {
         this.databases.get(projectSession.directoryPath)?.close();
         this.databases.delete(projectSession.directoryPath);
+        try {
+          const database = new ProjectDatabase(projectSession.directoryPath);
+          try {
+            database.connection.exec('DELETE FROM legacy_agent_model_overrides');
+          } finally {
+            database.close();
+          }
+        } catch {
+          // Global reset must remain available even when retired project data is unreadable.
+        }
       }
       await rm(path.join(path.dirname(this.runtimePath), 'projects'), {
         force: true,
@@ -397,14 +407,17 @@ export class AgentModelConfigService {
     }
 
     if (legacyProjectSession === undefined) return [];
-    const rows = this.getDatabase(legacyProjectSession).connection.prepare(`
-      SELECT override_json FROM agent_model_overrides
+    const database = this.getDatabase(legacyProjectSession);
+    const rows = database.connection.prepare(`
+      SELECT override_json FROM legacy_agent_model_overrides
       ORDER BY provider_id, model_id
-    `).all() as unknown as Array<{ override_json: string }>;
+    `)
+      .all() as unknown as Array<{ override_json: string }>;
     const overrides = rows.map(({ override_json }) =>
       parseAgentModelOverrideRequest({ override: JSON.parse(override_json) }),
     );
     await this.persist(this.storePath, { overrides, version: 1 });
+    database.connection.exec('DELETE FROM legacy_agent_model_overrides');
     return overrides;
   }
 
@@ -418,10 +431,10 @@ export class AgentModelConfigService {
     await this.persist(this.runtimePath, { providers });
   }
 
-  private getDatabase(session: ProjectSession): SettingsDatabase {
+  private getDatabase(session: ProjectSession): ProjectDatabase {
     let database = this.databases.get(session.directoryPath);
     if (database === undefined) {
-      database = new SettingsDatabase(session.directoryPath);
+      database = new ProjectDatabase(session.directoryPath);
       this.databases.set(session.directoryPath, database);
     }
     return database;

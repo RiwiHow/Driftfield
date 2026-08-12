@@ -4,9 +4,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ConversationDatabase } from '../../../src/main/database/conversation-database';
 import { ProjectDatabase } from '../../../src/main/database/project-database';
-import { SettingsDatabase } from '../../../src/main/database/settings-database';
 
 const directories: string[] = [];
 
@@ -19,62 +17,32 @@ afterEach(async () => {
 });
 
 describe('project databases', () => {
-  it('creates isolated current schemas without compatibility tables', async () => {
+  it('creates one authoritative current project schema', async () => {
     const directory = await mkdtemp(
       path.join(tmpdir(), 'driftfield-databases-'),
     );
     directories.push(directory);
 
     const project = new ProjectDatabase(directory);
-    project.initializeProjectMetadata('project-1', 1, 'Project One');
+    project.initializeProjectMetadata('project-1', 3, 'Project One');
     expect(project.getProjectMetadata()).toEqual({
-      formatVersion: 1,
+      formatVersion: 3,
       icon: null,
       marker: 'driftfield-project',
       projectId: 'project-1',
       title: 'Project One',
     });
-    expect(project.hasTable('conversations')).toBe(false);
-    expect(project.hasTable('agent_settings')).toBe(false);
-    expect(listTables(project)).toEqual([
-      'chronicle_event_personae',
-      'chronicle_event_sources',
-      'chronicle_events',
-      'chronicle_moments',
-      'chronicle_timelines',
-      'personae',
-      'project_metadata',
-      'project_story_state',
-      'schema_migrations',
-      'story_operations',
-      'story_questions',
-      'thread_beats',
-      'thread_event_links',
-      'threads',
-    ]);
+    expect(project.hasTable('conversations')).toBe(true);
+    expect(project.hasTable('agent_settings')).toBe(true);
+    expect(project.hasTable('project_nodes')).toBe(true);
+    expect(project.hasTable('writing_artifacts')).toBe(true);
+    expect(project.hasTable('project_operations')).toBe(true);
     expect(
       project.connection.prepare(`
         SELECT version FROM schema_migrations ORDER BY version
       `).all(),
-    ).toEqual([{ version: 2 }]);
+    ).toEqual([{ version: 2 }, { version: 3 }, { version: 4 }]);
     project.close();
-
-    const conversations = new ConversationDatabase(directory);
-    expect(listTables(conversations)).toEqual([
-      'conversation_messages',
-      'conversation_state',
-      'conversations',
-      'schema_migrations',
-    ]);
-    conversations.close();
-
-    const settings = new SettingsDatabase(directory);
-    expect(listTables(settings)).toEqual([
-      'agent_model_overrides',
-      'agent_settings',
-      'schema_migrations',
-    ]);
-    settings.close();
   });
 
   it('rejects pre-marker project metadata instead of migrating it', async () => {
@@ -108,42 +76,6 @@ describe('project databases', () => {
     );
   });
 
-  it('rejects discarded version-one project model settings', async () => {
-    const directory = await mkdtemp(
-      path.join(tmpdir(), 'driftfield-settings-migration-'),
-    );
-    directories.push(directory);
-    const dataDirectory = path.join(directory, '.driftfield');
-    await mkdir(dataDirectory);
-    const legacy = new DatabaseSync(path.join(dataDirectory, 'settings.sqlite'));
-    legacy.exec(`
-      CREATE TABLE schema_migrations (
-        version INTEGER PRIMARY KEY,
-        applied_at TEXT NOT NULL
-      ) STRICT;
-      CREATE TABLE agent_settings (
-        singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
-        provider_id TEXT,
-        model_id TEXT,
-        thinking_level TEXT NOT NULL
-      ) STRICT;
-      CREATE TABLE agent_model_overrides (
-        provider_id TEXT NOT NULL,
-        model_id TEXT NOT NULL,
-        override_json TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        PRIMARY KEY(provider_id, model_id)
-      ) STRICT;
-      INSERT INTO agent_settings VALUES (1, 'anthropic', 'model-a', 'high');
-      INSERT INTO schema_migrations VALUES (1, datetime('now'));
-    `);
-    legacy.close();
-
-    expect(() => new SettingsDatabase(directory)).toThrow(
-      'Settings database schema is outdated',
-    );
-  });
-
   it('rejects a newer project database schema', async () => {
     const directory = await mkdtemp(
       path.join(tmpdir(), 'driftfield-databases-'),
@@ -153,7 +85,7 @@ describe('project databases', () => {
     current.initializeProjectMetadata('project-1', 2, 'Project One');
     current.connection.prepare(`
       INSERT INTO schema_migrations(version, applied_at)
-      VALUES (3, datetime('now'))
+      VALUES (5, datetime('now'))
     `).run();
     current.close();
 
@@ -170,8 +102,8 @@ describe('project databases', () => {
     const legacy = new ProjectDatabase(directory);
     legacy.initializeProjectMetadata('project-1', 1, 'Project One');
     legacy.connection.exec(`
-      DROP TABLE story_questions;
-      DELETE FROM schema_migrations WHERE version = 2;
+      DROP TABLE project_operations;
+      DELETE FROM schema_migrations;
       INSERT INTO schema_migrations(version, applied_at)
       VALUES (1, datetime('now'));
     `);
@@ -183,16 +115,3 @@ describe('project databases', () => {
   });
 
 });
-
-const listTables = (
-  database: ProjectDatabase | ConversationDatabase | SettingsDatabase,
-): string[] =>
-  (
-    database.connection
-      .prepare(
-        `
-    SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name
-  `,
-      )
-      .all() as Array<{ name: string }>
-  ).map(({ name }) => name);

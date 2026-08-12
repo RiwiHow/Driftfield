@@ -14,6 +14,7 @@ import {
   moveStructuredProjectDocument,
 } from '../../../../src/main/services/project/structural-document-service';
 import { contentRevision } from '../../../../src/main/services/project/document-utils';
+import { ProjectDatabase } from '../../../../src/main/database/project-database';
 
 const temporaryDirectories: string[] = [];
 
@@ -33,6 +34,40 @@ afterEach(async () => {
 });
 
 describe('structured project documents', () => {
+  it('records completed cross-domain mutations in the project operation ledger', async () => {
+    const directory = await createProject();
+    const layout = await loadProjectLayout(directory);
+    await createStructuredProjectDocument(directory, {
+      documentId: 'chapter-ledger',
+      kind: 'chapter',
+      markdown: '# Ledger\n',
+      parentId: layout.manuscript.index.id,
+      title: 'Ledger',
+    });
+    const database = new ProjectDatabase(directory);
+    expect(database.connection.prepare(`
+      SELECT operation_kind, state FROM project_operations ORDER BY created_at
+    `).all()).toEqual([{ operation_kind: 'create-document', state: 'completed' }]);
+    database.close();
+  });
+
+  it('blocks opening a project with an unfinished recoverable mutation', async () => {
+    const directory = await createProject();
+    const database = new ProjectDatabase(directory);
+    database.connection.prepare(`
+      INSERT INTO project_operations(
+        operation_id, operation_kind, state, base_project_revision,
+        payload_json, created_at, updated_at
+      ) VALUES ('operation-1', 'save-document', 'filesystem_applied', 0,
+                '{}', 'now', 'now')
+    `).run();
+    database.close();
+
+    await expect(loadProjectLayout(directory)).rejects.toMatchObject({
+      code: 'project-recovery-required',
+    });
+  });
+
   it('creates and deletes a manuscript document through its parent stable ID', async () => {
     const directory = await createProject();
     const layout = await loadProjectLayout(directory);

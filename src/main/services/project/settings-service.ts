@@ -1,9 +1,10 @@
 import {
   AGENT_THINKING_LEVELS,
+  DEFAULT_PROJECT_AGENT_SETTINGS,
   type ProjectAgentSettings,
   type UpdateProjectAgentSettingsRequest,
 } from '../../../shared/contracts/settings';
-import { SettingsDatabase } from '../../database/settings-database';
+import { ProjectDatabase } from '../../database/project-database';
 import type { ProjectSession } from './session-service';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -53,7 +54,7 @@ export const parseProjectAgentSettingsUpdate = (
 };
 
 export class ProjectSettingsService {
-  private readonly databases = new Map<string, SettingsDatabase>();
+  private readonly databases = new Map<string, ProjectDatabase>();
 
   get(session: ProjectSession): ProjectAgentSettings {
     const row = this.getDatabase(session).connection.prepare(`
@@ -93,11 +94,7 @@ export class ProjectSettingsService {
   }
 
   reset(session: ProjectSession): ProjectAgentSettings {
-    this.databases.get(session.directoryPath)?.close();
-    this.databases.delete(session.directoryPath);
-    const database = SettingsDatabase.recreate(session.directoryPath);
-    this.databases.set(session.directoryPath, database);
-    return this.get(session);
+    return this.update(session, DEFAULT_PROJECT_AGENT_SETTINGS);
   }
 
   dispose(): void {
@@ -105,10 +102,10 @@ export class ProjectSettingsService {
     this.databases.clear();
   }
 
-  private getDatabase(session: ProjectSession): SettingsDatabase {
+  private getDatabase(session: ProjectSession): ProjectDatabase {
     let database = this.databases.get(session.directoryPath);
     if (database === undefined) {
-      database = new SettingsDatabase(session.directoryPath);
+      database = new ProjectDatabase(session.directoryPath);
       this.databases.set(session.directoryPath, database);
     }
     return database;
