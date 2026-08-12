@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, rename, rm, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { createHash } from 'node:crypto';
 import { SettingsDatabase } from '../../database/settings-database';
 import type { ProjectSession } from '../project/session-service';
 
@@ -16,6 +15,7 @@ import {
 
 const MAX_HEADERS = 16;
 const MAX_HEADER_LENGTH = 256;
+const MAX_MODEL_OVERRIDE_STORE_LENGTH = 1024 * 1024;
 const MAX_ROUTING_PROVIDERS = 32;
 const MAX_VALUE_LENGTH = 512;
 
@@ -304,85 +304,59 @@ const toStoredOverride = (
 export class AgentModelConfigService {
   private updateQueue: Promise<void> = Promise.resolve();
   private readonly databases = new Map<string, SettingsDatabase>();
+  private readonly runtimePath: string;
+  private readonly storePath: string;
 
-  constructor(private readonly userDataPath: string) {}
-
-  async getOverrides(session: ProjectSession): Promise<AgentModelOverride[]> {
-    const rows = this.getDatabase(session).connection.prepare(`
-      SELECT override_json FROM agent_model_overrides
-      ORDER BY provider_id, model_id
-    `).all() as unknown as Array<{ override_json: string }>;
-    return rows.map(({ override_json }) =>
-      parseAgentModelOverrideRequest({ override: JSON.parse(override_json) }),
-    );
+  constructor(userDataPath: string) {
+    const runtimeDirectory = path.join(userDataPath, 'ai', 'pi');
+    this.runtimePath = path.join(runtimeDirectory, 'models.json');
+    this.storePath = path.join(runtimeDirectory, 'models-store.json');
   }
 
-  async update(session: ProjectSession, override: AgentModelOverride): Promise<void> {
+  async getOverrides(
+    legacyProjectSession?: ProjectSession,
+  ): Promise<AgentModelOverride[]> {
+    return this.loadOverrides(legacyProjectSession);
+  }
+
+  async update(
+    override: AgentModelOverride,
+    legacyProjectSession?: ProjectSession,
+  ): Promise<void> {
     validateAgentModelOverride(override);
     const operation = this.updateQueue.then(async () => {
       const stored = toStoredOverride(override);
-      const database = this.getDatabase(session);
-      if (Object.keys(stored).length === 0) {
-        database.connection.prepare(`
-          DELETE FROM agent_model_overrides WHERE provider_id = ? AND model_id = ?
-        `).run(override.providerId, override.modelId);
-      } else {
-        database.connection.prepare(`
-          INSERT INTO agent_model_overrides(
-            provider_id, model_id, override_json, updated_at
-          ) VALUES (?, ?, ?, ?)
-          ON CONFLICT(provider_id, model_id) DO UPDATE SET
-            override_json = excluded.override_json,
-            updated_at = excluded.updated_at
-        `).run(
-          override.providerId,
-          override.modelId,
-          JSON.stringify(override),
-          new Date().toISOString(),
-        );
-      }
-      await this.prepareRuntime(session);
+      const overrides = (await this.loadOverrides(legacyProjectSession)).filter(
+        ({ modelId, providerId }) =>
+          modelId !== override.modelId || providerId !== override.providerId,
+      );
+      if (Object.keys(stored).length !== 0) overrides.push(override);
+      overrides.sort((left, right) =>
+        `${left.providerId}\u0000${left.modelId}`.localeCompare(
+          `${right.providerId}\u0000${right.modelId}`,
+        ),
+      );
+      await this.persist(this.storePath, { overrides, version: 1 });
+      await this.persistRuntime(overrides);
     });
     this.updateQueue = operation.catch(() => undefined);
     return operation;
   }
 
-  async prepareRuntime(session: ProjectSession): Promise<string> {
-    const overrides = await this.getOverrides(session);
-    const providers: Record<string, { modelOverrides: Record<string, unknown> }> = {};
-    for (const override of overrides) {
-      const provider = providers[override.providerId] ?? { modelOverrides: {} };
-      provider.modelOverrides[override.modelId] = toStoredOverride(override);
-      providers[override.providerId] = provider;
-    }
-    const projectKey = createHash('sha256')
-      .update(session.directoryPath)
-      .digest('hex');
-    const modelsPath = path.join(
-      this.userDataPath,
-      'ai',
-      'pi',
-      'projects',
-      projectKey,
-      'models.json',
-    );
-    await this.persist(modelsPath, { providers });
-    return modelsPath;
+  async prepareRuntime(legacyProjectSession?: ProjectSession): Promise<string> {
+    const overrides = await this.loadOverrides(legacyProjectSession);
+    await this.persistRuntime(overrides);
+    return this.runtimePath;
   }
 
-  async reset(session: ProjectSession): Promise<void> {
+  async reset(): Promise<void> {
     const operation = this.updateQueue.then(async () => {
-      this.getDatabase(session).connection.exec('DELETE FROM agent_model_overrides');
-      const runtimeDirectory = path.join(this.userDataPath, 'ai', 'pi');
-      await Promise.all([
-        rm(path.join(runtimeDirectory, 'projects'), {
-          force: true,
-          recursive: true,
-        }),
-        rm(path.join(runtimeDirectory, 'models-store.json'), { force: true }),
-        rm(path.join(runtimeDirectory, 'models.json'), { force: true }),
-      ]);
-      await this.prepareRuntime(session);
+      await rm(path.join(path.dirname(this.runtimePath), 'projects'), {
+        force: true,
+        recursive: true,
+      });
+      await this.persist(this.storePath, { overrides: [], version: 1 });
+      await this.persistRuntime([]);
     });
     this.updateQueue = operation.catch(() => undefined);
     return operation;
@@ -391,6 +365,53 @@ export class AgentModelConfigService {
   dispose(): void {
     for (const database of this.databases.values()) database.close();
     this.databases.clear();
+  }
+
+  private async loadOverrides(
+    legacyProjectSession?: ProjectSession,
+  ): Promise<AgentModelOverride[]> {
+    try {
+      const serialized = await readFile(this.storePath, 'utf8');
+      if (serialized.length > MAX_MODEL_OVERRIDE_STORE_LENGTH) {
+        throw new Error('Agent model override store is too large');
+      }
+      const value = JSON.parse(serialized) as unknown;
+      if (
+        !isRecord(value) ||
+        value.version !== 1 ||
+        !Array.isArray(value.overrides) ||
+        value.overrides.length > 512 ||
+        !hasOnlyKeys(value, ['overrides', 'version'])
+      ) {
+        throw new Error('Invalid Agent model override store');
+      }
+      return value.overrides.map((override) =>
+        parseAgentModelOverrideRequest({ override }),
+      );
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+
+    if (legacyProjectSession === undefined) return [];
+    const rows = this.getDatabase(legacyProjectSession).connection.prepare(`
+      SELECT override_json FROM agent_model_overrides
+      ORDER BY provider_id, model_id
+    `).all() as unknown as Array<{ override_json: string }>;
+    const overrides = rows.map(({ override_json }) =>
+      parseAgentModelOverrideRequest({ override: JSON.parse(override_json) }),
+    );
+    await this.persist(this.storePath, { overrides, version: 1 });
+    return overrides;
+  }
+
+  private async persistRuntime(overrides: AgentModelOverride[]): Promise<void> {
+    const providers: Record<string, { modelOverrides: Record<string, unknown> }> = {};
+    for (const override of overrides) {
+      const provider = providers[override.providerId] ?? { modelOverrides: {} };
+      provider.modelOverrides[override.modelId] = toStoredOverride(override);
+      providers[override.providerId] = provider;
+    }
+    await this.persist(this.runtimePath, { providers });
   }
 
   private getDatabase(session: ProjectSession): SettingsDatabase {

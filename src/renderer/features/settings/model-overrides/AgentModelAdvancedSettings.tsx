@@ -75,8 +75,8 @@ export function AgentModelAdvancedSettings({
     <section className="model-advanced-settings">
       <header className="model-advanced-header">
         <div>
-          <h3>{t("modelConfig.title")}</h3>
-          <p>{t("modelConfig.description", { model: model.name })}</p>
+          <h3>{t("modelConfig.globalTitle")}</h3>
+          <p>{t("modelConfig.globalDescription", { model: model.name })}</p>
         </div>
         <Button
           className="h-8 px-3 text-xs"

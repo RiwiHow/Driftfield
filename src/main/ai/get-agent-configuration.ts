@@ -17,8 +17,7 @@ export const getAgentConfiguration = async (
       .map(({ providerId }) => providerId),
   );
   return {
-    modelOverrides:
-      session === undefined ? [] : await agentModelConfigService.getOverrides(session),
+    modelOverrides: await agentModelConfigService.getOverrides(session),
     models:
       configuredProviders.size === 0
         ? []

@@ -136,8 +136,8 @@ describe("IPC handler composition", () => {
     await expect(update({}, { override })).resolves.toEqual({ override });
     expect(context.aiAgentService.reloadConfiguration).toHaveBeenCalledOnce();
     expect(context.agentModelConfigService.update).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'session-1' }),
       override,
+      expect.objectContaining({ id: 'session-1' }),
     );
   });
 

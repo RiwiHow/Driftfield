@@ -73,11 +73,10 @@ database independently from Pi session formats so the SDK can be upgraded or
 replaced. Each request receives a bounded Driftfield-owned active-branch
 transcript; Pi sessions remain temporary runtime objects.
 
-Driftfield stores global model defaults in application settings and project
-inheritance/selection in `.driftfield/settings.sqlite`. Pi model overrides also
-remain in the active project's settings database.
-Renderer UI edits typed model-level settings; main validates them and generates
-a project-keyed `models.json` runtime cache under application data, then
+Driftfield stores global model defaults and Pi model overrides under application
+data, while project inheritance/selection remains in `.driftfield/settings.sqlite`.
+Renderer UI edits typed global model-level settings; main validates them and
+generates a `models.json` runtime cache under application data, then
 restarts the idle worker and reloads the effective catalogue. The exposed subset includes OpenRouter routing,
 thinking-level maps, selected compatibility flags, and literal non-credential
 headers.
@@ -91,10 +90,11 @@ headers.
 - Driftfield rejects Pi shell-command and environment interpolation in UI-owned
   values. API keys and sensitive authorization headers remain in the dedicated
   credential flow.
-- Model configuration cannot change while an Agent request is active. Switching
-  projects switches runtime-cache paths, so overrides do not leak between novels.
+- Model configuration cannot change while an Agent request is active. Global
+  overrides apply consistently to every project that selects the target model.
 - The reviewed reset operation stops the idle runtime, clears credentials,
-  current-project model settings, and generated model/catalog caches, then
+  current-project model selection, global model overrides, and generated
+  model/catalog caches, then
   returns the UI to an unconfigured state. It does not touch novel content or
   conversation history.
 

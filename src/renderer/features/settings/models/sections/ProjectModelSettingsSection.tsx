@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Label } from "@/components/ui/label";
@@ -26,6 +27,7 @@ import { supportedThinkingLevel } from "../model-selection";
 interface ProjectModelSettingsSectionProps {
   configuredProviders: AgentProviderStatus[];
   globalAgentSettings: AgentSettings;
+  globalAdvancedSettings: ReactNode;
   isSaving: boolean;
   models: AgentModelOption[];
   onUpdate: (update: UpdateProjectAgentSettingsRequest) => void;
@@ -186,6 +188,7 @@ function ModelFields({
 export function ProjectModelSettingsSection({
   configuredProviders,
   globalAgentSettings,
+  globalAdvancedSettings,
   isSaving,
   models,
   onUpdate,
@@ -210,6 +213,8 @@ export function ProjectModelSettingsSection({
         settings={globalAgentSettings}
         title={t("agent.globalTitle")}
       />
+
+      {globalAdvancedSettings}
 
       <section className="settings-field-row model-scope-setting">
         <div className="settings-field-copy">

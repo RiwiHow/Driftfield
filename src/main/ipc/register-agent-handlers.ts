@@ -155,7 +155,7 @@ export const registerAgentIpcHandlers = ({
     const { session } = getProjectSession(event);
     aiAgentService.reloadConfiguration();
     await agentCredentialService.reset();
-    await agentModelConfigService.reset(session);
+    await agentModelConfigService.reset();
     const projectSettings = projectSettingsService.reset(session);
     const appSettings = await settingsService.update({
       agent: DEFAULT_APP_SETTINGS.agent,
@@ -188,11 +188,7 @@ export const registerAgentIpcHandlers = ({
       ) {
         throw new Error("Unknown Agent model override target");
       }
-      const appSettings = settingsService.get();
-      const agentSettings = resolveProjectAgentSettings(
-        projectSettingsService.get(session),
-        appSettings.agent,
-      );
+      const agentSettings = settingsService.get().agent;
       if (
         agentSettings.defaultModel?.providerId === override.providerId &&
         agentSettings.defaultModel.modelId === override.modelId &&
@@ -203,7 +199,7 @@ export const registerAgentIpcHandlers = ({
         );
       }
       aiAgentService.reloadConfiguration();
-      await agentModelConfigService.update(session, override);
+      await agentModelConfigService.update(override, session);
       return {
         override:
           (await agentModelConfigService.getOverrides(session)).find(

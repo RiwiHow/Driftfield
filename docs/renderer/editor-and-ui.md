@@ -161,7 +161,7 @@ replacement is selected, so reasoning and advanced override controls cannot
 silently target the previous provider.
 
 Global defaults, project inheritance/selection, and thinking level save
-immediately. Pi model overrides,
+immediately. Global Pi model overrides,
 including OpenRouter routing, remain an explicit-save form. The settings footer
 must report unsaved advanced changes and save failures instead of describing the
 whole model page as automatically saved.

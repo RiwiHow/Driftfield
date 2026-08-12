@@ -67,22 +67,14 @@ export function AgentModelSettingsPanel({
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [resetError, setResetError] = useState(false);
-  const projectSettings = projectAgentSettings ?? {
-    defaultModel: null,
-    thinkingLevel: "medium" as const,
-    useGlobal: true,
-  };
-  const agentSettings = projectSettings.useGlobal
-    ? globalAgentSettings
-    : projectSettings;
   const configuredProviders = agentConfiguration.providers.filter(
     ({ configured }) => configured,
   );
-  const selectedModel =
+  const selectedGlobalModel =
     agentConfiguration.models.find(
       ({ id, providerId }) =>
-        id === agentSettings.defaultModel?.modelId &&
-        providerId === agentSettings.defaultModel?.providerId,
+        id === globalAgentSettings.defaultModel?.modelId &&
+        providerId === globalAgentSettings.defaultModel?.providerId,
     ) ?? null;
 
   const resetModelSettings = async (): Promise<void> => {
@@ -123,28 +115,29 @@ export function AgentModelSettingsPanel({
       <ProjectModelSettingsSection
         configuredProviders={configuredProviders}
         globalAgentSettings={globalAgentSettings}
+        globalAdvancedSettings={
+          globalAgentSettings.defaultModel === null ? null : (
+            <AgentModelAdvancedSettings
+              isSaving={isSaving}
+              model={selectedGlobalModel}
+              onDirtyChange={onDirtyChange}
+              onSave={onUpdateModelOverride}
+              override={
+                agentConfiguration.modelOverrides.find(
+                  ({ modelId, providerId }) =>
+                    modelId === globalAgentSettings.defaultModel?.modelId &&
+                    providerId === globalAgentSettings.defaultModel?.providerId,
+                ) ?? null
+              }
+            />
+          )
+        }
         isSaving={isSaving}
         models={agentConfiguration.models}
         onUpdate={onUpdateProjectAgent}
         onUpdateGlobal={onUpdateGlobalAgent}
         projectAgentSettings={projectAgentSettings}
       />
-
-      {projectAgentSettings !== null && agentSettings.defaultModel !== null && (
-        <AgentModelAdvancedSettings
-          isSaving={isSaving}
-          model={selectedModel}
-          onDirtyChange={onDirtyChange}
-          onSave={onUpdateModelOverride}
-          override={
-            agentConfiguration.modelOverrides.find(
-              ({ modelId, providerId }) =>
-                modelId === agentSettings.defaultModel?.modelId &&
-                providerId === agentSettings.defaultModel?.providerId,
-            ) ?? null
-          }
-        />
-      )}
 
       <section className="settings-field-row">
         <div className="settings-field-copy">

@@ -108,10 +108,11 @@ preload methods that reach validated main-process handlers and repositories.
 Project-owned structured state is split by lifecycle under `.driftfield`:
 `project.sqlite` owns identity and future authoritative world state,
 `conversations.sqlite` owns Agent history and generation/tool audit records, and
-`settings.sqlite` owns project-level model overrides and inheritance state.
-Global UI settings, the default Agent model selection, and credentials remain
-under Electron `userData`. Per-project Pi configuration
-files under `userData` are rebuildable runtime caches, not authoritative
+`settings.sqlite` owns project-level model inheritance and selection state (and
+retains its legacy model-override table for migration). Global UI settings, the
+default Agent model selection, model overrides, and credentials remain under
+Electron `userData`. Pi configuration files under `userData` are rebuildable
+runtime caches, not authoritative
 settings. See [Project Databases](database.md).
 
 - Introduce migrations with the first persisted schema.

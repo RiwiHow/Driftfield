@@ -56,7 +56,7 @@ describe("AgentModelConfigService", () => {
     temporaryDirectories.push(projectDirectory);
     const session = { directoryPath: projectDirectory } as ProjectSession;
 
-    await service.update(session, createOverride());
+    await service.update(createOverride(), session);
 
     expect(await service.getOverrides(session)).toEqual([createOverride()]);
     const stored = JSON.parse(
@@ -70,14 +70,14 @@ describe("AgentModelConfigService", () => {
       only: ["amazon-bedrock"],
       zdr: true,
     });
-    await service.reset(session);
+    await service.reset();
     expect(await service.getOverrides(session)).toEqual([]);
     expect(
       JSON.parse(await readFile(await service.prepareRuntime(session), 'utf8')),
     ).toEqual({ providers: {} });
   });
 
-  it("isolates model overrides by project", async () => {
+  it("shares model overrides globally across projects", async () => {
     const directory = await mkdtemp(
       path.join(os.tmpdir(), "driftfield-models-"),
     );
@@ -90,11 +90,11 @@ describe("AgentModelConfigService", () => {
     const first = { directoryPath: firstDirectory } as ProjectSession;
     const second = { directoryPath: secondDirectory } as ProjectSession;
 
-    await service.update(first, createOverride());
+    await service.update(createOverride(), first);
 
     expect(await service.getOverrides(first)).toHaveLength(1);
-    expect(await service.getOverrides(second)).toEqual([]);
-    expect(await service.prepareRuntime(first)).not.toBe(
+    expect(await service.getOverrides(second)).toEqual([createOverride()]);
+    expect(await service.prepareRuntime(first)).toBe(
       await service.prepareRuntime(second),
     );
   });

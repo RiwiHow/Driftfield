@@ -8,11 +8,12 @@ the opened novel's `.driftfield` directory:
   facts, relationships, plot state, and mutation-operation records.
 - `conversations.sqlite` owns Agent conversations, messages, generation state,
   and tool-call audit data.
-- `settings.sqlite` owns project inheritance state, optional model/thinking
-  overrides, and bounded Pi model overrides.
+- `settings.sqlite` owns project inheritance state and optional model/thinking
+  selection. Its model-override table is retained only to migrate older projects.
 
-Global UI/application settings, default model/thinking settings, provider
-credentials, and OAuth tokens remain under Electron `userData`. Credentials
+Global UI/application settings, default model/thinking settings, bounded Pi
+model overrides, provider credentials, and OAuth tokens remain under Electron
+`userData`. Credentials
 must never be copied into a project database.
 A generated Pi `models.json` under `userData` is only a rebuildable per-project
 runtime cache.
@@ -145,15 +146,14 @@ stable project identity, positive project format version, title, and optional
 reviewed icon ID. The format version is recorded but is not yet a compatibility
 gate. `agent_settings` in `settings.sqlite` owns whether the project inherits
 the global Agent settings and, when inheritance is disabled, its selected
-provider/model and thinking level. `agent_model_overrides` stores validated
-project-specific compatibility, routing, header, and thinking-map overrides.
-Credentials never enter these tables.
+provider/model and thinking level. `agent_model_overrides` is retained as a
+legacy migration source; new compatibility, routing, header, and thinking-map
+overrides are global. Credentials never enter these tables.
 
 Global settings use the versioned `userData/settings.json` schema and own the
-default Agent provider/model and thinking level. New projects inherit this
-selection by default. Discarded pre-release project settings schemas are
-rejected rather than migrated. Switching projects reloads both the effective
-settings and the generated Pi runtime cache.
+default Agent provider/model, thinking level, and validated model overrides.
+New projects inherit this selection by default. Discarded pre-release project
+settings schemas are rejected rather than migrated.
 
 The explicit model-settings reset operation clears all global provider
 credentials and Agent defaults, the active project's inheritance state,

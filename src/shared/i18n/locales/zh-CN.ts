@@ -68,7 +68,7 @@ export const zhCN = {
     unknownTime: '未知时间',
   },
   settings: {
-    agent: { credentialDescription: '凭据全局保存在这台设备上，应用不会显示已保存的 Key。', globalDescription: '所有项目默认使用这里的设置，单个项目可单独覆盖。', globalTitle: '全局模型', keyPlaceholder: '输入 API Key', modelLabel: 'Agent 模型', noModels: '没有可用模型', noProvider: '尚未连接模型服务', projectDescription: '这些设置仅应用于当前打开的小说项目。', projectOverrideDescription: '新项目默认使用全局模型；开启后可单独配置当前项目。', projectOverrideLabel: '使用项目专属模型设置', projectOverrideTitle: '项目模型覆盖', projectTitle: '项目模型', providerLabel: '模型 Provider', providerTitle: '模型服务', resetAction: '重置模型设置', resetConfirm: '确定重置这台设备上的全部模型凭据和全局设置，并重置当前项目的模型设置吗？对话和小说内容不会被删除。', resetDescription: '清除模型凭据和全局模型设置，使当前项目恢复使用全局默认值，并清除其高级覆盖和生成缓存。', resetTitle: '重置模型设置', selectModel: '请选择模型', selectProvider: '选择 Provider', thinkingDescription: '更高等级通常更慢，并可能产生更多费用。', thinkingLabel: 'Agent 思考深度', thinkingTitle: '思考深度' },
+    agent: { credentialDescription: '凭据全局保存在这台设备上，应用不会显示已保存的 Key。', globalDescription: '所有项目默认使用这里的设置，单个项目可单独覆盖。', globalTitle: '全局模型', keyPlaceholder: '输入 API Key', modelLabel: 'Agent 模型', noModels: '没有可用模型', noProvider: '尚未连接模型服务', projectDescription: '这些设置仅应用于当前打开的小说项目。', projectOverrideDescription: '新项目默认使用全局模型；开启后可单独配置当前项目。', projectOverrideLabel: '使用项目专属模型设置', projectOverrideTitle: '项目模型覆盖', projectTitle: '项目模型', providerLabel: '模型 Provider', providerTitle: '模型服务', resetAction: '重置模型设置', resetConfirm: '确定重置这台设备上的全部模型凭据和全局设置，并重置当前项目的模型设置吗？对话和小说内容不会被删除。', resetDescription: '清除模型凭据、全局模型设置及其高级覆盖，使当前项目恢复使用全局默认值，并移除生成缓存。', resetTitle: '重置模型设置', selectModel: '请选择模型', selectProvider: '选择 Provider', thinkingDescription: '更高等级通常更慢，并可能产生更多费用。', thinkingLabel: 'Agent 思考深度', thinkingTitle: '思考深度' },
     appearance: { description: '应用到窗口、目录、编辑器和 Agent 面板。', followSystem: '跟随系统外观', followSystemDescription: '系统外观变化时，自动切换浅色与深色主题。', title: '外观主题', themes: { githubDark: '适合专注写作的 Primer 深色界面', githubLight: '清晰高对比度的 Primer 浅色界面' } },
     categories: { interfaceDescription: '语言、主题和编辑器行为', interfaceTitle: '界面', label: '设置分类', modelsDescription: '服务、模型和思考深度', modelsTitle: '模型' },
     closeBehavior: { description: '明确退出操作始终会完全退出 Driftfield。', label: '关闭主窗口时的行为', minimize: '最小化', quit: '退出应用', title: '关闭主窗口时' },
@@ -78,6 +78,8 @@ export const zhCN = {
     modelConfig: {
       compatibility: { description: '仅在服务端点有特殊要求时覆盖 Pi 的兼容性判断。', maxTokensField: '最大 Token 字段', supportsDeveloperRole: 'Developer 角色', supportsReasoningEffort: 'Reasoning Effort', supportsUsageInStreaming: '流式 Usage', thinkingFormat: '思考格式', title: '兼容性覆盖' },
       description: '{{model}} 的 Pi 模型覆盖；保存后生效。',
+      globalDescription: '{{model}} 的全局 Pi 模型覆盖；保存后应用于所有使用该模型的项目。',
+      globalTitle: '全局 Pi 模型配置',
       headers: { add: '添加 Header', description: '仅允许普通请求元数据；凭据、环境变量和命令展开不会被接受。', name: 'Header 名称', title: '请求 Headers', value: 'Header 值' },
       routing: { dataCollection: '数据收集', dataStates: { allow: '允许', default: '使用 OpenRouter 默认值', deny: '禁止' }, denyDataCollection: '禁止数据收集', description: '指定 OpenRouter 可以为该模型使用哪些上游 Provider。', fallbacks: '允许回退', mode: '路由模式', modes: { automatic: '自动', exact: '仅一个 Provider', ordered: '按优先顺序' }, providerPlaceholder: 'anthropic, amazon-bedrock', providers: 'Provider ID', requireParameters: '要求支持全部参数', title: 'OpenRouter 路由', zdr: '要求零数据保留' },
       states: { default: '使用 Pi 默认值', disabled: '关闭', enabled: '开启' },
