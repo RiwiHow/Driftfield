@@ -26,6 +26,10 @@ does not duplicate those effects or introduce a global state store.
   existing projects.
 - MDXEditor owns Markdown rich-text, source, and diff editing modes. Markdown is
   the manuscript interchange format.
+- The persisted interface scale applies to the complete Renderer through
+  Electron's window zoom factor. The Interface settings selector and
+  `Ctrl/Cmd` with `+`, `-`, or `0` share the same validated zoom levels; do not
+  replace this with CSS transforms or an editor-only font adjustment.
 - The editor status bar derives its writing count from reader-visible Markdown
   text rather than source length: each Han character and each non-Han word or
   number counts as one unit, while syntax and link targets do not count.

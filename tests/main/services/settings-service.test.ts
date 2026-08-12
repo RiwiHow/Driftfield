@@ -32,7 +32,8 @@ describe('settings parsing and validation', () => {
         language: 'zh-CN',
         lastProjectDirectoryPath: '/Novels/Example',
         theme: 'github-dark',
-        version: 2,
+        zoomPercent: 125,
+        version: 3,
       }),
     ).toEqual({
       agent: {
@@ -44,7 +45,8 @@ describe('settings parsing and validation', () => {
       language: 'zh-CN',
       lastProjectDirectoryPath: '/Novels/Example',
       theme: 'github-dark',
-      version: 2,
+      zoomPercent: 125,
+      version: 3,
     });
   });
 
@@ -69,7 +71,8 @@ describe('settings parsing and validation', () => {
       lastProjectDirectoryPath: null,
       language: 'en',
       theme: 'github-light',
-      version: 2,
+      zoomPercent: 100,
+      version: 3,
     });
   });
 
@@ -81,8 +84,18 @@ describe('settings parsing and validation', () => {
     );
   });
 
-  it('uses defaults for version 1 settings', () => {
+  it('uses defaults for outdated settings versions', () => {
+    expect(parseStoredSettings(PREVIOUS_SETTINGS)).toEqual(DEFAULT_SETTINGS);
     expect(parseStoredSettings(LEGACY_SETTINGS)).toEqual(DEFAULT_SETTINGS);
+  });
+
+  it('accepts only supported application zoom levels', () => {
+    expect(parseSettingsUpdate({ zoomPercent: 150 })).toEqual({
+      zoomPercent: 150,
+    });
+    expect(() => parseSettingsUpdate({ zoomPercent: 123 })).toThrow(
+      'Unknown application zoom level',
+    );
   });
 
   it('validates global Agent settings updates', () => {
@@ -127,7 +140,7 @@ describe('settings parsing and validation', () => {
   });
 
   it('rejects unknown update fields, including the schema version', () => {
-    expect(() => parseSettingsUpdate({ version: 2 })).toThrow(
+    expect(() => parseSettingsUpdate({ version: 3 })).toThrow(
       'Unknown application setting',
     );
   });
@@ -148,7 +161,7 @@ describe('settings parsing and validation', () => {
     });
     expect(
       JSON.parse(await readFile(path.join(directory, 'settings.json'), 'utf8')),
-    ).toMatchObject({ lastProjectDirectoryPath: '/Novels/Example', version: 2 });
+    ).toMatchObject({ lastProjectDirectoryPath: '/Novels/Example', version: 3 });
   });
 });
 
@@ -162,7 +175,8 @@ const DEFAULT_SETTINGS = {
   language: 'en',
   lastProjectDirectoryPath: null,
   theme: 'github-light',
-  version: 2,
+  zoomPercent: 100,
+  version: 3,
 } as const;
 
 const LEGACY_SETTINGS = {
@@ -172,4 +186,9 @@ const LEGACY_SETTINGS = {
   lastProjectDirectoryPath: '/Novels/Legacy',
   theme: 'github-dark',
   version: 1,
+} as const;
+
+const PREVIOUS_SETTINGS = {
+  ...DEFAULT_SETTINGS,
+  version: 2,
 } as const;

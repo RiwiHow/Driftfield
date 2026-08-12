@@ -86,6 +86,7 @@ export const zhCN = {
     },
     saveStatus: { modelSaved: '模型设置已保存', modelUnsaved: 'Pi 模型配置有未保存的更改', saved: '设置已自动保存', saving: '正在保存…' },
     title: '应用设置',
+    zoom: { description: '缩放整个应用界面，也可随时使用 Ctrl/Cmd +、- 或 0 调整。', label: '应用缩放', title: '界面缩放' },
   },
   workspace: { collapseAgents: '收起 Agents', collapseLibrary: '收起小说目录', expandAgents: '展开 Agents', expandLibrary: '展开小说目录' },
 } satisfies LocaleShape;

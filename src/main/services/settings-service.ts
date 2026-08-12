@@ -4,6 +4,7 @@ import { isAppLanguage } from '../../shared/i18n/languages';
 
 import {
   APP_THEME_PREFERENCES,
+  APP_ZOOM_PERCENTS,
   AGENT_THINKING_LEVELS,
   DEFAULT_APP_SETTINGS,
   type AgentSettings,
@@ -24,6 +25,10 @@ const isEditorFontSize = (value: unknown): value is number =>
   Number.isInteger(value) &&
   value >= 14 &&
   value <= 24;
+
+const isZoomPercent = (value: unknown): value is AppSettings['zoomPercent'] =>
+  typeof value === 'number' &&
+  APP_ZOOM_PERCENTS.includes(value as AppSettings['zoomPercent']);
 
 const isCloseWindowBehavior = (
   value: unknown,
@@ -79,17 +84,19 @@ export const parseStoredSettings = (value: unknown): AppSettings => {
     'language',
     'lastProjectDirectoryPath',
     'theme',
+    'zoomPercent',
     'version',
   ];
   if (
     !isRecord(value) ||
-    value.version !== 2 ||
+    value.version !== 3 ||
     Object.keys(value).length !== expectedKeys.length ||
     expectedKeys.some((key) => !(key in value)) ||
     !isCloseWindowBehavior(value.closeWindowBehavior) ||
     !isEditorFontSize(value.editorFontSize) ||
     !isAppLanguage(value.language) ||
     !isTheme(value.theme) ||
+    !isZoomPercent(value.zoomPercent) ||
     !isLastProjectDirectoryPath(value.lastProjectDirectoryPath) ||
     parseAgentSettings(value.agent) === null
   ) {
@@ -103,7 +110,8 @@ export const parseStoredSettings = (value: unknown): AppSettings => {
     lastProjectDirectoryPath: value.lastProjectDirectoryPath,
     language: value.language,
     theme: value.theme,
-    version: 2,
+    zoomPercent: value.zoomPercent,
+    version: 3,
   };
 };
 
@@ -120,6 +128,7 @@ export const parseSettingsUpdate = (
     'editorFontSize',
     'language',
     'theme',
+    'zoomPercent',
   ]);
 
   if (Object.keys(value).some((key) => !allowedKeys.has(key))) {
@@ -163,6 +172,13 @@ export const parseSettingsUpdate = (
     }
 
     update.theme = value.theme;
+  }
+
+  if ('zoomPercent' in value) {
+    if (!isZoomPercent(value.zoomPercent)) {
+      throw new Error('Unknown application zoom level');
+    }
+    update.zoomPercent = value.zoomPercent;
   }
 
   return update;

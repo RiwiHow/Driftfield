@@ -87,6 +87,7 @@ export const en = {
     },
     saveStatus: { modelSaved: 'Model settings saved', modelUnsaved: 'Pi model configuration has unsaved changes', saved: 'Settings saved automatically', saving: 'Saving…' },
     title: 'Application settings',
+    zoom: { description: 'Scale the entire interface. Use Ctrl/Cmd +, -, or 0 to adjust it anywhere.', label: 'Application zoom', title: 'Interface scale' },
   },
   workspace: { collapseAgents: 'Collapse Agents', collapseLibrary: 'Collapse novel library', expandAgents: 'Expand Agents', expandLibrary: 'Expand novel library' },
 } as const;

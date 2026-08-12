@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
+  APP_ZOOM_PERCENTS,
   type AppSettings,
   type UpdateAppSettingsRequest,
 } from '../../../shared/contracts/settings';
@@ -61,6 +62,33 @@ export const useAppSettings = (
     },
     [isSavingSettings, settings.language],
   );
+
+  useEffect(() => {
+    const handleZoomShortcut = (event: KeyboardEvent): void => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+
+      const currentIndex = APP_ZOOM_PERCENTS.indexOf(settings.zoomPercent);
+      let zoomPercent: AppSettings['zoomPercent'] | undefined;
+      if (event.key === '0') {
+        zoomPercent = 100;
+      } else if (event.key === '+' || event.key === '=') {
+        zoomPercent = APP_ZOOM_PERCENTS[
+          Math.min(currentIndex + 1, APP_ZOOM_PERCENTS.length - 1)
+        ];
+      } else if (event.key === '-') {
+        zoomPercent = APP_ZOOM_PERCENTS[Math.max(currentIndex - 1, 0)];
+      }
+
+      if (zoomPercent === undefined) return;
+      event.preventDefault();
+      if (zoomPercent !== settings.zoomPercent) {
+        void updateSettings({ zoomPercent });
+      }
+    };
+
+    window.addEventListener('keydown', handleZoomShortcut);
+    return () => window.removeEventListener('keydown', handleZoomShortcut);
+  }, [settings.zoomPercent, updateSettings]);
 
   return {
     isSavingSettings,

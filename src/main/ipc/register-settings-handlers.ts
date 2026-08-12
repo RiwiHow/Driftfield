@@ -4,7 +4,10 @@ import { IPC_CHANNELS } from '../../shared/contracts/ipc-channels';
 import { getAgentConfiguration } from '../ai/get-agent-configuration';
 import { parseSettingsUpdate } from '../services/settings-service';
 import { parseProjectAgentSettingsUpdate } from '../services/project/settings-service';
-import { updateMainWindowTheme } from '../windows/main-window';
+import {
+  updateMainWindowTheme,
+  updateMainWindowZoom,
+} from '../windows/main-window';
 import type { IpcHandlerContext } from './ipc-handler-context';
 
 export const registerSettingsIpcHandlers = ({
@@ -47,6 +50,9 @@ export const registerSettingsIpcHandlers = ({
     const settings = await settingsService.update(update);
     if (update.theme !== undefined) {
       updateMainWindowTheme(window, settings.theme);
+    }
+    if (update.zoomPercent !== undefined) {
+      updateMainWindowZoom(window, settings.zoomPercent);
     }
     return settings;
   });

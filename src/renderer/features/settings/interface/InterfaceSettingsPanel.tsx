@@ -17,7 +17,10 @@ import type {
   AppTheme,
   UpdateAppSettingsRequest,
 } from "../../../../shared/contracts/settings";
-import { APP_THEMES } from "../../../../shared/contracts/settings";
+import {
+  APP_THEMES,
+  APP_ZOOM_PERCENTS,
+} from "../../../../shared/contracts/settings";
 import { APP_LANGUAGE_OPTIONS } from "../../../../shared/i18n/languages";
 
 interface InterfaceSettingsPanelProps {
@@ -71,6 +74,39 @@ export function InterfaceSettingsPanel({
         <h2>{t("categories.interfaceTitle")}</h2>
         <p>{t("categories.interfaceDescription")}</p>
       </header>
+
+      <section className="settings-field-row">
+        <div className="settings-field-copy">
+          <h3>{t("zoom.title")}</h3>
+          <p>{t("zoom.description")}</p>
+        </div>
+
+        <div className="settings-field-control settings-field-control-narrow">
+          <Label className="sr-only" htmlFor="application-zoom">
+            {t("zoom.label")}
+          </Label>
+          <Select
+            disabled={isSaving}
+            onValueChange={(zoomPercent) =>
+              onUpdate({
+                zoomPercent: Number(zoomPercent) as AppSettings["zoomPercent"],
+              })
+            }
+            value={String(settings.zoomPercent)}
+          >
+            <SelectTrigger className="w-24" id="application-zoom" size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="settings-select-content">
+              {APP_ZOOM_PERCENTS.map((percent) => (
+                <SelectItem key={percent} value={String(percent)}>
+                  {percent}%
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </section>
 
       <section className="settings-field-row">
         <div className="settings-field-copy">

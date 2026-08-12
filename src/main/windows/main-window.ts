@@ -16,6 +16,7 @@ import {
   type AppThemePreference,
   resolveAppTheme,
 } from '../../shared/theme-contract';
+import type { AppZoomPercent } from '../../shared/contracts/settings';
 import type { SettingsService } from '../services/settings-service';
 import {
   createRendererNavigationPolicy,
@@ -78,6 +79,13 @@ export const updateMainWindowTheme = (
   }
 };
 
+export const updateMainWindowZoom = (
+  window: BrowserWindow,
+  zoomPercent: AppZoomPercent,
+): void => {
+  window.webContents.setZoomFactor(zoomPercent / 100);
+};
+
 export const createMainWindow = ({
   onClose,
   onClosed,
@@ -113,6 +121,8 @@ export const createMainWindow = ({
       sandbox: true,
     },
   });
+
+  updateMainWindowZoom(window, settingsService.get().zoomPercent);
 
   const webContentsId = window.webContents.id;
   const updateSystemTheme = (): void => {

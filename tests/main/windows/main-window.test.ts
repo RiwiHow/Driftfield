@@ -7,6 +7,7 @@ const {
   nativeThemeState,
   setBackgroundColor,
   setTitleBarOverlay,
+  setZoomFactor,
 } = vi.hoisted(() => ({
   browserWindowOptions: vi.fn(),
   nativeThemeState: {
@@ -15,6 +16,7 @@ const {
   },
   setBackgroundColor: vi.fn(),
   setTitleBarOverlay: vi.fn(),
+  setZoomFactor: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
@@ -24,6 +26,7 @@ vi.mock('electron', () => ({
       id: 1,
       on: vi.fn(),
       openDevTools: vi.fn(),
+      setZoomFactor,
       setWindowOpenHandler: vi.fn(),
     };
 
@@ -56,6 +59,7 @@ import {
   createMainWindow,
   getMainWindowChromeOptions,
   updateMainWindowTheme,
+  updateMainWindowZoom,
 } from '../../../src/main/windows/main-window';
 
 describe('main window', () => {
@@ -65,6 +69,7 @@ describe('main window', () => {
     nativeThemeState.updatedHandlers.clear();
     setBackgroundColor.mockClear();
     setTitleBarOverlay.mockClear();
+    setZoomFactor.mockClear();
     vi.stubGlobal(
       'MAIN_WINDOW_VITE_DEV_SERVER_URL',
       'http://localhost:5173/',
@@ -76,7 +81,7 @@ describe('main window', () => {
       onClose: vi.fn(),
       onClosed: vi.fn(),
       settingsService: {
-        get: () => ({ theme: 'github-light' }),
+        get: () => ({ theme: 'github-light', zoomPercent: 100 }),
       } as never,
     });
 
@@ -86,6 +91,26 @@ describe('main window', () => {
         useContentSize: true,
       }),
     );
+  });
+
+  it('applies the persisted interface zoom before loading the renderer', () => {
+    createMainWindow({
+      onClose: vi.fn(),
+      onClosed: vi.fn(),
+      settingsService: {
+        get: () => ({ theme: 'github-light', zoomPercent: 125 }),
+      } as never,
+    });
+
+    expect(setZoomFactor).toHaveBeenCalledWith(1.25);
+  });
+
+  it('converts a zoom percentage to Electron zoom factor', () => {
+    const window = { webContents: { setZoomFactor: vi.fn() } };
+
+    updateMainWindowZoom(window as never, 150);
+
+    expect(window.webContents.setZoomFactor).toHaveBeenCalledWith(1.5);
   });
 
   it('integrates the renderer titlebar with the Windows caption controls', () => {
@@ -143,7 +168,7 @@ describe('main window', () => {
       onClose: vi.fn(),
       onClosed: vi.fn(),
       settingsService: {
-        get: () => ({ theme: 'system' }),
+        get: () => ({ theme: 'system', zoomPercent: 100 }),
       } as never,
     });
 
