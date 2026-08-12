@@ -102,7 +102,8 @@ not read or edit YAML directly.
   revisions, serialized atomic writes, and conflicts.
 - Renderer features and Agent workers do not parse, mutate, or construct project
   metadata paths.
-- Agents access structure through bounded domain tools and stable IDs. They
+- Agents access structure through bounded domain tools and request-scoped refs
+  that Main resolves to stable IDs. They
   never edit YAML directly.
 - Structural mutations must use propose, preview, approve, revision-check, and
   main-owned apply semantics.

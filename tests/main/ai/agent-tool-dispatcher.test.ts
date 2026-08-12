@@ -63,7 +63,19 @@ const scope = { ownerId: 7, projectSessionId: 'session-1', requestId: 'request-1
 describe('AgentToolDispatcher', () => {
   it('reads selected novel context and persisted documents in one bounded call', async () => {
     const currentDocument = { ...documentResult, source: 'draft' as const };
-    const storyState = { revision: 4 };
+    const storyState = {
+      beats: [],
+      eventLinks: [],
+      eventParticipants: [],
+      eventSources: [],
+      events: [],
+      moments: [],
+      personae: [],
+      questions: [],
+      revision: 4,
+      threads: [],
+      timelines: [],
+    };
     const context = {
       getCurrentDocument: vi.fn().mockResolvedValue(currentDocument),
       getDocument: vi.fn().mockImplementation(async (_scope, documentId) => ({
@@ -84,13 +96,55 @@ describe('AgentToolDispatcher', () => {
       toolName: 'read_novel_context',
     })).resolves.toEqual({
       data: {
-        currentDocument,
+        currentDocument: {
+          ...currentDocument,
+          baseRevision: 'revision:2',
+          contentRevision: 'revision:3',
+          documentId: 'document:1',
+        },
         documents: [
-          documentResult,
-          { ...documentResult, documentId: 'lore-1' },
+          {
+            ...documentResult,
+            baseRevision: 'revision:2',
+            contentRevision: 'revision:3',
+            documentId: 'document:1',
+          },
+          {
+            ...documentResult,
+            baseRevision: 'revision:2',
+            contentRevision: 'revision:3',
+            documentId: 'document:2',
+          },
         ],
         storyState,
-        structure: novelStructure,
+        structure: {
+          ...novelStructure,
+          lore: {
+            ...novelStructure.lore,
+            children: [{
+              ...novelStructure.lore.children[0],
+              children: [{
+                ...novelStructure.lore.children[0].children[0],
+                id: 'document:2',
+              }],
+              id: 'directory:3',
+            }],
+            id: 'directory:2',
+          },
+          manuscript: {
+            ...novelStructure.manuscript,
+            children: [{
+              ...novelStructure.manuscript.children[0],
+              id: 'document:1',
+            }],
+            id: 'directory:1',
+          },
+          project: {
+            ...novelStructure.project,
+            id: 'project:1',
+            revision: 'revision:1',
+          },
+        },
       },
       ok: true,
       toolName: 'read_novel_context',
@@ -403,6 +457,11 @@ describe('AgentToolDispatcher', () => {
       status: 'completed' as const,
     }));
 
+    await dispatcher.execute(scope, {
+      arguments: { directoryIds: [], documentIds: [], include: ['structure'] },
+      toolName: 'read_novel_context',
+    });
+
     await expect(dispatcher.execute({
       delegateWriting,
       ownerId: 1,
@@ -411,21 +470,26 @@ describe('AgentToolDispatcher', () => {
       arguments: {
         objective: 'Write the next scene.',
         requirements: ['Keep the established point of view.'],
-        targetDocumentId: 'chapter-1',
+        targetDocumentId: 'document:1',
         targetLength: 1_000,
       },
       toolName: 'delegate_writing',
     })).resolves.toEqual({
       data: {
-        assignmentId: 'scribe-task-1',
+        assignmentId: 'assignment:1',
         markdown: '# Draft',
         status: 'completed',
       },
       ok: true,
       toolName: 'delegate_writing',
     });
-    expect(delegateWriting).toHaveBeenCalledOnce();
-    expect(getNovelStructure).toHaveBeenCalledOnce();
+    expect(delegateWriting).toHaveBeenCalledWith({
+      objective: 'Write the next scene.',
+      requirements: ['Keep the established point of view.'],
+      targetDocumentId: 'document:1',
+      targetLength: 1_000,
+    }, 'chapter-1');
+    expect(getNovelStructure).toHaveBeenCalledTimes(2);
   });
 
   it('delegates new-document writing with a null target and rejects directory targets', async () => {
@@ -505,7 +569,7 @@ describe('AgentToolDispatcher', () => {
     const reviseWritingArtifact = vi.fn(() => ({
       ok: true as const,
       result: {
-        assignmentId: 'scribe-task-1',
+        assignmentId: 'assignment:1',
         replacementsApplied: 2,
         status: 'revised' as const,
       },
@@ -527,7 +591,7 @@ describe('AgentToolDispatcher', () => {
       toolName: 'revise_writing_artifact',
     })).resolves.toEqual({
       data: {
-        assignmentId: 'scribe-task-1',
+        assignmentId: 'assignment:1',
         replacementsApplied: 2,
         status: 'revised',
       },
@@ -603,7 +667,7 @@ describe('AgentToolDispatcher', () => {
       arguments: arguments_,
       toolName: 'record_story_question',
     })).resolves.toEqual({
-      data: { questionId: 'question-1', revision: 4, status: 'recorded' },
+      data: { questionId: 'question:1', revision: 4, status: 'recorded' },
       ok: true,
       toolName: 'record_story_question',
     });
@@ -668,7 +732,7 @@ describe('AgentToolDispatcher', () => {
       arguments: { change, storyRevision: 0 },
       toolName: 'propose_story_operation',
     })).resolves.toMatchObject({
-      data: { proposalId: proposal.proposalId, status: 'accepted' },
+      data: { proposalId: 'proposal:1', status: 'accepted' },
       ok: true,
     });
     expect(sendProposal).toHaveBeenCalledWith(proposal);
@@ -798,7 +862,7 @@ describe('AgentToolDispatcher', () => {
         toolName: 'propose_document_edit',
       },
     )).resolves.toEqual({
-      data: { proposalId: 'proposal-1', status: 'accepted' },
+      data: { proposalId: 'proposal:1', status: 'accepted' },
       ok: true,
       toolName: 'propose_document_edit',
     });
@@ -901,7 +965,7 @@ describe('AgentToolDispatcher', () => {
     expect(sendProposal).toHaveBeenCalledWith(proposal);
     resolveDecision({ proposalId: proposal.proposalId, status: 'accepted' });
     await expect(result).resolves.toMatchObject({
-      data: { proposalId: proposal.proposalId, status: 'accepted' },
+      data: { proposalId: 'proposal:1', status: 'accepted' },
       ok: true,
     });
   });
@@ -950,7 +1014,7 @@ describe('AgentToolDispatcher', () => {
         toolName: 'propose_document_file_operation',
       },
     )).resolves.toEqual({
-      data: { proposalId: 'proposal-create', status: 'accepted' },
+      data: { proposalId: 'proposal:1', status: 'accepted' },
       ok: true,
       toolName: 'propose_document_file_operation',
     });
@@ -1007,7 +1071,7 @@ describe('AgentToolDispatcher', () => {
         toolName: 'propose_project_structure_operation',
       },
     )).resolves.toEqual({
-      data: { proposalId: 'proposal-volume', status: 'rejected' },
+      data: { proposalId: 'proposal:1', status: 'rejected' },
       ok: true,
       toolName: 'propose_project_structure_operation',
     });
@@ -1048,7 +1112,7 @@ describe('AgentToolDispatcher', () => {
       },
       toolName: 'propose_project_structure_operation',
     })).resolves.toMatchObject({
-      data: { proposalId: proposal.proposalId, status: 'accepted' },
+      data: { proposalId: 'proposal:1', status: 'accepted' },
       ok: true,
     });
     expect(proposals.createStructureOperation).toHaveBeenCalledWith(

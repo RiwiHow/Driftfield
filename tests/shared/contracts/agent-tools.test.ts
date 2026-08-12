@@ -314,6 +314,37 @@ describe('Agent proposal tool contract', () => {
     })).toBe(false);
   });
 
+  it('accepts request-scoped refs in model-facing story snapshots', () => {
+    expect(isAgentToolExecutionResult({
+      data: {
+        documents: [],
+        storyState: {
+          beats: [],
+          eventLinks: [],
+          eventParticipants: [],
+          eventSources: [{
+            anchor: null,
+            documentId: 'document:1',
+            documentRevision: 'revision:1',
+            eventId: 'event:1',
+            id: 'request:1',
+            relation: 'depicted',
+            sourceKind: 'manuscript',
+          }],
+          events: [],
+          moments: [],
+          personae: [],
+          questions: [],
+          revision: 1,
+          threads: [],
+          timelines: [],
+        },
+      },
+      ok: true,
+      toolName: 'read_novel_context',
+    })).toBe(true);
+  });
+
   it('validates project structure proposal variants', () => {
     expect(isAgentToolRequest({
       arguments: {
@@ -443,8 +474,8 @@ describe('Agent proposal tool contract', () => {
           participants: [],
           sources: [{
             anchor: 'Mara opens the sealed door.',
-            documentId: 'chapter-1',
-            documentRevision: 'a'.repeat(64),
+            documentId: 'document:1',
+            documentRevision: 'revision:1',
             relation: 'depicted',
             sourceKind: 'manuscript',
           }],

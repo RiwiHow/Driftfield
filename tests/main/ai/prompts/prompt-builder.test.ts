@@ -41,6 +41,7 @@ describe('Agent prompt registry', () => {
     });
     expect(built.prompt).toContain('Trusted application proposal outcomes');
     expect(built.prompt).toContain('"status":"accepted"');
+    expect(built.prompt).not.toContain('proposal-1');
     expect(built.prompt).toContain('do not continue claiming');
   });
 
@@ -53,7 +54,7 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain('native tool calling');
     expect(built.prompt).toContain('request all already-known required sections');
     expect(built.prompt).toContain('directoryIds only to read a directory’s immediate document children');
-    expect(built.prompt).toContain('stable document identities');
+    expect(built.prompt).toContain('request-scoped document refs');
     expect(built.prompt).toContain('create or delete a document');
     expect(built.prompt).toContain('metadataTitle from formatted displayTitle');
     expect(built.prompt).toContain('rename a document metadata title');
@@ -68,8 +69,8 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain('call complete_story_reconciliation');
     expect(built.prompt).toContain('complete ordered dependency graph');
     expect(built.prompt).toContain('reference it as @clientRef');
-    expect(built.prompt).toContain('audit and entity IDs remain Main-owned');
-    expect(built.prompt).toContain('Do not narrate tool planning');
+    expect(built.prompt).toContain('persistent identities remain Main-owned');
+    expect(built.prompt).not.toContain('Do not narrate tool planning');
     expect(built.prompt).toContain(
       'First check whether the accepted prose advances, turns, reveals, resolves, or abandons an existing Thread',
     );

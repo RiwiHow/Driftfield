@@ -9,7 +9,8 @@ future databases, permissions, and persistence.
 The Agent data surface contains one bounded `read_novel_context` tool. One call
 may request any combination of the fixed `structure`, `current_document`,
 `story_state`, and `accepted_reconciliation` sections, persisted documents by
-stable ID, and directories by stable ID. `accepted_reconciliation` is available
+request-scoped ref, and directories by request-scoped ref.
+`accepted_reconciliation` is available
 only after an accepted Scribe-backed manuscript proposal. It returns the exact
 persisted accepted document and a compact semantic view of Personae, Chronicle,
 Threads, and open questions. Existing entities use request-scoped refs such as
@@ -19,18 +20,24 @@ never nested directories. Explicit and expanded documents are deduplicated in
 request order and limited to four total results. Main validates every requested
 node against the current structure before reading and returns only path-free
 application-owned data. Missing nodes, document/directory kind mismatches, and
-oversized selections return distinct bounded typed errors.
+oversized selections return distinct bounded typed errors. Every ordinary
+context result replaces persistent project, directory, document, story-entity,
+question, and source IDs plus SHA-256 content revisions with short refs such as
+`directory:3`, `document:2`, and `revision:1`. Main owns the per-request reverse
+mapping, reuses refs across repeated reads, resolves them before privileged
+operations, and releases them with request state. The model-facing surface does
+not emit persistent UUIDs or content hashes.
 Every document result separates its raw `metadataTitle` from its formatted
 `displayTitle`. Numbering and label templates affect only `displayTitle`; Agents
 use `metadataTitle` for creation and title changes and never copy generated
 numbering back into metadata.
 The current-document section is the immutable request-start editor draft,
-including unsaved edits; explicit document IDs deliberately read persisted
+including unsaved edits; explicit document refs deliberately read persisted
 content. The story-state section contains Personae, Chronicle, Threads, open
 questions, and the numeric story revision. Empty requests and duplicate IDs
 within either selector are rejected. Agents batch already-known requirements
 but use a later call when an earlier structure result is needed to discover
-stable IDs.
+request-scoped refs.
 
 The bounded direct-maintenance surface contains:
 
@@ -38,7 +45,8 @@ The bounded direct-maintenance surface contains:
   typed additive or linking changes
   to Personae, Chronicle, or Threads within the user's explicit request or
   when unambiguously evidenced by accepted persisted prose. It
-  requires the current story revision and stable IDs. Main validates and
+  requires the current numeric story revision and request-scoped refs. Main
+  validates and
   applies the changeset transactionally, records each item in the project
   ledger, and returns the new revision. Ordered create operations may declare a
   bounded `clientRef`; later operations in the same changeset refer to the
@@ -78,11 +86,11 @@ The bounded collaboration surface contains:
 
 - `delegate_writing`, which lets the Curator commission one Scribe draft for a
   user-authorized manuscript-writing request. The assignment contains a bounded
-  objective, requirements, nullable stable target-document ID, and nullable
+  objective, requirements, nullable request-scoped target-document ref, and nullable
   target length. New-document assignments use `targetDocumentId: null`;
-  existing-document assignments use a stable document ID returned by structure,
-  never a directory ID or invented placeholder. Main validates non-null target
-  IDs against the current structure. Main creates and owns the child task
+  existing-document assignments use a document ref returned by structure,
+  never a directory ref or invented placeholder. Main resolves and validates
+  non-null targets against the current structure. Main creates and owns the child task
   identity, parentage, cancellation, timeout, and artifact-size limit. Scribe
   receives the read-only novel tools plus one terminal
   `submit_writing_artifact` tool. Only the bounded Markdown submitted through
@@ -122,13 +130,13 @@ The reviewed mutation surface additionally contains:
   current-document snapshot and binds it to both the disk base revision and
   draft content revision;
 - `propose_document_file_operation`, which proposes either creating a Markdown
-  document under a stable directory ID or deleting a document by stable ID.
+  document under a request-scoped directory ref or deleting a document by ref.
   Creation carries a raw `metadataTitle`, domain kind, and either direct
   Markdown or the current request's unclaimed Scribe assignment ID. Deletion binds to both the
   project revision and persisted document revision.
 - `propose_project_structure_operation`, which proposes creating a manuscript
   volume, creating an icon-bearing lore category, deleting an empty lore
-  category, moving a document between compatible stable directory IDs, or
+  category, moving a document between compatible request-scoped directory refs, or
   changing a document's metadata title without renaming its physical file.
   `read_novel_context.structure` returns both each directory's selected icon and the
   complete fixed icon allow-list. Category creation accepts only an icon from
@@ -209,7 +217,7 @@ chapter one does not by itself authorize writing chapter two. One run may submit
 multiple sequential proposals when the original request requires them; every
 proposal and decision remains ordered in the assistant message audit timeline.
 
-Main validates typed arguments, resolves stable IDs through the active project
+Main validates typed arguments, resolves request-scoped refs through the active project
 session, rechecks document containment and regular-file status, and enforces
 per-request call, timeout, individual-result, and cumulative-result budgets.
 Results do not expose physical project paths or raw YAML.

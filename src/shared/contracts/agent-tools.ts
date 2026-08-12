@@ -606,7 +606,7 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
       Object.keys(value).length === 2 &&
       Number.isSafeInteger(value.storyRevision) &&
       (value.storyRevision as number) >= 0 &&
-      isProjectStoryOperation(value.change)
+      isAgentStoryOperation(value.change)
     );
   }
   if (toolName === 'maintain_story_records') {
@@ -726,7 +726,7 @@ const isNovelContextResult = (
   (value.currentDocument === undefined || isDocumentResult(value.currentDocument)) &&
   (value.reconciliation === undefined ||
     isAcceptedReconciliationContext(value.reconciliation)) &&
-  (value.storyState === undefined || isProjectStorySnapshot(value.storyState)) &&
+  (value.storyState === undefined || isAgentStorySnapshot(value.storyState)) &&
   (value.structure === undefined || isNovelStructureResult(value.structure));
 
 const isWritingAssignmentResult = (value: unknown): boolean =>
@@ -737,6 +737,32 @@ const isWritingAssignmentResult = (value: unknown): boolean =>
   value.markdown.trim().length > 0 &&
   new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024 &&
   value.status === 'completed';
+
+const isAgentStorySnapshot = (value: unknown): boolean => {
+  if (isProjectStorySnapshot(value)) return true;
+  if (!isRecord(value) || !Array.isArray(value.eventSources) ||
+    !Array.isArray(value.questions)) return false;
+  const canonicalRevision = (revision: unknown): unknown =>
+    typeof revision === 'string' && /^revision:[1-9][0-9]*$/u.test(revision)
+      ? 'a'.repeat(64)
+      : revision;
+  return isProjectStorySnapshot({
+    ...value,
+    eventSources: value.eventSources.map((source) => isRecord(source)
+      ? { ...source, documentRevision: canonicalRevision(source.documentRevision) }
+      : source),
+    questions: value.questions.map((question) => {
+      if (!isRecord(question) || !isRecord(question.evidence)) return question;
+      return {
+        ...question,
+        evidence: {
+          ...question.evidence,
+          documentRevision: canonicalRevision(question.evidence.documentRevision),
+        },
+      };
+    }),
+  });
+};
 
 const isWritingArtifactSubmissionResult = (value: unknown): boolean =>
   isRecord(value) &&
@@ -847,9 +873,25 @@ const isAcceptedReconciliationContext = (value: unknown): boolean =>
 const isStoryMaintenanceChange = (value: unknown): boolean => {
   if (!isRecord(value)) return false;
   const { clientRef, ...operation } = value;
-  if (!isProjectStoryOperation(operation)) return false;
+  if (!isAgentStoryOperation(operation)) return false;
   if (clientRef === undefined) return true;
   return operation.operation !== 'link_beat_event' && isStoryClientRef(clientRef);
+};
+
+const isAgentStoryOperation = (value: unknown): boolean => {
+  if (isProjectStoryOperation(value)) return true;
+  if (!isRecord(value) || value.operation !== 'create_event' ||
+    !Array.isArray(value.sources)) return false;
+  const sources = value.sources.map((source) => {
+    if (!isRecord(source) || !isRevision(source.documentRevision)) return source;
+    return {
+      ...source,
+      documentRevision: /^revision:/u.test(source.documentRevision as string)
+        ? 'a'.repeat(64)
+        : source.documentRevision,
+    };
+  });
+  return isProjectStoryOperation({ ...value, sources });
 };
 
 const isStoryClientRef = (value: unknown): value is string =>
@@ -903,7 +945,12 @@ const isWritingArtifactReplacement = (
   (value.expectedOccurrences as number) <= 100;
 
 const isRevision = (value: unknown): value is string =>
-  typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
+  typeof value === 'string' && (
+    /^revision:[1-9][0-9]*$/u.test(value) ||
+    // Accept canonical hashes from an already-running pre-upgrade worker. The
+    // current Main dispatcher never emits them to a model.
+    /^[a-f0-9]{64}$/u.test(value)
+  );
 
 const isDocumentResult = (value: unknown): value is AgentDocumentToolResult =>
   isRecord(value) &&

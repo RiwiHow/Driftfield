@@ -358,14 +358,19 @@ export class AiAgentService {
               },
               completeStoryReconciliation: (status) =>
                 this.completeStoryReconciliation(active, status),
-              delegateWriting: (assignment) => {
+              delegateWriting: (assignment, resolvedTargetDocumentId) => {
                 if (active.writingTasks >= 1 || active.childTaskId !== undefined) {
                   throw new ProjectContextError(
                     'tool-budget-exceeded',
                     'Only one Scribe delegation is available per user request. Revise an unclaimed completed artifact with revise_writing_artifact; do not retry delegation.',
                   );
                 }
-                return this.runWritingTask(message.requestId, active, assignment);
+                return this.runWritingTask(
+                  message.requestId,
+                  active,
+                  assignment,
+                  resolvedTargetDocumentId,
+                );
               },
               sendProposal: (proposal) => {
                 if (
@@ -646,6 +651,7 @@ export class AiAgentService {
     parentRequestId: string,
     active: ActiveAgentRequest,
     assignment: AgentWritingAssignment,
+    resolvedTargetDocumentId: string | null,
   ): Promise<AgentWritingAssignmentToolResult> {
     if (
       active.cancelled ||
@@ -668,7 +674,7 @@ export class AiAgentService {
         parentRequestId,
         reject,
         resolve,
-        targetDocumentId: assignment.targetDocumentId,
+        targetDocumentId: resolvedTargetDocumentId,
         timeout,
       });
       this.worker!.postMessage({

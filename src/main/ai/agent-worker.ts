@@ -368,7 +368,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Read one bounded batch of novel context. include may contain structure, current_document (the immutable request-start draft), story_state, and accepted_reconciliation. After an accepted Scribe-backed manuscript proposal, prefer accepted_reconciliation: it returns the exact persisted accepted document plus UUID-free request-scoped persona/thread/timeline refs and compact existing story context for reconcile_accepted_document. Document results distinguish raw metadataTitle from formatted displayTitle. documentIds reads persisted manuscript or lore documents by stable ID. directoryIds reads only immediate document children. Explicit and expanded documents are deduplicated and limited to four total.",
+        "Read one bounded batch of novel context. include may contain structure, current_document (the immutable request-start draft), story_state, and accepted_reconciliation. Persistent IDs and content hashes are replaced with short request-scoped refs in every result. Document results distinguish raw metadataTitle from formatted displayTitle. documentIds reads persisted manuscript or lore documents by ref. directoryIds reads only immediate document children. Explicit and expanded documents are deduplicated and limited to four total.",
       label: "Read novel context",
       name: "read_novel_context",
       parameters: NOVEL_CONTEXT_PARAMETERS,
@@ -416,7 +416,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Submit a reviewable proposal to create a Markdown document under a stable directory ID or delete a document by stable ID. Read structure first and use its current project revision. For creation, pass the raw metadataTitle without generated numbering; displayTitle is read-only context. After delegate_writing, set markdown to null and writingAssignmentId to the returned assignmentId; never reproduce the Scribe Markdown. For direct creation, supply markdown and set writingAssignmentId to null. Before deletion, read the target and provide its persisted baseRevision. This never changes files without explicit acceptance.",
+        "Submit a reviewable proposal to create a Markdown document under a directory ref or delete a document by ref. Read structure first and reuse its request-scoped project revision ref. For creation, pass the raw metadataTitle without generated numbering; displayTitle is read-only context. After delegate_writing, set markdown to null and writingAssignmentId to the returned assignmentId; never reproduce the Scribe Markdown. For direct creation, supply markdown and set writingAssignmentId to null. Before deletion, read the target and reuse its baseRevision ref. This never changes files without explicit acceptance.",
       label: "Propose document creation or deletion",
       name: "propose_document_file_operation",
       parameters: DOCUMENT_FILE_OPERATION_PARAMETERS,
@@ -432,7 +432,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Submit a reviewable proposal to create a manuscript volume, create a lore category with an approved icon, delete an empty lore category, move a document, or rename a document's metadata title without changing its physical filename. Read structure first and use its current project revision. For rename_document, use the stable documentId and a raw metadataTitle without generated numbering. Before moving, read the document and provide its persisted baseRevision. Delete lore documents before deleting their now-empty category. This never changes project structure without explicit acceptance. The tool call waits for the user's decision; after acceptance, continue only the user's existing requested scope.",
+        "Submit a reviewable proposal to create a manuscript volume, create a lore category with an approved icon, delete an empty lore category, move a document, or rename a document's metadata title without changing its physical filename. Read structure first and reuse its request-scoped project revision ref. Use only document and directory refs returned in this request. Before moving, read the document and reuse its baseRevision ref. Delete lore documents before deleting their now-empty category. This never changes project structure without explicit acceptance. The tool call waits for the user's decision; after acceptance, continue only the user's existing requested scope.",
       label: "Propose project structure change",
       name: "propose_project_structure_operation",
       parameters: PROJECT_STRUCTURE_OPERATION_PARAMETERS,
@@ -448,7 +448,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Atomically maintain one ordered changeset of 1 to 24 low-risk additive or linking changes in Personae, Chronicle, or Threads when explicitly requested by the user or unambiguously evidenced by accepted persisted prose. Read story_state first and use its current revision. For a created entity needed by a later change, assign clientRef and reference it later as @clientRef; include the complete dependency graph in this one call. Main resolves references, generates stable IDs, and applies all or none with one story revision. The concise result reports only status, revision, and appliedCount; audit and generated entity IDs remain Main-owned. Never include ambiguity or inference requiring author judgment; record a story question instead. Do not narrate planning or intermediate IDs. This tool cannot delete, merge, reorder, edit manuscript text, or execute SQL.",
+        "Atomically maintain one ordered changeset of 1 to 24 low-risk additive or linking changes in Personae, Chronicle, or Threads when explicitly requested by the user or unambiguously evidenced by accepted persisted prose. Read story_state first and use its current numeric revision plus its request-scoped entity refs. For a created entity needed by a later change, assign clientRef and reference it later as @clientRef; include the complete dependency graph in this one call. Main resolves references, owns persistent identities, and applies all or none with one story revision. The concise result reports only status, revision, and appliedCount. Never include ambiguity or inference requiring author judgment; record a story question instead. This tool cannot delete, merge, reorder, edit manuscript text, or execute SQL.",
       label: "Maintain story records",
       name: "maintain_story_records",
       parameters: STORY_MAINTENANCE_PARAMETERS,
@@ -507,7 +507,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Resolve an existing open story question only from the user's explicit answer. Read story_state with read_novel_context first and pass the stable question ID and a concise faithful answer. Resolving the question does not itself mutate Personae, Chronicle, or Threads; apply any now-unambiguous low-risk record change separately with maintain_story_records.",
+        "Resolve an existing open story question only from the user's explicit answer. Read story_state with read_novel_context first and pass its request-scoped question ref with a concise faithful answer. Resolving the question does not itself mutate Personae, Chronicle, or Threads; apply any now-unambiguous low-risk record change separately with maintain_story_records.",
       label: "Resolve story question",
       name: "resolve_story_question",
       parameters: RESOLVE_STORY_QUESTION_PARAMETERS,

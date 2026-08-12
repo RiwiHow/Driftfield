@@ -4,6 +4,7 @@ import type {
   AgentDocumentToolResult,
   AgentDraftSnapshot,
   AgentNovelStructureToolResult,
+  AgentProjectStructureOperationArguments,
   AgentStructureNode,
   AgentWritingAssignment,
   AgentWritingAssignmentToolResult,
@@ -35,6 +36,7 @@ import {
   isProjectStoryOperation,
   type ProjectStorySnapshot,
 } from '../../shared/contracts/project-story';
+import { AgentReferenceRegistry } from './agent-reference-registry';
 
 export interface AgentToolScope {
   acceptedDocumentId?: string;
@@ -47,6 +49,7 @@ export interface AgentToolScope {
   ) => { detail?: string; ok: boolean };
   delegateWriting?: (
     assignment: AgentWritingAssignment,
+    resolvedTargetDocumentId: string | null,
   ) => Promise<AgentWritingAssignmentToolResult>;
   draftSnapshot?: AgentDraftSnapshot;
   ownerId: number;
@@ -97,6 +100,7 @@ interface ReconciliationRegistry {
 
 export class AgentToolDispatcher {
   private readonly budgets = new Map<string, RequestBudget>();
+  private readonly referenceRegistries = new Map<string, AgentReferenceRegistry>();
   private readonly reconciliationRegistries = new Map<string, ReconciliationRegistry>();
 
   constructor(
@@ -149,6 +153,7 @@ export class AgentToolDispatcher {
 
   release(requestId: string): void {
     this.budgets.delete(requestId);
+    this.referenceRegistries.delete(requestId);
     this.reconciliationRegistries.delete(requestId);
     this.proposals?.cancelRequest(requestId);
   }
@@ -157,6 +162,9 @@ export class AgentToolDispatcher {
     scope: AgentToolScope,
     request: AgentToolRequest,
   ): Promise<AgentToolSuccessResult> {
+    const refs = this.referenceRegistries.get(scope.requestId) ??
+      new AgentReferenceRegistry();
+    this.referenceRegistries.set(scope.requestId, refs);
     const contextScope = {
       ...(scope.draftSnapshot === undefined ? {} : { draftSnapshot: scope.draftSnapshot }),
       ownerId: scope.ownerId,
@@ -166,24 +174,32 @@ export class AgentToolDispatcher {
       if (scope.delegateWriting === undefined) {
         throw new ProjectContextError('internal-error');
       }
-      if (request.arguments.targetDocumentId !== null) {
+      const targetDocumentId = request.arguments.targetDocumentId === null
+        ? null
+        : refs.resolve(request.arguments.targetDocumentId, 'document');
+      if (targetDocumentId !== null) {
         const structure = await this.context.getNovelStructure(contextScope);
-        const node = indexStructureNodes(structure).get(
-          request.arguments.targetDocumentId,
-        );
+        const node = indexStructureNodes(structure).get(targetDocumentId);
         if (node === undefined) {
-          throw nodeNotFound(request.arguments.targetDocumentId);
+          throw nodeNotFound(request.arguments.targetDocumentId!);
         }
         if (node.type !== 'document') {
           throw nodeKindMismatch(
-            request.arguments.targetDocumentId,
+            request.arguments.targetDocumentId!,
             'document',
             node,
           );
         }
       }
+      const result = await scope.delegateWriting(
+        request.arguments,
+        targetDocumentId,
+      );
       return {
-        data: await scope.delegateWriting(request.arguments),
+        data: {
+          ...result,
+          assignmentId: refs.expose('assignment', result.assignmentId),
+        },
         ok: true,
         toolName: request.toolName,
       };
@@ -193,14 +209,17 @@ export class AgentToolDispatcher {
         throw new ProjectContextError('internal-error');
       }
       const outcome = scope.reviseWritingArtifact(
-        request.arguments.writingAssignmentId,
+        refs.resolve(request.arguments.writingAssignmentId, 'assignment'),
         request.arguments.replacements,
       );
       if (!outcome.ok) {
         throw new ProjectContextError('invalid-arguments', outcome.detail);
       }
       return {
-        data: outcome.result,
+        data: {
+          ...outcome.result,
+          assignmentId: refs.expose('assignment', outcome.result.assignmentId),
+        },
         ok: true,
         toolName: request.toolName,
       };
@@ -242,19 +261,21 @@ export class AgentToolDispatcher {
         seenDocumentIds.add(documentId);
         resolvedDocumentIds.push(documentId);
       };
-      for (const documentId of documentIds) {
+      for (const documentRef of documentIds) {
+        const documentId = refs.resolve(documentRef, 'document');
         const node = nodes.get(documentId);
-        if (node === undefined) throw nodeNotFound(documentId);
+        if (node === undefined) throw nodeNotFound(documentRef);
         if (node.type !== 'document') {
-          throw nodeKindMismatch(documentId, 'document', node);
+          throw nodeKindMismatch(documentRef, 'document', node);
         }
         addDocumentId(documentId);
       }
-      for (const directoryId of directoryIds) {
+      for (const directoryRef of directoryIds) {
+        const directoryId = refs.resolve(directoryRef, 'directory');
         const node = nodes.get(directoryId);
-        if (node === undefined) throw nodeNotFound(directoryId);
+        if (node === undefined) throw nodeNotFound(directoryRef);
         if (node.type !== 'directory') {
-          throw nodeKindMismatch(directoryId, 'directory', node);
+          throw nodeKindMismatch(directoryRef, 'directory', node);
         }
         for (const child of node.children) {
           if (child.type === 'document') addDocumentId(child.id);
@@ -279,28 +300,51 @@ export class AgentToolDispatcher {
             acceptedDocument,
             storyState,
           );
+      const exposedStructure = includeSet.has('structure') &&
+        resolvedStructure !== undefined
+          ? refs.exposeStructure(resolvedStructure)
+          : undefined;
+      const exposedCurrentDocument = currentDocument === undefined
+        ? undefined
+        : refs.exposeDocument(currentDocument);
+      const exposedDocuments = documents.map((document) =>
+        refs.exposeDocument(document));
+      const exposedStoryState = !includeSet.has('story_state') || storyState === undefined
+        ? undefined
+        : refs.exposeStory(storyState);
       return {
         data: {
-          ...(currentDocument === undefined ? {} : { currentDocument }),
-        documents,
-        ...(reconciliation === undefined ? {} : { reconciliation }),
-        ...(!includeSet.has('story_state') || storyState === undefined
-          ? {}
-          : { storyState }),
-          ...(includeSet.has('structure') && resolvedStructure !== undefined
-            ? { structure: resolvedStructure }
-            : {}),
+          ...(exposedCurrentDocument === undefined
+            ? {}
+            : { currentDocument: exposedCurrentDocument }),
+          documents: exposedDocuments,
+          ...(reconciliation === undefined ? {} : { reconciliation }),
+          ...(exposedStoryState === undefined
+            ? {}
+            : { storyState: exposedStoryState }),
+          ...(exposedStructure === undefined
+            ? {}
+            : { structure: exposedStructure }),
         },
         ok: true,
         toolName: request.toolName,
       };
     }
     if (request.toolName === 'maintain_story_records') {
+      const changes = request.arguments.changes.map((change) => {
+        const clientRef = 'clientRef' in change ? change.clientRef : undefined;
+        const operation = { ...change } as AgentStoryMaintenanceChange & {
+          clientRef?: string;
+        };
+        delete operation.clientRef;
+        const resolved = refs.resolveStoryOperation(operation);
+        return clientRef === undefined ? resolved : { ...resolved, clientRef };
+      }) as AgentStoryMaintenanceChange[];
       const data = await this.context.maintainStoryRecords(
         contextScope,
         scope.requestId,
         request.arguments.storyRevision,
-        request.arguments.changes,
+        changes,
       );
       scope.storyChanged?.(data.revision);
       return {
@@ -352,10 +396,28 @@ export class AgentToolDispatcher {
       };
     }
     if (request.toolName === 'record_story_question') {
+      const argumentsWithResolvedEvidence =
+        request.arguments.evidence !== null &&
+        'documentId' in request.arguments.evidence
+          ? {
+              ...request.arguments,
+              evidence: {
+                ...request.arguments.evidence,
+                documentId: refs.resolve(
+                  request.arguments.evidence.documentId,
+                  'document',
+                ),
+                documentRevision: refs.resolve(
+                  request.arguments.evidence.documentRevision,
+                  'revision',
+                ),
+              },
+            }
+          : request.arguments;
       const input = resolveStoryQuestionArguments(
         scope,
         this.reconciliationRegistries.get(scope.requestId),
-        request.arguments,
+        argumentsWithResolvedEvidence,
       );
       const data = this.context.recordStoryQuestion(
         contextScope,
@@ -363,32 +425,44 @@ export class AgentToolDispatcher {
         input,
       );
       scope.storyChanged?.(data.revision);
-      return { data, ok: true, toolName: request.toolName };
+      return {
+        data: { ...data, questionId: refs.expose('question', data.questionId) },
+        ok: true,
+        toolName: request.toolName,
+      };
     }
     if (request.toolName === 'resolve_story_question') {
       const data = this.context.resolveStoryQuestion(
         contextScope,
-        request.arguments.questionId,
+        refs.resolve(request.arguments.questionId, 'question'),
         request.arguments.answer,
       );
       scope.storyChanged?.(data.revision);
-      return { data, ok: true, toolName: request.toolName };
+      return {
+        data: { ...data, questionId: refs.expose('question', data.questionId) },
+        ok: true,
+        toolName: request.toolName,
+      };
     }
     if (request.toolName === 'propose_document_edit') {
       if (this.proposals === undefined) {
         throw new ProjectContextError('internal-error');
       }
+      const documentId = refs.resolve(request.arguments.documentId, 'document');
       const content = claimDocumentContent(
         scope,
-        request.arguments,
-        request.arguments.documentId,
+        resolveDocumentContentReference(refs, request.arguments),
+        documentId,
       );
       let proposal: ReturnType<AgentProposalService['create']>;
       try {
         proposal = this.proposals.create(scope, {
-          baseContentRevision: request.arguments.baseContentRevision,
-          baseRevision: request.arguments.baseRevision,
-          documentId: request.arguments.documentId,
+          baseContentRevision: refs.resolve(
+            request.arguments.baseContentRevision,
+            'revision',
+          ),
+          baseRevision: refs.resolve(request.arguments.baseRevision, 'revision'),
+          documentId,
           markdown: content.markdown,
         });
       } catch (error) {
@@ -405,7 +479,7 @@ export class AgentToolDispatcher {
       );
       scope.sendProposal(proposal);
       return {
-        data: await decision,
+        data: exposeProposalResult(refs, await decision),
         ok: true,
         toolName: request.toolName,
       };
@@ -415,7 +489,11 @@ export class AgentToolDispatcher {
         throw new ProjectContextError('internal-error');
       }
       const content = request.arguments.operation === 'create'
-        ? claimDocumentContent(scope, request.arguments, null)
+        ? claimDocumentContent(
+            scope,
+            resolveDocumentContentReference(refs, request.arguments),
+            null,
+          )
         : null;
       let proposal: Awaited<ReturnType<AgentProposalService['createFileOperation']>>;
       try {
@@ -424,11 +502,22 @@ export class AgentToolDispatcher {
               kind: request.arguments.kind,
               markdown: content!.markdown,
               operation: request.arguments.operation,
-              parentId: request.arguments.parentId,
-              projectRevision: request.arguments.projectRevision,
+              parentId: refs.resolve(request.arguments.parentId, 'directory'),
+              projectRevision: refs.resolve(
+                request.arguments.projectRevision,
+                'revision',
+              ),
               metadataTitle: request.arguments.metadataTitle,
             } satisfies ResolvedDocumentFileOperationArguments
-          : request.arguments;
+          : {
+              ...request.arguments,
+              baseRevision: refs.resolve(request.arguments.baseRevision, 'revision'),
+              documentId: refs.resolve(request.arguments.documentId, 'document'),
+              projectRevision: refs.resolve(
+                request.arguments.projectRevision,
+                'revision',
+              ),
+            };
         proposal = await this.withTimeout(
           this.proposals.createFileOperation(scope, resolvedRequest),
         );
@@ -446,7 +535,7 @@ export class AgentToolDispatcher {
       );
       scope.sendProposal(proposal);
       return {
-        data: await decision,
+        data: exposeProposalResult(refs, await decision),
         ok: true,
         toolName: request.toolName,
       };
@@ -455,8 +544,9 @@ export class AgentToolDispatcher {
       if (this.proposals === undefined) {
         throw new ProjectContextError('internal-error');
       }
+      const operation = resolveStructureOperation(refs, request.arguments);
       const proposal = await this.withTimeout(
-        this.proposals.createStructureOperation(scope, request.arguments),
+        this.proposals.createStructureOperation(scope, operation),
       );
       if (scope.sendProposal === undefined) {
         this.proposals.cancelRequest(scope.requestId);
@@ -468,7 +558,7 @@ export class AgentToolDispatcher {
       );
       scope.sendProposal(proposal);
       return {
-        data: await decision,
+        data: exposeProposalResult(refs, await decision),
         ok: true,
         toolName: request.toolName,
       };
@@ -479,7 +569,10 @@ export class AgentToolDispatcher {
       }
       const proposal = this.proposals.createStoryOperation(
         scope,
-        request.arguments,
+        {
+          ...request.arguments,
+          change: refs.resolveStoryOperation(request.arguments.change),
+        },
       );
       if (scope.sendProposal === undefined) {
         this.proposals.cancelRequest(scope.requestId);
@@ -491,7 +584,7 @@ export class AgentToolDispatcher {
       );
       scope.sendProposal(proposal);
       return {
-        data: await decision,
+        data: exposeProposalResult(refs, await decision),
         ok: true,
         toolName: request.toolName,
       };
@@ -762,7 +855,57 @@ const resolveStoryQuestionArguments = (
   };
 };
 
+const resolveStructureOperation = (
+  refs: AgentReferenceRegistry,
+  operation: AgentProjectStructureOperationArguments,
+): AgentProjectStructureOperationArguments => {
+  const projectRevision = refs.resolve(operation.projectRevision, 'revision');
+  switch (operation.operation) {
+    case 'create_volume':
+    case 'create_lore_category':
+      return { ...operation, projectRevision };
+    case 'delete_lore_category':
+      return {
+        ...operation,
+        directoryId: refs.resolve(operation.directoryId, 'directory'),
+        projectRevision,
+      };
+    case 'move_document':
+      return {
+        ...operation,
+        baseRevision: refs.resolve(operation.baseRevision, 'revision'),
+        documentId: refs.resolve(operation.documentId, 'document'),
+        projectRevision,
+        targetParentId: refs.resolve(operation.targetParentId, 'directory'),
+      };
+    case 'rename_document':
+      return {
+        ...operation,
+        documentId: refs.resolve(operation.documentId, 'document'),
+        projectRevision,
+      };
+  }
+};
+
 class ToolTimeoutError extends Error {}
+
+const resolveDocumentContentReference = <T extends {
+  markdown: string | null;
+  writingAssignmentId: string | null;
+}>(refs: AgentReferenceRegistry, source: T): T => source.writingAssignmentId === null
+  ? source
+  : {
+      ...source,
+      writingAssignmentId: refs.resolve(source.writingAssignmentId, 'assignment'),
+    };
+
+const exposeProposalResult = (
+  refs: AgentReferenceRegistry,
+  result: AgentToolContractMap['propose_document_edit']['result'],
+): AgentToolContractMap['propose_document_edit']['result'] => ({
+  ...result,
+  proposalId: refs.expose('proposal', result.proposalId),
+});
 
 const claimDocumentContent = (
   scope: AgentToolScope,
@@ -828,7 +971,7 @@ const toolArgumentShapeHint = (
   args: unknown,
 ): string | undefined => {
   if (toolName === 'delegate_writing') {
-    return 'delegate_writing requires exactly objective, requirements, targetDocumentId, and targetLength. It is available at most once per user request and must not be retried for draft corrections. For a new document, set targetDocumentId to null; for an existing document, use its stable document ID, never a directory ID or placeholder. Set targetLength to an integer from 1 to 200000, or null when unspecified.';
+    return 'delegate_writing requires exactly objective, requirements, targetDocumentId, and targetLength. It is available at most once per user request and must not be retried for draft corrections. For a new document, set targetDocumentId to null; for an existing document, use its request-scoped document ref, never a directory ref or placeholder. Set targetLength to an integer from 1 to 200000, or null when unspecified.';
   }
   if (toolName === 'revise_writing_artifact') {
     return 'revise_writing_artifact requires exactly writingAssignmentId and 1 to 12 ordered replacements. Each replacement requires exactly find, replace, and expectedOccurrences; find must be non-empty and differ from replace.';
@@ -968,7 +1111,7 @@ const storyOperationValueError = (
   const id = (field: string, nullable = false): string | undefined =>
     (nullable && change[field] === null) || isStoryId(change[field])
       ? undefined
-      : `${path}.${field} must be ${nullable ? 'null or ' : ''}a stable ID or compatible earlier @clientRef.`;
+      : `${path}.${field} must be ${nullable ? 'null or ' : ''}a request-scoped ref or compatible earlier @clientRef.`;
   const integer = (field: string): string | undefined =>
     Number.isSafeInteger(change[field]) ? undefined : `${path}.${field} must be an integer.`;
   let checks: Array<string | undefined>;
@@ -1101,7 +1244,7 @@ const storyParticipantsError = (
       return `${itemPath} requires exactly description, personaId, and role.`;
     }
     if (!isStoryId(item.personaId)) {
-      return `${itemPath}.personaId must be a stable ID or compatible earlier @clientRef.`;
+      return `${itemPath}.personaId must be a request-scoped ref or compatible earlier @clientRef.`;
     }
     if (!['actor', 'target', 'witness', 'affected'].includes(item.role as string)) {
       return `${itemPath}.role is invalid.`;
@@ -1137,8 +1280,9 @@ const storySourcesError = (
     }
     if (!isStoryId(item.documentId)) return `${itemPath}.documentId is invalid.`;
     if (typeof item.documentRevision !== 'string' ||
-      !/^[a-f0-9]{64}$/u.test(item.documentRevision)) {
-      return `${itemPath}.documentRevision must be a SHA-256 revision.`;
+      !(/^revision:[1-9][0-9]*$/u.test(item.documentRevision) ||
+        /^[a-f0-9]{64}$/u.test(item.documentRevision))) {
+      return `${itemPath}.documentRevision must be a request-scoped revision ref.`;
     }
     if (!['depicted', 'mentioned', 'inferred'].includes(item.relation as string)) {
       return `${itemPath}.relation is invalid.`;

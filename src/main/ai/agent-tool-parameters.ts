@@ -22,7 +22,7 @@ export const NOVEL_CONTEXT_PARAMETERS = Type.Object(
       Type.String({ maxLength: 128, minLength: 1 }),
       {
         description:
-          'Stable directory IDs whose immediate document children should be read. Nested directories are not expanded. Use an empty array when none are needed.',
+          'Request-scoped directory refs whose immediate document children should be read. Nested directories are not expanded. Use an empty array when none are needed.',
         maxItems: 4,
         uniqueItems: true,
       },
@@ -31,7 +31,7 @@ export const NOVEL_CONTEXT_PARAMETERS = Type.Object(
       Type.String({ maxLength: 128, minLength: 1 }),
       {
         description:
-          'Stable IDs of persisted manuscript or lore documents to read. Use an empty array when none are needed.',
+          'Request-scoped refs of persisted manuscript or lore documents to read. Use an empty array when none are needed.',
         maxItems: 4,
         uniqueItems: true,
       },
@@ -49,7 +49,7 @@ export const NOVEL_CONTEXT_PARAMETERS = Type.Object(
   {
     additionalProperties: false,
     description:
-      'Request at least one include section, document ID, or directory ID. Explicit and directory-expanded documents are deduplicated and limited to four total results. Results remain path-free and bounded.',
+      'Request at least one include section, document ref, or directory ref. Explicit and directory-expanded documents are deduplicated and limited to four total results. Results remain path-free and bounded.',
   },
 );
 
@@ -62,7 +62,7 @@ export const WRITING_ASSIGNMENT_PARAMETERS = Type.Object(
     ),
     targetDocumentId: Type.Unsafe<string | null>({
       description:
-        'For an existing document, use its stable document ID from read_novel_context.structure. For a new document that does not exist yet, use null. Never use a directory ID, title, path, or placeholder ID.',
+        'For an existing document, use its request-scoped document ref from read_novel_context.structure. For a new document that does not exist yet, use null. Never use a directory ref, title, path, or placeholder.',
       maxLength: 128,
       type: ['string', 'null'],
     }),
@@ -114,8 +114,8 @@ export const WRITING_ARTIFACT_REVISION_PARAMETERS = Type.Object(
 
 export const DOCUMENT_EDIT_PARAMETERS = Type.Object(
   {
-    baseContentRevision: Type.String({ pattern: '^[a-f0-9]{64}$' }),
-    baseRevision: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+    baseContentRevision: Type.String({ pattern: '^revision:[1-9][0-9]*$' }),
+    baseRevision: Type.String({ pattern: '^revision:[1-9][0-9]*$' }),
     documentId: Type.String({ maxLength: 128, minLength: 1 }),
     markdown: Type.Unsafe<string | null>({
       description:
@@ -137,13 +137,13 @@ export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
   {
     baseRevision: Type.Optional(
       Type.String({
-        description: 'Required for delete: persisted revision returned by read_novel_context.',
-        pattern: '^[a-f0-9]{64}$',
+        description: 'Required for delete: request-scoped revision ref returned by read_novel_context.',
+        pattern: '^revision:[1-9][0-9]*$',
       }),
     ),
     documentId: Type.Optional(
       Type.String({
-        description: 'Required for delete: stable document ID from read_novel_context.structure.',
+        description: 'Required for delete: request-scoped document ref from read_novel_context.structure.',
         maxLength: 128,
         minLength: 1,
       }),
@@ -172,14 +172,14 @@ export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
     operation: stringEnum(['create', 'delete'] as const),
     parentId: Type.Optional(
       Type.String({
-        description: 'Required for create: stable parent directory ID from read_novel_context.structure.',
+        description: 'Required for create: request-scoped parent directory ref from read_novel_context.structure.',
         maxLength: 128,
         minLength: 1,
       }),
     ),
     projectRevision: Type.String({
-      description: 'Current project revision returned by read_novel_context.structure.',
-      pattern: '^[a-f0-9]{64}$',
+      description: 'Current request-scoped project revision ref returned by read_novel_context.structure.',
+      pattern: '^revision:[1-9][0-9]*$',
     }),
     metadataTitle: Type.Optional(
       Type.String({
@@ -205,20 +205,20 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
   {
     baseRevision: Type.Optional(
       Type.String({
-        description: 'Required for move_document: persisted revision returned by read_novel_context.',
-        pattern: '^[a-f0-9]{64}$',
+        description: 'Required for move_document: request-scoped revision ref returned by read_novel_context.',
+        pattern: '^revision:[1-9][0-9]*$',
       }),
     ),
     documentId: Type.Optional(
       Type.String({
-        description: 'Required for move_document and rename_document: stable document ID.',
+        description: 'Required for move_document and rename_document: request-scoped document ref.',
         maxLength: 128,
         minLength: 1,
       }),
     ),
     directoryId: Type.Optional(
       Type.String({
-        description: 'Required for delete_lore_category: stable empty category ID.',
+        description: 'Required for delete_lore_category: request-scoped empty category ref.',
         maxLength: 128,
         minLength: 1,
       }),
@@ -238,8 +238,8 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
       ] as const,
     ),
     projectRevision: Type.String({
-      description: 'Current project revision returned by read_novel_context.structure.',
-      pattern: '^[a-f0-9]{64}$',
+      description: 'Current request-scoped project revision ref returned by read_novel_context.structure.',
+      pattern: '^revision:[1-9][0-9]*$',
     }),
     metadataTitle: Type.Optional(
       Type.String({
@@ -251,7 +251,7 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
     ),
     targetParentId: Type.Optional(
       Type.String({
-        description: 'Required for move_document: stable destination directory ID.',
+        description: 'Required for move_document: request-scoped destination directory ref.',
         maxLength: 128,
         minLength: 1,
       }),
@@ -333,7 +333,7 @@ const STORY_CHANGE_PARAMETERS = Type.Object(
               type: ['string', 'null'],
             }),
             documentId: Type.String({ maxLength: 128, minLength: 1 }),
-            documentRevision: Type.String({ pattern: '^[a-f0-9]{64}$' }),
+            documentRevision: Type.String({ pattern: '^revision:[1-9][0-9]*$' }),
             relation: stringEnum(['depicted', 'mentioned', 'inferred'] as const),
             sourceKind: stringEnum(['manuscript'] as const),
           },
@@ -364,7 +364,7 @@ export const STORY_OPERATION_PARAMETERS = Type.Object(
 );
 
 const maintenanceReferenceDescription = (kind: string): string =>
-  `Stable ${kind} ID, or @clientRef for a compatible entity created earlier in this same changeset.`;
+  `Request-scoped ${kind} ref, or @clientRef for a compatible entity created earlier in this same changeset.`;
 
 const STORY_MAINTENANCE_CHANGE_PARAMETERS = Type.Object(
   {
@@ -376,7 +376,7 @@ const STORY_MAINTENANCE_CHANGE_PARAMETERS = Type.Object(
     })),
     clientRef: Type.Optional(Type.String({
       description:
-        'Optional local name for an entity created by this change. Later changes in this same array may reference it as @clientRef. Valid only on create operations; Main still generates the stable ID.',
+        'Optional local name for an entity created by this change. Later changes in this same array may reference it as @clientRef. Valid only on create operations; Main owns persistent identity.',
       maxLength: 64,
       pattern: '^[A-Za-z][A-Za-z0-9_-]{0,63}$',
     })),
@@ -535,7 +535,7 @@ export const STORY_QUESTION_PARAMETERS = Type.Object(
           properties: {
             anchor: { maxLength: 10_000, minLength: 1, type: 'string' },
             documentId: { maxLength: 128, minLength: 1, type: 'string' },
-            documentRevision: { pattern: '^[a-f0-9]{64}$', type: 'string' },
+            documentRevision: { pattern: '^revision:[1-9][0-9]*$', type: 'string' },
             sourceKind: { enum: ['manuscript'], type: 'string' },
           },
           required: ['anchor', 'documentId', 'documentRevision', 'sourceKind'],

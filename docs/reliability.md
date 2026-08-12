@@ -55,7 +55,7 @@ Preserve these properties when changing affected subsystems.
   child task ID and parent binding, limits Scribe to the bounded novel-context
   reader and a terminal artifact-submission tool,
   caps the returned Markdown at 512 KiB, times the task out after five minutes,
-  validates non-null target document IDs against the current structure, and
+  resolves and validates non-null target document refs against the current structure, and
   cancels it with its parent or project session. New-document assignments use a
   null target rather than a directory or placeholder ID. Completed output is a
   Main-owned, single-use artifact bound to the active parent request and its
@@ -77,10 +77,12 @@ Preserve these properties when changing affected subsystems.
   reconciliation checkpoint independently; pseudo tool markup is never
   interpreted as an operation.
 - The current `read_novel_context` tool batches only fixed typed sections,
-  stable document IDs, and immediate document children of stable directory
-  IDs. Explicit and expanded documents are deduplicated and limited to four
+  request-scoped document refs, and immediate document children of request-scoped
+  directory refs. Explicit and expanded documents are deduplicated and limited to four
   total results; node kinds are checked before reading, and every result is
-  bounded, path-free, and main-owned.
+  bounded, path-free, and main-owned. Persistent IDs and SHA-256 revisions are
+  replaced with short refs in every model-facing result; Main owns and releases
+  the per-request reverse mapping.
 - Accepted Scribe-backed manuscript reconciliation has a request-scoped context
   view that exposes semantic Persona, Thread, and primary-timeline refs instead
   of persistent UUIDs. The focused reconciliation mutation resolves those refs,
@@ -126,12 +128,12 @@ Preserve these properties when changing affected subsystems.
 - Renderer-side dirty-draft checks never overwrite newer edits; they settle the
   waiting proposal as stale so the Agent run cannot remain suspended locally.
 - `propose_document_file_operation` can submit a bounded create or delete
-  proposal using stable IDs. Main owns generated filenames and IDs, validates
+  proposal using request-scoped refs. Main owns generated filenames and IDs, validates
   parent/kind and current project/document revisions, updates metadata, and
   applies the structural mutation only after explicit acceptance. Renderer
   refuses deletion while its matching manuscript draft is dirty.
 - `propose_project_structure_operation` can submit a document metadata-title
-  change by stable ID and project revision. Acceptance updates only the owning
+  change by request-scoped refs. Acceptance updates only the owning
   index; it preserves the physical filename and Markdown and remains safe while
   the renderer has an unsaved manuscript draft.
 - Request-start draft snapshots preserve unsaved current-document content.

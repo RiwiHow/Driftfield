@@ -362,7 +362,7 @@ describe('AiAgentService', () => {
       requestId: 'request-1',
       result: {
         data: {
-          assignmentId: child.requestId,
+          assignmentId: 'assignment:1',
           markdown: flawedMarkdown,
           status: 'completed',
         },
@@ -416,7 +416,7 @@ describe('AiAgentService', () => {
             replace: '议会予你返回',
           },
         ],
-        writingAssignmentId: child.requestId,
+        writingAssignmentId: 'assignment:1',
       },
       requestId: 'request-1',
       toolCallId: 'tool-revise-mismatch',
@@ -454,7 +454,7 @@ describe('AiAgentService', () => {
             replace: '议会予你返回',
           },
         ],
-        writingAssignmentId: child.requestId,
+        writingAssignmentId: 'assignment:1',
       },
       requestId: 'request-1',
       toolCallId: 'tool-revise-artifact',
@@ -468,7 +468,7 @@ describe('AiAgentService', () => {
       requestId: 'request-1',
       result: {
         data: {
-          assignmentId: child.requestId,
+          assignmentId: 'assignment:1',
           replacementsApplied: 2,
           status: 'revised',
         },
@@ -487,7 +487,7 @@ describe('AiAgentService', () => {
         parentId: 'manuscript-root',
         projectRevision: 'a'.repeat(64),
         metadataTitle: 'Chapter One',
-        writingAssignmentId: child.requestId,
+        writingAssignmentId: 'assignment:1',
       },
       requestId: 'request-1',
       toolCallId: 'tool-create-from-scribe',
@@ -511,7 +511,7 @@ describe('AiAgentService', () => {
     expect(workers[0].messages).toContainEqual({
       requestId: 'request-1',
       result: {
-        data: { proposalId: proposal.proposalId, status: 'accepted' },
+        data: { proposalId: 'proposal:1', status: 'accepted' },
         ok: true,
         toolName: 'propose_document_file_operation',
       },
@@ -527,7 +527,7 @@ describe('AiAgentService', () => {
         parentId: 'manuscript-root',
         projectRevision: 'a'.repeat(64),
         metadataTitle: 'Duplicate',
-        writingAssignmentId: child.requestId,
+        writingAssignmentId: 'assignment:1',
       },
       requestId: 'request-1',
       toolCallId: 'tool-reuse-scribe',
