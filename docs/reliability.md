@@ -38,7 +38,7 @@ Preserve these properties when changing affected subsystems.
 - Main responsibilities remain separated across windows, IPC, and services.
   Renderer project/settings state remains in feature hooks; `App.tsx` remains a
   composition layer.
-- Global settings schema version 2 accepts only the complete current shape and
+- Global settings schema version 3 accepts only the complete current shape and
   retains the optional last project directory used for validated startup
   restoration. Earlier development shapes fall back to defaults without
   compatibility migration.

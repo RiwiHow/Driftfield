@@ -34,14 +34,16 @@ const asarPath = candidates
   )[0];
 assert.ok(asarPath, 'The requested packaged app.asar does not exist.');
 
-const entries = asar.listPackage(asarPath);
+const entries = asar.listPackage(asarPath).map((entry) =>
+  entry.replaceAll('\\', '/'),
+);
 assert.ok(
   entries.includes('/.vite/build/agent-worker.mjs'),
   'The packaged Pi worker bundle is missing.',
 );
 const workerBundle = asar.extractFile(
   asarPath,
-  '.vite/build/agent-worker.mjs',
+  path.normalize('.vite/build/agent-worker.mjs'),
 ).toString('utf8');
 assert.match(
   workerBundle,

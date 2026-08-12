@@ -11,8 +11,10 @@ import type { AgentModelOverride } from "../../../../src/shared/contracts/agent-
 import type { ProjectSession } from '../../../../src/main/services/project/session-service';
 
 const temporaryDirectories: string[] = [];
+const services: AgentModelConfigService[] = [];
 
 afterEach(async () => {
+  for (const service of services.splice(0)) service.dispose();
   await Promise.all(
     temporaryDirectories
       .splice(0)
@@ -49,6 +51,7 @@ describe("AgentModelConfigService", () => {
     );
     temporaryDirectories.push(directory);
     const service = new AgentModelConfigService(directory);
+    services.push(service);
     const projectDirectory = await mkdtemp(path.join(os.tmpdir(), 'driftfield-project-'));
     temporaryDirectories.push(projectDirectory);
     const session = { directoryPath: projectDirectory } as ProjectSession;
@@ -80,6 +83,7 @@ describe("AgentModelConfigService", () => {
     );
     temporaryDirectories.push(directory);
     const service = new AgentModelConfigService(directory);
+    services.push(service);
     const firstDirectory = await mkdtemp(path.join(os.tmpdir(), 'driftfield-project-'));
     const secondDirectory = await mkdtemp(path.join(os.tmpdir(), 'driftfield-project-'));
     temporaryDirectories.push(firstDirectory, secondDirectory);

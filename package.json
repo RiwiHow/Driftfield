@@ -7,7 +7,7 @@
   "main": ".vite/build/main.js",
   "scripts": {
     "dev": "electron-forge start",
-    "test": "vitest run",
+    "test": "node tests/run-vitest-in-electron.cjs",
     "test:packaged-i18n": "node tests/packaged/verify-i18n.cjs",
     "test:packaged-pi": "node tests/packaged/verify-pi.cjs",
     "typecheck": "tsc --noEmit",

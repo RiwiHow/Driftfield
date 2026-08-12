@@ -34,7 +34,9 @@ const asarPath = candidates
 
 assert.ok(asarPath, 'The requested packaged app.asar does not exist.');
 
-const entries = asar.listPackage(asarPath);
+const entries = asar.listPackage(asarPath).map((entry) =>
+  entry.replaceAll('\\', '/'),
+);
 const rendererScripts = entries.filter(
   (entry) =>
     entry.startsWith('/.vite/renderer/main_window/assets/') &&
@@ -43,7 +45,10 @@ const rendererScripts = entries.filter(
 assert.ok(rendererScripts.length > 0, 'Packaged renderer scripts are missing.');
 
 const extractText = (entry) =>
-  asar.extractFile(asarPath, entry.replace(/^\//, '')).toString('utf8');
+  asar.extractFile(
+    asarPath,
+    path.normalize(entry.replace(/^\//, '')),
+  ).toString('utf8');
 const mainBundle = extractText('/.vite/build/main.js');
 const rendererBundle = rendererScripts.map(extractText).join('\n');
 const rendererHtml = extractText('/.vite/renderer/main_window/index.html');

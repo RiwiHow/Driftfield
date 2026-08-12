@@ -2,6 +2,11 @@
 
 pnpm is the only package manager for npm dependencies.
 
+`pnpm test` launches Vitest through Electron's bundled Node runtime so tests
+for `node:sqlite` use the exact API version shipped by the application. The
+small host-Node launcher must not import application modules before spawning
+Electron.
+
 ## Package rules
 
 - Use `pnpm add` and `pnpm remove`; do not introduce npm, Deno, Bun, or another
