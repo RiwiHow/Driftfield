@@ -1,7 +1,14 @@
 import { Type } from 'typebox';
 
-import type { AgentToolContractMap } from '../../shared/contracts/agent-tools';
-import { AGENT_NOVEL_CONTEXT_SECTIONS } from '../../shared/contracts/agent-tools';
+import type {
+  AgentStoryChangeInput,
+  AgentStoryQuestionEvidenceInput,
+  AgentToolContractMap,
+} from '../../shared/contracts/agent-tools';
+import {
+  ACCEPTED_DOCUMENT_REFERENCE,
+  AGENT_NOVEL_CONTEXT_SECTIONS,
+} from '../../shared/contracts/agent-tools';
 import { PROJECT_ICON_IDS } from '../../shared/contracts/project-layout';
 
 const stringEnum = <Values extends readonly string[]>(
@@ -67,18 +74,6 @@ export const NOVEL_CONTEXT_PARAMETERS = Type.Object(
 
 export const DOCUMENT_WRITING_PARAMETERS = Type.Object(
   {
-    baseContentRevision: Type.Unsafe<string | null>({
-      description:
-        'For replace, use the request-start draft content revision ref. For create, use null.',
-      pattern: requestRefPattern('revision'),
-      type: ['string', 'null'],
-    }),
-    baseRevision: Type.Unsafe<string | null>({
-      description:
-        'For replace, use the request-start disk revision ref. For create, use null.',
-      pattern: requestRefPattern('revision'),
-      type: ['string', 'null'],
-    }),
     documentAction: stringEnum(['create', 'replace'] as const, {
       description:
         'Choose create for a new chapter or Lore entry. Choose replace only when the user explicitly wants to replace an existing document.',
@@ -110,11 +105,6 @@ export const DOCUMENT_WRITING_PARAMETERS = Type.Object(
       pattern: requestRefPattern('directory'),
       type: ['string', 'null'],
     }),
-    projectRevision: Type.Unsafe<string | null>({
-      description: 'For create, the current project revision ref. For replace, null.',
-      pattern: requestRefPattern('revision'),
-      type: ['string', 'null'],
-    }),
     requirements: Type.Array(
       Type.String({ maxLength: 1_000, minLength: 1 }),
       { maxItems: 20 },
@@ -128,7 +118,7 @@ export const DOCUMENT_WRITING_PARAMETERS = Type.Object(
   {
     additionalProperties: false,
     description:
-      'Bind writing and its reviewed mutation before Scribe runs. create requires parentId, projectRevision, metadataTitle, and kind with replacement fields null. replace requires documentId and both base revisions with creation fields null.',
+      'Bind writing and its reviewed mutation before Scribe runs. create requires parentId, metadataTitle, and kind with documentId null. replace requires documentId with the creation fields null. Main anchors every revision from the context it served in this request.',
   },
 );
 
@@ -146,8 +136,6 @@ export const WRITING_ARTIFACT_SUBMISSION_PARAMETERS = Type.Object(
 
 export const DOCUMENT_EDIT_PARAMETERS = Type.Object(
   {
-    baseContentRevision: Type.String({ pattern: requestRefPattern('revision') }),
-    baseRevision: Type.String({ pattern: requestRefPattern('revision') }),
     documentId: Type.String({ pattern: requestRefPattern('document') }),
     markdown: Type.String({
       description:
@@ -161,12 +149,6 @@ export const DOCUMENT_EDIT_PARAMETERS = Type.Object(
 
 export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
   {
-    baseRevision: Type.Optional(
-      Type.String({
-        description: 'Required for delete: request-scoped revision ref returned by read_novel_context.',
-        pattern: requestRefPattern('revision'),
-      }),
-    ),
     documentId: Type.Optional(
       Type.String({
         description: 'Required for delete: request-scoped document ref from read_novel_context.structure.',
@@ -201,10 +183,6 @@ export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
         pattern: requestRefPattern('directory'),
       }),
     ),
-    projectRevision: Type.String({
-      description: 'Current request-scoped project revision ref returned by read_novel_context.structure.',
-      pattern: requestRefPattern('revision'),
-    }),
     metadataTitle: Type.Optional(
       Type.String({
         description:
@@ -219,12 +197,6 @@ export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
 
 export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
   {
-    baseRevision: Type.Optional(
-      Type.String({
-        description: 'Required for move_document: request-scoped revision ref returned by read_novel_context.',
-        pattern: requestRefPattern('revision'),
-      }),
-    ),
     documentId: Type.Optional(
       Type.String({
         description: 'Required for move_document and rename_document: request-scoped document ref.',
@@ -251,10 +223,6 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
         'rename_document',
       ] as const,
     ),
-    projectRevision: Type.String({
-      description: 'Current request-scoped project revision ref returned by read_novel_context.structure.',
-      pattern: requestRefPattern('revision'),
-    }),
     metadataTitle: Type.Optional(
       Type.String({
         description:
@@ -345,8 +313,11 @@ const STORY_CHANGE_PARAMETERS = Type.Object(
               maxLength: 10_000,
               type: ['string', 'null'],
             }),
-            documentId: Type.String({ pattern: requestRefPattern('document') }),
-            documentRevision: Type.String({ pattern: requestRefPattern('revision') }),
+            documentId: Type.String({
+              description:
+                'Request-scoped ref of a document read in this request. Main binds the revision it served.',
+              pattern: requestRefPattern('document'),
+            }),
             relation: stringEnum(['depicted', 'mentioned', 'inferred'] as const),
             sourceKind: stringEnum(['manuscript'] as const),
           },
@@ -369,10 +340,7 @@ const STORY_CHANGE_PARAMETERS = Type.Object(
 );
 
 export const STORY_OPERATION_PARAMETERS = Type.Object(
-  {
-    change: STORY_CHANGE_PARAMETERS,
-    storyRevision: Type.Integer({ minimum: 0 }),
-  },
+  { change: STORY_CHANGE_PARAMETERS },
   { additionalProperties: false },
 );
 
@@ -458,7 +426,6 @@ export const STORY_MAINTENANCE_PARAMETERS = Type.Object(
       maxItems: 24,
       minItems: 1,
     }),
-    storyRevision: Type.Integer({ minimum: 0 }),
   },
   { additionalProperties: false },
 );
@@ -594,35 +561,22 @@ export const ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS = Type.Object(
 export const STORY_QUESTION_PARAMETERS = Type.Object(
   {
     context: Type.String({ maxLength: 10_000 }),
-    evidence: Type.Unsafe<{
-      anchor: string;
-      documentId: string;
-      documentRevision: string;
-      sourceKind: 'manuscript';
-    } | { anchor: string; sourceRef: 'document:accepted' } | null>({
-      anyOf: [
-        {
-          additionalProperties: false,
-          properties: {
-            anchor: { maxLength: 10_000, minLength: 1, type: 'string' },
-            documentId: { pattern: requestRefPattern('document'), type: 'string' },
-            documentRevision: { pattern: requestRefPattern('revision'), type: 'string' },
-            sourceKind: { enum: ['manuscript'], type: 'string' },
-          },
-          required: ['anchor', 'documentId', 'documentRevision', 'sourceKind'],
-          type: 'object',
+    evidence: Type.Unsafe<AgentStoryQuestionEvidenceInput | null>({
+      additionalProperties: false,
+      description:
+        'The exact supporting quotation plus the document it came from, or null when no single passage applies. Main binds the revision it served for that document.',
+      properties: {
+        anchor: { maxLength: 10_000, minLength: 1, type: 'string' },
+        documentId: {
+          description:
+            `A request-scoped document ref read in this request, or ${ACCEPTED_DOCUMENT_REFERENCE} after reading accepted_reconciliation.`,
+          pattern:
+            `^(?:document:[1-9][0-9]{0,4}|${ACCEPTED_DOCUMENT_REFERENCE})$`,
+          type: 'string',
         },
-        {
-          additionalProperties: false,
-          properties: {
-            anchor: { maxLength: 10_000, minLength: 1, type: 'string' },
-            sourceRef: { enum: ['document:accepted'], type: 'string' },
-          },
-          required: ['anchor', 'sourceRef'],
-          type: 'object',
-        },
-        { type: 'null' },
-      ],
+      },
+      required: ['anchor', 'documentId'],
+      type: ['object', 'null'],
     }),
     kind: stringEnum([
       'possible_alias',
@@ -647,87 +601,52 @@ export const RESOLVE_STORY_QUESTION_PARAMETERS = Type.Object(
   { additionalProperties: false },
 );
 
-export const normalizeStoryMaintenanceArguments = (
-  value: {
-    change: Record<string, unknown> & {
-      eventStatus?: unknown;
-      operation?: unknown;
-      threadStatus?: unknown;
-    };
-    storyRevision: number;
-  },
-): AgentToolContractMap['propose_story_operation']['arguments'] => {
-  const { eventStatus, threadStatus, ...change } = value.change;
-  if (change.operation === 'create_event') {
-    return {
-      change: {
-        ...change,
-        causes: change.causes ?? '',
-        consequences: change.consequences ?? '',
-        status: eventStatus,
-      } as AgentToolContractMap['propose_story_operation']['arguments']['change'],
-      storyRevision: value.storyRevision,
-    };
-  }
-  if (change.operation === 'create_thread') {
-    return {
-      change: { ...change, status: threadStatus } as AgentToolContractMap['propose_story_operation']['arguments']['change'],
-      storyRevision: value.storyRevision,
-    };
-  }
-  if (change.operation === 'create_beat') {
-    return {
-      change: {
-        ...change,
-        desiredOutcome: change.desiredOutcome ?? '',
-        dramaticPurpose: change.dramaticPurpose ?? '',
-        status: threadStatus,
-      } as AgentToolContractMap['propose_story_operation']['arguments']['change'],
-      storyRevision: value.storyRevision,
-    };
-  }
-  return {
-    change: change as AgentToolContractMap['propose_story_operation']['arguments']['change'],
-    storyRevision: value.storyRevision,
-  };
+type StoryChangeWireInput = Record<string, unknown> & {
+  eventStatus?: unknown;
+  operation?: unknown;
+  threadStatus?: unknown;
 };
 
+/**
+ * Maps one model-facing change onto its canonical shape: the wire keeps
+ * operation-specific status names, and unevidenced prose defaults to empty.
+ */
+const normalizeStoryChange = (
+  change: StoryChangeWireInput,
+): AgentStoryChangeInput => {
+  const { eventStatus, threadStatus, ...normalized } = change;
+  if (normalized.operation === 'create_event') {
+    return {
+      ...normalized,
+      causes: normalized.causes ?? '',
+      consequences: normalized.consequences ?? '',
+      status: eventStatus,
+    } as AgentStoryChangeInput;
+  }
+  if (normalized.operation === 'create_thread') {
+    return { ...normalized, status: threadStatus } as AgentStoryChangeInput;
+  }
+  if (normalized.operation === 'create_beat') {
+    return {
+      ...normalized,
+      desiredOutcome: normalized.desiredOutcome ?? '',
+      dramaticPurpose: normalized.dramaticPurpose ?? '',
+      status: threadStatus,
+    } as AgentStoryChangeInput;
+  }
+  return normalized as AgentStoryChangeInput;
+};
+
+export const normalizeStoryMaintenanceArguments = (
+  value: { change: StoryChangeWireInput },
+): AgentToolContractMap['propose_story_operation']['arguments'] => ({
+  change: normalizeStoryChange(
+    value.change,
+  ) as AgentToolContractMap['propose_story_operation']['arguments']['change'],
+});
+
 export const normalizeStoryMaintenanceBatchArguments = (
-  value: {
-    changes: Array<{
-      eventStatus?: unknown;
-      operation?: unknown;
-      threadStatus?: unknown;
-      [key: string]: unknown;
-    }>;
-    storyRevision: number;
-  },
+  value: { changes: StoryChangeWireInput[] },
 ): AgentToolContractMap['maintain_story_records']['arguments'] => ({
-  changes: value.changes.map((change) => {
-    const { eventStatus, threadStatus, ...normalized } = change;
-    if (normalized.operation === 'create_event') {
-      return {
-        ...normalized,
-        causes: normalized.causes ?? '',
-        consequences: normalized.consequences ?? '',
-        status: eventStatus,
-      } as
-        AgentToolContractMap['maintain_story_records']['arguments']['changes'][number];
-    }
-    if (normalized.operation === 'create_thread') {
-      return { ...normalized, status: threadStatus } as
-        AgentToolContractMap['maintain_story_records']['arguments']['changes'][number];
-    }
-    if (normalized.operation === 'create_beat') {
-      return {
-        ...normalized,
-        desiredOutcome: normalized.desiredOutcome ?? '',
-        dramaticPurpose: normalized.dramaticPurpose ?? '',
-        status: threadStatus,
-      } as AgentToolContractMap['maintain_story_records']['arguments']['changes'][number];
-    }
-    return normalized as
-      AgentToolContractMap['maintain_story_records']['arguments']['changes'][number];
-  }),
-  storyRevision: value.storyRevision,
+  changes: value.changes.map(normalizeStoryChange),
 });

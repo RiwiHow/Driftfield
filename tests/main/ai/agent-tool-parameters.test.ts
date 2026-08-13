@@ -32,12 +32,7 @@ describe('Agent tool parameter schemas', () => {
     const schema = DOCUMENT_EDIT_PARAMETERS as unknown as Record<string, unknown>;
     const properties = schema.properties as Record<string, Record<string, unknown>>;
 
-    expect(schema.required).toEqual([
-      'baseContentRevision',
-      'baseRevision',
-      'documentId',
-      'markdown',
-    ]);
+    expect(schema.required).toEqual(['documentId', 'markdown']);
     expect(properties.documentId).toMatchObject({
       pattern: '^document:[1-9][0-9]{0,4}$',
       type: 'string',
@@ -51,8 +46,6 @@ describe('Agent tool parameter schemas', () => {
 
     expect(schema.type).toBe('object');
     expect(schema.required).toEqual([
-      'baseContentRevision',
-      'baseRevision',
       'documentAction',
       'documentDomain',
       'documentId',
@@ -60,13 +53,13 @@ describe('Agent tool parameter schemas', () => {
       'metadataTitle',
       'objective',
       'parentId',
-      'projectRevision',
       'requirements',
       'targetLength',
     ]);
     expect(properties.documentAction.description).toContain('new chapter');
     expect(properties.documentId.description).toContain('continuity-reference');
     expect(JSON.stringify(schema)).not.toContain('anyOf');
+    expect(JSON.stringify(schema)).not.toContain('Revision');
   });
 
   it('uses a provider-compatible root object for document file operations', () => {
@@ -81,7 +74,7 @@ describe('Agent tool parameter schemas', () => {
 
     expect(schema.type).toBe('object');
     expect(schema).not.toHaveProperty('anyOf');
-    expect(schema.required).toEqual(['operation', 'projectRevision']);
+    expect(schema.required).toEqual(['operation']);
     expect(properties.operation).toMatchObject({
       enum: ['create', 'delete'],
       type: 'string',
@@ -104,13 +97,14 @@ describe('Agent tool parameter schemas', () => {
     });
     expect(JSON.stringify(schema)).not.toContain('anyOf');
     expect(JSON.stringify(schema)).not.toContain('const');
+    expect(JSON.stringify(schema)).not.toContain('Revision');
   });
 
   it('uses a provider-compatible root object for project structure operations', () => {
     const schema = PROJECT_STRUCTURE_OPERATION_PARAMETERS as unknown as Record<string, unknown>;
     const properties = schema.properties as Record<string, Record<string, unknown>>;
     expect(schema.type).toBe('object');
-    expect(schema.required).toEqual(['operation', 'projectRevision']);
+    expect(schema.required).toEqual(['operation']);
     expect(properties.operation).toMatchObject({
       enum: [
         'create_volume',
@@ -128,6 +122,7 @@ describe('Agent tool parameter schemas', () => {
     expect(properties.metadataTitle.description).toContain('rename_document');
     expect(JSON.stringify(schema)).not.toContain('anyOf');
     expect(JSON.stringify(schema)).not.toContain('const');
+    expect(JSON.stringify(schema)).not.toContain('Revision');
   });
 
   it('uses a provider-compatible root object for story operations', () => {
@@ -136,7 +131,7 @@ describe('Agent tool parameter schemas', () => {
     const change = properties.change as Record<string, unknown>;
     const changeProperties = change.properties as Record<string, Record<string, unknown>>;
     expect(schema.type).toBe('object');
-    expect(schema.required).toEqual(['change', 'storyRevision']);
+    expect(schema.required).toEqual(['change']);
     expect(changeProperties.operation).toMatchObject({
       enum: [
         'create_persona',
@@ -159,6 +154,8 @@ describe('Agent tool parameter schemas', () => {
       type: 'string',
     });
     expect(changeProperties.sources).toMatchObject({ type: 'array' });
+    expect(JSON.stringify(changeProperties.sources))
+      .not.toContain('documentRevision');
     expect(changeProperties.timelineId).toMatchObject({
       pattern: '^timeline:[1-9][0-9]{0,4}$',
     });
@@ -213,14 +210,21 @@ describe('Agent tool parameter schemas', () => {
     expect(JSON.stringify(schema)).not.toContain('orderKey');
   });
 
-  it('allows accepted-document question evidence without its ID or revision', () => {
+  it('takes one provider-compatible evidence shape without a revision', () => {
     const schema = STORY_QUESTION_PARAMETERS as unknown as {
-      properties: { evidence: { anyOf: unknown[] } };
+      properties: { evidence: Record<string, unknown> };
     };
+    const evidence = schema.properties.evidence;
 
-    expect(JSON.stringify(schema.properties.evidence.anyOf)).toContain(
-      'document:accepted',
-    );
+    expect(evidence.type).toEqual(['object', 'null']);
+    expect(evidence.required).toEqual(['anchor', 'documentId']);
+    expect(evidence).not.toHaveProperty('anyOf');
+    expect(
+      (evidence.properties as Record<string, Record<string, unknown>>).documentId,
+    ).toMatchObject({
+      pattern: '^(?:document:[1-9][0-9]{0,4}|document:accepted)$',
+    });
+    expect(JSON.stringify(evidence)).not.toContain('documentRevision');
   });
 
   it('normalizes operation-specific wire statuses to canonical story operations', () => {
@@ -237,7 +241,6 @@ describe('Agent tool parameter schemas', () => {
         threadStatus: 'active',
         title: 'Opening encounter',
       },
-      storyRevision: 6,
     })).toEqual({
       change: {
         description: '',
@@ -251,7 +254,6 @@ describe('Agent tool parameter schemas', () => {
         threadId: 'thread-1',
         title: 'Opening encounter',
       },
-      storyRevision: 6,
     });
 
     expect(normalizeStoryMaintenanceArguments({
@@ -267,7 +269,6 @@ describe('Agent tool parameter schemas', () => {
         timelineId: 'timeline-1',
         title: 'Arrival',
       },
-      storyRevision: 2,
     }).change).toMatchObject({
       operation: 'create_event',
       status: 'established',
@@ -294,13 +295,30 @@ describe('Agent tool parameter schemas', () => {
         timelineId: 'timeline-1',
         title: 'Arrival',
       }],
-      storyRevision: 2,
-    })).toMatchObject({
+    })).toEqual({
       changes: [
-        { clientRef: 'arrival', operation: 'create_moment' },
-        { operation: 'create_event', startMomentId: '@arrival', status: 'established' },
+        {
+          clientRef: 'arrival',
+          displayTime: 'Late spring',
+          note: '',
+          operation: 'create_moment',
+          orderKey: 1,
+          precision: 'season',
+          timelineId: 'timeline-1',
+        },
+        {
+          causes: '',
+          consequences: '',
+          endMomentId: null,
+          operation: 'create_event',
+          participants: [],
+          startMomentId: '@arrival',
+          status: 'established',
+          summary: '',
+          timelineId: 'timeline-1',
+          title: 'Arrival',
+        },
       ],
-      storyRevision: 2,
     });
   });
 
@@ -316,7 +334,6 @@ describe('Agent tool parameter schemas', () => {
         timelineId: 'timeline-1',
         title: 'Clue',
       },
-      storyRevision: 1,
     }).change).toMatchObject({ causes: '', consequences: '' });
 
     expect(normalizeStoryMaintenanceArguments({
@@ -330,7 +347,6 @@ describe('Agent tool parameter schemas', () => {
         threadStatus: 'active',
         title: 'Turn back',
       },
-      storyRevision: 1,
     }).change).toMatchObject({ desiredOutcome: '', dramaticPurpose: '' });
   });
 });

@@ -86,7 +86,8 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain('Never say that accepted content may be missing');
     expect(built.prompt).toContain('report the reason concisely');
     expect(built.prompt).not.toContain('revise_writing_artifact');
-    expect(built.version).toBe(35);
+    expect(built.prompt).toContain('Never supply, echo, or invent concurrency revisions');
+    expect(built.version).toBe(36);
   });
 
   it('uses the interface locale for conversation but not manuscript language', () => {

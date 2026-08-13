@@ -85,7 +85,6 @@ describe('AgentToolResultBridge', () => {
           summary: '',
           title: 'Primary Chronicle',
         },
-        storyRevision: 0,
       },
     );
 

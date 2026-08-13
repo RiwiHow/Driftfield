@@ -295,8 +295,6 @@ describe('AiAgentService', () => {
       (message as { toolCallId?: unknown }).toolCallId === 'tool-read-structure'));
     workers[0].emit('message', {
       arguments: {
-        baseContentRevision: null,
-        baseRevision: null,
         documentAction: 'create',
         documentDomain: 'manuscript',
         documentId: null,
@@ -304,7 +302,6 @@ describe('AiAgentService', () => {
         metadataTitle: 'Chapter One',
         objective: 'Write a new chapter.',
         parentId: 'directory:1',
-        projectRevision: 'revision:1',
         requirements: ['Keep close third person.'],
         targetLength: null,
       },
@@ -410,7 +407,6 @@ describe('AiAgentService', () => {
       requestId: 'request-1',
       result: {
         data: {
-          contentRevision: 'revision:2',
           documentId: 'document:2',
           status: 'accepted',
         },
@@ -459,8 +455,6 @@ describe('AiAgentService', () => {
       (message as { toolCallId?: unknown }).toolCallId === 'tool-read-invalid'));
     workers[0].emit('message', {
       arguments: {
-        baseContentRevision: null,
-        baseRevision: null,
         documentAction: 'create',
         documentDomain: 'manuscript',
         documentId: null,
@@ -468,7 +462,6 @@ describe('AiAgentService', () => {
         metadataTitle: 'Second chapter',
         objective: 'Write a complete second chapter.',
         parentId: 'directory:1',
-        projectRevision: 'revision:1',
         requirements: [],
         targetLength: 3_000,
       },
@@ -553,8 +546,6 @@ describe('AiAgentService', () => {
       (message as { toolCallId?: unknown }).toolCallId === 'tool-read-structure'));
     workers[0].emit('message', {
       arguments: {
-        baseContentRevision: null,
-        baseRevision: null,
         documentAction: 'create',
         documentDomain: 'manuscript',
         documentId: null,
@@ -562,7 +553,6 @@ describe('AiAgentService', () => {
         metadataTitle: 'Second chapter',
         objective: 'Write the next chapter.',
         parentId: 'directory:1',
-        projectRevision: 'revision:1',
         requirements: [],
         targetLength: null,
       },
@@ -663,7 +653,6 @@ describe('AiAgentService', () => {
           role: 'Protagonist',
           summary: '',
         }],
-        storyRevision: 3,
       },
       requestId: 'request-1',
       toolCallId: 'tool-maintain',
@@ -716,8 +705,6 @@ describe('AiAgentService', () => {
 
     workers[0].emit('message', {
       arguments: {
-        baseContentRevision: null,
-        baseRevision: null,
         documentAction: 'create',
         documentDomain: 'manuscript',
         documentId: null,
@@ -725,7 +712,6 @@ describe('AiAgentService', () => {
         metadataTitle: 'Second chapter',
         objective: 'Write another chapter.',
         parentId: 'directory:1',
-        projectRevision: 'revision:1',
         requirements: [],
         targetLength: null,
       },

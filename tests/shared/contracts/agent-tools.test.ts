@@ -51,21 +51,25 @@ describe('Agent proposal tool contract', () => {
       },
       toolName: 'read_novel_context',
     })).toBe(false);
+    const documentContext = {
+      displayTitle: '1. Chapter One',
+      documentId: 'document:1',
+      markdown: '# Chapter',
+      metadataTitle: 'Chapter One',
+      source: 'disk',
+    };
     expect(isAgentToolExecutionResult({
-      data: {
-        documents: [{
-          baseRevision: 'revision:1',
-          contentRevision: 'revision:2',
-          displayTitle: '1. Chapter One',
-          documentId: 'document:1',
-          markdown: '# Chapter',
-          metadataTitle: 'Chapter One',
-          source: 'disk',
-        }],
-      },
+      data: { documents: [documentContext] },
       ok: true,
       toolName: 'read_novel_context',
     })).toBe(true);
+    expect(isAgentToolExecutionResult({
+      data: {
+        documents: [{ ...documentContext, baseRevision: 'revision:1' }],
+      },
+      ok: true,
+      toolName: 'read_novel_context',
+    })).toBe(false);
     expect(isAgentToolExecutionResult({
       data: { documents: [] },
       ok: true,
@@ -100,8 +104,6 @@ describe('Agent proposal tool contract', () => {
 
   it('validates atomic generated-document target plans', () => {
     const createArguments = {
-      baseContentRevision: null,
-      baseRevision: null,
       documentAction: 'create' as const,
       documentDomain: 'manuscript' as const,
       documentId: null,
@@ -109,7 +111,6 @@ describe('Agent proposal tool contract', () => {
       metadataTitle: 'Second chapter',
       objective: 'Write a new second chapter.',
       parentId: 'directory:1',
-      projectRevision: 'revision:1',
       requirements: [],
       targetLength: 3_000,
     };
@@ -118,10 +119,7 @@ describe('Agent proposal tool contract', () => {
       toolName: 'propose_document_writing',
     })).toBe(true);
     expect(isAgentToolRequest({
-      arguments: {
-        ...createArguments,
-        projectRevision: 'a'.repeat(64),
-      },
+      arguments: { ...createArguments, projectRevision: 'revision:1' },
       toolName: 'propose_document_writing',
     })).toBe(false);
     expect(isAgentToolRequest({
@@ -131,14 +129,11 @@ describe('Agent proposal tool contract', () => {
     expect(isAgentToolRequest({
       arguments: {
         ...createArguments,
-        baseContentRevision: 'revision:3',
-        baseRevision: 'revision:2',
         documentAction: 'replace',
         documentId: 'document:1',
         kind: null,
         metadataTitle: null,
         parentId: null,
-        projectRevision: null,
       },
       toolName: 'propose_document_writing',
     })).toBe(true);
@@ -151,12 +146,11 @@ describe('Agent proposal tool contract', () => {
           { name: 'Mara', operation: 'create_persona', role: null, summary: '' },
           { name: 'Teacher Zhou', operation: 'create_persona', role: 'Teacher', summary: '' },
         ],
-        storyRevision: 0,
       },
       toolName: 'maintain_story_records',
     })).toBe(true);
     expect(isAgentToolRequest({
-      arguments: { changes: [], storyRevision: 0 },
+      arguments: { changes: [] },
       toolName: 'maintain_story_records',
     })).toBe(false);
     expect(isAgentToolRequest({
@@ -168,7 +162,6 @@ describe('Agent proposal tool contract', () => {
           role: null,
           summary: '',
         }],
-        storyRevision: 0,
       },
       toolName: 'maintain_story_records',
     })).toBe(false);
@@ -198,7 +191,6 @@ describe('Agent proposal tool contract', () => {
             title: 'Arrival',
           },
         ],
-        storyRevision: 1,
       },
       toolName: 'maintain_story_records',
     })).toBe(false);
@@ -227,7 +219,6 @@ describe('Agent proposal tool contract', () => {
             title: 'Arrival',
           },
         ],
-        storyRevision: 1,
       },
       toolName: 'maintain_story_records',
     })).toBe(true);
@@ -304,27 +295,15 @@ describe('Agent proposal tool contract', () => {
 
   it('correlates validated proposal arguments and results', () => {
     expect(isAgentToolRequest({
-      arguments: {
-        baseContentRevision: 'revision:2',
-        baseRevision: 'revision:1',
-        documentId: 'document:1',
-        markdown: '# Proposed',
-      },
+      arguments: { documentId: 'document:1', markdown: '# Proposed' },
       toolName: 'propose_document_edit',
     })).toBe(true);
     expect(isAgentToolRequest({
-      arguments: {
-        baseContentRevision: 'revision:2',
-        baseRevision: 'revision:1',
-        documentId: 'document:1',
-        markdown: null,
-      },
+      arguments: { documentId: 'document:1', markdown: null },
       toolName: 'propose_document_edit',
     })).toBe(false);
     expect(isAgentToolRequest({
       arguments: {
-        baseContentRevision: 'revision:2',
-        baseRevision: 'revision:1',
         documentId: 'document:1',
         markdown: '# Proposed',
         unexpected: true,
@@ -332,7 +311,11 @@ describe('Agent proposal tool contract', () => {
       toolName: 'propose_document_edit',
     })).toBe(false);
     expect(isAgentToolRequest({
-      arguments: { documentId: 'document:1', markdown: '# Proposed' },
+      arguments: {
+        baseRevision: 'revision:1',
+        documentId: 'document:1',
+        markdown: '# Proposed',
+      },
       toolName: 'propose_document_edit',
     })).toBe(false);
     expect(isAgentToolExecutionResult({
@@ -354,11 +337,7 @@ describe('Agent proposal tool contract', () => {
       toolName: 'propose_document_edit',
     })).toBe(false);
     expect(isAgentToolExecutionResult({
-      data: {
-        contentRevision: 'revision:2',
-        documentId: 'document:3',
-        status: 'accepted',
-      },
+      data: { documentId: 'document:3', status: 'accepted' },
       ok: true,
       toolName: 'propose_document_writing',
     })).toBe(true);
@@ -371,18 +350,13 @@ describe('Agent proposal tool contract', () => {
       data: {
         contentRevision: 'revision:2',
         documentId: 'document:3',
-        proposalId: 'ba778599-40fd-4718-b596-75ca5933ef04',
         status: 'accepted',
       },
       ok: true,
       toolName: 'propose_document_writing',
     })).toBe(false);
     expect(isAgentToolExecutionResult({
-      data: {
-        contentRevision: 'revision:2',
-        documentId: 'document:3',
-        status: 'rejected',
-      },
+      data: { documentId: 'document:3', status: 'rejected' },
       ok: true,
       toolName: 'propose_document_writing',
     })).toBe(false);
@@ -428,7 +402,6 @@ describe('Agent proposal tool contract', () => {
       eventSources: [{
         anchor: null,
         documentId: 'document:1',
-        documentRevision: 'revision:1',
         eventId: 'event:1',
         id: 'request:1',
         relation: 'depicted' as const,
@@ -464,22 +437,31 @@ describe('Agent proposal tool contract', () => {
       ok: true,
       toolName: 'read_novel_context',
     })).toBe(false);
+    expect(isAgentToolExecutionResult({
+      data: {
+        documents: [],
+        storyState: {
+          ...storyState,
+          eventSources: [{
+            ...storyState.eventSources[0],
+            documentRevision: 'a'.repeat(64),
+          }],
+        },
+      },
+      ok: true,
+      toolName: 'read_novel_context',
+    })).toBe(false);
   });
 
   it('validates project structure proposal variants', () => {
     expect(isAgentToolRequest({
-      arguments: {
-        operation: 'create_volume',
-        projectRevision: 'revision:1',
-        title: 'Volume Two',
-      },
+      arguments: { operation: 'create_volume', title: 'Volume Two' },
       toolName: 'propose_project_structure_operation',
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: {
         icon: 'landmark',
         operation: 'create_lore_category',
-        projectRevision: 'revision:1',
         title: 'Society',
       },
       toolName: 'propose_project_structure_operation',
@@ -488,16 +470,19 @@ describe('Agent proposal tool contract', () => {
       arguments: {
         icon: 'not-an-icon',
         operation: 'create_lore_category',
-        projectRevision: 'revision:1',
         title: 'Society',
       },
       toolName: 'propose_project_structure_operation',
     })).toBe(false);
     expect(isAgentToolRequest({
+      arguments: { directoryId: 'directory:1', operation: 'delete_lore_category' },
+      toolName: 'propose_project_structure_operation',
+    })).toBe(true);
+    expect(isAgentToolRequest({
       arguments: {
-        directoryId: 'directory:1',
-        operation: 'delete_lore_category',
-        projectRevision: 'revision:1',
+        documentId: 'document:1',
+        operation: 'move_document',
+        targetParentId: 'directory:2',
       },
       toolName: 'propose_project_structure_operation',
     })).toBe(true);
@@ -506,16 +491,6 @@ describe('Agent proposal tool contract', () => {
         baseRevision: 'revision:2',
         documentId: 'document:1',
         operation: 'move_document',
-        projectRevision: 'revision:1',
-        targetParentId: 'directory:2',
-      },
-      toolName: 'propose_project_structure_operation',
-    })).toBe(true);
-    expect(isAgentToolRequest({
-      arguments: {
-        documentId: 'document:1',
-        operation: 'move_document',
-        projectRevision: 'revision:1',
         targetParentId: 'directory:2',
       },
       toolName: 'propose_project_structure_operation',
@@ -525,7 +500,6 @@ describe('Agent proposal tool contract', () => {
         documentId: 'document:1',
         metadataTitle: 'The silent island',
         operation: 'rename_document',
-        projectRevision: 'revision:1',
       },
       toolName: 'propose_project_structure_operation',
     })).toBe(true);
@@ -534,7 +508,6 @@ describe('Agent proposal tool contract', () => {
         displayTitle: '3. The silent island',
         documentId: 'document:1',
         operation: 'rename_document',
-        projectRevision: 'revision:1',
       },
       toolName: 'propose_project_structure_operation',
     })).toBe(false);
@@ -547,7 +520,6 @@ describe('Agent proposal tool contract', () => {
         markdown: '# New',
         operation: 'create',
         parentId: 'directory:1',
-        projectRevision: 'revision:1',
         metadataTitle: 'New chapter',
       },
       toolName: 'propose_document_file_operation',
@@ -558,26 +530,20 @@ describe('Agent proposal tool contract', () => {
         markdown: '# New',
         operation: 'create',
         parentId: 'directory:1',
-        projectRevision: 'revision:1',
         metadataTitle: 'New chapter',
         unexpected: true,
       },
       toolName: 'propose_document_file_operation',
     })).toBe(false);
     expect(isAgentToolRequest({
-      arguments: {
-        baseRevision: 'revision:2',
-        documentId: 'document:1',
-        operation: 'delete',
-        projectRevision: 'revision:1',
-      },
+      arguments: { documentId: 'document:1', operation: 'delete' },
       toolName: 'propose_document_file_operation',
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: {
+        baseRevision: 'revision:2',
         documentId: 'document:1',
         operation: 'delete',
-        projectRevision: 'revision:1',
       },
       toolName: 'propose_document_file_operation',
     })).toBe(false);
@@ -595,7 +561,6 @@ describe('Agent proposal tool contract', () => {
           sources: [{
             anchor: 'Mara opens the sealed door.',
             documentId: 'document:1',
-            documentRevision: 'revision:1',
             relation: 'depicted',
             sourceKind: 'manuscript',
           }],
@@ -605,7 +570,6 @@ describe('Agent proposal tool contract', () => {
           timelineId: 'timeline:1',
           title: 'The sealed door opens',
         },
-        storyRevision: 2,
       },
       toolName: 'propose_story_operation',
     } as const;
@@ -647,6 +611,36 @@ describe('Agent proposal tool contract', () => {
       },
       toolName: 'record_story_question',
     })).toBe(true);
+    for (const evidence of [
+      { anchor: 'Little Lin waves.', documentId: 'document:2' },
+      { anchor: 'Little Lin waves.', documentId: 'document:accepted' },
+    ]) {
+      expect(isAgentToolRequest({
+        arguments: {
+          context: 'Lin already exists.',
+          evidence,
+          kind: 'possible_alias',
+          options: [],
+          question: 'Is Little Lin the same person as Lin?',
+        },
+        toolName: 'record_story_question',
+      })).toBe(true);
+    }
+    expect(isAgentToolRequest({
+      arguments: {
+        context: 'Lin already exists.',
+        evidence: {
+          anchor: 'Little Lin waves.',
+          documentId: 'document:2',
+          documentRevision: 'revision:1',
+          sourceKind: 'manuscript',
+        },
+        kind: 'possible_alias',
+        options: [],
+        question: 'Is Little Lin the same person as Lin?',
+      },
+      toolName: 'record_story_question',
+    })).toBe(false);
     expect(isAgentToolRequest({
       arguments: { answer: '', questionId: 'question-1' },
       toolName: 'resolve_story_question',

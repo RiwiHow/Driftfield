@@ -1,7 +1,6 @@
 import {
   isProjectStoryOperation,
   isProjectStorySnapshot,
-  type ProjectStorySnapshot,
 } from './project-story';
 import { PROJECT_ICON_IDS } from './project-layout';
 
@@ -19,6 +18,7 @@ export interface AgentDraftSnapshot {
 
 export type AgentDocumentDomain = 'lore' | 'manuscript';
 
+/** Main-internal document read. Revisions never reach the model. */
 export interface AgentDocumentToolResult {
   baseRevision: string;
   contentRevision: string;
@@ -28,6 +28,15 @@ export interface AgentDocumentToolResult {
   metadataTitle: string;
   source: 'disk' | 'draft';
 }
+
+/**
+ * Model-facing document context. Main keeps the disk and content revisions in
+ * its own request anchors, so the model never echoes a concurrency token back.
+ */
+export type AgentDocumentContext = Omit<
+  AgentDocumentToolResult,
+  'baseRevision' | 'contentRevision'
+>;
 
 export interface AgentStructureDocument {
   displayTitle: string;
@@ -57,6 +66,7 @@ export type AgentStructureNode =
   | AgentStructureDirectory
   | AgentStructureDocument;
 
+/** Main-internal structure read. `revision` fields stay on the Main side. */
 export interface AgentNovelStructureToolResult {
   availableIcons: import('./project-layout').ProjectIconId[];
   format: 'driftfield';
@@ -65,6 +75,15 @@ export interface AgentNovelStructureToolResult {
   project: {
     id: string;
     revision: string;
+    title: string;
+  };
+}
+
+/** Model-facing structure. Node and project revisions are omitted. */
+export interface AgentNovelStructureContext
+  extends Omit<AgentNovelStructureToolResult, 'project'> {
+  project: {
+    id: string;
     title: string;
   };
 }
@@ -80,11 +99,35 @@ export type AgentNovelContextSection =
   (typeof AGENT_NOVEL_CONTEXT_SECTIONS)[number];
 
 export interface AgentNovelContextToolResult {
-  currentDocument?: AgentDocumentToolResult | null;
-  documents: AgentDocumentToolResult[];
+  currentDocument?: AgentDocumentContext | null;
+  documents: AgentDocumentContext[];
   reconciliation?: AgentAcceptedReconciliationContext;
-  storyState?: import('./project-story').ProjectStorySnapshot;
-  structure?: AgentNovelStructureToolResult;
+  storyState?: AgentStoryStateContext;
+  structure?: AgentNovelStructureContext;
+}
+
+/**
+ * Model-facing story state. Provenance revisions are dropped because they are
+ * Main-side concurrency tokens rather than authorial information.
+ */
+export type AgentStoryStateContext = Omit<
+  import('./project-story').ProjectStorySnapshot,
+  'eventSources' | 'questions'
+> & {
+  eventSources: Array<
+    Omit<import('./project-story').ChronicleEventSource, 'documentRevision'>
+  >;
+  questions: Array<
+    Omit<import('./project-story').StoryQuestion, 'evidence'> & {
+      evidence: AgentStoryQuestionEvidenceContext | null;
+    }
+  >;
+};
+
+export interface AgentStoryQuestionEvidenceContext {
+  anchor: string;
+  documentId: string;
+  sourceKind: 'manuscript';
 }
 
 export interface AgentAcceptedReconciliationContext {
@@ -194,7 +237,6 @@ export interface AgentProposalToolResult {
  */
 export type AgentDocumentWritingToolResult =
   | {
-      contentRevision: string;
       documentId: string;
       status: 'accepted';
     }
@@ -222,12 +264,42 @@ type StoryCreateOperation = Exclude<
   { operation: 'link_beat_event' }
 >;
 
+type StoryLinkOperation = Extract<
+  import('./project-story').ProjectStoryOperation,
+  { operation: 'link_beat_event' }
+>;
+
+/** Canonical Main-side change, with every provenance revision resolved. */
 export type AgentStoryMaintenanceChange =
   | (StoryCreateOperation & { clientRef?: string })
-  | Extract<
+  | StoryLinkOperation;
+
+type CanonicalStoryEventOperation = Extract<
+  import('./project-story').ProjectStoryOperation,
+  { operation: 'create_event' }
+>;
+
+/** A manuscript citation as the model supplies it: which document, not which revision. */
+export type AgentStoryEventSourceInput = Omit<
+  NonNullable<CanonicalStoryEventOperation['sources']>[number],
+  'documentRevision'
+>;
+
+export type AgentStoryOperationInput =
+  | Exclude<
       import('./project-story').ProjectStoryOperation,
-      { operation: 'link_beat_event' }
-    >;
+      CanonicalStoryEventOperation
+    >
+  | (Omit<CanonicalStoryEventOperation, 'sources'> & {
+      sources?: AgentStoryEventSourceInput[];
+    });
+
+/** Model-facing change. Main resolves citations to a served document revision. */
+export type AgentStoryChangeInput =
+  | (Exclude<AgentStoryOperationInput, StoryLinkOperation> & {
+      clientRef?: string;
+    })
+  | StoryLinkOperation;
 
 export interface AgentStoryQuestionToolResult {
   questionId: string;
@@ -235,13 +307,18 @@ export interface AgentStoryQuestionToolResult {
   status: 'recorded' | 'resolved';
 }
 
-export type AgentStoryQuestionEvidence =
-  | import('./project-story').StoryQuestionEvidence
-  | { anchor: string; sourceRef: 'document:accepted' };
+/**
+ * Model-facing evidence. `documentId` is a served document ref or the accepted
+ * reconciliation document; Main binds the revision it served for it.
+ */
+export interface AgentStoryQuestionEvidenceInput {
+  anchor: string;
+  documentId: string;
+}
 
 export interface AgentStoryQuestionArguments {
   context: string;
-  evidence: AgentStoryQuestionEvidence | null;
+  evidence: AgentStoryQuestionEvidenceInput | null;
   kind: import('./project-story').StoryQuestionKind;
   options: string[];
   question: string;
@@ -257,15 +334,11 @@ export interface AgentWritingArtifactSubmissionToolResult {
 }
 
 export interface AgentDocumentEditArguments {
-  baseContentRevision: string;
-  baseRevision: string;
   documentId: string;
   markdown: string;
 }
 
 export interface AgentDocumentWritingProposalArguments {
-  baseContentRevision: string | null;
-  baseRevision: string | null;
   documentAction: 'create' | 'replace';
   documentDomain: AgentDocumentDomain;
   documentId: string | null;
@@ -280,7 +353,6 @@ export interface AgentDocumentWritingProposalArguments {
   metadataTitle: string | null;
   objective: string;
   parentId: string | null;
-  projectRevision: string | null;
   requirements: string[];
   targetLength: number | null;
 }
@@ -296,46 +368,37 @@ export type AgentDocumentFileOperationArguments =
         | 'entry';
       operation: 'create';
       parentId: string;
-      projectRevision: string;
       metadataTitle: string;
       markdown: string;
     }
   | {
-      baseRevision: string;
       documentId: string;
       operation: 'delete';
-      projectRevision: string;
     };
 
 export type AgentProjectStructureOperationArguments =
   | {
       operation: 'create_volume';
-      projectRevision: string;
       title: string;
     }
   | {
       icon: import('./project-layout').ProjectIconId;
       operation: 'create_lore_category';
-      projectRevision: string;
       title: string;
     }
   | {
       directoryId: string;
       operation: 'delete_lore_category';
-      projectRevision: string;
     }
   | {
-      baseRevision: string;
       documentId: string;
       operation: 'move_document';
-      projectRevision: string;
       targetParentId: string;
     }
   | {
       documentId: string;
       metadataTitle: string;
       operation: 'rename_document';
-      projectRevision: string;
     };
 
 export interface AgentToolContractMap {
@@ -353,8 +416,7 @@ export interface AgentToolContractMap {
   };
   maintain_story_records: {
     arguments: {
-      changes: AgentStoryMaintenanceChange[];
-      storyRevision: number;
+      changes: AgentStoryChangeInput[];
     };
     result: AgentStoryMaintenanceToolResult;
   };
@@ -395,8 +457,7 @@ export interface AgentToolContractMap {
   };
   propose_story_operation: {
     arguments: {
-      change: import('./project-story').ProjectStoryOperation;
-      storyRevision: number;
+      change: AgentStoryOperationInput;
     };
     result: AgentProposalToolResult;
   };
@@ -522,7 +583,7 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
   if (!isRecord(value)) return false;
   if (toolName === 'propose_document_writing') {
     if (
-      Object.keys(value).length !== 12 ||
+      Object.keys(value).length !== 9 ||
       (value.documentAction !== 'create' && value.documentAction !== 'replace') ||
       (value.documentDomain !== 'lore' && value.documentDomain !== 'manuscript') ||
       !isBoundedText(value.objective, 4_000, false) ||
@@ -536,20 +597,16 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
           (value.targetLength as number) <= 200_000))
     ) return false;
     if (value.documentAction === 'create') {
-      return value.baseContentRevision === null &&
-        value.baseRevision === null && value.documentId === null &&
+      return value.documentId === null &&
         isRequestReferenceOfKind(value.parentId, 'directory') &&
-        isRevision(value.projectRevision) &&
         isValidMetadataTitle(value.metadataTitle) &&
         typeof value.kind === 'string' &&
         ['chapter', 'prologue', 'interlude', 'epilogue', 'appendix', 'entry']
           .includes(value.kind);
     }
-    return isRevision(value.baseContentRevision) &&
-      isRevision(value.baseRevision) &&
-      isRequestReferenceOfKind(value.documentId, 'document') &&
+    return isRequestReferenceOfKind(value.documentId, 'document') &&
       value.kind === null && value.metadataTitle === null &&
-      value.parentId === null && value.projectRevision === null;
+      value.parentId === null;
   }
   if (toolName === 'submit_writing_artifact') {
     return (
@@ -561,10 +618,8 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
   }
   if (toolName === 'propose_document_edit') {
     return (
-      Object.keys(value).length === 4 &&
+      Object.keys(value).length === 2 &&
       isRequestReferenceOfKind(value.documentId, 'document') &&
-      isRevision(value.baseRevision) &&
-      isRevision(value.baseContentRevision) &&
       typeof value.markdown === 'string' &&
       value.markdown.trim().length > 0 &&
       new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024
@@ -573,11 +628,10 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
   if (toolName === 'propose_document_file_operation') {
     if (
       value.operation === 'create' &&
-      Object.keys(value).length === 6
+      Object.keys(value).length === 5
     ) {
       return (
         isRequestReferenceOfKind(value.parentId, 'directory') &&
-        isRevision(value.projectRevision) &&
         typeof value.metadataTitle === 'string' &&
         value.metadataTitle.trim().length > 0 &&
         value.metadataTitle.length <= 500 &&
@@ -591,20 +645,17 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
     }
     return (
       value.operation === 'delete' &&
-      Object.keys(value).length === 4 &&
-      isRequestReferenceOfKind(value.documentId, 'document') &&
-      isRevision(value.baseRevision) &&
-      isRevision(value.projectRevision)
+      Object.keys(value).length === 2 &&
+      isRequestReferenceOfKind(value.documentId, 'document')
     );
   }
   if (toolName === 'propose_project_structure_operation') {
     if (
       value.operation === 'rename_document' &&
-      Object.keys(value).length === 4
+      Object.keys(value).length === 3
     ) {
       return (
         isRequestReferenceOfKind(value.documentId, 'document') &&
-        isRevision(value.projectRevision) &&
         typeof value.metadataTitle === 'string' &&
         value.metadataTitle.trim().length > 0 &&
         value.metadataTitle.length <= 500 &&
@@ -613,10 +664,9 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
     }
     if (
       value.operation === 'create_volume' &&
-      Object.keys(value).length === 3
+      Object.keys(value).length === 2
     ) {
       return (
-        isRevision(value.projectRevision) &&
         typeof value.title === 'string' &&
         value.title.trim().length > 0 &&
         value.title.length <= 500 &&
@@ -625,10 +675,9 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
     }
     if (
       value.operation === 'create_lore_category' &&
-      Object.keys(value).length === 4
+      Object.keys(value).length === 3
     ) {
       return (
-        isRevision(value.projectRevision) &&
         isProjectIcon(value.icon) &&
         typeof value.title === 'string' &&
         value.title.trim().length > 0 &&
@@ -638,33 +687,26 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
     }
     if (
       value.operation === 'delete_lore_category' &&
-      Object.keys(value).length === 3
+      Object.keys(value).length === 2
     ) {
-      return isRequestReferenceOfKind(value.directoryId, 'directory') &&
-        isRevision(value.projectRevision);
+      return isRequestReferenceOfKind(value.directoryId, 'directory');
     }
     return (
       value.operation === 'move_document' &&
-      Object.keys(value).length === 5 &&
+      Object.keys(value).length === 3 &&
       isRequestReferenceOfKind(value.documentId, 'document') &&
-      isRequestReferenceOfKind(value.targetParentId, 'directory') &&
-      isRevision(value.baseRevision) &&
-      isRevision(value.projectRevision)
+      isRequestReferenceOfKind(value.targetParentId, 'directory')
     );
   }
   if (toolName === 'propose_story_operation') {
     return (
-      Object.keys(value).length === 2 &&
-      Number.isSafeInteger(value.storyRevision) &&
-      (value.storyRevision as number) >= 0 &&
+      Object.keys(value).length === 1 &&
       isAgentStoryOperation(value.change, false)
     );
   }
   if (toolName === 'maintain_story_records') {
     return (
-      Object.keys(value).length === 2 &&
-      Number.isSafeInteger(value.storyRevision) &&
-      (value.storyRevision as number) >= 0 &&
+      Object.keys(value).length === 1 &&
       Array.isArray(value.changes) && value.changes.length >= 1 &&
       value.changes.length <= 24 && value.changes.every(isStoryMaintenanceChange)
     );
@@ -802,14 +844,15 @@ const isNovelContextResult = (
 const isAgentStorySnapshot = (value: unknown): boolean => {
   if (!isRecord(value) || !Array.isArray(value.eventSources) ||
     !Array.isArray(value.questions)) return false;
-  const canonicalRevision = (revision: unknown): unknown =>
-    isRequestReferenceOfKind(revision, 'revision')
-      ? 'a'.repeat(64)
-      : revision;
+  if (value.eventSources.some((source) =>
+    isRecord(source) && source.documentRevision !== undefined)) return false;
+  if (value.questions.some((question) => isRecord(question) &&
+    isRecord(question.evidence) &&
+    question.evidence.documentRevision !== undefined)) return false;
   const canonical = {
     ...value,
     eventSources: value.eventSources.map((source) => isRecord(source)
-      ? { ...source, documentRevision: canonicalRevision(source.documentRevision) }
+      ? { ...source, documentRevision: PLACEHOLDER_REVISION }
       : source),
     questions: value.questions.map((question) => {
       if (!isRecord(question) || !isRecord(question.evidence)) return question;
@@ -817,13 +860,13 @@ const isAgentStorySnapshot = (value: unknown): boolean => {
         ...question,
         evidence: {
           ...question.evidence,
-          documentRevision: canonicalRevision(question.evidence.documentRevision),
+          documentRevision: PLACEHOLDER_REVISION,
         },
       };
     }),
   };
   if (!isProjectStorySnapshot(canonical)) return false;
-  const story = value as unknown as ProjectStorySnapshot;
+  const story = value as unknown as AgentStoryStateContext;
   return story.personae.every(({ id }) =>
     isRequestReferenceOfKind(id, 'persona')) &&
     story.timelines.every(({ id }) =>
@@ -843,8 +886,7 @@ const isAgentStorySnapshot = (value: unknown): boolean => {
     story.eventSources.every((source) =>
       isRequestReferenceOfKind(source.id, 'request') &&
       isRequestReferenceOfKind(source.eventId, 'event') &&
-      isRequestReferenceOfKind(source.documentId, 'document') &&
-      isRequestReferenceOfKind(source.documentRevision, 'revision')) &&
+      isRequestReferenceOfKind(source.documentId, 'document')) &&
     story.threads.every(({ id, parentId }) =>
       isRequestReferenceOfKind(id, 'thread') &&
       (parentId === null || isRequestReferenceOfKind(parentId, 'thread'))) &&
@@ -859,8 +901,7 @@ const isAgentStorySnapshot = (value: unknown): boolean => {
       isRequestReferenceOfKind(id, 'question') &&
       isRequestReferenceOfKind(originRequestId, 'request') &&
       (evidence === null ||
-        (isRequestReferenceOfKind(evidence.documentId, 'document') &&
-          isRequestReferenceOfKind(evidence.documentRevision, 'revision'))));
+        isRequestReferenceOfKind(evidence.documentId, 'document')));
 };
 
 const isWritingArtifactSubmissionResult = (value: unknown): boolean =>
@@ -878,9 +919,8 @@ const isEditProposalResult = (value: unknown): boolean =>
 const isDocumentWritingProposalResult = (value: unknown): boolean => {
   if (!isRecord(value) || typeof value.status !== 'string') return false;
   if (value.status === 'accepted') {
-    return Object.keys(value).length === 3 &&
-      isRequestReferenceOfKind(value.documentId, 'document') &&
-      isRequestReferenceOfKind(value.contentRevision, 'revision');
+    return Object.keys(value).length === 2 &&
+      isRequestReferenceOfKind(value.documentId, 'document');
   }
   return Object.keys(value).length === 1 &&
     ['rejected', 'conflict', 'missing', 'stale', 'failed'].includes(value.status);
@@ -1014,7 +1054,8 @@ const isStoryMaintenanceChange = (value: unknown): boolean => {
   return operation.operation !== 'link_beat_event' && isStoryClientRef(clientRef);
 };
 
-const isAgentStoryOperation = (
+/** Validates one model-supplied story operation, refs and citations included. */
+export const isAgentStoryOperation = (
   value: unknown,
   allowClientReferences: boolean,
 ): boolean => {
@@ -1023,15 +1064,10 @@ const isAgentStoryOperation = (
     Array.isArray(value.sources)) {
     canonical = {
       ...value,
-      sources: value.sources.map((source) => {
-        if (!isRecord(source) || !isRevision(source.documentRevision)) {
-          return source;
-        }
-        return {
-          ...source,
-          documentRevision: 'a'.repeat(64),
-        };
-      }),
+      sources: value.sources.map((source) => isRecord(source) &&
+        source.documentRevision === undefined
+        ? { ...source, documentRevision: PLACEHOLDER_REVISION }
+        : source),
     };
   }
   if (!isProjectStoryOperation(canonical)) return false;
@@ -1055,8 +1091,7 @@ const isAgentStoryOperation = (
         isRef(participant.personaId, 'persona')) &&
       (operation.sources === undefined || operation.sources.every((source) =>
         source.sourceKind === 'manuscript' &&
-        isRef(source.documentId, 'document') &&
-        isRequestReferenceOfKind(source.documentRevision, 'revision')));
+        isRef(source.documentId, 'document')));
   }
   if (operation.operation === 'create_thread') {
     return operation.parentId === null || isRef(operation.parentId, 'thread');
@@ -1082,14 +1117,13 @@ const isStoryQuestionResult = (value: unknown): boolean =>
   Number.isSafeInteger(value.revision) &&
   (value.revision as number) >= 0;
 
+export const ACCEPTED_DOCUMENT_REFERENCE = 'document:accepted';
+
 const isQuestionEvidence = (value: unknown): boolean =>
-  isRecord(value) && isBoundedText(value.anchor, 10_000, false) &&
-  ((Object.keys(value).length === 2 &&
-    value.sourceRef === 'document:accepted') ||
-    (Object.keys(value).length === 4 &&
-      value.sourceKind === 'manuscript' &&
-      isRequestReferenceOfKind(value.documentId, 'document') &&
-      isRequestReferenceOfKind(value.documentRevision, 'revision')));
+  isRecord(value) && Object.keys(value).length === 2 &&
+  isBoundedText(value.anchor, 10_000, false) &&
+  (value.documentId === ACCEPTED_DOCUMENT_REFERENCE ||
+    isRequestReferenceOfKind(value.documentId, 'document'));
 
 const isBoundedText = (
   value: unknown,
@@ -1111,23 +1145,24 @@ const isRequestReferenceOfKind = (
 ): value is string => typeof value === 'string' &&
   value.startsWith(`${kind}:`) && isRequestReference(value);
 
-const isRevision = (value: unknown): value is string =>
-  isRequestReferenceOfKind(value, 'revision');
+/**
+ * Stands in for the content revision Main binds after validation, so exposed
+ * and model-supplied shapes can reuse the canonical story validators.
+ */
+const PLACEHOLDER_REVISION = 'a'.repeat(64);
 
-const isDocumentResult = (value: unknown): value is AgentDocumentToolResult =>
+const isDocumentResult = (value: unknown): value is AgentDocumentContext =>
   isRecord(value) &&
-  isRequestReferenceOfKind(value.baseRevision, 'revision') &&
-  isRequestReferenceOfKind(value.contentRevision, 'revision') &&
   typeof value.displayTitle === 'string' &&
   isRequestReferenceOfKind(value.documentId, 'document') &&
   typeof value.markdown === 'string' &&
   typeof value.metadataTitle === 'string' &&
   (value.source === 'disk' || value.source === 'draft') &&
-  Object.keys(value).length === 7;
+  Object.keys(value).length === 5;
 
 const isNovelStructureResult = (
   value: unknown,
-): value is AgentNovelStructureToolResult => {
+): value is AgentNovelStructureContext => {
   if (
     !isRecord(value) ||
     !Array.isArray(value.availableIcons) ||
@@ -1136,8 +1171,8 @@ const isNovelStructureResult = (
     new Set(value.availableIcons).size !== value.availableIcons.length ||
     value.format !== 'driftfield' ||
     !isRecord(value.project) ||
+    Object.keys(value.project).length !== 2 ||
     !isRequestReferenceOfKind(value.project.id, 'project') ||
-    !isRequestReferenceOfKind(value.project.revision, 'revision') ||
     typeof value.project.title !== 'string'
   ) {
     return false;
@@ -1192,8 +1227,7 @@ const isStructureNode = (
     isRequestReferenceOfKind(value.id, 'document') &&
     typeof value.displayTitle === 'string' &&
     typeof value.metadataTitle === 'string' &&
-    (value.revision === undefined ||
-      isRequestReferenceOfKind(value.revision, 'revision')) &&
+    value.revision === undefined &&
     [
       'chapter',
       'prologue',

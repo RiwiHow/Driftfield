@@ -48,9 +48,28 @@ interface CreateProposalRequest {
   markdown: string;
 }
 
+/**
+ * A model request plus the revisions Main served for it in this Agent request.
+ * The model never supplies a concurrency token; Main anchors it.
+ */
 export type ResolvedDocumentFileOperationArguments =
-  | Extract<AgentDocumentFileOperationArguments, { operation: 'create' }>
-  | Extract<AgentDocumentFileOperationArguments, { operation: 'delete' }>;
+  | (Extract<AgentDocumentFileOperationArguments, { operation: 'create' }> & {
+      projectRevision: string;
+    })
+  | (Extract<AgentDocumentFileOperationArguments, { operation: 'delete' }> & {
+      baseRevision: string;
+      projectRevision: string;
+    });
+
+export type ResolvedProjectStructureOperationArguments =
+  | (Exclude<
+      AgentProjectStructureOperationArguments,
+      { operation: 'move_document' }
+    > & { projectRevision: string })
+  | (Extract<
+      AgentProjectStructureOperationArguments,
+      { operation: 'move_document' }
+    > & { baseRevision: string; projectRevision: string });
 
 interface ProposalScope {
   draftSnapshot?: AgentDraftSnapshot;
@@ -278,25 +297,25 @@ export class AgentProposalService {
 
   async createStructureOperation(
     scope: ProposalScope,
-    request: Extract<AgentProjectStructureOperationArguments, { operation: 'move_document' }>,
+    request: Extract<ResolvedProjectStructureOperationArguments, { operation: 'move_document' }>,
   ): Promise<AgentMoveDocumentProposal>;
   async createStructureOperation(
     scope: ProposalScope,
-    request: Extract<AgentProjectStructureOperationArguments, { operation: 'delete_lore_category' }>,
+    request: Extract<ResolvedProjectStructureOperationArguments, { operation: 'delete_lore_category' }>,
   ): Promise<AgentDeleteLoreCategoryProposal>;
   async createStructureOperation(
     scope: ProposalScope,
-    request: Extract<AgentProjectStructureOperationArguments, { operation: 'rename_document' }>,
+    request: Extract<ResolvedProjectStructureOperationArguments, { operation: 'rename_document' }>,
   ): Promise<AgentRenameDocumentProposal>;
   async createStructureOperation(
     scope: ProposalScope,
-    request: Exclude<AgentProjectStructureOperationArguments, {
+    request: Exclude<ResolvedProjectStructureOperationArguments, {
       operation: 'delete_lore_category' | 'move_document' | 'rename_document';
     }>,
   ): Promise<AgentCreateDirectoryProposal>;
   async createStructureOperation(
     scope: ProposalScope,
-    request: AgentProjectStructureOperationArguments,
+    request: ResolvedProjectStructureOperationArguments,
   ): Promise<
     AgentCreateDirectoryProposal |
     AgentDeleteLoreCategoryProposal |
@@ -305,7 +324,7 @@ export class AgentProposalService {
   >;
   async createStructureOperation(
     scope: ProposalScope,
-    request: AgentProjectStructureOperationArguments,
+    request: ResolvedProjectStructureOperationArguments,
   ): Promise<
     AgentCreateDirectoryProposal |
     AgentDeleteLoreCategoryProposal |
@@ -785,39 +804,42 @@ export class AgentProposalService {
   cancelRequest(requestId: string): void {
     for (const [proposalId, stored] of this.proposals) {
       if (stored.proposal.requestId !== requestId) continue;
-      const session = this.sessions.get(stored.ownerId);
-      if (session !== undefined && session.id === stored.projectSessionId) {
-        this.conversations?.setProposalStatus(session, proposalId, 'failed');
-        if (
-          this.stories !== undefined &&
-          'operation' in stored.proposal &&
-          stored.proposal.operation === 'story'
-        ) {
-          this.stories.settleProposal(session, proposalId, 'failed', 'request-cancelled');
-        }
-      }
-      this.resolveDecision(stored.ownerId, proposalId, 'failed');
-      this.proposals.delete(proposalId);
+      this.fail(proposalId, stored, 'request-cancelled');
     }
+  }
+
+  /**
+   * Fails a proposal the dispatcher created but can no longer present, such as
+   * one that finished building after its tool call already timed out. Scoped to
+   * the owning request so a late arrival cannot disturb other proposals.
+   */
+  abandon(requestId: string, proposalId: string): void {
+    const stored = this.proposals.get(proposalId);
+    if (stored === undefined || stored.proposal.requestId !== requestId) return;
+    this.fail(proposalId, stored, 'tool-timeout');
   }
 
   disposeOwner(ownerId: number): void {
     for (const [proposalId, stored] of this.proposals) {
       if (stored.ownerId !== ownerId) continue;
-      const session = this.sessions.get(ownerId);
-      if (session !== undefined && session.id === stored.projectSessionId) {
-        this.conversations?.setProposalStatus(session, proposalId, 'failed');
-        if (
-          this.stories !== undefined &&
-          'operation' in stored.proposal &&
-          stored.proposal.operation === 'story'
-        ) {
-          this.stories.settleProposal(session, proposalId, 'failed', 'owner-disposed');
-        }
-      }
-      this.resolveDecision(ownerId, proposalId, 'failed');
-      this.proposals.delete(proposalId);
+      this.fail(proposalId, stored, 'owner-disposed');
     }
+  }
+
+  private fail(proposalId: string, stored: StoredProposal, reason: string): void {
+    const session = this.sessions.get(stored.ownerId);
+    if (session !== undefined && session.id === stored.projectSessionId) {
+      this.conversations?.setProposalStatus(session, proposalId, 'failed');
+      if (
+        this.stories !== undefined &&
+        'operation' in stored.proposal &&
+        stored.proposal.operation === 'story'
+      ) {
+        this.stories.settleProposal(session, proposalId, 'failed', reason);
+      }
+    }
+    this.resolveDecision(stored.ownerId, proposalId, 'failed');
+    this.proposals.delete(proposalId);
   }
 
   private resolveDecision(

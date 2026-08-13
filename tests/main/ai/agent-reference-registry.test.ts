@@ -6,13 +6,20 @@ const uuid = '2a256007-92f2-423c-b1fb-9c194577713f';
 const hash = '0c71edf716b9204ec064e7b1082f725ba8c8e0fe77ea2cef0a2a070a792775bd';
 
 describe('AgentReferenceRegistry', () => {
-  it('replaces persistent structure, document, story, and revision identities', () => {
+  it('replaces persistent identities and withholds every revision', () => {
     const refs = new AgentReferenceRegistry();
     const structure = refs.exposeStructure({
       availableIcons: [],
       format: 'driftfield',
       lore: {
-        children: [],
+        children: [{
+          displayTitle: 'World',
+          id: 'lore-entry-uuid',
+          kind: 'entry',
+          metadataTitle: 'World',
+          revision: hash,
+          type: 'document',
+        }],
         id: uuid,
         kind: 'category',
         title: 'World',
@@ -65,15 +72,85 @@ describe('AgentReferenceRegistry', () => {
       'manuscript-uuid',
       'project-uuid',
       'document-uuid',
+      'lore-entry-uuid',
       'persona-uuid',
     ]) {
       expect(serialized).not.toContain(persistent);
     }
+    expect(serialized).not.toContain('revision:');
+    expect(serialized).not.toContain('baseRevision');
+    expect(serialized).not.toContain('contentRevision');
     expect(structure.lore?.id).toBe('directory:2');
-    expect(structure.project.revision).toBe('revision:1');
-    expect(document.documentId).toBe('document:1');
-    expect(document.baseRevision).toBe('revision:1');
+    expect(document.documentId).toBe('document:2');
     expect(story.personae[0].id).toBe('persona:1');
+  });
+
+  it('anchors the revisions it served so mutations need no model echo', () => {
+    const refs = new AgentReferenceRegistry();
+    const listedRevision = 'b'.repeat(64);
+    refs.exposeStructure({
+      availableIcons: [],
+      format: 'driftfield',
+      manuscript: {
+        children: [{
+          displayTitle: 'One',
+          id: 'document-uuid',
+          kind: 'chapter',
+          metadataTitle: 'One',
+          revision: listedRevision,
+          type: 'document',
+        }],
+        id: 'manuscript-uuid',
+        kind: 'manuscript',
+        title: 'Manuscript',
+        type: 'directory',
+      },
+      project: { id: 'project-uuid', revision: hash, title: 'Novel' },
+    });
+
+    expect(refs.requireProjectRevision()).toBe(hash);
+    expect(refs.documentAnchor('document-uuid')).toEqual({
+      baseRevision: listedRevision,
+    });
+    expect(() => refs.requireDocumentContentAnchor('document-uuid', 'document:1'))
+      .toThrow(expect.objectContaining({
+        code: 'invalid-arguments',
+        detail: expect.stringContaining('Read the contents of document:1'),
+      }));
+
+    refs.exposeDocument({
+      baseRevision: listedRevision,
+      contentRevision: hash,
+      displayTitle: 'One',
+      documentId: 'document-uuid',
+      markdown: '# One',
+      metadataTitle: 'One',
+      source: 'draft',
+    });
+    expect(refs.requireDocumentContentAnchor('document-uuid', 'document:1'))
+      .toEqual({ baseRevision: listedRevision, contentRevision: hash });
+  });
+
+  it('refuses revision anchors the model was never served', () => {
+    const refs = new AgentReferenceRegistry();
+    expect(() => refs.requireProjectRevision()).toThrow(
+      expect.objectContaining({
+        code: 'invalid-arguments',
+        detail: expect.stringContaining('Read the novel structure'),
+      }),
+    );
+    expect(() => refs.requireStoryRevision()).toThrow(
+      expect.objectContaining({
+        code: 'invalid-arguments',
+        detail: expect.stringContaining('Read story_state'),
+      }),
+    );
+    expect(() => refs.requireDocumentAnchor(uuid, 'document:1')).toThrow(
+      expect.objectContaining({
+        code: 'invalid-arguments',
+        detail: expect.stringContaining('Read document:1 in this request'),
+      }),
+    );
   });
 
   it('resolves only refs from the active registry and enforces their kind', () => {

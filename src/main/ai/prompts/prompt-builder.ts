@@ -33,16 +33,17 @@ export const buildAgentSystemPrompt = (
   ) {
     capabilityInstructions.push(
       'Reviewed proposal calls pause for the user’s decision. Never claim a proposal was applied before acceptance. An accepted terminal result is authoritative application confirmation that the exact reviewed mutation was persisted: report it as complete, never ask the user to verify it in the interface or accept it again, and never treat acceptance as authority for additional work.',
+      'Never supply, echo, or invent concurrency revisions. Main binds every proposal to the exact revisions it served you in this run, so read the context a mutation depends on before proposing it and let Main detect conflicts.',
     );
   }
   if (tools.has('propose_document_edit')) {
     capabilityInstructions.push(
-      'For a direct current-document replacement, read the current draft and bind the proposal to its request-start revisions.',
+      'For a direct current-document replacement, read the current draft first; a document you have not read in this run cannot be edited.',
     );
   }
   if (tools.has('propose_document_writing')) {
     capabilityInstructions.push(
-      'For requested Manuscript or Lore prose, use one atomic propose_document_writing call. Main validates and freezes create versus replace and the exact destination before Scribe starts, then submits only that reviewed proposal. New chapters and Lore entries use create with documentId null; documents read for continuity are context, not replacement targets. Never substitute replace after a failed create. On acceptance, the returned document and content-revision refs identify the persisted artifact. The omitted Markdown is deliberately hidden from Curator and does not make the result uncertain; reread the document only when the user’s existing requested follow-up requires its exact content, never merely to confirm persistence.',
+      'For requested Manuscript or Lore prose, use one atomic propose_document_writing call. Main validates and freezes create versus replace and the exact destination before Scribe starts, then submits only that reviewed proposal. New chapters and Lore entries use create with documentId null; documents read for continuity are context, not replacement targets. Never substitute replace after a failed create. On acceptance, the returned document ref identifies the persisted artifact. The omitted Markdown is deliberately hidden from Curator and does not make the result uncertain; reread the document only when the user’s existing requested follow-up requires its exact content, never merely to confirm persistence.',
     );
   }
   if (tools.has('propose_document_file_operation')) {
@@ -52,7 +53,7 @@ export const buildAgentSystemPrompt = (
   }
   if (tools.has('propose_project_structure_operation')) {
     capabilityInstructions.push(
-      'Project-structure proposals use current project/document revisions and compatible node refs. Use only approved category icons; delete category contents through separate reviewed document operations before deleting the empty category.',
+      'Project-structure proposals use compatible current-run node refs, so read structure before proposing. Use only approved category icons; delete category contents through separate reviewed document operations before deleting the empty category.',
     );
   }
   if (

@@ -48,7 +48,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   maintain_story_records: {
     description:
-      'Atomically maintain one ordered changeset of 1 to 24 low-risk additive or linking changes in Personae, Chronicle, or Threads when explicitly requested by the user or unambiguously evidenced by accepted persisted prose. Read story_state first and use its current numeric revision plus its request-scoped entity refs. For a created entity needed by a later change, assign clientRef and reference it later as @clientRef; include the complete dependency graph in this one call. Main resolves references, owns persistent identities, and applies all or none with one story revision. The concise result reports only status, revision, and appliedCount. Never include ambiguity or inference requiring author judgment; record a story question instead. This tool cannot delete, merge, reorder, edit manuscript text, or execute SQL.',
+      'Atomically maintain one ordered changeset of 1 to 24 low-risk additive or linking changes in Personae, Chronicle, or Threads when explicitly requested by the user or unambiguously evidenced by accepted persisted prose. Read story_state first and use its request-scoped entity refs. For a created entity needed by a later change, assign clientRef and reference it later as @clientRef; include the complete dependency graph in this one call. Main resolves references, owns persistent identities and revisions, and applies all or none with one story revision. The concise result reports only status, revision, and appliedCount. Never include ambiguity or inference requiring author judgment; record a story question instead. This tool cannot delete, merge, reorder, edit manuscript text, or execute SQL.',
     executionMode: 'sequential',
     label: 'Maintain story records',
     name: 'maintain_story_records',
@@ -72,7 +72,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   record_story_question: {
     description:
-      'Record one unresolved author question without changing canonical Personae, Chronicle, or Threads. Use this for possible aliases, uncertain fictional time, unclear relationships, contradictions, or another ambiguity whose answer materially affects canonical records. An intentionally unnamed character, omitted background detail, or unknown fact that does not block a faithful record is not by itself a question. Read story state first, do not duplicate an existing open question, and attach exact evidence when available. After accepted_reconciliation, use evidence sourceRef document:accepted so Main binds the persisted document ID and revision. Options are suggestions, not decisions.',
+      'Record one unresolved author question without changing canonical Personae, Chronicle, or Threads. Use this for possible aliases, uncertain fictional time, unclear relationships, contradictions, or another ambiguity whose answer materially affects canonical records. An intentionally unnamed character, omitted background detail, or unknown fact that does not block a faithful record is not by itself a question. Read story state first, do not duplicate an existing open question, and attach exact evidence when available. Evidence pairs the exact quotation with the ref of the document it came from, or document:accepted after reading accepted_reconciliation. Options are suggestions, not decisions.',
     executionMode: 'sequential',
     label: 'Record story question',
     name: 'record_story_question',
@@ -88,7 +88,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   propose_document_edit: {
     description:
-      'Submit a direct complete replacement for the current document as a reviewable proposal. Supply the complete Markdown. Generated Scribe prose must use propose_document_writing so its target is frozen before generation. This never writes without explicit acceptance.',
+      'Submit a direct complete replacement for the current document as a reviewable proposal. Read the document in this request first, then supply the complete Markdown. Generated Scribe prose must use propose_document_writing so its target is frozen before generation. This never writes without explicit acceptance.',
     executionMode: 'sequential',
     label: 'Propose document edit',
     name: 'propose_document_edit',
@@ -96,7 +96,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   propose_document_writing: {
     description:
-      'Commission Scribe and submit exactly one pre-bound reviewed document proposal. Use create for every new chapter or Lore entry, with its parent directory, raw title, kind, and project revision; an existing chapter read for continuity is not the target. Use replace only when the user explicitly asked to replace that exact current document, with its request-start revisions. Main validates the entire target plan before Scribe runs and cannot rebind the artifact afterward. An accepted result authoritatively means the exact validated artifact was persisted and returns request-scoped document and content-revision refs for optional in-scope follow-up; omission of the full Markdown is intentional, not uncertainty.',
+      'Commission Scribe and submit exactly one pre-bound reviewed document proposal. Use create for every new chapter or Lore entry, with its parent directory, raw title, and kind; an existing chapter read for continuity is not the target. Use replace only when the user explicitly asked to replace that exact current document, after reading it in this request. Main validates the entire target plan before Scribe runs and cannot rebind the artifact afterward. An accepted result authoritatively means the exact validated artifact was persisted and returns its request-scoped document ref for optional in-scope follow-up; omission of the full Markdown is intentional, not uncertainty.',
     executionMode: 'sequential',
     label: 'Propose generated document',
     name: 'propose_document_writing',
@@ -104,7 +104,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   propose_document_file_operation: {
     description:
-      'Submit a direct reviewable proposal to create a supplied Markdown document under a directory ref or delete a document by ref. Read structure first and reuse its request-scoped project revision ref. For creation, pass the raw metadataTitle without generated numbering and the complete Markdown; displayTitle is read-only context. Generated Scribe prose must use propose_document_writing. Before deletion, read the target and reuse its baseRevision ref. This never changes files without explicit acceptance.',
+      'Submit a direct reviewable proposal to create a supplied Markdown document under a directory ref or delete a document by ref. Read structure first; Main anchors the project and document revisions it served there. For creation, pass the raw metadataTitle without generated numbering and the complete Markdown; displayTitle is read-only context. Generated Scribe prose must use propose_document_writing. This never changes files without explicit acceptance.',
     executionMode: 'sequential',
     label: 'Propose document creation or deletion',
     name: 'propose_document_file_operation',
@@ -112,7 +112,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   propose_project_structure_operation: {
     description:
-      "Submit a reviewable proposal to create a manuscript volume, create a lore category with an approved icon, delete an empty lore category, move a document, or rename a document's metadata title without changing its physical filename. Read structure first and reuse its request-scoped project revision ref. Use only document and directory refs returned in this request. Before moving, read the document and reuse its baseRevision ref. Delete lore documents before deleting their now-empty category. This never changes project structure without explicit acceptance. The tool call waits for the user's decision; after acceptance, continue only the user's existing requested scope.",
+      "Submit a reviewable proposal to create a manuscript volume, create a lore category with an approved icon, delete an empty lore category, move a document, or rename a document's metadata title without changing its physical filename. Read structure first; Main anchors the project and document revisions it served there. Use only document and directory refs returned in this request. Delete lore documents before deleting their now-empty category. This never changes project structure without explicit acceptance. The tool call waits for the user's decision; after acceptance, continue only the user's existing requested scope.",
     executionMode: 'sequential',
     label: 'Propose project structure change',
     name: 'propose_project_structure_operation',

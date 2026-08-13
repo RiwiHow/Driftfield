@@ -51,6 +51,14 @@ Every document result separates its raw `metadataTitle` from its formatted
 `displayTitle`. Numbering and label templates affect only `displayTitle`; Agents
 use `metadataTitle` for creation and title changes and never copy generated
 numbering back into metadata.
+Concurrency revisions are never part of the model-facing surface. Reads do not
+expose a document's disk or content revision, a directory node's revision, or
+the project revision, and no mutation tool accepts them. Main records the exact
+revisions it served for each issued ref in the same request-scoped registry and
+anchors every later mutation to them, so a mutation is only possible for context
+the Agent actually read in this request, and a concurrent user edit still fails
+the ordinary revision check. The numeric story revision remains visible because
+it describes canonical story state rather than a value the Agent must echo.
 The current-document section is the immutable request-start editor draft,
 including unsaved edits; explicit document refs deliberately read persisted
 content. The story-state section contains Personae, Chronicle, Threads, open
@@ -65,7 +73,8 @@ The bounded direct-maintenance surface contains:
   typed additive or linking changes
   to Personae, Chronicle, or Threads within the user's explicit request or
   when unambiguously evidenced by accepted persisted prose. It
-  requires the current numeric story revision and request-scoped refs. Main
+  requires request-scoped refs and is anchored to the story revision Main last
+  served this request. Main
   validates and
   applies the changeset transactionally, records each item in the project
   ledger, and returns the new revision. Ordered create operations may declare a
@@ -112,10 +121,10 @@ The bounded collaboration surface contains `propose_document_writing`, the
 Curator's single Scribe-backed document operation. It binds the semantic
 assignment and reviewed mutation target before generation begins:
 
-- `create` requires the exact request-scoped parent directory and project
-  revision, document kind, raw metadata title, and a null document target;
-- `replace` requires the exact request-start document plus its disk and content
-  revisions, and has no create destination;
+- `create` requires the exact request-scoped parent directory ref, document
+  kind, raw metadata title, and a null document target;
+- `replace` requires the exact request-start document ref and has no create
+  destination;
 - both actions carry the domain, bounded objective and requirements, and
   optional target length.
 
@@ -137,8 +146,9 @@ audit-only so historical conversations can still be rendered.
 Proposal UUIDs remain Main-owned correlation state and never enter a
 model-facing Tool result. Ordinary proposal operations return only their
 terminal status. An accepted `propose_document_writing` call additionally
-returns request-scoped `documentId` and `contentRevision` refs for an optional
-in-scope follow-up. That compact receipt is authoritative confirmation that the
+returns a request-scoped `documentId` ref for an optional in-scope follow-up,
+and Main anchors the persisted revision to that ref rather than returning it.
+That compact receipt is authoritative confirmation that the
 exact reviewed artifact was persisted; it deliberately does not echo the full
 Markdown. Curator must not interpret the omitted body as uncertainty, ask the
 user to verify or accept it again, or reread it merely to confirm persistence.
@@ -168,14 +178,16 @@ describing the first operation regardless of where validation failed.
 The reviewed mutation surface additionally contains:
 
 - `propose_document_edit`, which accepts direct replacement Markdown for the
-  request-start current-document snapshot and binds it to both the disk base
-  revision and draft content revision. Generated replacement prose uses the
-  atomic `propose_document_writing` path;
+  request-start current-document snapshot. Main binds it to the disk base
+  revision and draft content revision it anchored when serving that snapshot, so
+  a document the request never read cannot be edited. Generated replacement
+  prose uses the atomic `propose_document_writing` path;
 - `propose_document_file_operation`, which proposes either creating a Markdown
   document under a request-scoped directory ref or deleting a document by ref.
   Direct creation carries a raw `metadataTitle`, domain kind, and supplied
-  Markdown. Generated creation uses `propose_document_writing`. Deletion binds
-  to both the project revision and persisted document revision.
+  Markdown. Generated creation uses `propose_document_writing`. Main binds both
+  actions to the anchored project revision, and deletion additionally to the
+  anchored document revision.
 - `propose_project_structure_operation`, which proposes creating a manuscript
   volume, creating an icon-bearing lore category, deleting an empty lore
   category, moving a document between compatible request-scoped directory refs, or
@@ -183,17 +195,18 @@ The reviewed mutation surface additionally contains:
   `read_novel_context.structure` returns both each directory's selected icon and the
   complete fixed icon allow-list. Category creation accepts only an icon from
   that list. Category deletion is rejected until every contained document has
-  been separately reviewed and deleted. Moves bind to both the project revision
-  and persisted document revision; manuscript documents cannot be moved into
-  lore or vice versa.
+  been separately reviewed and deleted. Main binds these operations to the
+  anchored project revision, and a move additionally to the anchored document
+  revision; manuscript documents cannot be moved into lore or vice versa.
 - `propose_story_operation`, the reviewed protocol for additive or linking
   story mutations when the user explicitly requests review before application.
   Routine reconciliation of clear facts from accepted generated prose uses
   bounded Maintain instead and does not interrupt the user. Main applies an
   accepted set atomically and
   rebases its individual ledger entries inside that transaction. Chronicle
-  events may carry validated manuscript source identity, revision, relation,
-  and a bounded evidence anchor.
+  events may carry validated manuscript source identity, relation, and a bounded
+  evidence anchor; Main supplies the source revision from the anchored document
+  ref.
 
 Calling a reviewed mutation tool stores a reviewable proposal; it does not
 write the novel. Main generates created document and directory IDs, owns
@@ -269,15 +282,19 @@ per-request call, timeout, individual-result, and cumulative-result budgets.
 Results do not expose physical project paths or raw YAML.
 Maintain execution, proposal construction, and validation remain time-bounded,
 while the subsequent human review wait is intentionally excluded from the
-ordinary tool timeout.
+ordinary tool timeout. A timed-out build still finishes in the background, so
+Main abandons that request's late proposal instead of leaving it pending with no
+decision waiter. An exhausted call or result budget returns a bounded exit
+instruction telling the model to answer with what it already has, so budget
+enforcement cannot become a silent retry loop.
 Only `read_novel_context` may run in parallel. Artifact submission, maintenance,
 question resolution, reconciliation, and every proposal run sequentially so
 dependent refs, revisions, approvals, and mutation ordering cannot race. A
 mutation reserves room for its compact terminal receipt before side effects;
 result-budget enforcement never hides a mutation that already happened.
-Accepted generated-writing receipts contain only `status`, a short document
-ref, and a short content-revision ref. Internal proposal UUIDs and raw SHA-256
-revisions remain behind Main's request-scoped reference registry.
+Accepted generated-writing receipts contain only `status` and a short document
+ref. Internal proposal UUIDs and raw SHA-256 revisions remain behind Main's
+request-scoped reference registry.
 Typed Main failures make the worker's native Tool execution reject, so Pi and
 the provider receive an error ToolResult rather than successful text that merely
 contains `{ "ok": false }`.

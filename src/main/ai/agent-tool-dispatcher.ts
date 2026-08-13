@@ -14,6 +14,7 @@ import type {
   AgentToolRequest,
   AgentToolSuccessResult,
   AgentStoryMaintenanceChange,
+  AgentStoryOperationInput,
   AgentCanonicalStoryQuestionArguments,
 } from '../../shared/contracts/agent-tools';
 import type {
@@ -21,6 +22,8 @@ import type {
   AgentWritingTaskResult,
 } from './agent-writing';
 import {
+  ACCEPTED_DOCUMENT_REFERENCE,
+  isAgentStoryOperation,
   isAgentToolRequest,
   isLongRunningAgentTool,
 } from '../../shared/contracts/agent-tools';
@@ -32,16 +35,14 @@ import type {
   AgentProposalDecision,
   AgentProposalService,
   ResolvedDocumentFileOperationArguments,
+  ResolvedProjectStructureOperationArguments,
 } from './agent-proposal-service';
 import type {
   AgentCreateDocumentProposal,
   AgentEditProposal,
   AgentProposal,
 } from '../../shared/contracts/agent-proposals';
-import {
-  isProjectStoryOperation,
-  type ProjectStorySnapshot,
-} from '../../shared/contracts/project-story';
+import type { ProjectStorySnapshot } from '../../shared/contracts/project-story';
 import { AgentReferenceRegistry } from './agent-reference-registry';
 import { contentRevision } from '../services/project/document-utils';
 
@@ -87,6 +88,10 @@ export const DEFAULT_AGENT_TOOL_POLICY: AgentToolPolicy = {
 
 const MUTATING_TOOL_RESULT_RESERVATION_BYTES = 2 * 1024;
 
+/** Gives an exhausted request a terminating instruction instead of a retry loop. */
+const BUDGET_EXHAUSTED_EXIT_DETAIL =
+  'This request has no tool budget left. Stop calling tools and answer the user with what you already have, stating plainly what remains undone.';
+
 interface RequestBudget {
   calls: number;
   referenceRecoveries: number;
@@ -128,7 +133,11 @@ export class AgentToolDispatcher {
       resultBytes: 0,
     };
     if (budget.calls >= this.policy.maxCalls) {
-      return this.error(request.toolName, 'tool-budget-exceeded');
+      return this.error(
+        request.toolName,
+        'tool-budget-exceeded',
+        BUDGET_EXHAUSTED_EXIT_DETAIL,
+      );
     }
     budget.calls += 1;
     this.budgets.set(scope.requestId, budget);
@@ -148,7 +157,11 @@ export class AgentToolDispatcher {
         budget.resultBytes + MUTATING_TOOL_RESULT_RESERVATION_BYTES >
           this.policy.maxTotalResultBytes)
     ) {
-      return this.error(request.toolName, 'tool-budget-exceeded');
+      return this.error(
+        request.toolName,
+        'tool-budget-exceeded',
+        BUDGET_EXHAUSTED_EXIT_DETAIL,
+      );
     }
 
     try {
@@ -162,7 +175,11 @@ export class AgentToolDispatcher {
         (bytes > this.policy.maxResultBytes ||
           budget.resultBytes + bytes > this.policy.maxTotalResultBytes)
       ) {
-        return this.error(request.toolName, 'tool-budget-exceeded');
+        return this.error(
+          request.toolName,
+          'tool-budget-exceeded',
+          BUDGET_EXHAUSTED_EXIT_DETAIL,
+        );
       }
       budget.resultBytes += bytes;
       return result;
@@ -324,7 +341,7 @@ export class AgentToolDispatcher {
     if (request.toolName === 'maintain_story_records') {
       const changes = request.arguments.changes.map((change) => {
         const clientRef = 'clientRef' in change ? change.clientRef : undefined;
-        const operation = { ...change } as AgentStoryMaintenanceChange & {
+        const operation = { ...change } as AgentStoryOperationInput & {
           clientRef?: string;
         };
         delete operation.clientRef;
@@ -334,9 +351,10 @@ export class AgentToolDispatcher {
       const data = await this.context.maintainStoryRecords(
         contextScope,
         scope.requestId,
-        request.arguments.storyRevision,
+        refs.requireStoryRevision(),
         changes,
       );
+      refs.anchorStoryRevision(data.revision);
       scope.storyChanged?.(data.revision);
       return {
         data,
@@ -366,6 +384,7 @@ export class AgentToolDispatcher {
         registry.storyRevision,
         changes,
       );
+      refs.anchorStoryRevision(data.revision);
       if (scope.completeFocusedStoryReconciliation?.() !== true) {
         throw new ProjectContextError(
           'internal-error',
@@ -397,34 +416,18 @@ export class AgentToolDispatcher {
       };
     }
     if (request.toolName === 'record_story_question') {
-      const argumentsWithResolvedEvidence =
-        request.arguments.evidence !== null &&
-        'documentId' in request.arguments.evidence
-          ? {
-              ...request.arguments,
-              evidence: {
-                ...request.arguments.evidence,
-                documentId: refs.resolve(
-                  request.arguments.evidence.documentId,
-                  'document',
-                ),
-                documentRevision: refs.resolve(
-                  request.arguments.evidence.documentRevision,
-                  'revision',
-                ),
-              },
-            }
-          : request.arguments;
       const input = resolveStoryQuestionArguments(
+        refs,
         scope,
         this.reconciliationRegistries.get(scope.requestId),
-        argumentsWithResolvedEvidence,
+        request.arguments,
       );
       const data = this.context.recordStoryQuestion(
         contextScope,
         scope.requestId,
         input,
       );
+      refs.anchorStoryRevision(data.revision);
       scope.storyChanged?.(data.revision);
       return {
         data: { ...data, questionId: refs.expose('question', data.questionId) },
@@ -460,14 +463,10 @@ export class AgentToolDispatcher {
         ? null
         : refs.resolve(request.arguments.documentId!, 'document');
       let resolvedProjectRevision: string | null = null;
-      let resolvedBaseRevision: string | null = null;
-      let resolvedBaseContentRevision: string | null = null;
+      let anchoredRevisions: { baseContentRevision: string; baseRevision: string } | null = null;
       if (isCreate) {
         const parentId = refs.resolve(request.arguments.parentId!, 'directory');
-        resolvedProjectRevision = refs.resolve(
-          request.arguments.projectRevision!,
-          'revision',
-        );
+        resolvedProjectRevision = refs.requireProjectRevision();
         const parent = nodes.get(parentId);
         if (parent === undefined) throw nodeNotFound(request.arguments.parentId!);
         if (parent.type !== 'directory') {
@@ -488,14 +487,14 @@ export class AgentToolDispatcher {
           );
         }
       } else {
-        resolvedBaseRevision = refs.resolve(
-          request.arguments.baseRevision!,
-          'revision',
+        const anchor = refs.requireDocumentContentAnchor(
+          targetDocumentId!,
+          request.arguments.documentId!,
         );
-        resolvedBaseContentRevision = refs.resolve(
-          request.arguments.baseContentRevision!,
-          'revision',
-        );
+        anchoredRevisions = {
+          baseContentRevision: anchor.contentRevision,
+          baseRevision: anchor.baseRevision,
+        };
         const target = nodes.get(targetDocumentId!);
         if (target === undefined) throw nodeNotFound(request.arguments.documentId!);
         if (target.type !== 'document') {
@@ -510,8 +509,9 @@ export class AgentToolDispatcher {
         if (
           scope.draftSnapshot === undefined ||
           scope.draftSnapshot.documentId !== targetDocumentId ||
-          scope.draftSnapshot.baseRevision !== resolvedBaseRevision ||
-          contentRevision(scope.draftSnapshot.markdown) !== resolvedBaseContentRevision
+          scope.draftSnapshot.baseRevision !== anchoredRevisions.baseRevision ||
+          contentRevision(scope.draftSnapshot.markdown) !==
+            anchoredRevisions.baseContentRevision
         ) {
           throw new ProjectContextError(
             'proposal-base-changed',
@@ -538,7 +538,8 @@ export class AgentToolDispatcher {
       let proposal: AgentCreateDocumentProposal | AgentEditProposal;
       try {
         if (isCreate) {
-          const createdProposal = await this.withTimeout(
+          const createdProposal = await this.buildProposal(
+            scope,
             this.proposals.createFileOperation(scope, {
               kind: request.arguments.kind!,
               markdown: content.markdown,
@@ -554,8 +555,7 @@ export class AgentToolDispatcher {
           proposal = createdProposal;
         } else {
           proposal = this.proposals.create(scope, {
-            baseContentRevision: resolvedBaseContentRevision!,
-            baseRevision: resolvedBaseRevision!,
+            ...anchoredRevisions!,
             documentId: targetDocumentId!,
             markdown: content.markdown,
           });
@@ -588,12 +588,13 @@ export class AgentToolDispatcher {
       if (documentNode.type !== 'document') {
         throw nodeKindMismatch(request.arguments.documentId, 'document', documentNode);
       }
+      const anchor = refs.requireDocumentContentAnchor(
+        documentId,
+        request.arguments.documentId,
+      );
       const proposal = this.proposals.create(scope, {
-        baseContentRevision: refs.resolve(
-          request.arguments.baseContentRevision,
-          'revision',
-        ),
-        baseRevision: refs.resolve(request.arguments.baseRevision, 'revision'),
+        baseContentRevision: anchor.contentRevision,
+        baseRevision: anchor.baseRevision,
         documentId,
         markdown: request.arguments.markdown,
       });
@@ -616,28 +617,29 @@ export class AgentToolDispatcher {
       if (this.proposals === undefined) {
         throw new ProjectContextError('internal-error');
       }
-      const resolvedRequest = request.arguments.operation === 'create'
-        ? {
+      const resolvedRequest = ((): ResolvedDocumentFileOperationArguments => {
+        if (request.arguments.operation === 'create') {
+          return {
             kind: request.arguments.kind,
             markdown: request.arguments.markdown,
             operation: request.arguments.operation,
             parentId: refs.resolve(request.arguments.parentId, 'directory'),
-            projectRevision: refs.resolve(
-              request.arguments.projectRevision,
-              'revision',
-            ),
+            projectRevision: refs.requireProjectRevision(),
             metadataTitle: request.arguments.metadataTitle,
-          } satisfies ResolvedDocumentFileOperationArguments
-        : {
-            ...request.arguments,
-            baseRevision: refs.resolve(request.arguments.baseRevision, 'revision'),
-            documentId: refs.resolve(request.arguments.documentId, 'document'),
-            projectRevision: refs.resolve(
-              request.arguments.projectRevision,
-              'revision',
-            ),
           };
-      const proposal = await this.withTimeout(
+        }
+        const documentId = refs.resolve(request.arguments.documentId, 'document');
+        return {
+          ...request.arguments,
+          baseRevision: refs
+            .requireDocumentAnchor(documentId, request.arguments.documentId)
+            .baseRevision,
+          documentId,
+          projectRevision: refs.requireProjectRevision(),
+        };
+      })();
+      const proposal = await this.buildProposal(
+        scope,
         this.proposals.createFileOperation(scope, resolvedRequest),
       );
       if (scope.sendProposal === undefined) {
@@ -660,7 +662,8 @@ export class AgentToolDispatcher {
         throw new ProjectContextError('internal-error');
       }
       const operation = resolveStructureOperation(refs, request.arguments);
-      const proposal = await this.withTimeout(
+      const proposal = await this.buildProposal(
+        scope,
         this.proposals.createStructureOperation(scope, operation),
       );
       if (scope.sendProposal === undefined) {
@@ -685,8 +688,8 @@ export class AgentToolDispatcher {
       const proposal = this.proposals.createStoryOperation(
         scope,
         {
-          ...request.arguments,
           change: refs.resolveStoryOperation(request.arguments.change),
+          storyRevision: refs.requireStoryRevision(),
         },
       );
       if (scope.sendProposal === undefined) {
@@ -838,6 +841,28 @@ export class AgentToolDispatcher {
         },
       );
     });
+  }
+
+  /**
+   * A timed-out build keeps running, so a proposal can still appear after the
+   * model was told the call failed. Abandon that orphan instead of leaving it
+   * pending with nobody waiting on its decision.
+   */
+  private async buildProposal<T extends { proposalId: string }>(
+    scope: AgentToolScope,
+    operation: Promise<T>,
+  ): Promise<T> {
+    try {
+      return await this.withTimeout(operation);
+    } catch (error) {
+      if (error instanceof ToolTimeoutError) {
+        void operation.then(
+          (proposal) => this.proposals?.abandon(scope.requestId, proposal.proposalId),
+          () => {},
+        );
+      }
+      throw error;
+    }
   }
 
   private error<Name extends AgentToolName>(
@@ -1011,13 +1036,25 @@ const buildAcceptedDocumentChanges = (
 };
 
 const resolveStoryQuestionArguments = (
+  refs: AgentReferenceRegistry,
   scope: AgentToolScope,
   registry: ReconciliationRegistry | undefined,
   input: AgentToolContractMap['record_story_question']['arguments'],
 ): AgentCanonicalStoryQuestionArguments => {
   if (input.evidence === null) return { ...input, evidence: null };
-  if ('documentId' in input.evidence) {
-    return { ...input, evidence: input.evidence };
+  const { anchor, documentId } = input.evidence;
+  if (documentId !== ACCEPTED_DOCUMENT_REFERENCE) {
+    const resolved = refs.resolve(documentId, 'document');
+    return {
+      ...input,
+      evidence: {
+        anchor,
+        documentId: resolved,
+        documentRevision: refs
+          .requireDocumentAnchor(resolved, documentId).baseRevision,
+        sourceKind: 'manuscript',
+      },
+    };
   }
   if (
     registry === undefined ||
@@ -1032,7 +1069,7 @@ const resolveStoryQuestionArguments = (
   return {
     ...input,
     evidence: {
-      anchor: input.evidence.anchor,
+      anchor,
       documentId: registry.acceptedDocumentId,
       documentRevision: registry.acceptedDocumentRevision,
       sourceKind: 'manuscript',
@@ -1043,8 +1080,8 @@ const resolveStoryQuestionArguments = (
 const resolveStructureOperation = (
   refs: AgentReferenceRegistry,
   operation: AgentProjectStructureOperationArguments,
-): AgentProjectStructureOperationArguments => {
-  const projectRevision = refs.resolve(operation.projectRevision, 'revision');
+): ResolvedProjectStructureOperationArguments => {
+  const projectRevision = refs.requireProjectRevision();
   switch (operation.operation) {
     case 'create_volume':
     case 'create_lore_category':
@@ -1055,14 +1092,17 @@ const resolveStructureOperation = (
         directoryId: refs.resolve(operation.directoryId, 'directory'),
         projectRevision,
       };
-    case 'move_document':
+    case 'move_document': {
+      const documentId = refs.resolve(operation.documentId, 'document');
       return {
         ...operation,
-        baseRevision: refs.resolve(operation.baseRevision, 'revision'),
-        documentId: refs.resolve(operation.documentId, 'document'),
+        baseRevision: refs
+          .requireDocumentAnchor(documentId, operation.documentId).baseRevision,
+        documentId,
         projectRevision,
         targetParentId: refs.resolve(operation.targetParentId, 'directory'),
       };
+    }
     case 'rename_document':
       return {
         ...operation,
@@ -1084,17 +1124,18 @@ const exposeDocumentWritingResult = (
   refs: AgentReferenceRegistry,
   proposal: AgentCreateDocumentProposal | AgentEditProposal,
   decision: AgentProposalDecision,
-): AgentToolContractMap['propose_document_writing']['result'] =>
-  decision.status === 'accepted'
-    ? {
-        contentRevision: refs.expose(
-          'revision',
-          contentRevision(proposal.markdown),
-        ),
-        documentId: refs.expose('document', proposal.documentId),
-        status: 'accepted',
-      }
-    : { status: decision.status };
+): AgentToolContractMap['propose_document_writing']['result'] => {
+  if (decision.status !== 'accepted') return { status: decision.status };
+  const persistedRevision = contentRevision(proposal.markdown);
+  refs.anchorDocument(proposal.documentId, {
+    baseRevision: persistedRevision,
+    contentRevision: persistedRevision,
+  });
+  return {
+    documentId: refs.expose('document', proposal.documentId),
+    status: 'accepted',
+  };
+};
 
 const claimWritingArtifact = (
   scope: AgentToolScope,
@@ -1172,7 +1213,7 @@ const toolArgumentShapeHint = (
   args: unknown,
 ): string | undefined => {
   if (toolName === 'propose_document_writing') {
-    return 'propose_document_writing requires exactly 12 fields: documentAction, documentDomain, objective, requirements, targetLength, documentId, parentId, projectRevision, metadataTitle, kind, baseRevision, and baseContentRevision. For create, set documentId/baseRevision/baseContentRevision null and provide parentId/projectRevision/metadataTitle/kind. For replace, provide documentId/baseRevision/baseContentRevision and set parentId/projectRevision/metadataTitle/kind null. A chapter read for continuity is not a replacement target.';
+    return 'propose_document_writing requires exactly 9 fields: documentAction, documentDomain, objective, requirements, targetLength, documentId, parentId, metadataTitle, and kind. For create, set documentId null and provide parentId/metadataTitle/kind. For replace, provide documentId and set parentId/metadataTitle/kind null. A chapter read for continuity is not a replacement target.';
   }
   if (toolName === 'reconcile_accepted_document') {
     return 'reconcile_accepted_document requires events, newPersonae, newThreads, and threadAdvances, plus optional primaryTimeline only when accepted_reconciliation has none. events contains exactly one event. Existing participants use personaRef from accepted_reconciliation; new Personae declare clientRef and are referenced as @clientRef in the same call. Existing Thread advances use threadRef; newThreads embeds its first linked beat. Main owns timeline fallback, moments, sources, ordering, IDs, and checkpoint completion.';
@@ -1181,21 +1222,21 @@ const toolArgumentShapeHint = (
     return 'complete_story_reconciliation requires exactly status and reason. Read accepted_reconciliation after acceptance first. Use applied only after a successful reconciliation mutation, questions_recorded only after recording a question, or no_changes only when neither occurred.';
   }
   if (toolName === 'propose_document_edit') {
-    return 'propose_document_edit requires exactly baseContentRevision, baseRevision, documentId, and markdown. Use only request-scoped refs from read_novel_context. Generated Scribe prose uses propose_document_writing so Main freezes its target before generation.';
+    return 'propose_document_edit requires exactly documentId and markdown. Use only request-scoped refs from read_novel_context. Generated Scribe prose uses propose_document_writing so Main freezes its target before generation.';
   }
   if (
     toolName === 'propose_document_file_operation' &&
     typeof args === 'object' && args !== null &&
     (args as { operation?: unknown }).operation === 'create'
   ) {
-    return 'Document creation requires exactly operation, parentId, projectRevision, metadataTitle, kind, and markdown. metadataTitle is the raw title without generated numbering. Generated Scribe prose uses propose_document_writing.';
+    return 'Document creation requires exactly operation, parentId, metadataTitle, kind, and markdown. metadataTitle is the raw title without generated numbering. Generated Scribe prose uses propose_document_writing.';
   }
   if (
     toolName === 'propose_project_structure_operation' &&
     typeof args === 'object' && args !== null &&
     (args as { operation?: unknown }).operation === 'rename_document'
   ) {
-    return 'rename_document requires exactly operation, projectRevision, documentId, and metadataTitle. metadataTitle is the raw title without generated numbering; the physical filename is preserved.';
+    return 'rename_document requires exactly operation, documentId, and metadataTitle. metadataTitle is the raw title without generated numbering; the physical filename is preserved.';
   }
   if (
     (toolName !== 'maintain_story_records' && toolName !== 'propose_story_operation') ||
@@ -1292,9 +1333,9 @@ const storyOperationArgumentError = (
   if (missing !== undefined) {
     return `${storyWirePath(path, operation, missing)} is required for ${operation}.`;
   }
-  const { clientRef: _clientRef, ...canonical } = change;
-  if (isProjectStoryOperation(canonical)) return undefined;
-  return storyOperationValueError(canonical, path, operation);
+  const { clientRef: _clientRef, ...operationFields } = change;
+  if (isAgentStoryOperation(operationFields, allowClientRef)) return undefined;
+  return storyOperationValueError(operationFields, path, operation);
 };
 
 const storyOperationValueError = (
@@ -1410,7 +1451,9 @@ const storyWirePath = (path: string, operation: string, field: string): string =
       : `${path}.threadStatus`;
 
 const isStoryId = (value: unknown): boolean =>
-  typeof value === 'string' && value.length > 0 && value.length <= 128;
+  typeof value === 'string' &&
+  (/^[a-z]+:[1-9][0-9]{0,4}$/u.test(value) ||
+    /^@[A-Za-z][A-Za-z0-9_-]{0,31}$/u.test(value));
 
 const isStoryThreadStatus = (value: unknown): boolean =>
   typeof value === 'string' && ['planned', 'active', 'resolved', 'abandoned'].includes(value);
@@ -1468,20 +1511,14 @@ const storySourcesError = (
     }
     const item = source as Record<string, unknown>;
     const keys = Object.keys(item);
-    if (keys.length !== 5 || keys.some((key) =>
-      !['anchor', 'documentId', 'documentRevision', 'relation', 'sourceKind']
-        .includes(key))) {
-      return `${itemPath} requires exactly anchor, documentId, documentRevision, relation, and sourceKind.`;
+    if (keys.length !== 4 || keys.some((key) =>
+      !['anchor', 'documentId', 'relation', 'sourceKind'].includes(key))) {
+      return `${itemPath} requires exactly anchor, documentId, relation, and sourceKind.`;
     }
     if (item.anchor !== null && !isBoundedStoryText(item.anchor, 10_000, true)) {
       return `${itemPath}.anchor must be null or a string of at most 10000 characters.`;
     }
     if (!isStoryId(item.documentId)) return `${itemPath}.documentId is invalid.`;
-    if (typeof item.documentRevision !== 'string' ||
-      !(/^revision:[1-9][0-9]*$/u.test(item.documentRevision) ||
-        /^[a-f0-9]{64}$/u.test(item.documentRevision))) {
-      return `${itemPath}.documentRevision must be a request-scoped revision ref.`;
-    }
     if (!['depicted', 'mentioned', 'inferred'].includes(item.relation as string)) {
       return `${itemPath}.relation is invalid.`;
     }

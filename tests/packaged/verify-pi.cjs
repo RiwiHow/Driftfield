@@ -107,8 +107,13 @@ assert.doesNotMatch(
 );
 assert.match(
   workerBundle,
-  /baseContentRevision/,
-  'The packaged Pi worker is missing pre-bound document revision checks.',
+  /documentAction/,
+  'The packaged Pi worker is missing the pre-bound create-or-replace document plan.',
+);
+assert.doesNotMatch(
+  workerBundle,
+  /baseContentRevision|baseRevision|projectRevision|storyRevision/,
+  'The packaged Pi worker still asks the model for concurrency revisions Main anchors itself.',
 );
 
 const electronPath = require('electron');

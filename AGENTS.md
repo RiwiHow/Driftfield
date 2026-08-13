@@ -161,10 +161,19 @@ See [Project Format](docs/project-format.md).
 - Update shared contracts and add focused protocol, dispatcher, lifecycle, and
   packaged-worker tests appropriate to the changed capability.
 
-The current read-only surface is `get_novel_structure`,
-`get_current_document`, `get_document`, and `get_story_state`. It returns
-stable-ID-based, path-free context through main-owned services. Do not broaden
-this surface with generic filesystem or database access.
+The current read-only surface is the single `read_novel_context` tool, whose
+`include` sections cover structure, the current document, explicitly selected
+documents and directory children, story state, and accepted-document
+reconciliation. It returns ref-based, path-free context through main-owned
+services. Do not broaden this surface with generic filesystem or database
+access.
+
+Concurrency revisions stay out of the model-facing surface. Reads do not expose
+document, node, or project revisions, and mutation tools do not accept them.
+Main anchors the revisions it served for each issued ref and binds later
+mutations to those anchors, so a mutation requires context read in the same
+request and still fails the ordinary revision check after a concurrent user
+edit.
 
 See [Agent Tools and Prompts](docs/ai/tools-and-prompts.md) and
 [Pi Worker Integration](docs/ai/pi-worker.md).

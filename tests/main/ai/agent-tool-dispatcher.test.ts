@@ -22,6 +22,15 @@ const documentResult = {
   source: 'disk' as const,
 };
 
+/** What the model receives: the same read without Main's revision anchors. */
+const documentContext = {
+  displayTitle: documentResult.displayTitle,
+  documentId: documentResult.documentId,
+  markdown: documentResult.markdown,
+  metadataTitle: documentResult.metadataTitle,
+  source: documentResult.source,
+};
+
 const novelStructure = {
   availableIcons: [],
   format: 'driftfield' as const,
@@ -60,6 +69,20 @@ const novelStructure = {
   project: { id: 'project-1', revision: 'revision', title: 'Novel' },
 };
 
+const emptyStory = {
+  beats: [],
+  eventLinks: [],
+  eventParticipants: [],
+  eventSources: [],
+  events: [],
+  moments: [],
+  personae: [],
+  questions: [],
+  revision: 3,
+  threads: [],
+  timelines: [],
+};
+
 const scope = { ownerId: 7, projectSessionId: 'session-1', requestId: 'request-1' };
 
 const readStructureRefs = async (
@@ -68,6 +91,17 @@ const readStructureRefs = async (
 ): Promise<void> => {
   const result = await dispatcher.execute(toolScope, {
     arguments: { directoryIds: [], documentIds: [], include: ['structure'] },
+    toolName: 'read_novel_context',
+  });
+  expect(result).toMatchObject({ ok: true, toolName: 'read_novel_context' });
+};
+
+const readStoryStateRefs = async (
+  dispatcher: AgentToolDispatcher,
+  toolScope: AgentToolScope = scope,
+): Promise<void> => {
+  const result = await dispatcher.execute(toolScope, {
+    arguments: { directoryIds: [], documentIds: [], include: ['story_state'] },
     toolName: 'read_novel_context',
   });
   expect(result).toMatchObject({ ok: true, toolName: 'read_novel_context' });
@@ -137,24 +171,13 @@ describe('AgentToolDispatcher', () => {
     })).resolves.toEqual({
       data: {
         currentDocument: {
-          ...currentDocument,
-          baseRevision: 'revision:2',
-          contentRevision: 'revision:3',
+          ...documentContext,
           documentId: 'document:1',
+          source: 'draft',
         },
         documents: [
-          {
-            ...documentResult,
-            baseRevision: 'revision:2',
-            contentRevision: 'revision:3',
-            documentId: 'document:1',
-          },
-          {
-            ...documentResult,
-            baseRevision: 'revision:2',
-            contentRevision: 'revision:3',
-            documentId: 'document:2',
-          },
+          { ...documentContext, documentId: 'document:1' },
+          { ...documentContext, documentId: 'document:2' },
         ],
         storyState,
         structure: {
@@ -179,11 +202,7 @@ describe('AgentToolDispatcher', () => {
             }],
             id: 'directory:1',
           },
-          project: {
-            ...novelStructure.project,
-            id: 'project:1',
-            revision: 'revision:1',
-          },
+          project: { id: 'project:1', title: 'Novel' },
         },
       },
       ok: true,
@@ -403,7 +422,7 @@ describe('AgentToolDispatcher', () => {
           context: 'The accepted chapter leaves the actor uncertain.',
           evidence: {
             anchor: 'The mirror glowed.',
-            sourceRef: 'document:accepted',
+            documentId: 'document:accepted',
           },
           kind: 'other',
           options: [],
@@ -676,8 +695,6 @@ describe('AgentToolDispatcher', () => {
       sendProposal,
     }, {
       arguments: {
-        baseContentRevision: null,
-        baseRevision: null,
         documentAction: 'create',
         documentDomain: 'manuscript',
         documentId: null,
@@ -685,17 +702,12 @@ describe('AgentToolDispatcher', () => {
         metadataTitle: 'Second chapter',
         objective: 'Write the second chapter as a new document.',
         parentId: 'directory:1',
-        projectRevision: 'revision:1',
         requirements: ['Continue from the first chapter without replacing it.'],
         targetLength: 3_000,
       },
       toolName: 'propose_document_writing',
     })).resolves.toEqual({
-      data: {
-        contentRevision: 'revision:2',
-        documentId: 'document:3',
-        status: 'accepted',
-      },
+      data: { documentId: 'document:3', status: 'accepted' },
       ok: true,
       toolName: 'propose_document_writing',
     });
@@ -733,8 +745,6 @@ describe('AgentToolDispatcher', () => {
 
     await expect(dispatcher.execute({ ...scope, delegateWriting }, {
       arguments: {
-        baseContentRevision: null,
-        baseRevision: null,
         documentAction: 'create',
         documentDomain: 'manuscript',
         documentId: 'document:1',
@@ -742,7 +752,6 @@ describe('AgentToolDispatcher', () => {
         metadataTitle: 'Second chapter',
         objective: 'Write the second chapter.',
         parentId: 'directory:1',
-        projectRevision: 'revision:1',
         requirements: [],
         targetLength: null,
       },
@@ -763,6 +772,7 @@ describe('AgentToolDispatcher', () => {
       summary: '',
     };
     const context = {
+      getStoryState: vi.fn().mockResolvedValue(emptyStory),
       maintainStoryRecords: vi.fn(() => ({
         appliedCount: 1,
         revision: 1,
@@ -772,10 +782,19 @@ describe('AgentToolDispatcher', () => {
     const storyChanged = vi.fn();
     const dispatcher = new AgentToolDispatcher(context);
 
+    await expect(dispatcher.execute({ ...scope, storyChanged }, {
+      arguments: { changes: [change] },
+      toolName: 'maintain_story_records',
+    })).resolves.toMatchObject({
+      error: { code: 'invalid-arguments' },
+      ok: false,
+    });
+
+    await readStoryStateRefs(dispatcher);
     await expect(dispatcher.execute(
       { ...scope, storyChanged },
       {
-        arguments: { changes: [change], storyRevision: 0 },
+        arguments: { changes: [change] },
         toolName: 'maintain_story_records',
       },
     )).resolves.toEqual({
@@ -790,10 +809,21 @@ describe('AgentToolDispatcher', () => {
     expect(context.maintainStoryRecords).toHaveBeenCalledWith(
       { ownerId: 7, projectSessionId: 'session-1' },
       'request-1',
-      0,
+      3,
       [change],
     );
     expect(storyChanged).toHaveBeenCalledWith(1);
+
+    await dispatcher.execute({ ...scope, storyChanged }, {
+      arguments: { changes: [change] },
+      toolName: 'maintain_story_records',
+    });
+    expect(context.maintainStoryRecords).toHaveBeenLastCalledWith(
+      expect.anything(),
+      'request-1',
+      1,
+      [change],
+    );
   });
 
   it('records an ambiguity without applying a canonical story operation', async () => {
@@ -880,7 +910,7 @@ describe('AgentToolDispatcher', () => {
       ok: true,
     });
     await expect(dispatcher.execute({ ...scope, sendProposal }, {
-      arguments: { change, storyRevision: 0 },
+      arguments: { change },
       toolName: 'propose_story_operation',
     })).resolves.toMatchObject({
       data: { status: 'accepted' },
@@ -900,7 +930,6 @@ describe('AgentToolDispatcher', () => {
           operation: 'create_timeline',
           title: 'Imperial calendar',
         },
-        storyRevision: 0,
       },
       toolName: 'propose_story_operation',
     })).resolves.toEqual({
@@ -924,7 +953,7 @@ describe('AgentToolDispatcher', () => {
           operation: 'create_moment',
           orderKey: 2,
           precision: 'season',
-          timelineId: 'timeline-1',
+          timelineId: 'timeline:1',
         }, {
           causes: '',
           consequences: '',
@@ -934,10 +963,9 @@ describe('AgentToolDispatcher', () => {
           startMomentId: '@hearing',
           status: undefined,
           summary: '',
-          timelineId: 'timeline-1',
+          timelineId: 'timeline:1',
           title: 'The hearing',
         }],
-        storyRevision: 5,
       },
       toolName: 'maintain_story_records',
     })).resolves.toEqual({
@@ -950,16 +978,36 @@ describe('AgentToolDispatcher', () => {
     });
   });
 
+  it('names the offending reference instead of a generic shape complaint', async () => {
+    const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
+    await expect(dispatcher.execute(scope, {
+      arguments: {
+        changes: [{
+          displayTime: 'Late spring',
+          note: '',
+          operation: 'create_moment',
+          orderKey: 2,
+          precision: 'season',
+          timelineId: 'timeline-1',
+        }],
+      },
+      toolName: 'maintain_story_records',
+    })).resolves.toEqual({
+      error: {
+        code: 'invalid-arguments',
+        detail:
+          'changes[0].timelineId must be a request-scoped ref or compatible earlier @clientRef.',
+      },
+      ok: false,
+      toolName: 'maintain_story_records',
+    });
+  });
+
   it('returns a recoverable source hint for malformed document proposals', async () => {
     const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
 
     await expect(dispatcher.execute(scope, {
-      arguments: {
-        baseContentRevision: 'a'.repeat(64),
-        baseRevision: 'b'.repeat(64),
-        documentId: 'chapter-1',
-        markdown: null,
-      },
+      arguments: { documentId: 'chapter-1', markdown: null },
       toolName: 'propose_document_edit',
     })).resolves.toEqual({
       error: {
@@ -1011,8 +1059,6 @@ describe('AgentToolDispatcher', () => {
       { ...scope, sendProposal },
       {
         arguments: {
-          baseContentRevision: 'revision:3',
-          baseRevision: 'revision:2',
           documentId: 'document:1',
           markdown: proposal.markdown,
         },
@@ -1080,8 +1126,6 @@ describe('AgentToolDispatcher', () => {
       { ...scope, sendProposal },
       {
         arguments: {
-          baseContentRevision: 'revision:3',
-          baseRevision: 'revision:2',
           documentId: 'document:1',
           markdown: proposal.markdown,
         },
@@ -1134,7 +1178,6 @@ describe('AgentToolDispatcher', () => {
           markdown: proposal.markdown,
           operation: 'create',
           parentId: 'directory:1',
-          projectRevision: 'revision:1',
           metadataTitle: 'Created',
         },
         toolName: 'propose_document_file_operation',
@@ -1191,7 +1234,6 @@ describe('AgentToolDispatcher', () => {
       {
         arguments: {
           operation: 'create_volume',
-          projectRevision: 'revision:1',
           title: 'Volume Two',
         },
         toolName: 'propose_project_structure_operation',
@@ -1235,7 +1277,6 @@ describe('AgentToolDispatcher', () => {
         documentId: 'document:1',
         metadataTitle: proposal.title,
         operation: 'rename_document',
-        projectRevision: 'revision:1',
       },
       toolName: 'propose_project_structure_operation',
     })).resolves.toMatchObject({
@@ -1276,7 +1317,10 @@ describe('AgentToolDispatcher', () => {
       arguments: { directoryIds: [], documentIds: ['chapter-1'], include: [] },
       toolName: 'read_novel_context',
     })).resolves.toEqual({
-      error: { code: 'tool-budget-exceeded' },
+      error: {
+        code: 'tool-budget-exceeded',
+        detail: expect.stringContaining('Stop calling tools'),
+      },
       ok: false,
       toolName: 'read_novel_context',
     });
@@ -1302,11 +1346,13 @@ describe('AgentToolDispatcher', () => {
           role: null,
           summary: '',
         }],
-        storyRevision: 0,
       },
       toolName: 'maintain_story_records',
     })).resolves.toEqual({
-      error: { code: 'tool-budget-exceeded' },
+      error: {
+        code: 'tool-budget-exceeded',
+        detail: expect.stringContaining('Stop calling tools'),
+      },
       ok: false,
       toolName: 'maintain_story_records',
     });
@@ -1359,7 +1405,10 @@ describe('AgentToolDispatcher', () => {
       arguments: { directoryIds: [], documentIds: [], include: ['structure'] },
       toolName: 'read_novel_context',
     })).resolves.toEqual({
-      error: { code: 'tool-budget-exceeded' },
+      error: {
+        code: 'tool-budget-exceeded',
+        detail: expect.stringContaining('Stop calling tools'),
+      },
       ok: false,
       toolName: 'read_novel_context',
     });
@@ -1413,6 +1462,43 @@ describe('AgentToolDispatcher', () => {
     });
   });
 
+  it('abandons a proposal that finishes building after its call timed out', async () => {
+    vi.useFakeTimers();
+    let settle: (proposal: unknown) => void = () => {};
+    const proposals = {
+      abandon: vi.fn(),
+      cancelRequest: vi.fn(),
+      createStructureOperation: vi.fn(() => new Promise((resolve) => {
+        settle = resolve;
+      })),
+      waitForDecision: vi.fn(),
+    } as unknown as AgentProposalService;
+    const dispatcher = new AgentToolDispatcher(
+      {
+        getNovelStructure: vi.fn().mockResolvedValue(novelStructure),
+      } as unknown as ProjectContextService,
+      { maxCalls: 4, maxResultBytes: 10_000, maxTotalResultBytes: 10_000, timeoutMs: 25 },
+      proposals,
+    );
+    await readStructureRefs(dispatcher);
+    const result = dispatcher.execute({ ...scope, sendProposal: vi.fn() }, {
+      arguments: { operation: 'create_volume', title: 'Volume Two' },
+      toolName: 'propose_project_structure_operation',
+    });
+
+    await vi.advanceTimersByTimeAsync(25);
+    await expect(result).resolves.toEqual({
+      error: { code: 'tool-timeout' },
+      ok: false,
+      toolName: 'propose_project_structure_operation',
+    });
+
+    settle({ proposalId: 'proposal-late' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(proposals.abandon).toHaveBeenCalledWith('request-1', 'proposal-late');
+    expect(proposals.waitForDecision).not.toHaveBeenCalled();
+  });
+
   it('enforces cumulative result bytes and can release request state', async () => {
     const context = {
       getCurrentDocument: vi.fn(),
@@ -1434,7 +1520,10 @@ describe('AgentToolDispatcher', () => {
 
     expect(first.ok).toBe(true);
     expect(second).toEqual({
-      error: { code: 'tool-budget-exceeded' },
+      error: {
+        code: 'tool-budget-exceeded',
+        detail: expect.stringContaining('Stop calling tools'),
+      },
       ok: false,
       toolName: 'read_novel_context',
     });

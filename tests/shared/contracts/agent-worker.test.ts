@@ -130,11 +130,7 @@ describe("Agent utility-process protocol", () => {
               title: "Manuscript",
               type: "directory",
             },
-            project: {
-              id: "project:1",
-              revision: "revision:1",
-              title: "Novel",
-            },
+            project: { id: "project:1", title: "Novel" },
           } },
           ok: true,
           toolName: "read_novel_context",
@@ -148,8 +144,6 @@ describe("Agent utility-process protocol", () => {
         requestId: "request-1",
         result: {
           data: { documents: [{
-            baseRevision: "revision:1",
-            contentRevision: "revision:2",
             displayTitle: "1. Chapter",
             documentId: "document:1",
             markdown: "Chapter text",
