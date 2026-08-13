@@ -10,12 +10,12 @@ import type {
   AgentMoveDocumentProposal,
   AgentRenameDocumentProposal,
   AgentStoryProposal,
+  AgentProposalOutcomeStatus,
   ApplyAgentProposalResult,
 } from '../../shared/contracts/agent-proposals';
 import type {
   AgentDocumentFileOperationArguments,
   AgentProjectStructureOperationArguments,
-  AgentProposalToolResult,
   AgentDraftSnapshot,
 } from '../../shared/contracts/agent-tools';
 import type { ProjectStoryOperation } from '../../shared/contracts/project-story';
@@ -68,7 +68,12 @@ interface StoredProposal {
 interface ProposalDecisionWaiter {
   ownerId: number;
   requestId: string;
-  resolve: (result: AgentProposalToolResult) => void;
+  resolve: (result: AgentProposalDecision) => void;
+}
+
+export interface AgentProposalDecision {
+  proposalId: string;
+  status: AgentProposalOutcomeStatus;
 }
 
 export class AgentProposalService {
@@ -441,7 +446,7 @@ export class AgentProposalService {
   waitForDecision(
     requestId: string,
     proposalId: string,
-  ): Promise<AgentProposalToolResult> {
+  ): Promise<AgentProposalDecision> {
     const stored = this.proposals.get(proposalId);
     if (stored === undefined || stored.proposal.requestId !== requestId) {
       throw new ProjectContextError('internal-error');
@@ -818,7 +823,7 @@ export class AgentProposalService {
   private resolveDecision(
     ownerId: number,
     proposalId: string,
-    status: AgentProposalToolResult['status'],
+    status: AgentProposalOutcomeStatus,
   ): void {
     const waiter = this.decisionWaiters.get(proposalId);
     if (waiter === undefined || waiter.ownerId !== ownerId) return;

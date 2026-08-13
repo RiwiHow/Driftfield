@@ -336,14 +336,55 @@ describe('Agent proposal tool contract', () => {
       toolName: 'propose_document_edit',
     })).toBe(false);
     expect(isAgentToolExecutionResult({
-      data: { proposalId: 'proposal:1', status: 'accepted' },
+      data: { status: 'accepted' },
       ok: true,
       toolName: 'propose_document_edit',
     })).toBe(true);
     expect(isAgentToolExecutionResult({
-      data: { proposalId: 'proposal:1', status: 'proposed' },
+      data: {
+        proposalId: 'ba778599-40fd-4718-b596-75ca5933ef04',
+        status: 'accepted',
+      },
       ok: true,
       toolName: 'propose_document_edit',
+    })).toBe(false);
+    expect(isAgentToolExecutionResult({
+      data: { status: 'proposed' },
+      ok: true,
+      toolName: 'propose_document_edit',
+    })).toBe(false);
+    expect(isAgentToolExecutionResult({
+      data: {
+        contentRevision: 'revision:2',
+        documentId: 'document:3',
+        status: 'accepted',
+      },
+      ok: true,
+      toolName: 'propose_document_writing',
+    })).toBe(true);
+    expect(isAgentToolExecutionResult({
+      data: { status: 'rejected' },
+      ok: true,
+      toolName: 'propose_document_writing',
+    })).toBe(true);
+    expect(isAgentToolExecutionResult({
+      data: {
+        contentRevision: 'revision:2',
+        documentId: 'document:3',
+        proposalId: 'ba778599-40fd-4718-b596-75ca5933ef04',
+        status: 'accepted',
+      },
+      ok: true,
+      toolName: 'propose_document_writing',
+    })).toBe(false);
+    expect(isAgentToolExecutionResult({
+      data: {
+        contentRevision: 'revision:2',
+        documentId: 'document:3',
+        status: 'rejected',
+      },
+      ok: true,
+      toolName: 'propose_document_writing',
     })).toBe(false);
   });
 

@@ -134,6 +134,15 @@ a later call. Delegation identity and artifact claims are Main-owned internal
 state; the retired `delegate_writing` and `revise_writing_artifact` names remain
 audit-only so historical conversations can still be rendered.
 
+Proposal UUIDs remain Main-owned correlation state and never enter a
+model-facing Tool result. Ordinary proposal operations return only their
+terminal status. An accepted `propose_document_writing` call additionally
+returns request-scoped `documentId` and `contentRevision` refs for an optional
+in-scope follow-up. That compact receipt is authoritative confirmation that the
+exact reviewed artifact was persisted; it deliberately does not echo the full
+Markdown. Curator must not interpret the omitted body as uncertainty, ask the
+user to verify or accept it again, or reread it merely to confirm persistence.
+
 Acceptance of a Scribe-backed Manuscript proposal creates or ensures one
 durable `story_reconciliation_jobs` row bound to the accepted document and its
 exact content revision. The normal Curator run completes it; a later run
@@ -266,6 +275,9 @@ question resolution, reconciliation, and every proposal run sequentially so
 dependent refs, revisions, approvals, and mutation ordering cannot race. A
 mutation reserves room for its compact terminal receipt before side effects;
 result-budget enforcement never hides a mutation that already happened.
+Accepted generated-writing receipts contain only `status`, a short document
+ref, and a short content-revision ref. Internal proposal UUIDs and raw SHA-256
+revisions remain behind Main's request-scoped reference registry.
 Typed Main failures make the worker's native Tool execution reject, so Pi and
 the provider receive an error ToolResult rather than successful text that merely
 contains `{ "ok": false }`.
@@ -310,8 +322,8 @@ markers. Persisted conversation text is unchanged, so Renderer continues to
 show the original narration, refs, and Tool activity for inspection. Persisted
 Tool activity remains an audit/UI record and is not injected as dialogue.
 Terminal proposal outcomes are the exception: Main supplies a bounded typed
-list of accepted, rejected, or
-failed outcomes as trusted application context on later turns, so the model
+list of accepted, rejected, or failed outcomes as trusted application context
+on later turns, so the model
 does not mistake an already accepted proposal for one still awaiting approval.
 This list includes every terminal proposal recorded in a multi-proposal
 assistant message, not only its latest proposal.

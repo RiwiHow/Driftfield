@@ -17,7 +17,6 @@ type ReferenceKind =
   | 'moment'
   | 'persona'
   | 'project'
-  | 'proposal'
   | 'question'
   | 'request'
   | 'revision'

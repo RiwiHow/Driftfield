@@ -29,10 +29,15 @@ import {
   type ProjectContextService,
 } from './project-context-service';
 import type {
+  AgentProposalDecision,
   AgentProposalService,
   ResolvedDocumentFileOperationArguments,
 } from './agent-proposal-service';
-import type { AgentProposal } from '../../shared/contracts/agent-proposals';
+import type {
+  AgentCreateDocumentProposal,
+  AgentEditProposal,
+  AgentProposal,
+} from '../../shared/contracts/agent-proposals';
 import {
   isProjectStoryOperation,
   type ProjectStorySnapshot,
@@ -530,23 +535,31 @@ export class AgentToolDispatcher {
         targetDocumentId,
         request.arguments.documentDomain,
       );
-      let proposal: AgentProposal;
+      let proposal: AgentCreateDocumentProposal | AgentEditProposal;
       try {
-        proposal = isCreate
-          ? await this.withTimeout(this.proposals.createFileOperation(scope, {
+        if (isCreate) {
+          const createdProposal = await this.withTimeout(
+            this.proposals.createFileOperation(scope, {
               kind: request.arguments.kind!,
               markdown: content.markdown,
               metadataTitle: request.arguments.metadataTitle!,
               operation: 'create',
               parentId: refs.resolve(request.arguments.parentId!, 'directory'),
               projectRevision: resolvedProjectRevision!,
-            }))
-          : this.proposals.create(scope, {
-              baseContentRevision: resolvedBaseContentRevision!,
-              baseRevision: resolvedBaseRevision!,
-              documentId: targetDocumentId!,
-              markdown: content.markdown,
-            });
+            }),
+          );
+          if (createdProposal.operation !== 'create') {
+            throw new ProjectContextError('internal-error');
+          }
+          proposal = createdProposal;
+        } else {
+          proposal = this.proposals.create(scope, {
+            baseContentRevision: resolvedBaseContentRevision!,
+            baseRevision: resolvedBaseRevision!,
+            documentId: targetDocumentId!,
+            markdown: content.markdown,
+          });
+        }
       } catch (error) {
         content.release();
         throw error;
@@ -557,7 +570,7 @@ export class AgentToolDispatcher {
       );
       scope.sendProposal(proposal);
       return {
-        data: exposeProposalResult(refs, await decision),
+        data: exposeDocumentWritingResult(refs, proposal, await decision),
         ok: true,
         toolName: request.toolName,
       };
@@ -594,7 +607,7 @@ export class AgentToolDispatcher {
       );
       scope.sendProposal(proposal);
       return {
-        data: exposeProposalResult(refs, await decision),
+        data: exposeProposalResult(await decision),
         ok: true,
         toolName: request.toolName,
       };
@@ -637,7 +650,7 @@ export class AgentToolDispatcher {
       );
       scope.sendProposal(proposal);
       return {
-        data: exposeProposalResult(refs, await decision),
+        data: exposeProposalResult(await decision),
         ok: true,
         toolName: request.toolName,
       };
@@ -660,7 +673,7 @@ export class AgentToolDispatcher {
       );
       scope.sendProposal(proposal);
       return {
-        data: exposeProposalResult(refs, await decision),
+        data: exposeProposalResult(await decision),
         ok: true,
         toolName: request.toolName,
       };
@@ -686,7 +699,7 @@ export class AgentToolDispatcher {
       );
       scope.sendProposal(proposal);
       return {
-        data: exposeProposalResult(refs, await decision),
+        data: exposeProposalResult(await decision),
         ok: true,
         toolName: request.toolName,
       };
@@ -1062,12 +1075,26 @@ const resolveStructureOperation = (
 class ToolTimeoutError extends Error {}
 
 const exposeProposalResult = (
-  refs: AgentReferenceRegistry,
-  result: AgentToolContractMap['propose_document_edit']['result'],
+  decision: AgentProposalDecision,
 ): AgentToolContractMap['propose_document_edit']['result'] => ({
-  ...result,
-  proposalId: refs.expose('proposal', result.proposalId),
+  status: decision.status,
 });
+
+const exposeDocumentWritingResult = (
+  refs: AgentReferenceRegistry,
+  proposal: AgentCreateDocumentProposal | AgentEditProposal,
+  decision: AgentProposalDecision,
+): AgentToolContractMap['propose_document_writing']['result'] =>
+  decision.status === 'accepted'
+    ? {
+        contentRevision: refs.expose(
+          'revision',
+          contentRevision(proposal.markdown),
+        ),
+        documentId: refs.expose('document', proposal.documentId),
+        status: 'accepted',
+      }
+    : { status: decision.status };
 
 const claimWritingArtifact = (
   scope: AgentToolScope,

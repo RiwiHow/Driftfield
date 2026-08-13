@@ -137,9 +137,15 @@ it is never the operation target. After validation:
    revision-checked Main-owned mutation.
 
 The internal assignment identity remains compact Main-owned state and is never
-returned to Curator for manual composition. The retired lower-level delegation
-and artifact-revision tool names remain audit-only for historical conversations;
-they are not registered in the worker or enabled on either role surface.
+returned to Curator for manual composition. Proposal UUIDs likewise stay in
+Main. A rejected or failed proposal returns only its terminal status; accepted
+generated writing returns that status plus short request-scoped document and
+content-revision refs. This is authoritative persistence confirmation, not an
+invitation to inspect the UI, accept again, or reread the document solely for
+verification. The Markdown remains out of Curator context. The retired
+lower-level delegation and artifact-revision tool names remain audit-only for
+historical conversations; they are not registered in the worker or enabled on
+either role surface.
 
 Invalid artifacts are terminal workflow results and never become blank or
 partial document proposals. A target-plan mistake is rejected before Scribe

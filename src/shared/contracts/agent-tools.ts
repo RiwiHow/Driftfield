@@ -179,10 +179,28 @@ export interface AgentAcceptedDocumentReconciliationArguments {
   }>;
 }
 
+export type AgentProposalToolStatus =
+  import('./agent-proposals').AgentProposalOutcomeStatus;
+
+/** Terminal model-facing receipt. The internal proposal identity stays in Main. */
 export interface AgentProposalToolResult {
-  proposalId: string;
-  status: 'accepted' | 'rejected' | 'conflict' | 'missing' | 'stale' | 'failed';
+  status: AgentProposalToolStatus;
 }
+
+/**
+ * Accepted generated writing exposes only the persisted artifact refs needed by
+ * an optional in-scope follow-up. The generated Markdown remains out of the
+ * Curator context.
+ */
+export type AgentDocumentWritingToolResult =
+  | {
+      contentRevision: string;
+      documentId: string;
+      status: 'accepted';
+    }
+  | {
+      status: Exclude<AgentProposalToolStatus, 'accepted'>;
+    };
 
 export interface AgentStoryMaintenanceToolResult {
   appliedCount: number;
@@ -365,7 +383,7 @@ export interface AgentToolContractMap {
   };
   propose_document_writing: {
     arguments: AgentDocumentWritingProposalArguments;
-    result: AgentProposalToolResult;
+    result: AgentDocumentWritingToolResult;
   };
   propose_document_file_operation: {
     arguments: AgentDocumentFileOperationArguments;
@@ -751,8 +769,9 @@ const isToolData = (toolName: AgentToolName, value: unknown): boolean =>
       ? isAcceptedDocumentReconciliationResult(value)
     : toolName === 'record_story_question' || toolName === 'resolve_story_question'
       ? isStoryQuestionResult(value)
+    : toolName === 'propose_document_writing'
+      ? isDocumentWritingProposalResult(value)
     : toolName === 'propose_document_edit' ||
-        toolName === 'propose_document_writing' ||
         toolName === 'propose_document_file_operation' ||
         toolName === 'propose_project_structure_operation' ||
         toolName === 'propose_story_operation'
@@ -851,10 +870,21 @@ const isWritingArtifactSubmissionResult = (value: unknown): boolean =>
 
 const isEditProposalResult = (value: unknown): boolean =>
   isRecord(value) &&
-  isRequestReferenceOfKind(value.proposalId, 'proposal') &&
+  Object.keys(value).length === 1 &&
   typeof value.status === 'string' &&
   ['accepted', 'rejected', 'conflict', 'missing', 'stale', 'failed']
     .includes(value.status);
+
+const isDocumentWritingProposalResult = (value: unknown): boolean => {
+  if (!isRecord(value) || typeof value.status !== 'string') return false;
+  if (value.status === 'accepted') {
+    return Object.keys(value).length === 3 &&
+      isRequestReferenceOfKind(value.documentId, 'document') &&
+      isRequestReferenceOfKind(value.contentRevision, 'revision');
+  }
+  return Object.keys(value).length === 1 &&
+    ['rejected', 'conflict', 'missing', 'stale', 'failed'].includes(value.status);
+};
 
 const isStoryMaintenanceResult = (value: unknown): boolean =>
   isRecord(value) &&

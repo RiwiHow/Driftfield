@@ -96,7 +96,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   propose_document_writing: {
     description:
-      'Commission Scribe and submit exactly one pre-bound reviewed document proposal. Use create for every new chapter or Lore entry, with its parent directory, raw title, kind, and project revision; an existing chapter read for continuity is not the target. Use replace only when the user explicitly asked to replace that exact current document, with its request-start revisions. Main validates the entire target plan before Scribe runs and cannot rebind the artifact afterward.',
+      'Commission Scribe and submit exactly one pre-bound reviewed document proposal. Use create for every new chapter or Lore entry, with its parent directory, raw title, kind, and project revision; an existing chapter read for continuity is not the target. Use replace only when the user explicitly asked to replace that exact current document, with its request-start revisions. Main validates the entire target plan before Scribe runs and cannot rebind the artifact afterward. An accepted result authoritatively means the exact validated artifact was persisted and returns request-scoped document and content-revision refs for optional in-scope follow-up; omission of the full Markdown is intentional, not uncertainty.',
     executionMode: 'sequential',
     label: 'Propose generated document',
     name: 'propose_document_writing',

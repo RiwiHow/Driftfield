@@ -91,7 +91,7 @@ describe('AgentToolResultBridge', () => {
 
     await vi.advanceTimersByTimeAsync(120_000);
     expect(bridge.resolve('request-1', 'tool-story', {
-      data: { proposalId: 'proposal-1', status: 'accepted' },
+      data: { status: 'accepted' },
       ok: true,
       toolName: 'propose_story_operation',
     })).toBe(true);

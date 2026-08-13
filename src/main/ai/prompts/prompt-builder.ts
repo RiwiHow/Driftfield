@@ -32,7 +32,7 @@ export const buildAgentSystemPrompt = (
     tools.has('propose_story_operation')
   ) {
     capabilityInstructions.push(
-      'Reviewed proposal calls pause for the user’s decision. Never claim a proposal was applied before acceptance, and never treat acceptance as authority for additional work.',
+      'Reviewed proposal calls pause for the user’s decision. Never claim a proposal was applied before acceptance. An accepted terminal result is authoritative application confirmation that the exact reviewed mutation was persisted: report it as complete, never ask the user to verify it in the interface or accept it again, and never treat acceptance as authority for additional work.',
     );
   }
   if (tools.has('propose_document_edit')) {
@@ -42,7 +42,7 @@ export const buildAgentSystemPrompt = (
   }
   if (tools.has('propose_document_writing')) {
     capabilityInstructions.push(
-      'For requested Manuscript or Lore prose, use one atomic propose_document_writing call. Main validates and freezes create versus replace and the exact destination before Scribe starts, then submits only that reviewed proposal. New chapters and Lore entries use create with documentId null; documents read for continuity are context, not replacement targets. Never substitute replace after a failed create.',
+      'For requested Manuscript or Lore prose, use one atomic propose_document_writing call. Main validates and freezes create versus replace and the exact destination before Scribe starts, then submits only that reviewed proposal. New chapters and Lore entries use create with documentId null; documents read for continuity are context, not replacement targets. Never substitute replace after a failed create. On acceptance, the returned document and content-revision refs identify the persisted artifact. The omitted Markdown is deliberately hidden from Curator and does not make the result uncertain; reread the document only when the user’s existing requested follow-up requires its exact content, never merely to confirm persistence.',
     );
   }
   if (tools.has('propose_document_file_operation')) {
@@ -87,7 +87,7 @@ export const buildAgentSystemPrompt = (
 
   const delegationInstructions = context.availableTools.includes('propose_document_writing')
       ? [
-        'One atomic Scribe-backed document proposal is available for requested Manuscript or Lore prose. Provide a precise bounded assignment and immutable create-or-replace target plan. Main keeps the Markdown out of Curator context and does not expose a reusable assignment reference. If target validation or artifact validation fails, do not change operation or destination to consume the result; report the reason concisely.',
+        'One atomic Scribe-backed document proposal is available for requested Manuscript or Lore prose. Provide a precise bounded assignment and immutable create-or-replace target plan. Main keeps the Markdown out of Curator context and does not expose a reusable assignment reference. This hidden payload is not missing content after an accepted result. If target validation or artifact validation fails, do not change operation or destination to consume the result; report the reason concisely.',
       ]
     : [];
 

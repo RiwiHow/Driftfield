@@ -32,9 +32,11 @@ domain contracts.
   cancellation, and exposes only the bounded novel-context reader plus a
   terminal artifact-submission tool to Scribe. Main retains the submitted
   Markdown as internal task state while Curator's pre-bound
-  `propose_document_writing` call remains pending; no assignment ID or artifact
-  receipt is returned to the model. Ordinary assistant text is discarded. Main
-  constructs only the already-validated proposal target, so the untrusted
+  `propose_document_writing` call remains pending; no assignment ID, internal
+  proposal UUID, or Markdown body is returned to the model. Ordinary assistant
+  text is discarded. After acceptance, Curator receives only an authoritative
+  terminal status plus short request-scoped document and content-revision refs.
+  Main constructs only the already-validated proposal target, so the untrusted
   artifact never bypasses or rebinds the existing proposal workflow, and
   Renderer still shows the full proposal.
 - Pi passes each native Tool `AbortSignal` into the worker bridge. Abort,

@@ -77,9 +77,16 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain('immutable create-or-replace target plan');
     expect(built.prompt).toContain('does not expose a reusable assignment reference');
     expect(built.prompt).toContain('Never substitute replace after a failed create');
+    expect(built.prompt).toContain('authoritative application confirmation');
+    expect(built.prompt).toContain('never ask the user to verify it in the interface or accept it again');
+    expect(built.prompt).toContain('omitted Markdown is deliberately hidden');
+    expect(built.prompt).toContain('never merely to confirm persistence');
     expect(built.prompt).toContain('Do not hide all operational narration');
+    expect(built.prompt).toContain('do not expose native tool names');
+    expect(built.prompt).toContain('Never say that accepted content may be missing');
     expect(built.prompt).toContain('report the reason concisely');
     expect(built.prompt).not.toContain('revise_writing_artifact');
+    expect(built.version).toBe(35);
   });
 
   it('uses the interface locale for conversation but not manuscript language', () => {

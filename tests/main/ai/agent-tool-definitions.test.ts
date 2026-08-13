@@ -29,4 +29,11 @@ describe('Agent tool definitions', () => {
       expect(serialized).not.toContain(`"name":"${toolName}"`);
     }
   });
+
+  it('defines accepted generated writing as an authoritative compact receipt', () => {
+    const description = AGENT_TOOL_DEFINITIONS.propose_document_writing.description;
+    expect(description).toContain('authoritatively means');
+    expect(description).toContain('document and content-revision refs');
+    expect(description).toContain('omission of the full Markdown is intentional');
+  });
 });

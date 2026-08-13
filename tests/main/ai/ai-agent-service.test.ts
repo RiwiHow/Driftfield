@@ -409,7 +409,11 @@ describe('AiAgentService', () => {
     expect(workers[0].messages).toContainEqual({
       requestId: 'request-1',
       result: {
-        data: { proposalId: 'proposal:1', status: 'accepted' },
+        data: {
+          contentRevision: 'revision:2',
+          documentId: 'document:2',
+          status: 'accepted',
+        },
         ok: true,
         toolName: 'propose_document_writing',
       },

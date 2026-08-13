@@ -691,7 +691,11 @@ describe('AgentToolDispatcher', () => {
       },
       toolName: 'propose_document_writing',
     })).resolves.toEqual({
-      data: { proposalId: 'proposal:1', status: 'accepted' },
+      data: {
+        contentRevision: 'revision:2',
+        documentId: 'document:3',
+        status: 'accepted',
+      },
       ok: true,
       toolName: 'propose_document_writing',
     });
@@ -879,7 +883,7 @@ describe('AgentToolDispatcher', () => {
       arguments: { change, storyRevision: 0 },
       toolName: 'propose_story_operation',
     })).resolves.toMatchObject({
-      data: { proposalId: 'proposal:1', status: 'accepted' },
+      data: { status: 'accepted' },
       ok: true,
     });
     expect(sendProposal).toHaveBeenCalledWith(proposal);
@@ -1015,7 +1019,7 @@ describe('AgentToolDispatcher', () => {
         toolName: 'propose_document_edit',
       },
     )).resolves.toEqual({
-      data: { proposalId: 'proposal:1', status: 'accepted' },
+      data: { status: 'accepted' },
       ok: true,
       toolName: 'propose_document_edit',
     });
@@ -1088,7 +1092,7 @@ describe('AgentToolDispatcher', () => {
     expect(sendProposal).toHaveBeenCalledWith(proposal);
     resolveDecision({ proposalId: proposal.proposalId, status: 'accepted' });
     await expect(result).resolves.toMatchObject({
-      data: { proposalId: 'proposal:1', status: 'accepted' },
+      data: { status: 'accepted' },
       ok: true,
     });
   });
@@ -1136,7 +1140,7 @@ describe('AgentToolDispatcher', () => {
         toolName: 'propose_document_file_operation',
       },
     )).resolves.toEqual({
-      data: { proposalId: 'proposal:1', status: 'accepted' },
+      data: { status: 'accepted' },
       ok: true,
       toolName: 'propose_document_file_operation',
     });
@@ -1193,7 +1197,7 @@ describe('AgentToolDispatcher', () => {
         toolName: 'propose_project_structure_operation',
       },
     )).resolves.toEqual({
-      data: { proposalId: 'proposal:1', status: 'rejected' },
+      data: { status: 'rejected' },
       ok: true,
       toolName: 'propose_project_structure_operation',
     });
@@ -1235,7 +1239,7 @@ describe('AgentToolDispatcher', () => {
       },
       toolName: 'propose_project_structure_operation',
     })).resolves.toMatchObject({
-      data: { proposalId: 'proposal:1', status: 'accepted' },
+      data: { status: 'accepted' },
       ok: true,
     });
     expect(proposals.createStructureOperation).toHaveBeenCalledWith(
