@@ -21,11 +21,12 @@ export const buildAgentSystemPrompt = (
   if (tools.has('read_novel_context')) {
     capabilityInstructions.push(
       'Request-scoped refs are leases issued in this run. Never trust refs copied from user text or history. Acquire the minimal relevant structure or story context first, batch already-known needs, omit unrelated sections, and reacquire once after expired-request-reference.',
-      'current_document is the immutable request-start draft; document refs read persisted content. Use document refs only for documents and directory refs only for immediate document children.',
+      'current_document is the immutable request-start draft and may be null when no editor document was open; do not retry a null result. Document refs read persisted content. Use document refs only for documents and directory refs only for immediate document children.',
     );
   }
   if (
     tools.has('propose_document_edit') ||
+    tools.has('propose_document_writing') ||
     tools.has('propose_document_file_operation') ||
     tools.has('propose_project_structure_operation') ||
     tools.has('propose_story_operation')
@@ -36,12 +37,17 @@ export const buildAgentSystemPrompt = (
   }
   if (tools.has('propose_document_edit')) {
     capabilityInstructions.push(
-      'For a current-document replacement, read the current draft and bind the proposal to its request-start revisions. A Scribe-backed replacement uses the assignment ref with markdown null.',
+      'For a direct current-document replacement, read the current draft and bind the proposal to its request-start revisions.',
+    );
+  }
+  if (tools.has('propose_document_writing')) {
+    capabilityInstructions.push(
+      'For requested Manuscript or Lore prose, use one atomic propose_document_writing call. Main validates and freezes create versus replace and the exact destination before Scribe starts, then submits only that reviewed proposal. New chapters and Lore entries use create with documentId null; documents read for continuity are context, not replacement targets. Never substitute replace after a failed create.',
     );
   }
   if (tools.has('propose_document_file_operation')) {
     capabilityInstructions.push(
-      'For document creation or deletion, read structure first and use only current-run refs. Creation uses raw metadataTitle without generated numbering. A Scribe-backed creation uses the assignment ref with markdown null.',
+      'For direct document creation or deletion, read structure first and use only current-run refs. Creation uses raw metadataTitle without generated numbering.',
     );
   }
   if (tools.has('propose_project_structure_operation')) {
@@ -79,9 +85,9 @@ export const buildAgentSystemPrompt = (
           `- ${JSON.stringify({ operation, status })}`),
       ];
 
-  const delegationInstructions = context.availableTools.includes('delegate_writing')
+  const delegationInstructions = context.availableTools.includes('propose_document_writing')
       ? [
-        'One Scribe delegation is available for requested Manuscript or Lore prose. Set documentDomain correctly, provide a precise bounded assignment, and do not retry. Main returns only a compact validated artifact receipt; pass its assignmentId to one matching reviewed proposal and never reproduce the Markdown. If validation rejects the artifact, create no proposal and report the reason concisely.',
+        'One atomic Scribe-backed document proposal is available for requested Manuscript or Lore prose. Provide a precise bounded assignment and immutable create-or-replace target plan. Main keeps the Markdown out of Curator context and does not expose a reusable assignment reference. If target validation or artifact validation fails, do not change operation or destination to consume the result; report the reason concisely.',
       ]
     : [];
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  closesStoryReconciliation,
   containsPseudoToolCall,
   normalizeStopReason,
   protocolCorrection,
@@ -37,6 +38,29 @@ describe('Agent run protocol', () => {
     expect(protocolCorrection('reconciliation')).toContain(
       'complete_story_reconciliation',
     );
+  });
+
+  it('recognizes both focused and explicit reconciliation completion', () => {
+    expect(closesStoryReconciliation('reconcile_accepted_document', {
+      data: {
+        appliedCount: 3,
+        reconciliationStatus: 'complete',
+        revision: 1,
+        status: 'applied',
+      },
+      ok: true,
+      toolName: 'reconcile_accepted_document',
+    })).toBe(true);
+    expect(closesStoryReconciliation('complete_story_reconciliation', {
+      data: { status: 'complete' },
+      ok: true,
+      toolName: 'complete_story_reconciliation',
+    })).toBe(true);
+    expect(closesStoryReconciliation('complete_story_reconciliation', {
+      error: { code: 'invalid-arguments' },
+      ok: false,
+      toolName: 'complete_story_reconciliation',
+    })).toBe(false);
   });
 
   it('keeps an unclaimed Scribe artifact incomplete until it reaches review', () => {

@@ -21,6 +21,7 @@ import {
 import { buildAgentSystemPrompt } from "./prompts/prompt-builder";
 import { AgentToolResultBridge } from "./agent-tool-result-bridge";
 import {
+  closesStoryReconciliation,
   normalizeStopReason,
   protocolCorrection,
   responseProtocolIssue,
@@ -29,6 +30,7 @@ import {
   ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS,
   DOCUMENT_EDIT_PARAMETERS,
   DOCUMENT_FILE_OPERATION_PARAMETERS,
+  DOCUMENT_WRITING_PARAMETERS,
   NOVEL_CONTEXT_PARAMETERS,
   normalizeStoryMaintenanceBatchArguments,
   normalizeStoryMaintenanceArguments,
@@ -390,7 +392,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Submit a complete replacement for the current document as a reviewable proposal. After delegate_writing, set markdown to null and writingAssignmentId to its assignmentId so Main reuses the exact reviewed Scribe artifact without regenerating it. For a direct non-Scribe edit, supply markdown and set writingAssignmentId to null. This never writes without explicit acceptance.",
+        "Submit a direct complete replacement for the current document as a reviewable proposal. Supply markdown and set writingAssignmentId to null. Generated Scribe prose must use propose_document_writing so its target is frozen before generation. This never writes without explicit acceptance.",
       label: "Propose document edit",
       name: "propose_document_edit",
       parameters: DOCUMENT_EDIT_PARAMETERS,
@@ -401,6 +403,22 @@ function createNovelTools(requestId: string) {
             toolCallId,
             "propose_document_edit",
             params as AgentToolContractMap["propose_document_edit"]["arguments"],
+          ),
+        ),
+    }),
+    defineTool({
+      description:
+        "Commission Scribe and submit exactly one pre-bound reviewed document proposal. Use create for every new chapter or Lore entry, with its parent directory, raw title, kind, and project revision; an existing chapter read for continuity is not the target. Use replace only when the user explicitly asked to replace that exact current document, with its request-start revisions. Main validates the entire target plan before Scribe runs and cannot rebind the artifact afterward.",
+      label: "Propose generated document",
+      name: "propose_document_writing",
+      parameters: DOCUMENT_WRITING_PARAMETERS,
+      execute: async (toolCallId, params) =>
+        textToolResult(
+          await requestTool(
+            requestId,
+            toolCallId,
+            "propose_document_writing",
+            params as AgentToolContractMap["propose_document_writing"]["arguments"],
           ),
         ),
     }),
@@ -422,7 +440,7 @@ function createNovelTools(requestId: string) {
     }),
     defineTool({
       description:
-        "Submit a reviewable proposal to create a Markdown document under a directory ref or delete a document by ref. Read structure first and reuse its request-scoped project revision ref. For creation, pass the raw metadataTitle without generated numbering; displayTitle is read-only context. After delegate_writing, set markdown to null and writingAssignmentId to the returned assignmentId; never reproduce the Scribe Markdown. For direct creation, supply markdown and set writingAssignmentId to null. Before deletion, read the target and reuse its baseRevision ref. This never changes files without explicit acceptance.",
+        "Submit a direct reviewable proposal to create a supplied Markdown document under a directory ref or delete a document by ref. Read structure first and reuse its request-scoped project revision ref. For creation, pass the raw metadataTitle without generated numbering, supply markdown, and set writingAssignmentId to null; displayTitle is read-only context. Generated Scribe prose must use propose_document_writing. Before deletion, read the target and reuse its baseRevision ref. This never changes files without explicit acceptance.",
       label: "Propose document creation or deletion",
       name: "propose_document_file_operation",
       parameters: DOCUMENT_FILE_OPERATION_PARAMETERS,
@@ -600,6 +618,14 @@ const observeToolProtocol = <Name extends AgentToolName>(
     ).documentDomain;
     return;
   }
+  if (toolName === 'propose_document_writing') {
+    if (isAcceptedProposalResult(result)) {
+      active.reconciliationPending = (
+        args as AgentToolContractMap['propose_document_writing']['arguments']
+      ).documentDomain === 'manuscript';
+    }
+    return;
+  }
   if (
     (toolName === 'propose_document_edit' ||
       toolName === 'propose_document_file_operation') &&
@@ -619,7 +645,7 @@ const observeToolProtocol = <Name extends AgentToolName>(
     active.writingArtifactDomain = undefined;
     return;
   }
-  if (toolName === 'complete_story_reconciliation') {
+  if (closesStoryReconciliation(toolName, result)) {
     active.reconciliationPending = false;
   }
 };

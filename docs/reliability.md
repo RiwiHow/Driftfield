@@ -56,14 +56,15 @@ Preserve these properties when changing affected subsystems.
   child task ID and parent binding, limits Scribe to the bounded novel-context
   reader and a terminal artifact-submission tool,
   caps the returned Markdown at 512 KiB, times the task out after five minutes,
-  resolves and validates non-null target document refs against the current structure, and
-  cancels it with its parent or project session. New-document assignments use a
-  null target rather than a directory or placeholder ID. Completed output is a
-  Main-owned, persisted, single-use artifact bound to the active parent request,
-  domain, and assigned new or existing document target. Curator receives only
-  its compact assignment/domain/size receipt; reviewed proposals reference its
-  assignment ID so the full Markdown is not duplicated into model context. Main accepts only
-  the Markdown argument of the single artifact-submission call and discards
+  validates and freezes the complete create-or-replace target plan before
+  starting Scribe, and cancels it with its parent or project session. A new
+  document binds its parent, kind, title, project revision, and a null document
+  target; replacement binds the exact request-start document and revisions.
+  Completed output is a Main-owned, persisted artifact bound to that plan.
+  Main constructs the reviewed proposal directly; Curator receives no reusable
+  assignment ID and therefore cannot redirect a create artifact into an
+  existing document. Main accepts only the Markdown argument of the single
+  artifact-submission call and discards
   ordinary Scribe assistant text, preventing planning or commentary from
   entering the document. Scribe output remains untrusted and cannot write or
   propose changes directly. A second delegation returns a
@@ -107,6 +108,10 @@ Preserve these properties when changing affected subsystems.
   Main creates a missing primary timeline, and clearly established new Threads
   include their first beat and event link. Successful focused reconciliation
   closes its checkpoint without a separate completion call.
+- The worker observes that focused completion result and clears its own
+  completion gate. A redundant explicit completion in the same run is
+  idempotently successful; it does not turn an already completed run into
+  `workflow-incomplete`.
 - `maintain_story_records` applies a bounded ordered changeset of 1 to 24
   additive or linking Personae, Chronicle, or Threads operations without
   per-step approval. It requires the

@@ -63,6 +63,11 @@ describe('Agent proposal tool contract', () => {
       ok: true,
       toolName: 'read_novel_context',
     })).toBe(true);
+    expect(isAgentToolExecutionResult({
+      data: { currentDocument: null, documents: [] },
+      ok: true,
+      toolName: 'read_novel_context',
+    })).toBe(true);
   });
 
   it('validates bounded Curator-to-Scribe assignments and artifacts', () => {
@@ -112,6 +117,7 @@ describe('Agent proposal tool contract', () => {
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: {
+        documentAction: 'replace',
         documentDomain: 'manuscript',
         objective: 'Continue the confrontation scene.',
         requirements: ['Keep Mara in close third person.', 'End on the door opening.'],
@@ -122,6 +128,7 @@ describe('Agent proposal tool contract', () => {
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: {
+        documentAction: 'create',
         documentDomain: 'manuscript',
         objective: 'Write a new opening chapter.',
         requirements: ['Return a complete Markdown draft.'],
@@ -132,6 +139,7 @@ describe('Agent proposal tool contract', () => {
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: {
+        documentAction: 'create',
         documentDomain: 'manuscript',
         objective: '',
         requirements: [],
@@ -144,11 +152,51 @@ describe('Agent proposal tool contract', () => {
       data: {
         assignmentId: 'scribe-task-1',
         characterCount: 7,
+        documentAction: 'create',
         documentDomain: 'manuscript',
         status: 'completed',
       },
       ok: true,
       toolName: 'delegate_writing',
+    })).toBe(true);
+  });
+
+  it('validates atomic generated-document target plans', () => {
+    const createArguments = {
+      baseContentRevision: null,
+      baseRevision: null,
+      documentAction: 'create' as const,
+      documentDomain: 'manuscript' as const,
+      documentId: null,
+      kind: 'chapter' as const,
+      metadataTitle: 'Second chapter',
+      objective: 'Write a new second chapter.',
+      parentId: 'directory:1',
+      projectRevision: 'revision:1',
+      requirements: [],
+      targetLength: 3_000,
+    };
+    expect(isAgentToolRequest({
+      arguments: createArguments,
+      toolName: 'propose_document_writing',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: { ...createArguments, documentId: 'document:1' },
+      toolName: 'propose_document_writing',
+    })).toBe(false);
+    expect(isAgentToolRequest({
+      arguments: {
+        ...createArguments,
+        baseContentRevision: 'revision:3',
+        baseRevision: 'revision:2',
+        documentAction: 'replace',
+        documentId: 'document:1',
+        kind: null,
+        metadataTitle: null,
+        parentId: null,
+        projectRevision: null,
+      },
+      toolName: 'propose_document_writing',
     })).toBe(true);
   });
 

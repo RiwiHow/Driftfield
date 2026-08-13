@@ -38,12 +38,14 @@ import {
   type ProjectStorySnapshot,
 } from '../../shared/contracts/project-story';
 import { AgentReferenceRegistry } from './agent-reference-registry';
+import { contentRevision } from '../services/project/document-utils';
 
 export interface AgentToolScope {
   acceptedDocumentId?: string;
   acceptedDocumentRevision?: string;
   claimWritingArtifact?: (
     assignmentId: string,
+    documentAction: 'create' | 'replace',
     targetDocumentId: string | null,
     documentDomain: AgentDocumentDomain,
   ) => string | undefined;
@@ -265,7 +267,9 @@ export class AgentToolDispatcher {
             ? this.context.getNovelStructure(contextScope)
             : undefined,
           includeSet.has('current_document')
-            ? this.context.getCurrentDocument(contextScope)
+            ? scope.draftSnapshot === undefined
+              ? null
+              : this.context.getCurrentDocument(contextScope)
             : undefined,
           includeSet.has('story_state') || needsAcceptedReconciliation
             ? this.context.getStoryState(contextScope)
@@ -339,7 +343,9 @@ export class AgentToolDispatcher {
           : undefined;
       const exposedCurrentDocument = currentDocument === undefined
         ? undefined
-        : refs.exposeDocument(currentDocument);
+        : currentDocument === null
+          ? null
+          : refs.exposeDocument(currentDocument);
       const exposedDocuments = documents.map((document) =>
         refs.exposeDocument(document));
       const exposedStoryState = !includeSet.has('story_state') || storyState === undefined
@@ -487,6 +493,128 @@ export class AgentToolDispatcher {
         toolName: request.toolName,
       };
     }
+    if (request.toolName === 'propose_document_writing') {
+      if (
+        this.proposals === undefined ||
+        scope.delegateWriting === undefined ||
+        scope.sendProposal === undefined
+      ) {
+        throw new ProjectContextError('internal-error');
+      }
+      const structure = await this.context.getNovelStructure(contextScope);
+      const nodes = indexStructureNodes(structure);
+      const isCreate = request.arguments.documentAction === 'create';
+      const targetDocumentId = isCreate
+        ? null
+        : refs.resolve(request.arguments.documentId!, 'document');
+      let resolvedProjectRevision: string | null = null;
+      let resolvedBaseRevision: string | null = null;
+      let resolvedBaseContentRevision: string | null = null;
+      if (isCreate) {
+        const parentId = refs.resolve(request.arguments.parentId!, 'directory');
+        resolvedProjectRevision = refs.resolve(
+          request.arguments.projectRevision!,
+          'revision',
+        );
+        const parent = nodes.get(parentId);
+        if (parent === undefined) throw nodeNotFound(request.arguments.parentId!);
+        if (parent.type !== 'directory') {
+          throw nodeKindMismatch(request.arguments.parentId!, 'directory', parent);
+        }
+        if (resolvedProjectRevision !== structure.project.revision) {
+          throw new ProjectContextError('proposal-base-changed');
+        }
+        if (
+          documentDomainForDirectoryKind(parent.kind) !==
+            request.arguments.documentDomain ||
+          documentDomainForKind(request.arguments.kind!) !==
+            request.arguments.documentDomain
+        ) {
+          throw new ProjectContextError(
+            'invalid-arguments',
+            'The create target directory, document kind, and writing domain must match.',
+          );
+        }
+      } else {
+        resolvedBaseRevision = refs.resolve(
+          request.arguments.baseRevision!,
+          'revision',
+        );
+        resolvedBaseContentRevision = refs.resolve(
+          request.arguments.baseContentRevision!,
+          'revision',
+        );
+        const target = nodes.get(targetDocumentId!);
+        if (target === undefined) throw nodeNotFound(request.arguments.documentId!);
+        if (target.type !== 'document') {
+          throw nodeKindMismatch(request.arguments.documentId!, 'document', target);
+        }
+        if (documentDomainForKind(target.kind) !== request.arguments.documentDomain) {
+          throw new ProjectContextError(
+            'invalid-arguments',
+            'The replacement target and writing domain must match.',
+          );
+        }
+        if (
+          scope.draftSnapshot === undefined ||
+          scope.draftSnapshot.documentId !== targetDocumentId ||
+          scope.draftSnapshot.baseRevision !== resolvedBaseRevision ||
+          contentRevision(scope.draftSnapshot.markdown) !== resolvedBaseContentRevision
+        ) {
+          throw new ProjectContextError(
+            'proposal-base-changed',
+            'The replacement target is not the unchanged request-start document.',
+          );
+        }
+      }
+      const assignment: AgentWritingAssignment = {
+        documentAction: request.arguments.documentAction,
+        documentDomain: request.arguments.documentDomain,
+        objective: request.arguments.objective,
+        requirements: request.arguments.requirements,
+        targetDocumentId: request.arguments.documentId,
+        targetLength: request.arguments.targetLength,
+      };
+      const artifact = await scope.delegateWriting(assignment, targetDocumentId);
+      const content = claimDocumentContent(
+        scope,
+        { markdown: null, writingAssignmentId: artifact.assignmentId },
+        request.arguments.documentAction,
+        targetDocumentId,
+        request.arguments.documentDomain,
+      );
+      let proposal: AgentProposal;
+      try {
+        proposal = isCreate
+          ? await this.withTimeout(this.proposals.createFileOperation(scope, {
+              kind: request.arguments.kind!,
+              markdown: content.markdown,
+              metadataTitle: request.arguments.metadataTitle!,
+              operation: 'create',
+              parentId: refs.resolve(request.arguments.parentId!, 'directory'),
+              projectRevision: resolvedProjectRevision!,
+            }))
+          : this.proposals.create(scope, {
+              baseContentRevision: resolvedBaseContentRevision!,
+              baseRevision: resolvedBaseRevision!,
+              documentId: targetDocumentId!,
+              markdown: content.markdown,
+            });
+      } catch (error) {
+        content.release();
+        throw error;
+      }
+      const decision = this.proposals.waitForDecision(
+        scope.requestId,
+        proposal.proposalId,
+      );
+      scope.sendProposal(proposal);
+      return {
+        data: exposeProposalResult(refs, await decision),
+        ok: true,
+        toolName: request.toolName,
+      };
+    }
     if (request.toolName === 'propose_document_edit') {
       if (this.proposals === undefined) {
         throw new ProjectContextError('internal-error');
@@ -503,6 +631,7 @@ export class AgentToolDispatcher {
       const content = claimDocumentContent(
         scope,
         resolveDocumentContentReference(refs, request.arguments),
+        'replace',
         documentId,
         documentDomainForKind(documentNode.kind),
       );
@@ -544,6 +673,7 @@ export class AgentToolDispatcher {
         ? claimDocumentContent(
             scope,
             resolveDocumentContentReference(refs, request.arguments),
+            'create',
             null,
             documentDomainForKind(request.arguments.kind),
           )
@@ -1033,6 +1163,7 @@ const exposeProposalResult = (
 const claimDocumentContent = (
   scope: AgentToolScope,
   source: { markdown: string | null; writingAssignmentId: string | null },
+  documentAction: 'create' | 'replace',
   targetDocumentId: string | null,
   documentDomain: AgentDocumentDomain,
 ): { markdown: string; release: () => void } => {
@@ -1048,6 +1179,7 @@ const claimDocumentContent = (
   }
   const markdown = scope.claimWritingArtifact(
     assignmentId,
+    documentAction,
     targetDocumentId,
     documentDomain,
   );
@@ -1080,6 +1212,12 @@ const documentDomainForKind = (
   kind: import('../../shared/contracts/agent-tools').AgentStructureDocument['kind'],
 ): AgentDocumentDomain => kind === 'entry' ? 'lore' : 'manuscript';
 
+const documentDomainForDirectoryKind = (
+  kind: import('../../shared/contracts/agent-tools').AgentStructureDirectory['kind'],
+): AgentDocumentDomain => kind === 'lore' || kind === 'category'
+  ? 'lore'
+  : 'manuscript';
+
 const nodeNotFound = (nodeId: string): ProjectContextError =>
   new ProjectContextError('node-not-found', JSON.stringify({ nodeId }));
 
@@ -1103,7 +1241,10 @@ const toolArgumentShapeHint = (
   args: unknown,
 ): string | undefined => {
   if (toolName === 'delegate_writing') {
-    return 'delegate_writing requires exactly documentDomain, objective, requirements, targetDocumentId, and targetLength. Use manuscript for chapter-like prose and lore for a World/Lore document. It is available at most once per user request. For a new document, set targetDocumentId to null; for an existing document, use its current request-scoped document ref. Set targetLength to an integer from 1 to 200000, or null when unspecified.';
+    return 'delegate_writing requires exactly documentAction, documentDomain, objective, requirements, targetDocumentId, and targetLength. create requires targetDocumentId null; replace requires the exact current request-scoped target document ref. Set targetLength to an integer from 1 to 200000, or null when unspecified.';
+  }
+  if (toolName === 'propose_document_writing') {
+    return 'propose_document_writing requires exactly 12 fields: documentAction, documentDomain, objective, requirements, targetLength, documentId, parentId, projectRevision, metadataTitle, kind, baseRevision, and baseContentRevision. For create, set documentId/baseRevision/baseContentRevision null and provide parentId/projectRevision/metadataTitle/kind. For replace, provide documentId/baseRevision/baseContentRevision and set parentId/projectRevision/metadataTitle/kind null. A chapter read for continuity is not a replacement target.';
   }
   if (toolName === 'revise_writing_artifact') {
     return 'revise_writing_artifact requires exactly writingAssignmentId and 1 to 12 ordered replacements. Each replacement requires exactly find, replace, and expectedOccurrences; find must be non-empty and differ from replace.';
@@ -1115,14 +1256,14 @@ const toolArgumentShapeHint = (
     return 'complete_story_reconciliation requires exactly status and reason. Read accepted_reconciliation after acceptance first. Use applied only after a successful reconciliation mutation, questions_recorded only after recording a question, or no_changes only when neither occurred.';
   }
   if (toolName === 'propose_document_edit') {
-    return 'propose_document_edit requires exactly baseContentRevision, baseRevision, documentId, markdown, and writingAssignmentId. Supply direct markdown with writingAssignmentId null, or set markdown null and use the assignmentId returned by delegate_writing.';
+    return 'propose_document_edit requires exactly baseContentRevision, baseRevision, documentId, markdown, and writingAssignmentId. For a direct edit, supply markdown with writingAssignmentId null. Generated Scribe prose uses propose_document_writing so Main freezes its target before generation.';
   }
   if (
     toolName === 'propose_document_file_operation' &&
     typeof args === 'object' && args !== null &&
     (args as { operation?: unknown }).operation === 'create'
   ) {
-    return 'Document creation requires exactly operation, parentId, projectRevision, metadataTitle, kind, markdown, and writingAssignmentId. metadataTitle is the raw title without generated numbering. Supply direct markdown with writingAssignmentId null, or set markdown null and use the assignmentId returned by delegate_writing.';
+    return 'Document creation requires exactly operation, parentId, projectRevision, metadataTitle, kind, markdown, and writingAssignmentId. metadataTitle is the raw title without generated numbering. For direct creation, supply markdown with writingAssignmentId null. Generated Scribe prose uses propose_document_writing.';
   }
   if (
     toolName === 'propose_project_structure_operation' &&

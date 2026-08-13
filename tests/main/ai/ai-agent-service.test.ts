@@ -54,7 +54,7 @@ const writingContext = (): ProjectContextService => ({
       title: 'Manuscript',
       type: 'directory',
     },
-    project: { id: 'project-1', revision: 'revision', title: 'Novel' },
+    project: { id: 'project-1', revision: 'a'.repeat(64), title: 'Novel' },
   }),
 } as unknown as ProjectContextService);
 
@@ -239,7 +239,7 @@ describe('AiAgentService', () => {
     );
   });
 
-  it('runs one Main-owned Scribe child task and returns a compact artifact receipt', async () => {
+  it('runs one Main-owned Scribe child task inside a pre-bound create proposal', async () => {
     const events: AgentEvent[] = [];
     const flawedMarkdown = '# Draft\n\n织母议会议会。塞拉认得那白袍。\n\n织母议会议会予你返回科瓦里斯的权与名。';
     const proposal = {
@@ -275,19 +275,73 @@ describe('AiAgentService', () => {
       responseLanguage: string;
       };
     expect(curatorStart.enabledTools).not.toContain('submit_writing_artifact');
+    expect(curatorStart.enabledTools).not.toContain('delegate_writing');
+    expect(curatorStart.enabledTools).toContain('propose_document_writing');
     expect(curatorStart.responseLanguage).toBe('zh-CN');
 
     workers[0].emit('message', {
       arguments: {
+        documentAction: 'create',
         documentDomain: 'manuscript',
-        objective: 'Write a new chapter.',
-        requirements: ['Keep close third person.'],
+        objective: 'Bypass the atomic proposal.',
+        requirements: [],
         targetDocumentId: null,
         targetLength: null,
       },
       requestId: 'request-1',
-      toolCallId: 'tool-delegate',
+      toolCallId: 'tool-forged-delegate',
       toolName: 'delegate_writing',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-forged-delegate'));
+    expect(workers[0].messages).toContainEqual({
+      requestId: 'request-1',
+      result: {
+        error: {
+          code: 'invalid-arguments',
+          detail: 'This tool is not enabled for the Curator role.',
+        },
+        ok: false,
+        toolName: 'delegate_writing',
+      },
+      toolCallId: 'tool-forged-delegate',
+      type: 'tool-result',
+    });
+
+    workers[0].emit('message', {
+      arguments: {
+        directoryIds: [],
+        documentIds: [],
+        include: ['structure'],
+      },
+      requestId: 'request-1',
+      toolCallId: 'tool-read-structure',
+      toolName: 'read_novel_context',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-read-structure'));
+    workers[0].emit('message', {
+      arguments: {
+        baseContentRevision: null,
+        baseRevision: null,
+        documentAction: 'create',
+        documentDomain: 'manuscript',
+        documentId: null,
+        kind: 'chapter',
+        metadataTitle: 'Chapter One',
+        objective: 'Write a new chapter.',
+        parentId: 'directory:1',
+        projectRevision: 'revision:1',
+        requirements: ['Keep close third person.'],
+        targetLength: null,
+      },
+      requestId: 'request-1',
+      toolCallId: 'tool-propose-writing',
+      toolName: 'propose_document_writing',
       type: 'tool-request',
     });
     await waitFor(() => workers[0].messages.some((message) =>
@@ -298,6 +352,7 @@ describe('AiAgentService', () => {
       (message as { role?: unknown }).role === 'scribe') as { requestId: string };
     workers[0].emit('message', {
       arguments: {
+        documentAction: 'create',
         documentDomain: 'manuscript',
         objective: 'Attempt a nested task.',
         requirements: [],
@@ -354,7 +409,7 @@ describe('AiAgentService', () => {
     });
     await waitFor(() => workers[0].messages.some((message) =>
       typeof message === 'object' && message !== null &&
-      (message as { toolCallId?: unknown }).toolCallId === 'tool-delegate'));
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-propose-writing'));
 
     expect(workers[0].messages).toContainEqual(expect.objectContaining({
       enabledTools: [
@@ -391,70 +446,6 @@ describe('AiAgentService', () => {
       toolCallId: 'tool-submit-artifact',
       type: 'tool-result',
     });
-    expect(workers[0].messages).toContainEqual({
-      requestId: 'request-1',
-      result: {
-        data: {
-          assignmentId: 'assignment:1',
-          characterCount: flawedMarkdown.length,
-          documentDomain: 'manuscript',
-          status: 'completed',
-        },
-        ok: true,
-        toolName: 'delegate_writing',
-      },
-      toolCallId: 'tool-delegate',
-      type: 'tool-result',
-    });
-
-    workers[0].emit('message', {
-      arguments: {
-        documentDomain: 'manuscript',
-        objective: 'Retry the chapter.',
-        requirements: [],
-        targetDocumentId: null,
-        targetLength: null,
-      },
-      requestId: 'request-1',
-      toolCallId: 'tool-repeat-delegate',
-      toolName: 'delegate_writing',
-      type: 'tool-request',
-    });
-    await waitFor(() => workers[0].messages.some((message) =>
-      typeof message === 'object' && message !== null &&
-      (message as { toolCallId?: unknown }).toolCallId === 'tool-repeat-delegate'));
-    expect(workers[0].messages).toContainEqual({
-      requestId: 'request-1',
-      result: {
-        error: {
-          code: 'tool-budget-exceeded',
-          detail: expect.stringContaining('Only one Scribe delegation'),
-        },
-        ok: false,
-        toolName: 'delegate_writing',
-      },
-      toolCallId: 'tool-repeat-delegate',
-      type: 'tool-result',
-    });
-
-    workers[0].emit('message', {
-      arguments: {
-        kind: 'chapter',
-        markdown: null,
-        operation: 'create',
-        parentId: 'manuscript-root',
-        projectRevision: 'a'.repeat(64),
-        metadataTitle: 'Chapter One',
-        writingAssignmentId: 'assignment:1',
-      },
-      requestId: 'request-1',
-      toolCallId: 'tool-create-from-scribe',
-      toolName: 'propose_document_file_operation',
-      type: 'tool-request',
-    });
-    await waitFor(() => workers[0].messages.some((message) =>
-      typeof message === 'object' && message !== null &&
-      (message as { toolCallId?: unknown }).toolCallId === 'tool-create-from-scribe'));
     expect(proposals.createFileOperation).toHaveBeenCalledWith(
       expect.anything(),
       {
@@ -471,47 +462,19 @@ describe('AiAgentService', () => {
       result: {
         data: { proposalId: 'proposal:1', status: 'accepted' },
         ok: true,
-        toolName: 'propose_document_file_operation',
+        toolName: 'propose_document_writing',
       },
-      toolCallId: 'tool-create-from-scribe',
-      type: 'tool-result',
-    });
-
-    workers[0].emit('message', {
-      arguments: {
-        kind: 'chapter',
-        markdown: null,
-        operation: 'create',
-        parentId: 'manuscript-root',
-        projectRevision: 'a'.repeat(64),
-        metadataTitle: 'Duplicate',
-        writingAssignmentId: 'assignment:1',
-      },
-      requestId: 'request-1',
-      toolCallId: 'tool-reuse-scribe',
-      toolName: 'propose_document_file_operation',
-      type: 'tool-request',
-    });
-    await waitFor(() => workers[0].messages.some((message) =>
-      typeof message === 'object' && message !== null &&
-      (message as { toolCallId?: unknown }).toolCallId === 'tool-reuse-scribe'));
-    expect(workers[0].messages).toContainEqual({
-      requestId: 'request-1',
-      result: {
-        error: {
-          code: 'invalid-arguments',
-          detail: 'The writingAssignmentId is missing, belongs to another request or target, or was already used.',
-        },
-        ok: false,
-        toolName: 'propose_document_file_operation',
-      },
-      toolCallId: 'tool-reuse-scribe',
+      toolCallId: 'tool-propose-writing',
       type: 'tool-result',
     });
   });
 
   it('terminates an invalid or severely truncated Scribe artifact without proposing it', async () => {
-    const dispatcher = new AgentToolDispatcher(writingContext());
+    const proposals = {
+      createFileOperation: vi.fn(),
+      waitForDecision: vi.fn(),
+    } as unknown as AgentProposalService;
+    const dispatcher = new AgentToolDispatcher(writingContext(), undefined, proposals);
     const service = new AiAgentService(userDataPath, () => true, dispatcher);
     const started = start(service, 'request-invalid');
     await waitFor(() => workers.length === 1);
@@ -519,15 +482,36 @@ describe('AiAgentService', () => {
     await started;
     workers[0].emit('message', {
       arguments: {
+        directoryIds: [],
+        documentIds: [],
+        include: ['structure'],
+      },
+      requestId: 'request-invalid',
+      toolCallId: 'tool-read-invalid',
+      toolName: 'read_novel_context',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-read-invalid'));
+    workers[0].emit('message', {
+      arguments: {
+        baseContentRevision: null,
+        baseRevision: null,
+        documentAction: 'create',
         documentDomain: 'manuscript',
+        documentId: null,
+        kind: 'chapter',
+        metadataTitle: 'Second chapter',
         objective: 'Write a complete second chapter.',
+        parentId: 'directory:1',
+        projectRevision: 'revision:1',
         requirements: [],
-        targetDocumentId: null,
         targetLength: 3_000,
       },
       requestId: 'request-invalid',
-      toolCallId: 'tool-delegate-invalid',
-      toolName: 'delegate_writing',
+      toolCallId: 'tool-writing-invalid',
+      toolName: 'propose_document_writing',
       type: 'tool-request',
     });
     await waitFor(() => workers[0].messages.some((message) =>
@@ -566,7 +550,7 @@ describe('AiAgentService', () => {
     });
     await waitFor(() => workers[0].messages.some((message) =>
       typeof message === 'object' && message !== null &&
-      (message as { toolCallId?: unknown }).toolCallId === 'tool-delegate-invalid'));
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-writing-invalid'));
     expect(workers[0].messages).toContainEqual({
       requestId: 'request-invalid',
       result: {
@@ -575,15 +559,20 @@ describe('AiAgentService', () => {
           detail: 'Scribe submitted an invalid writing artifact: protocol-markup',
         },
         ok: false,
-        toolName: 'delegate_writing',
+        toolName: 'propose_document_writing',
       },
-      toolCallId: 'tool-delegate-invalid',
+      toolCallId: 'tool-writing-invalid',
       type: 'tool-result',
     });
+    expect(proposals.createFileOperation).not.toHaveBeenCalled();
   });
 
   it('propagates parent cancellation to an active Scribe child task', async () => {
-    const dispatcher = new AgentToolDispatcher(writingContext());
+    const dispatcher = new AgentToolDispatcher(
+      writingContext(),
+      undefined,
+      { cancelRequest: vi.fn() } as unknown as AgentProposalService,
+    );
     const service = new AiAgentService(userDataPath, () => true, dispatcher);
     const started = start(service, 'request-1');
     await waitFor(() => workers.length === 1);
@@ -591,15 +580,22 @@ describe('AiAgentService', () => {
     await started;
     workers[0].emit('message', {
       arguments: {
+        baseContentRevision: null,
+        baseRevision: null,
+        documentAction: 'create',
         documentDomain: 'manuscript',
-        objective: 'Continue the chapter.',
+        documentId: null,
+        kind: 'chapter',
+        metadataTitle: 'Second chapter',
+        objective: 'Write the next chapter.',
+        parentId: 'manuscript-root',
+        projectRevision: 'a'.repeat(64),
         requirements: [],
-        targetDocumentId: 'chapter-1',
         targetLength: null,
       },
       requestId: 'request-1',
-      toolCallId: 'tool-delegate',
-      toolName: 'delegate_writing',
+      toolCallId: 'tool-writing',
+      toolName: 'propose_document_writing',
       type: 'tool-request',
     });
     await waitFor(() => workers[0].messages.some((message) =>
@@ -722,7 +718,11 @@ describe('AiAgentService', () => {
     const service = new AiAgentService(
       userDataPath,
       () => true,
-      new AgentToolDispatcher(writingContext()),
+      new AgentToolDispatcher(
+        writingContext(),
+        undefined,
+        { cancelRequest: vi.fn() } as unknown as AgentProposalService,
+      ),
       () => projectDirectory,
     );
     const started = start(service, 'request-1', (event) => events.push(event));
@@ -732,20 +732,27 @@ describe('AiAgentService', () => {
 
     workers[0].emit('message', {
       arguments: {
-        documentDomain: 'lore',
-        objective: 'Write a world entry.',
+        baseContentRevision: null,
+        baseRevision: null,
+        documentAction: 'create',
+        documentDomain: 'manuscript',
+        documentId: null,
+        kind: 'chapter',
+        metadataTitle: 'Second chapter',
+        objective: 'Write another chapter.',
+        parentId: 'manuscript-root',
+        projectRevision: 'a'.repeat(64),
         requirements: [],
-        targetDocumentId: null,
         targetLength: null,
       },
       requestId: 'request-1',
-      toolCallId: 'tool-blocked-delegate',
-      toolName: 'delegate_writing',
+      toolCallId: 'tool-blocked-writing',
+      toolName: 'propose_document_writing',
       type: 'tool-request',
     });
     await waitFor(() => workers[0].messages.some((message) =>
       typeof message === 'object' && message !== null &&
-      (message as { toolCallId?: unknown }).toolCallId === 'tool-blocked-delegate'));
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-blocked-writing'));
     expect(workers[0].messages).toContainEqual(expect.objectContaining({
       result: {
         error: {
@@ -753,9 +760,9 @@ describe('AiAgentService', () => {
           detail: 'Complete the pending accepted-Manuscript reconciliation before starting another writing assignment.',
         },
         ok: false,
-        toolName: 'delegate_writing',
+        toolName: 'propose_document_writing',
       },
-      toolCallId: 'tool-blocked-delegate',
+      toolCallId: 'tool-blocked-writing',
       type: 'tool-result',
     }));
 
@@ -878,6 +885,20 @@ describe('AiAgentService', () => {
         if (request.toolName === 'read_novel_context') {
           return { data: { documents: [] }, ok: true as const, toolName: request.toolName };
         }
+        if (request.toolName === 'complete_story_reconciliation') {
+          const outcome = scope.completeStoryReconciliation?.('no_changes');
+          return outcome?.ok
+            ? {
+                data: { status: 'complete' as const },
+                ok: true as const,
+                toolName: request.toolName,
+              }
+            : {
+                error: { code: 'invalid-arguments' as const },
+                ok: false as const,
+                toolName: request.toolName,
+              };
+        }
         expect(scope.completeFocusedStoryReconciliation?.()).toBe(true);
         return {
           data: {
@@ -938,6 +959,30 @@ describe('AiAgentService', () => {
     await waitFor(() => workers[0].messages.some((message) =>
       typeof message === 'object' && message !== null &&
       (message as { toolCallId?: unknown }).toolCallId === 'tool-reconcile'));
+
+    workers[0].emit('message', {
+      arguments: {
+        reason: 'The focused reconciliation already completed the checkpoint.',
+        status: 'no_changes',
+      },
+      requestId: 'request-1',
+      toolCallId: 'tool-redundant-complete',
+      toolName: 'complete_story_reconciliation',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-redundant-complete'));
+    expect(workers[0].messages).toContainEqual({
+      requestId: 'request-1',
+      result: {
+        data: { status: 'complete' },
+        ok: true,
+        toolName: 'complete_story_reconciliation',
+      },
+      toolCallId: 'tool-redundant-complete',
+      type: 'tool-result',
+    });
 
     workers[0].emit('message', {
       requestId: 'request-1',

@@ -35,9 +35,9 @@ User request
 Curator (owns the conversation and semantic routing)
     |
     +-- bounded context reads
-    +-- document-writing assignment --> Scribe
+    +-- atomic generated-document proposal --> Scribe
     +-- explicit story maintenance
-    +-- reviewed document/project proposals
+    +-- direct reviewed document/project proposals
     |
     v
 Main-owned workflow services
@@ -94,6 +94,11 @@ current request and purpose.
 - Accepted-prose reconciliation reads the accepted persisted revision and the
   compact current story state.
 
+When no editor document was open at request start, `current_document` is a
+successful `null` context value rather than a failed read. A caller does not
+retry it; new-document writing continues from structure, selected documents,
+story state, and the assignment itself.
+
 Main returns path-free request-scoped refs, bounded snippets, and typed
 metadata. Large results support selection and truncation rather than dumping an
 entire table or directory. A ref is authority only in the request in which Main
@@ -105,27 +110,41 @@ source of truth for their schemas and local semantics.
 
 ## Writing workflow
 
-`delegate_writing` commissions one document artifact with an explicit domain:
-`manuscript` or `lore`.
+Curator uses one high-level `propose_document_writing` operation. Its arguments
+bind the semantic assignment and the eventual reviewed mutation before Scribe
+runs:
 
-1. Curator gathers only the context needed to state a bounded assignment.
-2. Main resolves an existing target when present and rejects a target whose
-   domain disagrees with the assignment.
-3. Scribe receives the assignment, its small read surface, and the terminal
+- `create` binds domain, parent directory, document kind, raw metadata title,
+  and project revision;
+- `replace` binds domain, exact current document, request-start content and disk
+  revisions;
+- both bind objective, requirements, language through the assignment, and
+  optional target length.
+
+Main validates the complete target plan before spending a Scribe call. An
+existing chapter may be read as continuity context for a `create` operation, but
+it is never the operation target. After validation:
+
+1. Main commissions one Scribe artifact using the already-bound action and
+   domain.
+2. Scribe receives the assignment, its small read surface, and the terminal
    artifact-submission tool.
-4. Main validates Markdown, protocol contamination, size, parseability, and
+3. Main validates Markdown, protocol contamination, size, parseability, and
    severe under-length truncation.
-5. Main persists the artifact lifecycle and returns a compact receipt containing
-   its assignment ref, domain, and size. The complete Markdown is not returned
-   to Curator's model context.
-6. Curator passes the assignment ref to the appropriate reviewed proposal.
-7. Renderer previews the complete Markdown from the proposal. Acceptance
-   performs the established revision-checked Main-owned mutation.
+4. Main persists the artifact and constructs exactly the pre-bound create or
+   replacement proposal. Curator cannot rebind it through a second tool call.
+5. Renderer previews the complete Markdown. Acceptance performs the established
+   revision-checked Main-owned mutation.
+
+The internal assignment receipt remains compact, but is not returned to Curator
+for manual composition. The lower-level delegation protocol may remain for
+worker compatibility and audit; it is not enabled on the Curator surface.
 
 Invalid artifacts are terminal workflow results and never become blank or
-partial document proposals. Full content remains available to the user through
-the proposal UI and to Main through the artifact store, not through repeated
-model messages.
+partial document proposals. A target-plan mistake is rejected before Scribe
+runs; an artifact can never be salvaged by replacing a different existing
+document. Full content remains available to the user through the proposal UI and
+to Main through the artifact store, not through repeated model messages.
 
 ## Accepted-Manuscript reconciliation
 
@@ -174,7 +193,10 @@ The focused reconciliation operation owns primary-timeline bootstrap, moments,
 source binding, stable IDs, ordering, and event/beat links. The model supplies
 semantic facts, not dependency plumbing. Ambiguous author judgments become
 deduplicated questions. An intentionally unnamed character is not automatically
-a question.
+a question. Its successful `reconciliationStatus: complete` closes both Main's
+durable job and the worker's completion gate. A redundant explicit completion
+call in the same run is idempotently successful instead of becoming a visible
+error.
 
 ## Visibility and receipts
 

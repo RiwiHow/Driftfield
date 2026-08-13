@@ -79,7 +79,7 @@ export type AgentNovelContextSection =
   (typeof AGENT_NOVEL_CONTEXT_SECTIONS)[number];
 
 export interface AgentNovelContextToolResult {
-  currentDocument?: AgentDocumentToolResult;
+  currentDocument?: AgentDocumentToolResult | null;
   documents: AgentDocumentToolResult[];
   reconciliation?: AgentAcceptedReconciliationContext;
   storyState?: import('./project-story').ProjectStorySnapshot;
@@ -234,6 +234,7 @@ export type AgentCanonicalStoryQuestionArguments = Omit<
 > & { evidence: import('./project-story').StoryQuestionEvidence | null };
 
 export interface AgentWritingAssignment {
+  documentAction: 'create' | 'replace';
   documentDomain: AgentDocumentDomain;
   objective: string;
   requirements: string[];
@@ -244,6 +245,7 @@ export interface AgentWritingAssignment {
 export interface AgentWritingAssignmentToolResult {
   assignmentId: string;
   characterCount: number;
+  documentAction: 'create' | 'replace';
   documentDomain: AgentDocumentDomain;
   status: 'completed';
 }
@@ -273,6 +275,28 @@ export type AgentDocumentEditArguments = {
   baseRevision: string;
   documentId: string;
 } & AgentDocumentContentSource;
+
+export interface AgentDocumentWritingProposalArguments {
+  baseContentRevision: string | null;
+  baseRevision: string | null;
+  documentAction: 'create' | 'replace';
+  documentDomain: AgentDocumentDomain;
+  documentId: string | null;
+  kind:
+    | 'chapter'
+    | 'prologue'
+    | 'interlude'
+    | 'epilogue'
+    | 'appendix'
+    | 'entry'
+    | null;
+  metadataTitle: string | null;
+  objective: string;
+  parentId: string | null;
+  projectRevision: string | null;
+  requirements: string[];
+  targetLength: number | null;
+}
 
 export type AgentDocumentFileOperationArguments =
   | ({
@@ -380,6 +404,10 @@ export interface AgentToolContractMap {
     arguments: AgentDocumentEditArguments;
     result: AgentProposalToolResult;
   };
+  propose_document_writing: {
+    arguments: AgentDocumentWritingProposalArguments;
+    result: AgentProposalToolResult;
+  };
   propose_document_file_operation: {
     arguments: AgentDocumentFileOperationArguments;
     result: AgentProposalToolResult;
@@ -410,6 +438,7 @@ export const AGENT_TOOL_NAMES = [
   'record_story_question',
   'resolve_story_question',
   'propose_document_edit',
+  'propose_document_writing',
   'propose_document_file_operation',
   'propose_project_structure_operation',
   'propose_story_operation',
@@ -428,6 +457,7 @@ export type AgentToolAuditName = AgentToolName | LegacyAgentToolName;
 const LONG_RUNNING_AGENT_TOOL_NAMES = new Set<AgentToolName>([
   'delegate_writing',
   'propose_document_edit',
+  'propose_document_writing',
   'propose_document_file_operation',
   'propose_project_structure_operation',
   'propose_story_operation',
@@ -516,19 +546,50 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
   if (!isRecord(value)) return false;
   if (toolName === 'delegate_writing') {
     return (
-      Object.keys(value).length === 5 &&
+      Object.keys(value).length === 6 &&
+      (value.documentAction === 'create' || value.documentAction === 'replace') &&
       (value.documentDomain === 'lore' || value.documentDomain === 'manuscript') &&
       isBoundedText(value.objective, 4_000, false) &&
       Array.isArray(value.requirements) &&
       value.requirements.length <= 20 &&
       value.requirements.every((requirement) =>
         isBoundedText(requirement, 1_000, false)) &&
-      (value.targetDocumentId === null || isDocumentId(value.targetDocumentId)) &&
+      ((value.documentAction === 'create' && value.targetDocumentId === null) ||
+        (value.documentAction === 'replace' && isDocumentId(value.targetDocumentId))) &&
       (value.targetLength === null ||
         (Number.isSafeInteger(value.targetLength) &&
           (value.targetLength as number) >= 1 &&
           (value.targetLength as number) <= 200_000))
     );
+  }
+  if (toolName === 'propose_document_writing') {
+    if (
+      Object.keys(value).length !== 12 ||
+      (value.documentAction !== 'create' && value.documentAction !== 'replace') ||
+      (value.documentDomain !== 'lore' && value.documentDomain !== 'manuscript') ||
+      !isBoundedText(value.objective, 4_000, false) ||
+      !Array.isArray(value.requirements) ||
+      value.requirements.length > 20 ||
+      !value.requirements.every((requirement) =>
+        isBoundedText(requirement, 1_000, false)) ||
+      !(value.targetLength === null ||
+        (Number.isSafeInteger(value.targetLength) &&
+          (value.targetLength as number) >= 1 &&
+          (value.targetLength as number) <= 200_000))
+    ) return false;
+    if (value.documentAction === 'create') {
+      return value.baseContentRevision === null &&
+        value.baseRevision === null && value.documentId === null &&
+        isDocumentId(value.parentId) && isRevision(value.projectRevision) &&
+        isValidMetadataTitle(value.metadataTitle) &&
+        typeof value.kind === 'string' &&
+        ['chapter', 'prologue', 'interlude', 'epilogue', 'appendix', 'entry']
+          .includes(value.kind);
+    }
+    return isRevision(value.baseContentRevision) &&
+      isRevision(value.baseRevision) && isDocumentId(value.documentId) &&
+      value.kind === null && value.metadataTitle === null &&
+      value.parentId === null && value.projectRevision === null;
   }
   if (toolName === 'submit_writing_artifact') {
     return (
@@ -755,6 +816,7 @@ const isToolData = (toolName: AgentToolName, value: unknown): boolean =>
     : toolName === 'record_story_question' || toolName === 'resolve_story_question'
       ? isStoryQuestionResult(value)
     : toolName === 'propose_document_edit' ||
+        toolName === 'propose_document_writing' ||
         toolName === 'propose_document_file_operation' ||
         toolName === 'propose_project_structure_operation' ||
         toolName === 'propose_story_operation'
@@ -775,7 +837,8 @@ const isNovelContextResult = (
     ].includes(key)) &&
   Array.isArray(value.documents) && value.documents.length <= 4 &&
   value.documents.every(isDocumentResult) &&
-  (value.currentDocument === undefined || isDocumentResult(value.currentDocument)) &&
+  (value.currentDocument === undefined || value.currentDocument === null ||
+    isDocumentResult(value.currentDocument)) &&
   (value.reconciliation === undefined ||
     isAcceptedReconciliationContext(value.reconciliation)) &&
   (value.storyState === undefined || isAgentStorySnapshot(value.storyState)) &&
@@ -783,11 +846,12 @@ const isNovelContextResult = (
 
 const isWritingAssignmentResult = (value: unknown): boolean =>
   isRecord(value) &&
-  Object.keys(value).length === 4 &&
+  Object.keys(value).length === 5 &&
   isDocumentId(value.assignmentId) &&
   Number.isSafeInteger(value.characterCount) &&
   (value.characterCount as number) >= 1 &&
   (value.characterCount as number) <= 512 * 1024 &&
+  (value.documentAction === 'create' || value.documentAction === 'replace') &&
   (value.documentDomain === 'lore' || value.documentDomain === 'manuscript') &&
   value.status === 'completed';
 
@@ -1005,6 +1069,10 @@ const isBoundedText = (
   allowEmpty: boolean,
 ): value is string => typeof value === 'string' && value.length <= maxLength &&
   (allowEmpty || value.trim().length > 0) && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value);
+
+const isValidMetadataTitle = (value: unknown): value is string =>
+  typeof value === 'string' && value.trim().length > 0 &&
+  value.length <= 500 && !/[\u0000-\u001f\u007f]/u.test(value);
 
 const isDocumentId = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= 128;

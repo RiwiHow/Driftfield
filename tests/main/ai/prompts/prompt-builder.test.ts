@@ -66,20 +66,19 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).not.toContain('No application tools are available');
   });
 
-  it('adds the Curator-to-Scribe handoff policy only when delegation is available', () => {
+  it('adds the atomic Curator-to-Scribe proposal policy only when available', () => {
     const built = buildAgentSystemPrompt({
-      availableTools: ['delegate_writing'],
+      availableTools: ['propose_document_writing'],
       responseLanguage: 'en',
       role: 'curator',
     });
-    expect(built.prompt).toContain('One Scribe delegation is available');
+    expect(built.prompt).toContain('One atomic Scribe-backed document proposal is available');
     expect(built.prompt).toContain('requested Manuscript or Lore prose');
-    expect(built.prompt).toContain('Set documentDomain correctly');
-    expect(built.prompt).toContain('compact validated artifact receipt');
-    expect(built.prompt).toContain('pass its assignmentId to one matching reviewed proposal');
-    expect(built.prompt).toContain('never reproduce the Markdown');
+    expect(built.prompt).toContain('immutable create-or-replace target plan');
+    expect(built.prompt).toContain('does not expose a reusable assignment reference');
+    expect(built.prompt).toContain('Never substitute replace after a failed create');
     expect(built.prompt).toContain('Do not hide all operational narration');
-    expect(built.prompt).toContain('do not retry');
+    expect(built.prompt).toContain('report the reason concisely');
     expect(built.prompt).not.toContain('revise_writing_artifact');
   });
 

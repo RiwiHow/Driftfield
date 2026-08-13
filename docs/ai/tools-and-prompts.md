@@ -31,6 +31,9 @@ question, and source IDs plus SHA-256 content revisions with short refs such as
 mapping, reuses refs across repeated reads, resolves them before privileged
 operations, and releases them with request state. The model-facing surface does
 not emit persistent UUIDs or content hashes.
+When `current_document` is requested without a request-start editor document,
+the section is returned as `null`; this is a successful absence and must not be
+retried.
 Refs are acquired lazily rather than injected into every conversation. A request
 that needs structure or story refs first reads only the relevant context with
 empty document and directory selectors, then reuses the returned refs for the
@@ -100,29 +103,30 @@ The bounded direct-maintenance surface contains:
   records; any resulting clear additive/linking fact is a separate Maintain
   operation with its own audit entry.
 
-The bounded collaboration surface contains:
+The bounded collaboration surface contains `propose_document_writing`, the
+Curator's single Scribe-backed document operation. It binds the semantic
+assignment and reviewed mutation target before generation begins:
 
-- `delegate_writing`, which lets the Curator commission one Scribe draft for a
-  user-authorized Manuscript or Lore writing request. The assignment contains
-  an explicit `documentDomain`, bounded objective and requirements, nullable
-  request-scoped target-document ref, and nullable target length. New-document
-  assignments use `targetDocumentId: null`;
-  existing-document assignments use a document ref returned by structure,
-  never a directory ref or invented placeholder. Main resolves and validates
-  non-null targets and rejects a domain mismatch. Main creates and owns the child task
-  identity, parentage, cancellation, timeout, and artifact-size limit. Scribe
-  receives the read-only novel tools plus one terminal
-  `submit_writing_artifact` tool. Only the bounded Markdown submitted through
-  that tool becomes the draft; ordinary assistant text before or after the
-  submission is discarded, so planning or commentary cannot leak into the
-  document. Scribe cannot delegate, propose, maintain story state, or persist
-  content. Main persists the artifact lifecycle and returns to Curator only a
-  compact receipt containing assignment ref, domain, character count, and
-  status; the complete Markdown is not duplicated into Curator context. One
-  Scribe delegation is available per request and cannot be retried. Curator
-  passes the assignment ref to one domain-matching creation or replacement
-  proposal. Main resolves that request- and target-bound reference exactly once
-  to the retained Markdown. Renderer shows the complete proposal for review.
+- `create` requires the exact request-scoped parent directory and project
+  revision, document kind, raw metadata title, and a null document target;
+- `replace` requires the exact request-start document plus its disk and content
+  revisions, and has no create destination;
+- both actions carry the domain, bounded objective and requirements, and
+  optional target length.
+
+Main resolves and validates this entire plan before starting Scribe. A
+preceding chapter read for continuity is context for a new chapter, never its
+replacement target. Main owns the child identity, parentage, cancellation,
+timeout, and artifact-size limit. Scribe receives only the read-only novel
+tools plus the terminal `submit_writing_artifact` tool. Only Markdown submitted
+through that tool becomes the draft; ordinary assistant text is discarded.
+Scribe cannot delegate, propose, maintain story state, or persist content.
+
+After artifact validation, Main constructs exactly the already-bound create or
+replace proposal and Renderer shows the complete Markdown for review. Curator
+does not receive a reusable assignment ref and cannot redirect the artifact in
+a later call. The lower-level `delegate_writing` receipt remains an internal
+worker compatibility protocol and is not enabled for Curator.
 
 Acceptance of a Scribe-backed Manuscript proposal creates or ensures one
 durable `story_reconciliation_jobs` row bound to the accepted document and its
@@ -148,15 +152,15 @@ describing the first operation regardless of where validation failed.
 
 The reviewed mutation surface additionally contains:
 
-- `propose_document_edit`, which accepts either direct replacement Markdown or
-  the current request's unclaimed Scribe assignment ID for the request-start
-  current-document snapshot and binds it to both the disk base revision and
-  draft content revision;
+- `propose_document_edit`, which accepts direct replacement Markdown for the
+  request-start current-document snapshot and binds it to both the disk base
+  revision and draft content revision. Generated replacement prose uses the
+  atomic `propose_document_writing` path;
 - `propose_document_file_operation`, which proposes either creating a Markdown
   document under a request-scoped directory ref or deleting a document by ref.
-  Creation carries a raw `metadataTitle`, domain kind, and either direct
-  Markdown or the current request's unclaimed Scribe assignment ID. Deletion binds to both the
-  project revision and persisted document revision.
+  Direct creation carries a raw `metadataTitle`, domain kind, and supplied
+  Markdown. Generated creation uses `propose_document_writing`. Deletion binds
+  to both the project revision and persisted document revision.
 - `propose_project_structure_operation`, which proposes creating a manuscript
   volume, creating an icon-bearing lore category, deleting an empty lore
   category, moving a document between compatible request-scoped directory refs, or

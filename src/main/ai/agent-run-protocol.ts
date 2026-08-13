@@ -22,6 +22,23 @@ export const responseProtocolIssue = (
   return reconciliationPending ? 'reconciliation' : null;
 };
 
+export const closesStoryReconciliation = (
+  toolName: AgentToolName,
+  result: { data?: unknown; ok: boolean; [key: string]: unknown },
+): boolean => {
+  if (
+    !result.ok ||
+    typeof result.data !== 'object' ||
+    result.data === null
+  ) return false;
+  if (toolName === 'complete_story_reconciliation') {
+    return 'status' in result.data && result.data.status === 'complete';
+  }
+  return toolName === 'reconcile_accepted_document' &&
+    'reconciliationStatus' in result.data &&
+    result.data.reconciliationStatus === 'complete';
+};
+
 export const containsPseudoToolCall = (
   text: string,
   enabledToolNames: AgentToolName[],

@@ -44,8 +44,10 @@ const MAX_WRITING_ARTIFACT_BYTES = 512 * 1024;
 const CURATOR_TOOLS = AGENT_TOOL_NAMES.filter(
   (toolName) =>
     toolName !== 'submit_writing_artifact' &&
-    toolName !== 'revise_writing_artifact',
+    toolName !== 'revise_writing_artifact' &&
+    toolName !== 'delegate_writing',
 );
+const CURATOR_TOOL_SET = new Set<AgentToolName>(CURATOR_TOOLS);
 const SCRIBE_TOOLS = [
   'read_novel_context',
   'submit_writing_artifact',
@@ -77,6 +79,7 @@ interface ActiveAgentRequest {
   writingArtifact?: {
     assignmentId: string;
     claimed: boolean;
+    documentAction: 'create' | 'replace';
     documentDomain: AgentDocumentDomain;
     markdown: string;
     parentRequestId: string;
@@ -91,6 +94,7 @@ interface PendingWritingTask {
   artifactMarkdown?: string;
   artifactSubmitted: boolean;
   artifactValidationCode?: ManuscriptMarkdownValidationCode;
+  documentAction: 'create' | 'replace';
   documentDomain: AgentDocumentDomain;
   parentRequestId: string;
   reject: (error: Error) => void;
@@ -357,7 +361,16 @@ export class AiAgentService {
     }
 
     if (message.type === 'tool-request') {
-      const result = this.toolDispatcher === undefined
+      const result = !CURATOR_TOOL_SET.has(message.toolName)
+        ? {
+            error: {
+              code: 'invalid-arguments' as const,
+              detail: 'This tool is not enabled for the Curator role.',
+            },
+            ok: false as const,
+            toolName: message.toolName,
+          }
+        : this.toolDispatcher === undefined
         ? {
             error: { code: 'internal-error' as const },
             ok: false as const,
@@ -382,6 +395,7 @@ export class AiAgentService {
               requestId: message.requestId,
               claimWritingArtifact: (
                 assignmentId,
+                documentAction,
                 targetDocumentId,
                 documentDomain,
               ) => {
@@ -389,6 +403,7 @@ export class AiAgentService {
                 if (
                   artifact === undefined ||
                   artifact.assignmentId !== assignmentId ||
+                  artifact.documentAction !== documentAction ||
                   artifact.targetDocumentId !== targetDocumentId ||
                   artifact.documentDomain !== documentDomain ||
                   artifact.claimed
@@ -607,6 +622,7 @@ export class AiAgentService {
     if (
       active.writingArtifact?.claimed === true &&
       (message.toolName === 'propose_document_edit' ||
+        message.toolName === 'propose_document_writing' ||
         message.toolName === 'propose_document_file_operation')
     ) {
       const status = result.ok &&
@@ -683,6 +699,7 @@ export class AiAgentService {
   ): { detail?: string; ok: boolean } {
     const reconciliation = active.reconciliation;
     if (!reconciliation.pending) {
+      if (reconciliation.jobId !== undefined) return { ok: true };
       return {
         detail: 'No accepted Scribe-backed manuscript proposal is awaiting reconciliation.',
         ok: false,
@@ -750,6 +767,7 @@ export class AiAgentService {
       }, WRITING_TASK_TIMEOUT_MS);
       this.writingTasks.set(taskId, {
         artifactSubmitted: false,
+        documentAction: assignment.documentAction,
         documentDomain: assignment.documentDomain,
         parentRequestId,
         reject,
@@ -916,6 +934,7 @@ export class AiAgentService {
       active.writingArtifact = {
         assignmentId: message.requestId,
         claimed: false,
+        documentAction: task.documentAction,
         documentDomain: task.documentDomain,
         markdown: task.artifactMarkdown,
         parentRequestId: task.parentRequestId,
@@ -926,6 +945,7 @@ export class AiAgentService {
       task.resolve({
         assignmentId: message.requestId,
         characterCount: task.artifactMarkdown.length,
+        documentAction: task.documentAction,
         documentDomain: task.documentDomain,
         status: 'completed',
       });

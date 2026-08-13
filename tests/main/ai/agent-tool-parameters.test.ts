@@ -4,6 +4,7 @@ import {
   ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS,
   DOCUMENT_EDIT_PARAMETERS,
   DOCUMENT_FILE_OPERATION_PARAMETERS,
+  DOCUMENT_WRITING_PARAMETERS,
   normalizeStoryMaintenanceBatchArguments,
   normalizeStoryMaintenanceArguments,
   PROJECT_STRUCTURE_OPERATION_PARAMETERS,
@@ -52,7 +53,7 @@ describe('Agent tool parameter schemas', () => {
     ]);
     expect(properties.markdown).toMatchObject({ type: ['string', 'null'] });
     expect(properties.writingAssignmentId).toMatchObject({
-      description: expect.stringContaining('assignmentId returned by delegate_writing'),
+      description: expect.stringContaining('generated prose uses propose_document_writing'),
       type: ['string', 'null'],
     });
   });
@@ -62,6 +63,7 @@ describe('Agent tool parameter schemas', () => {
     const properties = schema.properties as Record<string, Record<string, unknown>>;
 
     expect(schema.required).toEqual([
+      'documentAction',
       'documentDomain',
       'objective',
       'requirements',
@@ -76,6 +78,30 @@ describe('Agent tool parameter schemas', () => {
       description: expect.stringContaining('otherwise use null'),
       type: ['integer', 'null'],
     });
+  });
+
+  it('defines one provider-compatible pre-bound generated-document proposal', () => {
+    const schema = DOCUMENT_WRITING_PARAMETERS as unknown as Record<string, unknown>;
+    const properties = schema.properties as Record<string, Record<string, unknown>>;
+
+    expect(schema.type).toBe('object');
+    expect(schema.required).toEqual([
+      'baseContentRevision',
+      'baseRevision',
+      'documentAction',
+      'documentDomain',
+      'documentId',
+      'kind',
+      'metadataTitle',
+      'objective',
+      'parentId',
+      'projectRevision',
+      'requirements',
+      'targetLength',
+    ]);
+    expect(properties.documentAction.description).toContain('new chapter');
+    expect(properties.documentId.description).toContain('continuity-reference');
+    expect(JSON.stringify(schema)).not.toContain('anyOf');
   });
 
   it('uses a provider-compatible root object for document file operations', () => {

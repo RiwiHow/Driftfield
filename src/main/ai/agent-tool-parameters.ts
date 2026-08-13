@@ -40,7 +40,7 @@ export const NOVEL_CONTEXT_PARAMETERS = Type.Object(
       stringEnum(AGENT_NOVEL_CONTEXT_SECTIONS),
       {
         description:
-          'Additional context sections to read. current_document is the immutable request-start editor draft. accepted_reconciliation is available only after an accepted Scribe-backed manuscript proposal and returns the exact accepted persisted document with request-scoped refs instead of stable IDs.',
+          'Additional context sections to read. current_document is the immutable request-start editor draft, or null when no document was open. Do not retry a null current_document. accepted_reconciliation is available only after an accepted Scribe-backed manuscript proposal and returns the exact accepted persisted document with request-scoped refs instead of stable IDs.',
         maxItems: AGENT_NOVEL_CONTEXT_SECTIONS.length,
         uniqueItems: true,
       },
@@ -55,6 +55,10 @@ export const NOVEL_CONTEXT_PARAMETERS = Type.Object(
 
 export const WRITING_ASSIGNMENT_PARAMETERS = Type.Object(
   {
+    documentAction: stringEnum(['create', 'replace'] as const, {
+      description:
+        'Use create only for a new document with targetDocumentId null. Use replace only when the user asked to replace the exact existing targetDocumentId. An existing chapter used for continuity context is not a replacement target.',
+    }),
     documentDomain: stringEnum(['manuscript', 'lore'] as const, {
       description:
         'Use manuscript for chapter-like prose and lore for a World/Lore document. The assignment and eventual proposal target must use the same domain.',
@@ -79,6 +83,73 @@ export const WRITING_ASSIGNMENT_PARAMETERS = Type.Object(
     }),
   },
   { additionalProperties: false },
+);
+
+export const DOCUMENT_WRITING_PARAMETERS = Type.Object(
+  {
+    baseContentRevision: Type.Unsafe<string | null>({
+      description:
+        'For replace, use the request-start draft content revision ref. For create, use null.',
+      pattern: '^revision:[1-9][0-9]*$',
+      type: ['string', 'null'],
+    }),
+    baseRevision: Type.Unsafe<string | null>({
+      description:
+        'For replace, use the request-start disk revision ref. For create, use null.',
+      pattern: '^revision:[1-9][0-9]*$',
+      type: ['string', 'null'],
+    }),
+    documentAction: stringEnum(['create', 'replace'] as const, {
+      description:
+        'Choose create for a new chapter or Lore entry. Choose replace only when the user explicitly wants to replace an existing document.',
+    }),
+    documentDomain: stringEnum(['manuscript', 'lore'] as const),
+    documentId: Type.Unsafe<string | null>({
+      description:
+        'For replace, the exact request-scoped document ref. For create, null. Do not put a continuity-reference chapter here.',
+      maxLength: 128,
+      type: ['string', 'null'],
+    }),
+    kind: Type.Unsafe<
+      'chapter' | 'prologue' | 'interlude' | 'epilogue' | 'appendix' | 'entry' | null
+    >({
+      description: 'For create, the new document kind. For replace, null.',
+      enum: ['chapter', 'prologue', 'interlude', 'epilogue', 'appendix', 'entry', null],
+      type: ['string', 'null'],
+    }),
+    metadataTitle: Type.Unsafe<string | null>({
+      description:
+        'For create, the raw title without generated numbering. For replace, null.',
+      maxLength: 500,
+      type: ['string', 'null'],
+    }),
+    objective: Type.String({ maxLength: 4_000, minLength: 1 }),
+    parentId: Type.Unsafe<string | null>({
+      description:
+        'For create, the request-scoped destination directory ref. For replace, null.',
+      maxLength: 128,
+      type: ['string', 'null'],
+    }),
+    projectRevision: Type.Unsafe<string | null>({
+      description: 'For create, the current project revision ref. For replace, null.',
+      pattern: '^revision:[1-9][0-9]*$',
+      type: ['string', 'null'],
+    }),
+    requirements: Type.Array(
+      Type.String({ maxLength: 1_000, minLength: 1 }),
+      { maxItems: 20 },
+    ),
+    targetLength: Type.Unsafe<number | null>({
+      maximum: 200_000,
+      minimum: 1,
+      type: ['integer', 'null'],
+    }),
+  },
+  {
+    additionalProperties: false,
+    description:
+      'Bind writing and its reviewed mutation before Scribe runs. create requires parentId, projectRevision, metadataTitle, and kind with replacement fields null. replace requires documentId and both base revisions with creation fields null.',
+  },
 );
 
 export const WRITING_ARTIFACT_SUBMISSION_PARAMETERS = Type.Object(
@@ -129,7 +200,7 @@ export const DOCUMENT_EDIT_PARAMETERS = Type.Object(
     }),
     writingAssignmentId: Type.Unsafe<string | null>({
       description:
-        'The assignmentId returned by delegate_writing, or null when markdown is supplied directly. Exactly one of markdown and writingAssignmentId must be non-null.',
+        'Reserved for Main-owned legacy handoff. Curator direct edits must supply markdown and use null; generated prose uses propose_document_writing. Exactly one of markdown and writingAssignmentId must be non-null.',
       maxLength: 128,
       type: ['string', 'null'],
     }),
@@ -196,7 +267,7 @@ export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
     writingAssignmentId: Type.Optional(
       Type.Unsafe<string | null>({
         description:
-          'Required for create: the assignmentId returned by delegate_writing, or null when markdown is supplied directly. Exactly one of markdown and writingAssignmentId must be non-null.',
+          'Reserved for Main-owned legacy handoff. Curator direct creates must supply markdown and use null; generated prose uses propose_document_writing. Exactly one of markdown and writingAssignmentId must be non-null.',
         maxLength: 128,
         type: ['string', 'null'],
       }),
