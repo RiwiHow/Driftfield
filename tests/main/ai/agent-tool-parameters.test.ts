@@ -5,14 +5,22 @@ import {
   DOCUMENT_EDIT_PARAMETERS,
   DOCUMENT_FILE_OPERATION_PARAMETERS,
   DOCUMENT_WRITING_PARAMETERS,
+  NOVEL_CONTEXT_PARAMETERS,
   normalizeStoryMaintenanceBatchArguments,
   normalizeStoryMaintenanceArguments,
   PROJECT_STRUCTURE_OPERATION_PARAMETERS,
+  RESOLVE_STORY_QUESTION_PARAMETERS,
   STORY_MAINTENANCE_PARAMETERS,
   STORY_OPERATION_PARAMETERS,
   STORY_QUESTION_PARAMETERS,
+  STORY_RECONCILIATION_COMPLETION_PARAMETERS,
   WRITING_ARTIFACT_SUBMISSION_PARAMETERS,
 } from '../../../src/main/ai/agent-tool-parameters';
+import {
+  AGENT_TOOL_NAMES,
+  agentToolArgumentHint,
+  isAgentToolArguments,
+} from '../../../src/shared/contracts/agent-tools';
 
 describe('Agent tool parameter schemas', () => {
   it('defines a bounded terminal Scribe artifact submission', () => {
@@ -348,5 +356,107 @@ describe('Agent tool parameter schemas', () => {
         title: 'Turn back',
       },
     }).change).toMatchObject({ desiredOutcome: '', dramaticPurpose: '' });
+  });
+});
+
+describe('Agent tool argument schema unification', () => {
+  const modelSchemas = {
+    read_novel_context: NOVEL_CONTEXT_PARAMETERS,
+    submit_writing_artifact: WRITING_ARTIFACT_SUBMISSION_PARAMETERS,
+    maintain_story_records: STORY_MAINTENANCE_PARAMETERS,
+    complete_story_reconciliation: STORY_RECONCILIATION_COMPLETION_PARAMETERS,
+    reconcile_accepted_document: ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS,
+    record_story_question: STORY_QUESTION_PARAMETERS,
+    resolve_story_question: RESOLVE_STORY_QUESTION_PARAMETERS,
+    propose_document_edit: DOCUMENT_EDIT_PARAMETERS,
+    propose_document_writing: DOCUMENT_WRITING_PARAMETERS,
+    propose_document_file_operation: DOCUMENT_FILE_OPERATION_PARAMETERS,
+    propose_project_structure_operation: PROJECT_STRUCTURE_OPERATION_PARAMETERS,
+    propose_story_operation: STORY_OPERATION_PARAMETERS,
+  };
+
+  it('ships every tool schema without Refine functions or union variants', () => {
+    expect(Object.keys(modelSchemas)).toEqual([...AGENT_TOOL_NAMES]);
+    for (const schema of Object.values(modelSchemas)) {
+      const serialized = JSON.stringify(schema);
+      expect(serialized).not.toContain('~refine');
+      expect(serialized).not.toContain('anyOf');
+      expect(serialized).not.toContain('"const"');
+    }
+  });
+
+  it('uses the same runtime schema for the Main guard and recovery hints', () => {
+    expect(isAgentToolArguments('propose_document_edit', {
+      documentId: 'chapter-1',
+      markdown: null,
+    })).toBe(false);
+    expect(agentToolArgumentHint('propose_document_edit', {
+      documentId: 'chapter-1',
+      markdown: null,
+    })).toContain('Generated Scribe prose uses propose_document_writing');
+
+    expect(isAgentToolArguments('propose_story_operation', {
+      change: {
+        description: 'Wrong generic field',
+        name: 'Imperial calendar',
+        note: '',
+        operation: 'create_timeline',
+        title: 'Imperial calendar',
+      },
+    })).toBe(false);
+    expect(agentToolArgumentHint('propose_story_operation', {
+      change: {
+        description: 'Wrong generic field',
+        name: 'Imperial calendar',
+        note: '',
+        operation: 'create_timeline',
+        title: 'Imperial calendar',
+      },
+    })).toBe('change.description is not valid for create_timeline.');
+
+    expect(isAgentToolArguments('maintain_story_records', {
+      changes: [{
+        clientRef: 'hearing',
+        displayTime: 'Late spring',
+        note: '',
+        operation: 'create_moment',
+        orderKey: 2,
+        precision: 'season',
+        timelineId: 'timeline:1',
+      }, {
+        causes: '',
+        consequences: '',
+        endMomentId: null,
+        operation: 'create_event',
+        participants: [],
+        startMomentId: '@hearing',
+        status: undefined,
+        summary: '',
+        timelineId: 'timeline:1',
+        title: 'The hearing',
+      }],
+    })).toBe(false);
+    expect(agentToolArgumentHint('maintain_story_records', {
+      changes: [{
+        clientRef: 'hearing',
+        displayTime: 'Late spring',
+        note: '',
+        operation: 'create_moment',
+        orderKey: 2,
+        precision: 'season',
+        timelineId: 'timeline:1',
+      }, {
+        causes: '',
+        consequences: '',
+        endMomentId: null,
+        operation: 'create_event',
+        participants: [],
+        startMomentId: '@hearing',
+        status: undefined,
+        summary: '',
+        timelineId: 'timeline:1',
+        title: 'The hearing',
+      }],
+    })).toBe('changes[1].eventStatus is required for create_event.');
   });
 });

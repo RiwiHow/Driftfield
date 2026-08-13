@@ -370,8 +370,15 @@ Keep model-facing parameter schemas portable across supported providers. Use a
 top-level object schema and plain `{ type: 'string', enum: [...] }` schemas for
 string enums; do not use root `Type.Union` or `Type.Literal` unions for
 operation variants. Express provider-sensitive conditional requirements
-through descriptions and enforce the exact discriminated shape again in
-Driftfield's shared runtime validator.
+through descriptions. The same TypeBox definitions live in
+`src/shared/contracts/agent-tool-schema.ts`: the JSON Schema object is shipped
+to the worker, and a `Type.Refine` attached to a cloned runtime schema is the
+Main trust boundary. `isAgentToolArguments` is `Value.Check` of that runtime
+schema, and recovery hints are the Refine error messages. Bounded-value checks
+(exact discriminated keys, control characters, Markdown byte length, unique
+local refs) belong in the Refine so they cannot drift from the hint text.
+Do not reintroduce a parallel hand-written argument guard or dispatcher-local
+shape table.
 
 System prompts live under `src/main/ai/prompts/` as versioned,
 application-owned role profiles. The prompt registry composes:
@@ -386,7 +393,8 @@ size-bounded additions, but cannot replace application boundaries.
 
 Whenever a tool is added, removed, or its semantics change:
 
-1. Update the `defineTool()` registration and shared typed protocol.
+1. Update the shared TypeBox schema, its Refine trust-boundary checks, the
+   `defineTool()` registration, and the shared typed protocol together.
 2. Review `src/main/ai/prompts/prompt-builder.ts` for changes needed to the
    cross-tool policy.
 3. Do not add per-tool descriptions to the system prompt.

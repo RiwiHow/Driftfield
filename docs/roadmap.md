@@ -73,14 +73,6 @@ implemented or authorized.
   the current bounded-tool Curator/Scribe workflow. Reassess their split only
   when additional context domains, concurrent specialists, or lifecycle states
   create distinct responsibilities; do not add abstractions preemptively.
-- Every Agent tool argument shape is still declared three times: the TypeBox
-  parameter schema shipped to the worker, the hand-written `isAgentToolArguments`
-  guard that validates worker messages in Main, and the dispatcher's bounded
-  hint text. The guard is the trust boundary, so the schema cannot simply
-  replace it without strict, `additionalProperties`-closed validation and
-  equivalent bounded-value checks. Until they are unified, treat the guard as
-  authoritative and change all three together; drift between them has already
-  produced hints that accepted arguments the guard rejects.
 - Collaboration currently supports only one Scribe child task per Curator
   request, using the same selected model and thinking level. The task and final
   proposal are auditable through the existing tool/proposal timeline, but there

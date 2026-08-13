@@ -147,7 +147,9 @@ See [Project Format](docs/project-format.md).
 ### Tool and prompt source of truth
 
 - A tool's `defineTool()` registration is the single source of truth for its
-  name, description, and parameter schema.
+  name, description, and parameter schema. The TypeBox schema and its Refine
+  trust-boundary live in `src/shared/contracts/agent-tool-schema.ts`; do not
+  add a parallel argument guard or dispatcher-local shape table.
 - Native Tool Calling tells the model which tools are enabled. Do not duplicate
   individual tool descriptions in the system prompt.
 - Versioned system prompts under `src/main/ai/prompts/` contain immutable

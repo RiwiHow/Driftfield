@@ -1,8 +1,20 @@
 import {
-  isProjectStoryOperation,
-  isProjectStorySnapshot,
-} from './project-story';
+  ACCEPTED_DOCUMENT_REFERENCE,
+  AGENT_NOVEL_CONTEXT_SECTIONS,
+  agentToolArgumentHint,
+  isAgentStoryOperation,
+  isAgentToolArguments,
+} from './agent-tool-schema';
+import { isProjectStorySnapshot } from './project-story';
 import { PROJECT_ICON_IDS } from './project-layout';
+
+export {
+  ACCEPTED_DOCUMENT_REFERENCE,
+  AGENT_NOVEL_CONTEXT_SECTIONS,
+  agentToolArgumentHint,
+  isAgentStoryOperation,
+  isAgentToolArguments,
+};
 
 const isProjectIcon = (
   value: unknown,
@@ -87,13 +99,6 @@ export interface AgentNovelStructureContext
     title: string;
   };
 }
-
-export const AGENT_NOVEL_CONTEXT_SECTIONS = [
-  'structure',
-  'current_document',
-  'story_state',
-  'accepted_reconciliation',
-] as const;
 
 export type AgentNovelContextSection =
   (typeof AGENT_NOVEL_CONTEXT_SECTIONS)[number];
@@ -576,209 +581,6 @@ export const isAgentToolAuditName = (
   (typeof value === 'string' &&
     LEGACY_AGENT_TOOL_NAMES.includes(value as LegacyAgentToolName));
 
-export const isAgentToolArguments = <Name extends AgentToolName>(
-  toolName: Name,
-  value: unknown,
-): value is AgentToolContractMap[Name]['arguments'] => {
-  if (!isRecord(value)) return false;
-  if (toolName === 'propose_document_writing') {
-    if (
-      Object.keys(value).length !== 9 ||
-      (value.documentAction !== 'create' && value.documentAction !== 'replace') ||
-      (value.documentDomain !== 'lore' && value.documentDomain !== 'manuscript') ||
-      !isBoundedText(value.objective, 4_000, false) ||
-      !Array.isArray(value.requirements) ||
-      value.requirements.length > 20 ||
-      !value.requirements.every((requirement) =>
-        isBoundedText(requirement, 1_000, false)) ||
-      !(value.targetLength === null ||
-        (Number.isSafeInteger(value.targetLength) &&
-          (value.targetLength as number) >= 1 &&
-          (value.targetLength as number) <= 200_000))
-    ) return false;
-    if (value.documentAction === 'create') {
-      return value.documentId === null &&
-        isRequestReferenceOfKind(value.parentId, 'directory') &&
-        isValidMetadataTitle(value.metadataTitle) &&
-        typeof value.kind === 'string' &&
-        ['chapter', 'prologue', 'interlude', 'epilogue', 'appendix', 'entry']
-          .includes(value.kind);
-    }
-    return isRequestReferenceOfKind(value.documentId, 'document') &&
-      value.kind === null && value.metadataTitle === null &&
-      value.parentId === null;
-  }
-  if (toolName === 'submit_writing_artifact') {
-    return (
-      Object.keys(value).length === 1 &&
-      typeof value.markdown === 'string' &&
-      value.markdown.trim().length > 0 &&
-      new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024
-    );
-  }
-  if (toolName === 'propose_document_edit') {
-    return (
-      Object.keys(value).length === 2 &&
-      isRequestReferenceOfKind(value.documentId, 'document') &&
-      typeof value.markdown === 'string' &&
-      value.markdown.trim().length > 0 &&
-      new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024
-    );
-  }
-  if (toolName === 'propose_document_file_operation') {
-    if (
-      value.operation === 'create' &&
-      Object.keys(value).length === 5
-    ) {
-      return (
-        isRequestReferenceOfKind(value.parentId, 'directory') &&
-        typeof value.metadataTitle === 'string' &&
-        value.metadataTitle.trim().length > 0 &&
-        value.metadataTitle.length <= 500 &&
-        !/[\u0000-\u001f\u007f]/u.test(value.metadataTitle) &&
-        typeof value.markdown === 'string' &&
-        value.markdown.trim().length > 0 &&
-        new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024 &&
-        typeof value.kind === 'string' &&
-        ['chapter', 'prologue', 'interlude', 'epilogue', 'appendix', 'entry'].includes(value.kind)
-      );
-    }
-    return (
-      value.operation === 'delete' &&
-      Object.keys(value).length === 2 &&
-      isRequestReferenceOfKind(value.documentId, 'document')
-    );
-  }
-  if (toolName === 'propose_project_structure_operation') {
-    if (
-      value.operation === 'rename_document' &&
-      Object.keys(value).length === 3
-    ) {
-      return (
-        isRequestReferenceOfKind(value.documentId, 'document') &&
-        typeof value.metadataTitle === 'string' &&
-        value.metadataTitle.trim().length > 0 &&
-        value.metadataTitle.length <= 500 &&
-        !/[\u0000-\u001f\u007f]/u.test(value.metadataTitle)
-      );
-    }
-    if (
-      value.operation === 'create_volume' &&
-      Object.keys(value).length === 2
-    ) {
-      return (
-        typeof value.title === 'string' &&
-        value.title.trim().length > 0 &&
-        value.title.length <= 500 &&
-        !/[\u0000-\u001f\u007f]/u.test(value.title)
-      );
-    }
-    if (
-      value.operation === 'create_lore_category' &&
-      Object.keys(value).length === 3
-    ) {
-      return (
-        isProjectIcon(value.icon) &&
-        typeof value.title === 'string' &&
-        value.title.trim().length > 0 &&
-        value.title.length <= 500 &&
-        !/[\u0000-\u001f\u007f]/u.test(value.title)
-      );
-    }
-    if (
-      value.operation === 'delete_lore_category' &&
-      Object.keys(value).length === 2
-    ) {
-      return isRequestReferenceOfKind(value.directoryId, 'directory');
-    }
-    return (
-      value.operation === 'move_document' &&
-      Object.keys(value).length === 3 &&
-      isRequestReferenceOfKind(value.documentId, 'document') &&
-      isRequestReferenceOfKind(value.targetParentId, 'directory')
-    );
-  }
-  if (toolName === 'propose_story_operation') {
-    return (
-      Object.keys(value).length === 1 &&
-      isAgentStoryOperation(value.change, false)
-    );
-  }
-  if (toolName === 'maintain_story_records') {
-    return (
-      Object.keys(value).length === 1 &&
-      Array.isArray(value.changes) && value.changes.length >= 1 &&
-      value.changes.length <= 24 && value.changes.every(isStoryMaintenanceChange)
-    );
-  }
-  if (toolName === 'complete_story_reconciliation') {
-    return Object.keys(value).length === 2 &&
-      typeof value.status === 'string' &&
-      ['applied', 'no_changes', 'questions_recorded'].includes(value.status) &&
-      isBoundedText(value.reason, 2_000, false);
-  }
-  if (toolName === 'reconcile_accepted_document') {
-    const keys = Object.keys(value);
-    const newPersonae = value.newPersonae;
-    return keys.length >= 4 && keys.length <= 5 &&
-      keys.every((key) => [
-        'events',
-        'newPersonae',
-        'newThreads',
-        'primaryTimeline',
-        'threadAdvances',
-      ].includes(key)) &&
-      Array.isArray(value.events) && value.events.length === 1 &&
-      value.events.every(isAcceptedReconciliationEvent) &&
-      Array.isArray(newPersonae) && newPersonae.length <= 6 &&
-      newPersonae.every(isAcceptedNewPersona) &&
-      new Set(newPersonae.map((persona) =>
-        isRecord(persona) ? persona.clientRef : undefined)).size === newPersonae.length &&
-      Array.isArray(value.newThreads) && value.newThreads.length <= 2 &&
-      value.newThreads.every(isAcceptedNewThread) &&
-      (value.primaryTimeline === undefined ||
-        isAcceptedPrimaryTimeline(value.primaryTimeline)) &&
-      Array.isArray(value.threadAdvances) &&
-      value.threadAdvances.length <= 4 &&
-      value.threadAdvances.every(isAcceptedThreadAdvance);
-  }
-  if (toolName === 'record_story_question') {
-    return Object.keys(value).length === 5 &&
-      typeof value.kind === 'string' &&
-      ['possible_alias', 'uncertain_time', 'unclear_relationship', 'contradiction', 'other']
-        .includes(value.kind) &&
-      isBoundedText(value.question, 2_000, false) &&
-      isBoundedText(value.context, 10_000, true) &&
-      Array.isArray(value.options) && value.options.length <= 6 &&
-      value.options.every((option) => isBoundedText(option, 500, false)) &&
-      (value.evidence === null || isQuestionEvidence(value.evidence));
-  }
-  if (toolName === 'resolve_story_question') {
-    return Object.keys(value).length === 2 &&
-      isRequestReferenceOfKind(value.questionId, 'question') &&
-      isBoundedText(value.answer, 2_000, false);
-  }
-  if (toolName === 'read_novel_context') {
-    return Object.keys(value).length === 3 &&
-      Array.isArray(value.include) && value.include.length <= 4 &&
-      value.include.every((section) =>
-        typeof section === 'string' &&
-        AGENT_NOVEL_CONTEXT_SECTIONS.includes(section as AgentNovelContextSection)) &&
-      new Set(value.include).size === value.include.length &&
-      Array.isArray(value.documentIds) && value.documentIds.length <= 4 &&
-      value.documentIds.every((documentId) =>
-        isRequestReferenceOfKind(documentId, 'document')) &&
-      new Set(value.documentIds).size === value.documentIds.length &&
-      Array.isArray(value.directoryIds) && value.directoryIds.length <= 4 &&
-      value.directoryIds.every((directoryId) =>
-        isRequestReferenceOfKind(directoryId, 'directory')) &&
-      new Set(value.directoryIds).size === value.directoryIds.length &&
-      (value.include.length > 0 || value.documentIds.length > 0 ||
-        value.directoryIds.length > 0);
-  }
-  return Object.keys(value).length === 0;
-};
-
 export const isAgentToolRequest = (value: unknown): value is AgentToolRequest => {
   if (!isRecord(value) || !isAgentToolName(value.toolName)) return false;
   return isAgentToolArguments(value.toolName, value.arguments);
@@ -949,77 +751,6 @@ const isStoryReconciliationCompletionResult = (value: unknown): boolean =>
   isRecord(value) && Object.keys(value).length === 1 &&
   value.status === 'complete';
 
-const isAcceptedReconciliationEvent = (value: unknown): boolean =>
-  isRecord(value) && Object.keys(value).length === 5 &&
-  isBoundedText(value.displayTime, 500, false) &&
-  typeof value.precision === 'string' &&
-  ['exact', 'day', 'month', 'season', 'approximate', 'unknown']
-    .includes(value.precision) &&
-  isBoundedText(value.title, 500, false) &&
-  isBoundedText(value.summary, 30_000, true) &&
-  Array.isArray(value.participants) && value.participants.length <= 100 &&
-  value.participants.every((participant) =>
-    isRecord(participant) && Object.keys(participant).length === 3 &&
-    (isRequestReferenceOfKind(participant.personaRef, 'persona') ||
-      isStoryClientReferenceUse(participant.personaRef)) &&
-    isBoundedText(participant.description, 10_000, true) &&
-    typeof participant.role === 'string' &&
-    ['actor', 'target', 'witness', 'affected'].includes(participant.role));
-
-const isAcceptedThreadBeat = (value: unknown): boolean => {
-  if (!isRecord(value)) return false;
-  const keys = Object.keys(value);
-  return keys.length >= 4 && keys.length <= 6 &&
-    keys.every((key) => [
-      'description',
-      'desiredOutcome',
-      'dramaticPurpose',
-      'kind',
-      'relation',
-      'title',
-    ].includes(key)) &&
-    isBoundedText(value.title, 500, false) &&
-    isBoundedText(value.description, 30_000, true) &&
-    (value.desiredOutcome === undefined ||
-      isBoundedText(value.desiredOutcome, 10_000, true)) &&
-    (value.dramaticPurpose === undefined ||
-      isBoundedText(value.dramaticPurpose, 10_000, true)) &&
-    typeof value.kind === 'string' &&
-    ['beat', 'setup', 'turning_point', 'climax', 'resolution']
-      .includes(value.kind) &&
-    typeof value.relation === 'string' &&
-    ['plans', 'realizes', 'reveals', 'foreshadows', 'resolves']
-      .includes(value.relation);
-};
-
-const isAcceptedThreadAdvance = (value: unknown): boolean =>
-  isRecord(value) && Object.keys(value).includes('threadRef') &&
-  isRequestReferenceOfKind(value.threadRef, 'thread') &&
-  isAcceptedThreadBeat(Object.fromEntries(
-    Object.entries(value).filter(([key]) => key !== 'threadRef'),
-  ));
-
-const isAcceptedNewPersona = (value: unknown): boolean =>
-  isRecord(value) && Object.keys(value).length === 4 &&
-  typeof value.clientRef === 'string' &&
-  /^[A-Za-z][A-Za-z0-9_-]{0,31}$/u.test(value.clientRef) &&
-  isBoundedText(value.name, 500, false) &&
-  (value.role === null || isBoundedText(value.role, 500, true)) &&
-  isBoundedText(value.summary, 20_000, true);
-
-const isAcceptedNewThread = (value: unknown): boolean =>
-  isRecord(value) && Object.keys(value).length === 4 &&
-  isBoundedText(value.title, 500, false) &&
-  isBoundedText(value.summary, 20_000, true) &&
-  typeof value.threadStatus === 'string' &&
-  ['planned', 'active', 'resolved', 'abandoned'].includes(value.threadStatus) &&
-  isAcceptedThreadBeat(value.beat);
-
-const isAcceptedPrimaryTimeline = (value: unknown): boolean =>
-  isRecord(value) && Object.keys(value).length === 2 &&
-  isBoundedText(value.title, 500, false) &&
-  isBoundedText(value.summary, 20_000, true);
-
 const isAcceptedReconciliationContext = (value: unknown): boolean =>
   isRecord(value) && Object.keys(value).length === 7 &&
   value.storyRef === 'story:accepted' &&
@@ -1046,70 +777,6 @@ const isAcceptedReconciliationContext = (value: unknown): boolean =>
     (isRecord(value.primaryTimeline) &&
       value.primaryTimeline.ref === 'timeline:primary'));
 
-const isStoryMaintenanceChange = (value: unknown): boolean => {
-  if (!isRecord(value)) return false;
-  const { clientRef, ...operation } = value;
-  if (!isAgentStoryOperation(operation, true)) return false;
-  if (clientRef === undefined) return true;
-  return operation.operation !== 'link_beat_event' && isStoryClientRef(clientRef);
-};
-
-/** Validates one model-supplied story operation, refs and citations included. */
-export const isAgentStoryOperation = (
-  value: unknown,
-  allowClientReferences: boolean,
-): boolean => {
-  let canonical = value;
-  if (isRecord(value) && value.operation === 'create_event' &&
-    Array.isArray(value.sources)) {
-    canonical = {
-      ...value,
-      sources: value.sources.map((source) => isRecord(source) &&
-        source.documentRevision === undefined
-        ? { ...source, documentRevision: PLACEHOLDER_REVISION }
-        : source),
-    };
-  }
-  if (!isProjectStoryOperation(canonical)) return false;
-  const operation = value as import('./project-story').ProjectStoryOperation;
-  const isRef = (reference: unknown, kind: string): boolean =>
-    isRequestReferenceOfKind(reference, kind) ||
-    (allowClientReferences && isStoryClientReferenceUse(reference));
-  if (
-    operation.operation === 'create_persona' ||
-    operation.operation === 'create_timeline'
-  ) return true;
-  if (operation.operation === 'create_moment') {
-    return isRef(operation.timelineId, 'timeline');
-  }
-  if (operation.operation === 'create_event') {
-    return isRef(operation.timelineId, 'timeline') &&
-      isRef(operation.startMomentId, 'moment') &&
-      (operation.endMomentId === null ||
-        isRef(operation.endMomentId, 'moment')) &&
-      operation.participants.every((participant) =>
-        isRef(participant.personaId, 'persona')) &&
-      (operation.sources === undefined || operation.sources.every((source) =>
-        source.sourceKind === 'manuscript' &&
-        isRef(source.documentId, 'document')));
-  }
-  if (operation.operation === 'create_thread') {
-    return operation.parentId === null || isRef(operation.parentId, 'thread');
-  }
-  if (operation.operation === 'create_beat') {
-    return isRef(operation.threadId, 'thread') &&
-      (operation.parentId === null || isRef(operation.parentId, 'beat'));
-  }
-  return isRef(operation.beatId, 'beat') &&
-    isRef(operation.eventId, 'event');
-};
-
-const isStoryClientRef = (value: unknown): value is string =>
-  typeof value === 'string' && /^[A-Za-z][A-Za-z0-9_-]{0,31}$/u.test(value);
-
-const isStoryClientReferenceUse = (value: unknown): value is string =>
-  typeof value === 'string' && /^@[A-Za-z][A-Za-z0-9_-]{0,31}$/u.test(value);
-
 const isStoryQuestionResult = (value: unknown): boolean =>
   isRecord(value) && Object.keys(value).length === 3 &&
   (value.status === 'recorded' || value.status === 'resolved') &&
@@ -1117,24 +784,12 @@ const isStoryQuestionResult = (value: unknown): boolean =>
   Number.isSafeInteger(value.revision) &&
   (value.revision as number) >= 0;
 
-export const ACCEPTED_DOCUMENT_REFERENCE = 'document:accepted';
-
-const isQuestionEvidence = (value: unknown): boolean =>
-  isRecord(value) && Object.keys(value).length === 2 &&
-  isBoundedText(value.anchor, 10_000, false) &&
-  (value.documentId === ACCEPTED_DOCUMENT_REFERENCE ||
-    isRequestReferenceOfKind(value.documentId, 'document'));
-
 const isBoundedText = (
   value: unknown,
   maxLength: number,
   allowEmpty: boolean,
 ): value is string => typeof value === 'string' && value.length <= maxLength &&
   (allowEmpty || value.trim().length > 0) && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value);
-
-const isValidMetadataTitle = (value: unknown): value is string =>
-  typeof value === 'string' && value.trim().length > 0 &&
-  value.length <= 500 && !/[\u0000-\u001f\u007f]/u.test(value);
 
 const isRequestReference = (value: unknown): value is string =>
   typeof value === 'string' && /^[a-z]+:[1-9][0-9]{0,4}$/u.test(value);
