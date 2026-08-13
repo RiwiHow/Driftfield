@@ -377,6 +377,10 @@ Main trust boundary. `isAgentToolArguments` is `Value.Check` of that runtime
 schema, and recovery hints are the Refine error messages. Bounded-value checks
 (exact discriminated keys, control characters, Markdown byte length, unique
 local refs) belong in the Refine so they cannot drift from the hint text.
+For story operations, the worker normalizes the provider-facing
+`eventStatus`/`threadStatus` names to canonical `status` before IPC; the
+Main-side base schema is mechanically derived from the provider schema by that
+same field substitution rather than widened to an unbounded object.
 Do not reintroduce a parallel hand-written argument guard or dispatcher-local
 shape table.
 

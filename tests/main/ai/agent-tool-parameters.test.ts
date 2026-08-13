@@ -21,6 +21,7 @@ import {
   agentToolArgumentHint,
   isAgentToolArguments,
 } from '../../../src/shared/contracts/agent-tools';
+import type { AgentToolName } from '../../../src/shared/contracts/agent-tools';
 
 describe('Agent tool parameter schemas', () => {
   it('defines a bounded terminal Scribe artifact submission', () => {
@@ -413,6 +414,15 @@ describe('Agent tool argument schema unification', () => {
         title: 'Imperial calendar',
       },
     })).toBe('change.description is not valid for create_timeline.');
+    expect(agentToolArgumentHint('propose_story_operation', {
+      change: {
+        isPrimary: true,
+        operation: 'create_timeline',
+        summary: '',
+        title: 'Imperial calendar',
+      },
+      unexpected: true,
+    })).toBe('propose_story_operation requires exactly one change object.');
 
     expect(isAgentToolArguments('maintain_story_records', {
       changes: [{
@@ -458,5 +468,92 @@ describe('Agent tool argument schema unification', () => {
         title: 'The hearing',
       }],
     })).toBe('changes[1].eventStatus is required for create_event.');
+  });
+
+  it('accepts one canonical request and rejects unknown fields for every tool', () => {
+    const validArguments = {
+      read_novel_context: {
+        directoryIds: [],
+        documentIds: [],
+        include: ['structure'],
+      },
+      submit_writing_artifact: { markdown: '# Draft' },
+      maintain_story_records: {
+        changes: [{
+          name: 'Mara',
+          operation: 'create_persona',
+          role: null,
+          summary: '',
+        }],
+      },
+      complete_story_reconciliation: {
+        reason: 'No canonical changes were depicted.',
+        status: 'no_changes',
+      },
+      reconcile_accepted_document: {
+        events: [{
+          displayTime: 'Dawn',
+          participants: [],
+          precision: 'approximate',
+          summary: '',
+          title: 'Arrival',
+        }],
+        newPersonae: [],
+        newThreads: [],
+        threadAdvances: [],
+      },
+      record_story_question: {
+        context: '',
+        evidence: null,
+        kind: 'other',
+        options: [],
+        question: 'Which route did Mara take?',
+      },
+      resolve_story_question: {
+        answer: 'The northern road.',
+        questionId: 'question:1',
+      },
+      propose_document_edit: {
+        documentId: 'document:1',
+        markdown: '# Revised',
+      },
+      propose_document_writing: {
+        documentAction: 'create',
+        documentDomain: 'manuscript',
+        documentId: null,
+        kind: 'chapter',
+        metadataTitle: 'Arrival',
+        objective: 'Write the arrival chapter.',
+        parentId: 'directory:1',
+        requirements: [],
+        targetLength: null,
+      },
+      propose_document_file_operation: {
+        documentId: 'document:1',
+        operation: 'delete',
+      },
+      propose_project_structure_operation: {
+        operation: 'create_volume',
+        title: 'Volume Two',
+      },
+      propose_story_operation: {
+        change: {
+          isPrimary: true,
+          operation: 'create_timeline',
+          summary: '',
+          title: 'Primary timeline',
+        },
+      },
+    } as const satisfies Record<AgentToolName, unknown>;
+
+    expect(Object.keys(validArguments)).toEqual([...AGENT_TOOL_NAMES]);
+    for (const toolName of AGENT_TOOL_NAMES) {
+      const valid = validArguments[toolName];
+      expect(isAgentToolArguments(toolName, valid), toolName).toBe(true);
+      expect(agentToolArgumentHint(toolName, valid), toolName).toBeUndefined();
+
+      const invalid = { ...valid, unexpected: true };
+      expect(isAgentToolArguments(toolName, invalid), toolName).toBe(false);
+    }
   });
 });

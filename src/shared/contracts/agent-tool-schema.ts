@@ -2,6 +2,7 @@ import { Type } from 'typebox';
 import { Check } from 'typebox/value';
 
 import type {
+  AgentAcceptedDocumentReconciliationArguments,
   AgentStoryChangeInput,
   AgentStoryQuestionEvidenceInput,
   AgentToolContractMap,
@@ -426,6 +427,38 @@ const STORY_MAINTENANCE_CHANGE_PARAMETERS = Type.Object(
   { additionalProperties: false },
 );
 
+const normalizedStoryChangeSchema = <
+  Properties extends typeof STORY_CHANGE_PARAMETERS.properties,
+>(properties: Properties) => {
+  const {
+    eventStatus: _eventStatus,
+    threadStatus: _threadStatus,
+    ...normalizedProperties
+  } = properties;
+  return Type.Object(
+    {
+      ...normalizedProperties,
+      status: Type.Optional(stringEnum(
+        ['planned', 'established', 'active', 'resolved', 'abandoned'] as const,
+      )),
+    },
+    { additionalProperties: false },
+  );
+};
+
+/**
+ * The worker renames the provider-facing eventStatus/threadStatus fields to the
+ * canonical status field before IPC. Derive the Main-side base schemas from the
+ * exported provider schemas so every other field constraint stays identical.
+ */
+const NORMALIZED_STORY_CHANGE_PARAMETERS = normalizedStoryChangeSchema(
+  STORY_CHANGE_PARAMETERS.properties,
+);
+
+const NORMALIZED_STORY_MAINTENANCE_CHANGE_PARAMETERS = normalizedStoryChangeSchema(
+  STORY_MAINTENANCE_CHANGE_PARAMETERS.properties,
+);
+
 export const STORY_MAINTENANCE_PARAMETERS = Type.Object(
   {
     changes: Type.Array(STORY_MAINTENANCE_CHANGE_PARAMETERS, {
@@ -672,9 +705,11 @@ const guarded = <Schema extends object>(
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const isProjectIcon = (value: unknown): boolean =>
-  typeof value === 'string' &&
-  PROJECT_ICON_IDS.includes(value as (typeof PROJECT_ICON_IDS)[number]);
+const hasExactKeys = (
+  value: Record<string, unknown>,
+  keys: readonly string[],
+): boolean =>
+  Object.keys(value).length === keys.length && keys.every((key) => key in value);
 
 const isBoundedText = (
   value: unknown,
@@ -714,14 +749,13 @@ const isNonEmptyMarkdown = (value: unknown): value is string =>
   value.trim().length > 0 &&
   new TextEncoder().encode(value).byteLength <= 512 * 1024;
 
-const DOCUMENT_KINDS = [
-  'chapter',
-  'prologue',
-  'interlude',
-  'epilogue',
-  'appendix',
-  'entry',
-] as const;
+const containsUnsafeTextControl = (value: unknown): boolean => {
+  if (typeof value === 'string') {
+    return /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value);
+  }
+  if (Array.isArray(value)) return value.some(containsUnsafeTextControl);
+  return isRecord(value) && Object.values(value).some(containsUnsafeTextControl);
+};
 
 const PLACEHOLDER_REVISION = 'a'.repeat(64);
 
@@ -789,95 +823,6 @@ const isStoryMaintenanceChange = (value: unknown): boolean => {
   if (clientRef === undefined) return true;
   return operation.operation !== 'link_beat_event' && isStoryClientRef(clientRef);
 };
-
-const isQuestionEvidence = (value: unknown): boolean =>
-  isRecord(value) &&
-  Object.keys(value).length === 2 &&
-  isBoundedText(value.anchor, 10_000, false) &&
-  (value.documentId === ACCEPTED_DOCUMENT_REFERENCE ||
-    isRequestReferenceOfKind(value.documentId, 'document'));
-
-const isAcceptedReconciliationEvent = (value: unknown): boolean =>
-  isRecord(value) &&
-  Object.keys(value).length === 5 &&
-  isBoundedText(value.displayTime, 500, false) &&
-  typeof value.precision === 'string' &&
-  ['exact', 'day', 'month', 'season', 'approximate', 'unknown']
-    .includes(value.precision) &&
-  isBoundedText(value.title, 500, false) &&
-  isBoundedText(value.summary, 30_000, true) &&
-  Array.isArray(value.participants) &&
-  value.participants.length <= 100 &&
-  value.participants.every((participant) =>
-    isRecord(participant) &&
-    Object.keys(participant).length === 3 &&
-    (isRequestReferenceOfKind(participant.personaRef, 'persona') ||
-      isStoryClientReferenceUse(participant.personaRef)) &&
-    isBoundedText(participant.description, 10_000, true) &&
-    typeof participant.role === 'string' &&
-    ['actor', 'target', 'witness', 'affected'].includes(participant.role));
-
-const isAcceptedThreadBeat = (value: unknown): boolean => {
-  if (!isRecord(value)) return false;
-  const keys = Object.keys(value);
-  return (
-    keys.length >= 4 &&
-    keys.length <= 6 &&
-    keys.every((key) =>
-      [
-        'description',
-        'desiredOutcome',
-        'dramaticPurpose',
-        'kind',
-        'relation',
-        'title',
-      ].includes(key)) &&
-    isBoundedText(value.title, 500, false) &&
-    isBoundedText(value.description, 30_000, true) &&
-    (value.desiredOutcome === undefined ||
-      isBoundedText(value.desiredOutcome, 10_000, true)) &&
-    (value.dramaticPurpose === undefined ||
-      isBoundedText(value.dramaticPurpose, 10_000, true)) &&
-    typeof value.kind === 'string' &&
-    ['beat', 'setup', 'turning_point', 'climax', 'resolution']
-      .includes(value.kind) &&
-    typeof value.relation === 'string' &&
-    ['plans', 'realizes', 'reveals', 'foreshadows', 'resolves']
-      .includes(value.relation)
-  );
-};
-
-const isAcceptedThreadAdvance = (value: unknown): boolean =>
-  isRecord(value) &&
-  Object.keys(value).includes('threadRef') &&
-  isRequestReferenceOfKind(value.threadRef, 'thread') &&
-  isAcceptedThreadBeat(Object.fromEntries(
-    Object.entries(value).filter(([key]) => key !== 'threadRef'),
-  ));
-
-const isAcceptedNewPersona = (value: unknown): boolean =>
-  isRecord(value) &&
-  Object.keys(value).length === 4 &&
-  typeof value.clientRef === 'string' &&
-  /^[A-Za-z][A-Za-z0-9_-]{0,31}$/u.test(value.clientRef) &&
-  isBoundedText(value.name, 500, false) &&
-  (value.role === null || isBoundedText(value.role, 500, true)) &&
-  isBoundedText(value.summary, 20_000, true);
-
-const isAcceptedNewThread = (value: unknown): boolean =>
-  isRecord(value) &&
-  Object.keys(value).length === 4 &&
-  isBoundedText(value.title, 500, false) &&
-  isBoundedText(value.summary, 20_000, true) &&
-  typeof value.threadStatus === 'string' &&
-  ['planned', 'active', 'resolved', 'abandoned'].includes(value.threadStatus) &&
-  isAcceptedThreadBeat(value.beat);
-
-const isAcceptedPrimaryTimeline = (value: unknown): boolean =>
-  isRecord(value) &&
-  Object.keys(value).length === 2 &&
-  isBoundedText(value.title, 500, false) &&
-  isBoundedText(value.summary, 20_000, true);
 
 const STORY_OPERATION_FIELDS: Record<string, {
   optional?: string[];
@@ -1182,137 +1127,77 @@ const storyOperationArgumentError = (
 };
 
 const issueNovelContext = (value: unknown): string | undefined => {
+  if (!Check(NOVEL_CONTEXT_PARAMETERS, value)) return '';
+  const args = value as AgentToolContractMap['read_novel_context']['arguments'];
   if (
-    isRecord(value) &&
-    Object.keys(value).length === 3 &&
-    Array.isArray(value.include) &&
-    value.include.length <= 4 &&
-    value.include.every((section) =>
-      typeof section === 'string' &&
-      AGENT_NOVEL_CONTEXT_SECTIONS.includes(
-        section as (typeof AGENT_NOVEL_CONTEXT_SECTIONS)[number],
-      )) &&
-    new Set(value.include).size === value.include.length &&
-    Array.isArray(value.documentIds) &&
-    value.documentIds.length <= 4 &&
-    value.documentIds.every((documentId) =>
-      isRequestReferenceOfKind(documentId, 'document')) &&
-    new Set(value.documentIds).size === value.documentIds.length &&
-    Array.isArray(value.directoryIds) &&
-    value.directoryIds.length <= 4 &&
-    value.directoryIds.every((directoryId) =>
-      isRequestReferenceOfKind(directoryId, 'directory')) &&
-    new Set(value.directoryIds).size === value.directoryIds.length &&
-    (value.include.length > 0 ||
-      value.documentIds.length > 0 ||
-      value.directoryIds.length > 0)
+    args.include.length > 0 ||
+    args.documentIds.length > 0 ||
+    args.directoryIds.length > 0
   ) return undefined;
   return '';
 };
 
 const issueWritingArtifact = (value: unknown): string | undefined => {
-  if (
-    isRecord(value) &&
-    Object.keys(value).length === 1 &&
-    isNonEmptyMarkdown(value.markdown)
-  ) return undefined;
+  if (Check(WRITING_ARTIFACT_SUBMISSION_PARAMETERS, value) &&
+    isNonEmptyMarkdown((value as { markdown: unknown }).markdown)) return undefined;
   return '';
 };
 
 const issueDocumentEdit = (value: unknown): string | undefined => {
-  if (
-    isRecord(value) &&
-    Object.keys(value).length === 2 &&
-    isRequestReferenceOfKind(value.documentId, 'document') &&
-    isNonEmptyMarkdown(value.markdown)
-  ) return undefined;
+  if (Check(DOCUMENT_EDIT_PARAMETERS, value) &&
+    isNonEmptyMarkdown((value as { markdown: unknown }).markdown)) return undefined;
   return 'propose_document_edit requires exactly documentId and markdown. Use only request-scoped refs from read_novel_context. Generated Scribe prose uses propose_document_writing so Main freezes its target before generation.';
 };
 
 const issueDocumentWriting = (value: unknown): string | undefined => {
-  if (
-    isRecord(value) &&
-    Object.keys(value).length === 9 &&
-    (value.documentAction === 'create' || value.documentAction === 'replace') &&
-    (value.documentDomain === 'lore' || value.documentDomain === 'manuscript') &&
-    isBoundedText(value.objective, 4_000, false) &&
-    Array.isArray(value.requirements) &&
-    value.requirements.length <= 20 &&
-    value.requirements.every((requirement) =>
-      isBoundedText(requirement, 1_000, false)) &&
-    (value.targetLength === null ||
-      (Number.isSafeInteger(value.targetLength) &&
-        (value.targetLength as number) >= 1 &&
-        (value.targetLength as number) <= 200_000)) &&
-    (value.documentAction === 'create'
-      ? value.documentId === null &&
-        isRequestReferenceOfKind(value.parentId, 'directory') &&
-        isValidMetadataTitle(value.metadataTitle) &&
-        typeof value.kind === 'string' &&
-        DOCUMENT_KINDS.includes(value.kind as typeof DOCUMENT_KINDS[number])
-      : isRequestReferenceOfKind(value.documentId, 'document') &&
-        value.kind === null &&
-        value.metadataTitle === null &&
-        value.parentId === null)
-  ) return undefined;
+  if (Check(DOCUMENT_WRITING_PARAMETERS, value)) {
+    const args = value as Record<string, unknown>;
+    const proseIsValid = isBoundedText(args.objective, 4_000, false) &&
+      (args.requirements as unknown[]).every((requirement) =>
+        isBoundedText(requirement, 1_000, false));
+    const targetIsValid = args.documentAction === 'create'
+      ? args.documentId === null && isValidMetadataTitle(args.metadataTitle) &&
+        args.parentId !== null && args.kind !== null
+      : args.documentId !== null && args.kind === null &&
+        args.metadataTitle === null && args.parentId === null;
+    if (proseIsValid && targetIsValid) return undefined;
+  }
   return 'propose_document_writing requires exactly 9 fields: documentAction, documentDomain, objective, requirements, targetLength, documentId, parentId, metadataTitle, and kind. For create, set documentId null and provide parentId/metadataTitle/kind. For replace, provide documentId and set parentId/metadataTitle/kind null. A chapter read for continuity is not a replacement target.';
 };
 
 const issueDocumentFileOperation = (value: unknown): string | undefined => {
-  if (!isRecord(value)) return '';
-  if (value.operation === 'create' && Object.keys(value).length === 5) {
-    if (
-      isRequestReferenceOfKind(value.parentId, 'directory') &&
-      isValidMetadataTitle(value.metadataTitle) &&
-      isNonEmptyMarkdown(value.markdown) &&
-      typeof value.kind === 'string' &&
-      DOCUMENT_KINDS.includes(value.kind as typeof DOCUMENT_KINDS[number])
-    ) return undefined;
+  if (!Check(DOCUMENT_FILE_OPERATION_PARAMETERS, value)) return '';
+  const args = value as Record<string, unknown>;
+  if (args.operation === 'create') {
+    if (hasExactKeys(args, ['operation', 'parentId', 'metadataTitle', 'kind', 'markdown']) &&
+      isValidMetadataTitle(args.metadataTitle) &&
+      isNonEmptyMarkdown(args.markdown)) return undefined;
     return 'Document creation requires exactly operation, parentId, metadataTitle, kind, and markdown. metadataTitle is the raw title without generated numbering. Generated Scribe prose uses propose_document_writing.';
   }
-  if (
-    value.operation === 'delete' &&
-    Object.keys(value).length === 2 &&
-    isRequestReferenceOfKind(value.documentId, 'document')
-  ) return undefined;
-  if (value.operation === 'create') {
-    return 'Document creation requires exactly operation, parentId, metadataTitle, kind, and markdown. metadataTitle is the raw title without generated numbering. Generated Scribe prose uses propose_document_writing.';
-  }
-  return '';
+  return hasExactKeys(args, ['operation', 'documentId']) ? undefined : '';
 };
 
 const issueProjectStructureOperation = (value: unknown): string | undefined => {
-  if (!isRecord(value)) return undefined;
-  if (value.operation === 'rename_document' && Object.keys(value).length === 3) {
-    if (
-      isRequestReferenceOfKind(value.documentId, 'document') &&
-      isValidMetadataTitle(value.metadataTitle)
-    ) return undefined;
+  if (!Check(PROJECT_STRUCTURE_OPERATION_PARAMETERS, value)) return undefined;
+  const args = value as Record<string, unknown>;
+  if (args.operation === 'rename_document') {
+    if (hasExactKeys(args, ['operation', 'documentId', 'metadataTitle']) &&
+      isValidMetadataTitle(args.metadataTitle)) return undefined;
     return 'rename_document requires exactly operation, documentId, and metadataTitle. metadataTitle is the raw title without generated numbering; the physical filename is preserved.';
   }
-  if (value.operation === 'create_volume' && Object.keys(value).length === 2) {
-    return isValidMetadataTitle(value.title) ? undefined : '';
-  }
-  if (value.operation === 'create_lore_category' && Object.keys(value).length === 3) {
-    return isProjectIcon(value.icon) && isValidMetadataTitle(value.title)
-      ? undefined
-      : '';
-  }
-  if (value.operation === 'delete_lore_category' && Object.keys(value).length === 2) {
-    return isRequestReferenceOfKind(value.directoryId, 'directory')
-      ? undefined
-      : '';
-  }
-  if (
-    value.operation === 'move_document' &&
-    Object.keys(value).length === 3 &&
-    isRequestReferenceOfKind(value.documentId, 'document') &&
-    isRequestReferenceOfKind(value.targetParentId, 'directory')
-  ) return undefined;
-  if (value.operation === 'rename_document') {
-    return 'rename_document requires exactly operation, documentId, and metadataTitle. metadataTitle is the raw title without generated numbering; the physical filename is preserved.';
-  }
-  return '';
+  const operationKeys = {
+    create_volume: ['operation', 'title'],
+    create_lore_category: ['operation', 'title', 'icon'],
+    delete_lore_category: ['operation', 'directoryId'],
+    move_document: ['operation', 'documentId', 'targetParentId'],
+  } as const;
+  const expectedKeys = operationKeys[
+    args.operation as keyof typeof operationKeys
+  ];
+  const titleIsValid = args.title === undefined || isValidMetadataTitle(args.title);
+  return expectedKeys !== undefined && hasExactKeys(args, expectedKeys) && titleIsValid
+    ? undefined
+    : '';
 };
 
 const issueStoryOperation = (value: unknown): string | undefined => {
@@ -1321,7 +1206,7 @@ const issueStoryOperation = (value: unknown): string | undefined => {
       isRecord(value) ? value.change : undefined,
       'change',
       false,
-    );
+    ) ?? 'propose_story_operation requires exactly one change object.';
   }
   return storyOperationArgumentError(value.change, 'change', false);
 };
@@ -1347,82 +1232,48 @@ const issueStoryMaintenance = (value: unknown): string | undefined => {
 };
 
 const issueReconciliationCompletion = (value: unknown): string | undefined => {
-  if (
-    isRecord(value) &&
-    Object.keys(value).length === 2 &&
-    typeof value.status === 'string' &&
-    ['applied', 'no_changes', 'questions_recorded'].includes(value.status) &&
-    isBoundedText(value.reason, 2_000, false)
-  ) return undefined;
+  if (Check(STORY_RECONCILIATION_COMPLETION_PARAMETERS, value) &&
+    isBoundedText((value as { reason: unknown }).reason, 2_000, false)) return undefined;
   return 'complete_story_reconciliation requires exactly status and reason. Read accepted_reconciliation after acceptance first. Use applied only after a successful reconciliation mutation, questions_recorded only after recording a question, or no_changes only when neither occurred.';
 };
 
 const issueAcceptedReconciliation = (value: unknown): string | undefined => {
-  if (!isRecord(value)) {
-    return 'reconcile_accepted_document requires events, newPersonae, newThreads, and threadAdvances, plus optional primaryTimeline only when accepted_reconciliation has none. events contains exactly one event. Existing participants use personaRef from accepted_reconciliation; new Personae declare clientRef and are referenced as @clientRef in the same call. Existing Thread advances use threadRef; newThreads embeds its first linked beat. Main owns timeline fallback, moments, sources, ordering, IDs, and checkpoint completion.';
-  }
-  const keys = Object.keys(value);
-  const newPersonae = value.newPersonae;
-  if (
-    keys.length >= 4 &&
-    keys.length <= 5 &&
-    keys.every((key) =>
-      [
-        'events',
-        'newPersonae',
-        'newThreads',
-        'primaryTimeline',
-        'threadAdvances',
-      ].includes(key)) &&
-    Array.isArray(value.events) &&
-    value.events.length === 1 &&
-    value.events.every(isAcceptedReconciliationEvent) &&
-    Array.isArray(newPersonae) &&
-    newPersonae.length <= 6 &&
-    newPersonae.every(isAcceptedNewPersona) &&
-    new Set(newPersonae.map((persona) =>
-      isRecord(persona) ? persona.clientRef : undefined)).size === newPersonae.length &&
-    Array.isArray(value.newThreads) &&
-    value.newThreads.length <= 2 &&
-    value.newThreads.every(isAcceptedNewThread) &&
-    (value.primaryTimeline === undefined ||
-      isAcceptedPrimaryTimeline(value.primaryTimeline)) &&
-    Array.isArray(value.threadAdvances) &&
-    value.threadAdvances.length <= 4 &&
-    value.threadAdvances.every(isAcceptedThreadAdvance)
-  ) return undefined;
-  return 'reconcile_accepted_document requires events, newPersonae, newThreads, and threadAdvances, plus optional primaryTimeline only when accepted_reconciliation has none. events contains exactly one event. Existing participants use personaRef from accepted_reconciliation; new Personae declare clientRef and are referenced as @clientRef in the same call. Existing Thread advances use threadRef; newThreads embeds its first linked beat. Main owns timeline fallback, moments, sources, ordering, IDs, and checkpoint completion.';
+  const hint = 'reconcile_accepted_document requires events, newPersonae, newThreads, and threadAdvances, plus optional primaryTimeline only when accepted_reconciliation has none. events contains exactly one event. Existing participants use personaRef from accepted_reconciliation; new Personae declare clientRef and are referenced as @clientRef in the same call. Existing Thread advances use threadRef; newThreads embeds its first linked beat. Main owns timeline fallback, moments, sources, ordering, IDs, and checkpoint completion.';
+  if (!Check(ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS, value)) return hint;
+  const args = value as AgentAcceptedDocumentReconciliationArguments;
+  const requiredText = [
+    ...args.events.flatMap((event) => [event.displayTime, event.title]),
+    ...args.newPersonae.map((persona) => persona.name),
+    ...args.newThreads.flatMap((thread) => [thread.title, thread.beat.title]),
+    ...(args.primaryTimeline === undefined ? [] : [args.primaryTimeline.title]),
+    ...args.threadAdvances.map((advance) => advance.title),
+  ];
+  const clientRefs = args.newPersonae.map((persona) => persona.clientRef);
+  return requiredText.every((text) => text.trim().length > 0) &&
+      new Set(clientRefs).size === clientRefs.length &&
+      !containsUnsafeTextControl(value)
+    ? undefined
+    : hint;
 };
 
 const issueStoryQuestion = (value: unknown): string | undefined => {
-  if (
-    isRecord(value) &&
-    Object.keys(value).length === 5 &&
-    typeof value.kind === 'string' &&
-    [
-      'possible_alias',
-      'uncertain_time',
-      'unclear_relationship',
-      'contradiction',
-      'other',
-    ].includes(value.kind) &&
-    isBoundedText(value.question, 2_000, false) &&
-    isBoundedText(value.context, 10_000, true) &&
-    Array.isArray(value.options) &&
-    value.options.length <= 6 &&
-    value.options.every((option) => isBoundedText(option, 500, false)) &&
-    (value.evidence === null || isQuestionEvidence(value.evidence))
-  ) return undefined;
+  if (Check(STORY_QUESTION_PARAMETERS, value)) {
+    const args = value as Record<string, unknown>;
+    const evidence = args.evidence as Record<string, unknown> | null;
+    if (isBoundedText(args.question, 2_000, false) &&
+      isBoundedText(args.context, 10_000, true) &&
+      (args.options as unknown[]).every((option) =>
+        isBoundedText(option, 500, false)) &&
+      (evidence === null || isBoundedText(evidence.anchor, 10_000, false))) {
+      return undefined;
+    }
+  }
   return '';
 };
 
 const issueResolveStoryQuestion = (value: unknown): string | undefined => {
-  if (
-    isRecord(value) &&
-    Object.keys(value).length === 2 &&
-    isRequestReferenceOfKind(value.questionId, 'question') &&
-    isBoundedText(value.answer, 2_000, false)
-  ) return undefined;
+  if (Check(RESOLVE_STORY_QUESTION_PARAMETERS, value) &&
+    isBoundedText((value as { answer: unknown }).answer, 2_000, false)) return undefined;
   return '';
 };
 
@@ -1451,10 +1302,12 @@ const AGENT_TOOL_RUNTIME_SCHEMAS = {
     AGENT_TOOL_ARGUMENT_ISSUES.submit_writing_artifact,
   ),
   maintain_story_records: guarded(
-    Type.Object(
-      { changes: Type.Any() },
-      { additionalProperties: false },
-    ),
+    Type.Object({
+      changes: Type.Array(NORMALIZED_STORY_MAINTENANCE_CHANGE_PARAMETERS, {
+        maxItems: 24,
+        minItems: 1,
+      }),
+    }, { additionalProperties: false }),
     AGENT_TOOL_ARGUMENT_ISSUES.maintain_story_records,
   ),
   complete_story_reconciliation: guarded(
@@ -1490,7 +1343,10 @@ const AGENT_TOOL_RUNTIME_SCHEMAS = {
     AGENT_TOOL_ARGUMENT_ISSUES.propose_project_structure_operation,
   ),
   propose_story_operation: guarded(
-    Type.Object({ change: Type.Any() }, { additionalProperties: false }),
+    Type.Object(
+      { change: NORMALIZED_STORY_CHANGE_PARAMETERS },
+      { additionalProperties: false },
+    ),
     AGENT_TOOL_ARGUMENT_ISSUES.propose_story_operation,
   ),
 } as const satisfies Record<AgentToolName, object>;
