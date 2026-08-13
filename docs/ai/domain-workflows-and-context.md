@@ -136,9 +136,10 @@ it is never the operation target. After validation:
 5. Renderer previews the complete Markdown. Acceptance performs the established
    revision-checked Main-owned mutation.
 
-The internal assignment receipt remains compact, but is not returned to Curator
-for manual composition. The lower-level delegation protocol may remain for
-worker compatibility and audit; it is not enabled on the Curator surface.
+The internal assignment identity remains compact Main-owned state and is never
+returned to Curator for manual composition. The retired lower-level delegation
+and artifact-revision tool names remain audit-only for historical conversations;
+they are not registered in the worker or enabled on either role surface.
 
 Invalid artifacts are terminal workflow results and never become blank or
 partial document proposals. A target-plan mistake is rejected before Scribe

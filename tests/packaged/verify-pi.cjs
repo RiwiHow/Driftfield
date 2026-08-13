@@ -82,23 +82,33 @@ assert.match(
 );
 assert.match(
   workerBundle,
-  /delegate_writing/,
-  'The packaged Pi worker is missing the Curator-to-Scribe delegation tool.',
+  /propose_document_writing/,
+  'The packaged Pi worker is missing the pre-bound Curator-to-Scribe document tool.',
 );
 assert.match(
   workerBundle,
   /submit_writing_artifact/,
   'The packaged Pi worker is missing the delimited Scribe artifact submission tool.',
 );
-assert.match(
+assert.doesNotMatch(
   workerBundle,
   /revise_writing_artifact/,
-  'The packaged Pi worker is missing bounded Scribe artifact revision.',
+  'The packaged Pi worker still advertises the retired artifact-revision tool.',
+);
+assert.doesNotMatch(
+  workerBundle,
+  /writingAssignmentId/,
+  'The packaged Pi worker still exposes assignment IDs to the model.',
+);
+assert.doesNotMatch(
+  workerBundle,
+  /delegate_writing/,
+  'The packaged Pi worker still advertises the retired low-level delegation tool.',
 );
 assert.match(
   workerBundle,
-  /writingAssignmentId/,
-  'The packaged Pi worker is missing request-bound Scribe artifact proposals.',
+  /baseContentRevision/,
+  'The packaged Pi worker is missing pre-bound document revision checks.',
 );
 
 const electronPath = require('electron');

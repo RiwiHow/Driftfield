@@ -404,12 +404,12 @@ const resolveStoryReference = (
     throw new StoryMaintenanceReferenceError(
       symbolic
         ? `changes[${index}].${field} references unknown or later clientRef @${clientRef}.`
-        : `changes[${index}].${field} references missing story entity ${value}.`,
+        : `changes[${index}].${field} references a missing story entity.`,
     );
   }
   if (!expectedKinds.includes(resolved.kind)) {
     throw new StoryMaintenanceReferenceError(
-      `changes[${index}].${field} expects ${expectedKinds.join(' or ')}, but ${symbolic ? `@${clientRef}` : value} refers to ${resolved.kind}.`,
+      `changes[${index}].${field} expects ${expectedKinds.join(' or ')}, but ${symbolic ? `@${clientRef}` : 'the supplied entity'} refers to ${resolved.kind}.`,
     );
   }
   return resolved.id;

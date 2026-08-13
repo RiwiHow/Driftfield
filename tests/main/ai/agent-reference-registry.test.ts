@@ -91,5 +91,14 @@ describe('AgentReferenceRegistry', () => {
         code: 'expired-request-reference',
         detail: expect.stringContaining('not issued in this request or has expired'),
       }));
+
+    for (const unissued of [uuid, hash, 'chapter-one', 'document:999']) {
+      expect(() => refs.resolve(unissued, 'document')).toThrow(
+        expect.objectContaining({
+          code: 'expired-request-reference',
+          detail: expect.stringContaining('not issued in this request or has expired'),
+        }),
+      );
+    }
   });
 });

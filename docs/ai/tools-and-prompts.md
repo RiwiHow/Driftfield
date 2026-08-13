@@ -30,7 +30,12 @@ question, and source IDs plus SHA-256 content revisions with short refs such as
 `directory:3`, `document:2`, and `revision:1`. Main owns the per-request reverse
 mapping, reuses refs across repeated reads, resolves them before privileged
 operations, and releases them with request state. The model-facing surface does
-not emit persistent UUIDs or content hashes.
+not emit persistent UUIDs or content hashes. Model-facing parameter schemas and
+shared runtime validators accept only the expected short-ref kind; a raw UUID,
+content hash, wrong-kind ref, or well-formed ref not issued by the active request
+fails closed instead of becoming authority. Issued numeric suffixes are capped
+at five digits, consistent with the bounded structure and story projections;
+call-local `@clientRef` aliases are capped at 32 characters.
 When `current_document` is requested without a request-start editor document,
 the section is returned as `null`; this is a successful absence and must not be
 retried.
@@ -125,8 +130,9 @@ Scribe cannot delegate, propose, maintain story state, or persist content.
 After artifact validation, Main constructs exactly the already-bound create or
 replace proposal and Renderer shows the complete Markdown for review. Curator
 does not receive a reusable assignment ref and cannot redirect the artifact in
-a later call. The lower-level `delegate_writing` receipt remains an internal
-worker compatibility protocol and is not enabled for Curator.
+a later call. Delegation identity and artifact claims are Main-owned internal
+state; the retired `delegate_writing` and `revise_writing_artifact` names remain
+audit-only so historical conversations can still be rendered.
 
 Acceptance of a Scribe-backed Manuscript proposal creates or ensures one
 durable `story_reconciliation_jobs` row bound to the accepted document and its
@@ -255,6 +261,14 @@ Results do not expose physical project paths or raw YAML.
 Maintain execution, proposal construction, and validation remain time-bounded,
 while the subsequent human review wait is intentionally excluded from the
 ordinary tool timeout.
+Only `read_novel_context` may run in parallel. Artifact submission, maintenance,
+question resolution, reconciliation, and every proposal run sequentially so
+dependent refs, revisions, approvals, and mutation ordering cannot race. A
+mutation reserves room for its compact terminal receipt before side effects;
+result-budget enforcement never hides a mutation that already happened.
+Typed Main failures make the worker's native Tool execution reject, so Pi and
+the provider receive an error ToolResult rather than successful text that merely
+contains `{ "ok": false }`.
 `read_novel_context.structure` exposes the optional knowledge root as `lore` with
 directory kind `lore`, matching the project format and application domain. Its
 path-free result includes directory icons and the fixed `availableIcons` list;
@@ -315,10 +329,13 @@ existing prose.
 
 ## Tool definitions and prompt policy
 
-Each tool's `defineTool()` registration is the single source of truth for its
-name, description, and parameter schema. Native model Tool Calling communicates
-those definitions to the model. Do not copy individual tool descriptions into
-the system prompt.
+Each entry in `agent-tool-definitions.ts` is spread unchanged into its
+`defineTool()` registration and is the single model-facing source of truth for
+the tool's name, description, parameter schema, and execution mode. Native
+model Tool Calling communicates those definitions to the model. Do not copy
+individual tool descriptions into the system prompt. Registry tests require an
+exact one-to-one match with `AgentToolContractMap` and allow parallel execution
+only for the read-only context tool.
 
 Keep model-facing parameter schemas portable across supported providers. Use a
 top-level object schema and plain `{ type: 'string', enum: [...] }` schemas for

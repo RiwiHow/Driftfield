@@ -17,8 +17,8 @@ describe('Agent proposal tool contract', () => {
   it('validates bounded batched novel-context reads', () => {
     expect(isAgentToolRequest({
       arguments: {
-        directoryIds: ['world-directory'],
-        documentIds: ['chapter-1', 'lore-1'],
+        directoryIds: ['directory:1'],
+        documentIds: ['document:1', 'document:2'],
         include: ['structure', 'story_state'],
       },
       toolName: 'read_novel_context',
@@ -43,13 +43,21 @@ describe('Agent proposal tool contract', () => {
       },
       toolName: 'read_novel_context',
     })).toBe(false);
+    expect(isAgentToolRequest({
+      arguments: {
+        directoryIds: [],
+        documentIds: ['document:100000'],
+        include: [],
+      },
+      toolName: 'read_novel_context',
+    })).toBe(false);
     expect(isAgentToolExecutionResult({
       data: {
         documents: [{
-          baseRevision: 'a'.repeat(64),
-          contentRevision: 'b'.repeat(64),
+          baseRevision: 'revision:1',
+          contentRevision: 'revision:2',
           displayTitle: '1. Chapter One',
-          documentId: 'chapter-1',
+          documentId: 'document:1',
           markdown: '# Chapter',
           metadataTitle: 'Chapter One',
           source: 'disk',
@@ -70,7 +78,7 @@ describe('Agent proposal tool contract', () => {
     })).toBe(true);
   });
 
-  it('validates bounded Curator-to-Scribe assignments and artifacts', () => {
+  it('validates the terminal Scribe artifact and keeps retired tools audit-only', () => {
     expect(isAgentToolRequest({
       arguments: { markdown: '# Draft\n\nOnly manuscript prose.' },
       toolName: 'submit_writing_artifact',
@@ -84,81 +92,10 @@ describe('Agent proposal tool contract', () => {
       ok: true,
       toolName: 'submit_writing_artifact',
     })).toBe(true);
-    expect(isAgentToolRequest({
-      arguments: {
-        replacements: [{
-          expectedOccurrences: 2,
-          find: '织母议会议会',
-          replace: '织母议会',
-        }],
-        writingAssignmentId: 'scribe-task-1',
-      },
-      toolName: 'revise_writing_artifact',
-    })).toBe(true);
-    expect(isAgentToolRequest({
-      arguments: {
-        replacements: [{
-          expectedOccurrences: 1,
-          find: 'same',
-          replace: 'same',
-        }],
-        writingAssignmentId: 'scribe-task-1',
-      },
-      toolName: 'revise_writing_artifact',
-    })).toBe(false);
-    expect(isAgentToolExecutionResult({
-      data: {
-        assignmentId: 'scribe-task-1',
-        replacementsApplied: 2,
-        status: 'revised',
-      },
-      ok: true,
-      toolName: 'revise_writing_artifact',
-    })).toBe(true);
-    expect(isAgentToolRequest({
-      arguments: {
-        documentAction: 'replace',
-        documentDomain: 'manuscript',
-        objective: 'Continue the confrontation scene.',
-        requirements: ['Keep Mara in close third person.', 'End on the door opening.'],
-        targetDocumentId: 'chapter-1',
-        targetLength: 1_200,
-      },
-      toolName: 'delegate_writing',
-    })).toBe(true);
-    expect(isAgentToolRequest({
-      arguments: {
-        documentAction: 'create',
-        documentDomain: 'manuscript',
-        objective: 'Write a new opening chapter.',
-        requirements: ['Return a complete Markdown draft.'],
-        targetDocumentId: null,
-        targetLength: null,
-      },
-      toolName: 'delegate_writing',
-    })).toBe(true);
-    expect(isAgentToolRequest({
-      arguments: {
-        documentAction: 'create',
-        documentDomain: 'manuscript',
-        objective: '',
-        requirements: [],
-        targetDocumentId: null,
-        targetLength: null,
-      },
-      toolName: 'delegate_writing',
-    })).toBe(false);
-    expect(isAgentToolExecutionResult({
-      data: {
-        assignmentId: 'scribe-task-1',
-        characterCount: 7,
-        documentAction: 'create',
-        documentDomain: 'manuscript',
-        status: 'completed',
-      },
-      ok: true,
-      toolName: 'delegate_writing',
-    })).toBe(true);
+    expect(isAgentToolName('delegate_writing')).toBe(false);
+    expect(isAgentToolName('revise_writing_artifact')).toBe(false);
+    expect(isAgentToolAuditName('delegate_writing')).toBe(true);
+    expect(isAgentToolAuditName('revise_writing_artifact')).toBe(true);
   });
 
   it('validates atomic generated-document target plans', () => {
@@ -180,6 +117,13 @@ describe('Agent proposal tool contract', () => {
       arguments: createArguments,
       toolName: 'propose_document_writing',
     })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: {
+        ...createArguments,
+        projectRevision: 'a'.repeat(64),
+      },
+      toolName: 'propose_document_writing',
+    })).toBe(false);
     expect(isAgentToolRequest({
       arguments: { ...createArguments, documentId: 'document:1' },
       toolName: 'propose_document_writing',
@@ -217,6 +161,19 @@ describe('Agent proposal tool contract', () => {
     })).toBe(false);
     expect(isAgentToolRequest({
       arguments: {
+        changes: [{
+          clientRef: 'a'.repeat(33),
+          name: 'Mara',
+          operation: 'create_persona',
+          role: null,
+          summary: '',
+        }],
+        storyRevision: 0,
+      },
+      toolName: 'maintain_story_records',
+    })).toBe(false);
+    expect(isAgentToolRequest({
+      arguments: {
         changes: [
           {
             clientRef: 'arrival',
@@ -225,7 +182,7 @@ describe('Agent proposal tool contract', () => {
             operation: 'create_moment',
             orderKey: 1,
             precision: 'season',
-            timelineId: 'timeline-1',
+            timelineId: 'timeline:1',
           },
           {
             causes: '',
@@ -237,7 +194,7 @@ describe('Agent proposal tool contract', () => {
             startMomentId: '@arrival',
             status: 'established',
             summary: '',
-            timelineId: 'timeline-1',
+            timelineId: 'timeline:1',
             title: 'Arrival',
           },
         ],
@@ -255,7 +212,7 @@ describe('Agent proposal tool contract', () => {
             operation: 'create_moment',
             orderKey: 1,
             precision: 'season',
-            timelineId: 'timeline-1',
+            timelineId: 'timeline:1',
           },
           {
             causes: '',
@@ -266,7 +223,7 @@ describe('Agent proposal tool contract', () => {
             startMomentId: '@arrival',
             status: 'established',
             summary: '',
-            timelineId: 'timeline-1',
+            timelineId: 'timeline:1',
             title: 'Arrival',
           },
         ],
@@ -348,45 +305,43 @@ describe('Agent proposal tool contract', () => {
   it('correlates validated proposal arguments and results', () => {
     expect(isAgentToolRequest({
       arguments: {
-        baseContentRevision: 'a'.repeat(64),
-        baseRevision: 'b'.repeat(64),
-        documentId: 'chapter-1',
+        baseContentRevision: 'revision:2',
+        baseRevision: 'revision:1',
+        documentId: 'document:1',
         markdown: '# Proposed',
-        writingAssignmentId: null,
       },
       toolName: 'propose_document_edit',
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: {
-        baseContentRevision: 'a'.repeat(64),
-        baseRevision: 'b'.repeat(64),
-        documentId: 'chapter-1',
+        baseContentRevision: 'revision:2',
+        baseRevision: 'revision:1',
+        documentId: 'document:1',
         markdown: null,
-        writingAssignmentId: 'scribe-task-1',
-      },
-      toolName: 'propose_document_edit',
-    })).toBe(true);
-    expect(isAgentToolRequest({
-      arguments: {
-        baseContentRevision: 'a'.repeat(64),
-        baseRevision: 'b'.repeat(64),
-        documentId: 'chapter-1',
-        markdown: '# Proposed',
-        writingAssignmentId: 'scribe-task-1',
       },
       toolName: 'propose_document_edit',
     })).toBe(false);
     expect(isAgentToolRequest({
-      arguments: { documentId: 'chapter-1', markdown: '# Proposed' },
+      arguments: {
+        baseContentRevision: 'revision:2',
+        baseRevision: 'revision:1',
+        documentId: 'document:1',
+        markdown: '# Proposed',
+        unexpected: true,
+      },
+      toolName: 'propose_document_edit',
+    })).toBe(false);
+    expect(isAgentToolRequest({
+      arguments: { documentId: 'document:1', markdown: '# Proposed' },
       toolName: 'propose_document_edit',
     })).toBe(false);
     expect(isAgentToolExecutionResult({
-      data: { proposalId: 'proposal-1', status: 'accepted' },
+      data: { proposalId: 'proposal:1', status: 'accepted' },
       ok: true,
       toolName: 'propose_document_edit',
     })).toBe(true);
     expect(isAgentToolExecutionResult({
-      data: { proposalId: 'proposal-1', status: 'proposed' },
+      data: { proposalId: 'proposal:1', status: 'proposed' },
       ok: true,
       toolName: 'propose_document_edit',
     })).toBe(false);
@@ -425,41 +380,56 @@ describe('Agent proposal tool contract', () => {
   });
 
   it('accepts request-scoped refs in model-facing story snapshots', () => {
+    const storyState = {
+      beats: [],
+      eventLinks: [],
+      eventParticipants: [],
+      eventSources: [{
+        anchor: null,
+        documentId: 'document:1',
+        documentRevision: 'revision:1',
+        eventId: 'event:1',
+        id: 'request:1',
+        relation: 'depicted' as const,
+        sourceKind: 'manuscript' as const,
+      }],
+      events: [],
+      moments: [],
+      personae: [],
+      questions: [],
+      revision: 1,
+      threads: [],
+      timelines: [],
+    };
     expect(isAgentToolExecutionResult({
       data: {
         documents: [],
-        storyState: {
-          beats: [],
-          eventLinks: [],
-          eventParticipants: [],
-          eventSources: [{
-            anchor: null,
-            documentId: 'document:1',
-            documentRevision: 'revision:1',
-            eventId: 'event:1',
-            id: 'request:1',
-            relation: 'depicted',
-            sourceKind: 'manuscript',
-          }],
-          events: [],
-          moments: [],
-          personae: [],
-          questions: [],
-          revision: 1,
-          threads: [],
-          timelines: [],
-        },
+        storyState,
       },
       ok: true,
       toolName: 'read_novel_context',
     })).toBe(true);
+    expect(isAgentToolExecutionResult({
+      data: {
+        documents: [],
+        storyState: {
+          ...storyState,
+          eventSources: [{
+            ...storyState.eventSources[0],
+            documentId: '550e8400-e29b-41d4-a716-446655440000',
+          }],
+        },
+      },
+      ok: true,
+      toolName: 'read_novel_context',
+    })).toBe(false);
   });
 
   it('validates project structure proposal variants', () => {
     expect(isAgentToolRequest({
       arguments: {
         operation: 'create_volume',
-        projectRevision: 'a'.repeat(64),
+        projectRevision: 'revision:1',
         title: 'Volume Two',
       },
       toolName: 'propose_project_structure_operation',
@@ -468,7 +438,7 @@ describe('Agent proposal tool contract', () => {
       arguments: {
         icon: 'landmark',
         operation: 'create_lore_category',
-        projectRevision: 'a'.repeat(64),
+        projectRevision: 'revision:1',
         title: 'Society',
       },
       toolName: 'propose_project_structure_operation',
@@ -477,53 +447,53 @@ describe('Agent proposal tool contract', () => {
       arguments: {
         icon: 'not-an-icon',
         operation: 'create_lore_category',
-        projectRevision: 'a'.repeat(64),
+        projectRevision: 'revision:1',
         title: 'Society',
       },
       toolName: 'propose_project_structure_operation',
     })).toBe(false);
     expect(isAgentToolRequest({
       arguments: {
-        directoryId: 'society-id',
+        directoryId: 'directory:1',
         operation: 'delete_lore_category',
-        projectRevision: 'a'.repeat(64),
+        projectRevision: 'revision:1',
       },
       toolName: 'propose_project_structure_operation',
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: {
-        baseRevision: 'b'.repeat(64),
-        documentId: 'chapter-1',
+        baseRevision: 'revision:2',
+        documentId: 'document:1',
         operation: 'move_document',
-        projectRevision: 'a'.repeat(64),
-        targetParentId: 'volume-2',
+        projectRevision: 'revision:1',
+        targetParentId: 'directory:2',
       },
       toolName: 'propose_project_structure_operation',
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: {
-        documentId: 'chapter-1',
+        documentId: 'document:1',
         operation: 'move_document',
-        projectRevision: 'a'.repeat(64),
-        targetParentId: 'volume-2',
+        projectRevision: 'revision:1',
+        targetParentId: 'directory:2',
       },
       toolName: 'propose_project_structure_operation',
     })).toBe(false);
     expect(isAgentToolRequest({
       arguments: {
-        documentId: 'chapter-1',
+        documentId: 'document:1',
         metadataTitle: 'The silent island',
         operation: 'rename_document',
-        projectRevision: 'a'.repeat(64),
+        projectRevision: 'revision:1',
       },
       toolName: 'propose_project_structure_operation',
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: {
         displayTitle: '3. The silent island',
-        documentId: 'chapter-1',
+        documentId: 'document:1',
         operation: 'rename_document',
-        projectRevision: 'a'.repeat(64),
+        projectRevision: 'revision:1',
       },
       toolName: 'propose_project_structure_operation',
     })).toBe(false);
@@ -535,39 +505,38 @@ describe('Agent proposal tool contract', () => {
         kind: 'chapter',
         markdown: '# New',
         operation: 'create',
-        parentId: 'manuscript-1',
-        projectRevision: 'a'.repeat(64),
+        parentId: 'directory:1',
+        projectRevision: 'revision:1',
         metadataTitle: 'New chapter',
-        writingAssignmentId: null,
       },
       toolName: 'propose_document_file_operation',
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: {
         kind: 'chapter',
-        markdown: null,
+        markdown: '# New',
         operation: 'create',
-        parentId: 'manuscript-1',
-        projectRevision: 'a'.repeat(64),
+        parentId: 'directory:1',
+        projectRevision: 'revision:1',
         metadataTitle: 'New chapter',
-        writingAssignmentId: 'scribe-task-1',
+        unexpected: true,
+      },
+      toolName: 'propose_document_file_operation',
+    })).toBe(false);
+    expect(isAgentToolRequest({
+      arguments: {
+        baseRevision: 'revision:2',
+        documentId: 'document:1',
+        operation: 'delete',
+        projectRevision: 'revision:1',
       },
       toolName: 'propose_document_file_operation',
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: {
-        baseRevision: 'b'.repeat(64),
-        documentId: 'chapter-1',
+        documentId: 'document:1',
         operation: 'delete',
-        projectRevision: 'a'.repeat(64),
-      },
-      toolName: 'propose_document_file_operation',
-    })).toBe(true);
-    expect(isAgentToolRequest({
-      arguments: {
-        documentId: 'chapter-1',
-        operation: 'delete',
-        projectRevision: 'a'.repeat(64),
+        projectRevision: 'revision:1',
       },
       toolName: 'propose_document_file_operation',
     })).toBe(false);
@@ -589,10 +558,10 @@ describe('Agent proposal tool contract', () => {
             relation: 'depicted',
             sourceKind: 'manuscript',
           }],
-          startMomentId: 'moment-1',
+          startMomentId: 'moment:1',
           status: 'established',
           summary: '',
-          timelineId: 'timeline-1',
+          timelineId: 'timeline:1',
           title: 'The sealed door opens',
         },
         storyRevision: 2,
@@ -601,6 +570,16 @@ describe('Agent proposal tool contract', () => {
     } as const;
 
     expect(isAgentToolRequest(request)).toBe(true);
+    expect(isAgentToolRequest({
+      ...request,
+      arguments: {
+        ...request.arguments,
+        change: {
+          ...request.arguments.change,
+          timelineId: '550e8400-e29b-41d4-a716-446655440000',
+        },
+      },
+    })).toBe(false);
     expect(isAgentToolRequest({
       ...request,
       arguments: {
@@ -632,7 +611,7 @@ describe('Agent proposal tool contract', () => {
       toolName: 'resolve_story_question',
     })).toBe(false);
     expect(isAgentToolExecutionResult({
-      data: { questionId: 'question-1', revision: 0, status: 'recorded' },
+      data: { questionId: 'question:1', revision: 0, status: 'recorded' },
       ok: true,
       toolName: 'record_story_question',
     })).toBe(true);

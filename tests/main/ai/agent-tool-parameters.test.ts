@@ -11,22 +11,10 @@ import {
   STORY_MAINTENANCE_PARAMETERS,
   STORY_OPERATION_PARAMETERS,
   STORY_QUESTION_PARAMETERS,
-  WRITING_ARTIFACT_REVISION_PARAMETERS,
   WRITING_ARTIFACT_SUBMISSION_PARAMETERS,
-  WRITING_ASSIGNMENT_PARAMETERS,
 } from '../../../src/main/ai/agent-tool-parameters';
 
 describe('Agent tool parameter schemas', () => {
-  it('defines bounded exact Scribe artifact replacements', () => {
-    const schema = WRITING_ARTIFACT_REVISION_PARAMETERS as unknown as Record<string, unknown>;
-    const properties = schema.properties as Record<string, Record<string, unknown>>;
-
-    expect(schema.required).toEqual(['replacements', 'writingAssignmentId']);
-    expect(properties.replacements).toMatchObject({ maxItems: 12, minItems: 1 });
-    expect(JSON.stringify(properties.replacements)).toContain('expectedOccurrences');
-    expect(JSON.stringify(properties.replacements)).toContain('entire revision is rejected');
-  });
-
   it('defines a bounded terminal Scribe artifact submission', () => {
     const schema = WRITING_ARTIFACT_SUBMISSION_PARAMETERS as unknown as Record<string, unknown>;
     const properties = schema.properties as Record<string, Record<string, unknown>>;
@@ -40,7 +28,7 @@ describe('Agent tool parameter schemas', () => {
     });
   });
 
-  it('supports direct Markdown or a Scribe assignment for document edits', () => {
+  it('requires direct Markdown and request-scoped refs for document edits', () => {
     const schema = DOCUMENT_EDIT_PARAMETERS as unknown as Record<string, unknown>;
     const properties = schema.properties as Record<string, Record<string, unknown>>;
 
@@ -49,35 +37,12 @@ describe('Agent tool parameter schemas', () => {
       'baseRevision',
       'documentId',
       'markdown',
-      'writingAssignmentId',
     ]);
-    expect(properties.markdown).toMatchObject({ type: ['string', 'null'] });
-    expect(properties.writingAssignmentId).toMatchObject({
-      description: expect.stringContaining('generated prose uses propose_document_writing'),
-      type: ['string', 'null'],
+    expect(properties.documentId).toMatchObject({
+      pattern: '^document:[1-9][0-9]{0,4}$',
+      type: 'string',
     });
-  });
-
-  it('explains nullable new-document writing targets to providers', () => {
-    const schema = WRITING_ASSIGNMENT_PARAMETERS as unknown as Record<string, unknown>;
-    const properties = schema.properties as Record<string, Record<string, unknown>>;
-
-    expect(schema.required).toEqual([
-      'documentAction',
-      'documentDomain',
-      'objective',
-      'requirements',
-      'targetDocumentId',
-      'targetLength',
-    ]);
-    expect(properties.targetDocumentId).toMatchObject({
-      description: expect.stringContaining('For a new document that does not exist yet, use null'),
-      type: ['string', 'null'],
-    });
-    expect(properties.targetLength).toMatchObject({
-      description: expect.stringContaining('otherwise use null'),
-      type: ['integer', 'null'],
-    });
+    expect(properties.markdown).toMatchObject({ type: 'string' });
   });
 
   it('defines one provider-compatible pre-bound generated-document proposal', () => {
@@ -132,9 +97,11 @@ describe('Agent tool parameter schemas', () => {
       ],
       type: 'string',
     });
-    expect(properties.markdown).toMatchObject({ type: ['string', 'null'] });
+    expect(properties.markdown).toMatchObject({ type: 'string' });
     expect(properties.metadataTitle.description).toContain('raw document metadata title');
-    expect(properties.writingAssignmentId).toMatchObject({ type: ['string', 'null'] });
+    expect(properties.parentId).toMatchObject({
+      pattern: '^directory:[1-9][0-9]{0,4}$',
+    });
     expect(JSON.stringify(schema)).not.toContain('anyOf');
     expect(JSON.stringify(schema)).not.toContain('const');
   });
@@ -192,6 +159,12 @@ describe('Agent tool parameter schemas', () => {
       type: 'string',
     });
     expect(changeProperties.sources).toMatchObject({ type: 'array' });
+    expect(changeProperties.timelineId).toMatchObject({
+      pattern: '^timeline:[1-9][0-9]{0,4}$',
+    });
+    expect(changeProperties.startMomentId).toMatchObject({
+      pattern: '^moment:[1-9][0-9]{0,4}$',
+    });
     expect(JSON.stringify(schema)).not.toContain('anyOf');
     expect(JSON.stringify(schema)).not.toContain('const');
   });
@@ -205,10 +178,14 @@ describe('Agent tool parameter schemas', () => {
 
     expect(changes.description).toContain('clientRef');
     expect(changeProperties.clientRef).toMatchObject({
-      pattern: '^[A-Za-z][A-Za-z0-9_-]{0,63}$',
+      pattern: '^[A-Za-z][A-Za-z0-9_-]{0,31}$',
       type: 'string',
     });
     expect(changeProperties.startMomentId.description).toContain('@clientRef');
+    expect(changeProperties.startMomentId).toMatchObject({
+      pattern:
+        '^(?:moment:[1-9][0-9]{0,4}|@[A-Za-z][A-Za-z0-9_-]{0,31})$',
+    });
     expect(changeProperties.participants).toMatchObject({ type: 'array' });
     expect(changeProperties.operation.description).toContain('one exact change shape');
   });
@@ -226,9 +203,11 @@ describe('Agent tool parameter schemas', () => {
     expect(properties.newThreads).toMatchObject({ maxItems: 2 });
     expect(advances).toMatchObject({ maxItems: 4 });
     expect(JSON.stringify(eventProperties.participants)).toContain('personaRef');
+    expect(JSON.stringify(eventProperties.participants)).toContain('persona:[1-9]');
     expect(JSON.stringify(properties.newPersonae)).toContain('clientRef');
     expect(JSON.stringify(properties.primaryTimeline)).toContain('Main creates');
     expect(JSON.stringify(advances)).toContain('threadRef');
+    expect(JSON.stringify(advances)).toContain('^thread:[1-9]');
     expect(JSON.stringify(schema)).not.toContain('storyRevision');
     expect(JSON.stringify(schema)).not.toContain('documentId');
     expect(JSON.stringify(schema)).not.toContain('orderKey');

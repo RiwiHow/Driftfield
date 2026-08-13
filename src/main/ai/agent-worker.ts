@@ -27,26 +27,13 @@ import {
   responseProtocolIssue,
 } from './agent-run-protocol';
 import {
-  ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS,
-  DOCUMENT_EDIT_PARAMETERS,
-  DOCUMENT_FILE_OPERATION_PARAMETERS,
-  DOCUMENT_WRITING_PARAMETERS,
-  NOVEL_CONTEXT_PARAMETERS,
   normalizeStoryMaintenanceBatchArguments,
   normalizeStoryMaintenanceArguments,
-  PROJECT_STRUCTURE_OPERATION_PARAMETERS,
-  RESOLVE_STORY_QUESTION_PARAMETERS,
-  STORY_RECONCILIATION_COMPLETION_PARAMETERS,
-  STORY_OPERATION_PARAMETERS,
-  STORY_MAINTENANCE_PARAMETERS,
-  STORY_QUESTION_PARAMETERS,
-  WRITING_ARTIFACT_REVISION_PARAMETERS,
-  WRITING_ARTIFACT_SUBMISSION_PARAMETERS,
-  WRITING_ASSIGNMENT_PARAMETERS,
 } from "./agent-tool-parameters";
+import { AGENT_TOOL_DEFINITIONS } from './agent-tool-definitions';
+import { serializeSuccessfulToolResult } from './agent-tool-model-result';
 import {
   isAgentToolName,
-  type AgentDocumentDomain,
   type AgentToolContractMap,
   type AgentToolExecutionResult,
   type AgentToolName,
@@ -59,8 +46,6 @@ interface ActiveRequest {
   cancelled: boolean;
   reconciliationPending: boolean;
   session: AgentSession | null;
-  writingArtifactPending: boolean;
-  writingArtifactDomain?: AgentDocumentDomain;
 }
 
 const activeRequests = new Map<string, ActiveRequest>();
@@ -146,7 +131,6 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
     cancelled: false,
     reconciliationPending: command.reconciliationPending,
     session: null,
-    writingArtifactPending: false,
   };
   activeRequests.set(command.requestId, active);
   let session: AgentSession | null = null;
@@ -255,7 +239,6 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
         responseState.assistantText,
         responseState.stopReason,
         active.reconciliationPending,
-        active.writingArtifactPending,
         enabledToolNames,
       );
       if (!active.cancelled && protocolIssue !== null) {
@@ -266,7 +249,6 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
           responseState.assistantText,
           responseState.stopReason,
           active.reconciliationPending,
-          active.writingArtifactPending,
           enabledToolNames,
         );
       }
@@ -343,216 +325,146 @@ function selectModelHistory(
 function createNovelTools(requestId: string) {
   return [
     defineTool({
-      description:
-        "Commission one bounded Manuscript or Lore Markdown artifact from Scribe. Set documentDomain to match the eventual proposal target. Main validates and retains the full artifact; the compact result returns its assignment ref and size. Pass that ref to one reviewed proposal without reproducing the Markdown. The delegation cannot be retried.",
-      label: "Delegate writing to Scribe",
-      name: "delegate_writing",
-      parameters: WRITING_ASSIGNMENT_PARAMETERS,
-      execute: async (toolCallId, params) =>
-        textToolResult(
-          await requestTool(
-            requestId,
-            toolCallId,
-            "delegate_writing",
-            params as AgentToolContractMap["delegate_writing"]["arguments"],
-          ),
-        ),
-    }),
-    defineTool({
-      description:
-        "Submit the complete assigned Manuscript or Lore Markdown exactly once. Exclude analysis, planning, commentary, status text, and persistence claims. Ordinary assistant text is not part of the artifact.",
-      label: "Submit writing artifact",
-      name: "submit_writing_artifact",
-      parameters: WRITING_ARTIFACT_SUBMISSION_PARAMETERS,
-      execute: async (toolCallId, params) =>
+      ...AGENT_TOOL_DEFINITIONS.submit_writing_artifact,
+      execute: async (toolCallId, params, signal) =>
         textToolResult(
           await requestTool(
             requestId,
             toolCallId,
             "submit_writing_artifact",
             params as AgentToolContractMap["submit_writing_artifact"]["arguments"],
+            signal,
           ),
         ),
     }),
     defineTool({
-      description:
-        "Read one bounded, path-free novel-context batch. Select only needed sections or current-request document/directory refs. Refs expire with the request; acquire them from a minimal discovery read, never from user text or history. At most four persisted documents are returned.",
-      label: "Read novel context",
-      name: "read_novel_context",
-      parameters: NOVEL_CONTEXT_PARAMETERS,
-      execute: async (toolCallId, params) =>
+      ...AGENT_TOOL_DEFINITIONS.read_novel_context,
+      execute: async (toolCallId, params, signal) =>
         textToolResult(
           await requestTool(
             requestId,
             toolCallId,
             "read_novel_context",
             params as AgentToolContractMap["read_novel_context"]["arguments"],
+            signal,
           ),
         ),
     }),
     defineTool({
-      description:
-        "Submit a direct complete replacement for the current document as a reviewable proposal. Supply markdown and set writingAssignmentId to null. Generated Scribe prose must use propose_document_writing so its target is frozen before generation. This never writes without explicit acceptance.",
-      label: "Propose document edit",
-      name: "propose_document_edit",
-      parameters: DOCUMENT_EDIT_PARAMETERS,
-      execute: async (toolCallId, params) =>
+      ...AGENT_TOOL_DEFINITIONS.propose_document_edit,
+      execute: async (toolCallId, params, signal) =>
         textToolResult(
           await requestTool(
             requestId,
             toolCallId,
             "propose_document_edit",
             params as AgentToolContractMap["propose_document_edit"]["arguments"],
+            signal,
           ),
         ),
     }),
     defineTool({
-      description:
-        "Commission Scribe and submit exactly one pre-bound reviewed document proposal. Use create for every new chapter or Lore entry, with its parent directory, raw title, kind, and project revision; an existing chapter read for continuity is not the target. Use replace only when the user explicitly asked to replace that exact current document, with its request-start revisions. Main validates the entire target plan before Scribe runs and cannot rebind the artifact afterward.",
-      label: "Propose generated document",
-      name: "propose_document_writing",
-      parameters: DOCUMENT_WRITING_PARAMETERS,
-      execute: async (toolCallId, params) =>
+      ...AGENT_TOOL_DEFINITIONS.propose_document_writing,
+      execute: async (toolCallId, params, signal) =>
         textToolResult(
           await requestTool(
             requestId,
             toolCallId,
             "propose_document_writing",
             params as AgentToolContractMap["propose_document_writing"]["arguments"],
+            signal,
           ),
         ),
     }),
     defineTool({
-      description:
-        "Apply one bounded exact-replacement batch to the current request's unclaimed Scribe artifact before proposing it. Use only for a directly verified typo or formatting defect, never for continuity, gender, tone, or phrasing judgment. Copy each find string verbatim from the artifact and provide its occurrence count. Main applies all replacements atomically or none. If rejected, do not retry; propose the unchanged artifact. This does not persist content or permit a second Scribe delegation.",
-      label: "Revise Scribe artifact",
-      name: "revise_writing_artifact",
-      parameters: WRITING_ARTIFACT_REVISION_PARAMETERS,
-      execute: async (toolCallId, params) =>
-        textToolResult(
-          await requestTool(
-            requestId,
-            toolCallId,
-            "revise_writing_artifact",
-            params as AgentToolContractMap["revise_writing_artifact"]["arguments"],
-          ),
-        ),
-    }),
-    defineTool({
-      description:
-        "Submit a direct reviewable proposal to create a supplied Markdown document under a directory ref or delete a document by ref. Read structure first and reuse its request-scoped project revision ref. For creation, pass the raw metadataTitle without generated numbering, supply markdown, and set writingAssignmentId to null; displayTitle is read-only context. Generated Scribe prose must use propose_document_writing. Before deletion, read the target and reuse its baseRevision ref. This never changes files without explicit acceptance.",
-      label: "Propose document creation or deletion",
-      name: "propose_document_file_operation",
-      parameters: DOCUMENT_FILE_OPERATION_PARAMETERS,
-      execute: async (toolCallId, params) =>
+      ...AGENT_TOOL_DEFINITIONS.propose_document_file_operation,
+      execute: async (toolCallId, params, signal) =>
         textToolResult(
           await requestTool(
             requestId,
             toolCallId,
             "propose_document_file_operation",
             params as AgentToolContractMap["propose_document_file_operation"]["arguments"],
+            signal,
           ),
         ),
     }),
     defineTool({
-      description:
-        "Submit a reviewable proposal to create a manuscript volume, create a lore category with an approved icon, delete an empty lore category, move a document, or rename a document's metadata title without changing its physical filename. Read structure first and reuse its request-scoped project revision ref. Use only document and directory refs returned in this request. Before moving, read the document and reuse its baseRevision ref. Delete lore documents before deleting their now-empty category. This never changes project structure without explicit acceptance. The tool call waits for the user's decision; after acceptance, continue only the user's existing requested scope.",
-      label: "Propose project structure change",
-      name: "propose_project_structure_operation",
-      parameters: PROJECT_STRUCTURE_OPERATION_PARAMETERS,
-      execute: async (toolCallId, params) =>
+      ...AGENT_TOOL_DEFINITIONS.propose_project_structure_operation,
+      execute: async (toolCallId, params, signal) =>
         textToolResult(
           await requestTool(
             requestId,
             toolCallId,
             "propose_project_structure_operation",
             params as AgentToolContractMap["propose_project_structure_operation"]["arguments"],
+            signal,
           ),
         ),
     }),
     defineTool({
-      description:
-        "Atomically maintain one ordered changeset of 1 to 24 low-risk additive or linking changes in Personae, Chronicle, or Threads when explicitly requested by the user or unambiguously evidenced by accepted persisted prose. Read story_state first and use its current numeric revision plus its request-scoped entity refs. For a created entity needed by a later change, assign clientRef and reference it later as @clientRef; include the complete dependency graph in this one call. Main resolves references, owns persistent identities, and applies all or none with one story revision. The concise result reports only status, revision, and appliedCount. Never include ambiguity or inference requiring author judgment; record a story question instead. This tool cannot delete, merge, reorder, edit manuscript text, or execute SQL.",
-      label: "Maintain story records",
-      name: "maintain_story_records",
-      parameters: STORY_MAINTENANCE_PARAMETERS,
-      execute: async (toolCallId, params) =>
+      ...AGENT_TOOL_DEFINITIONS.maintain_story_records,
+      execute: async (toolCallId, params, signal) =>
         textToolResult(
           await requestTool(
             requestId,
             toolCallId,
             "maintain_story_records",
             normalizeStoryMaintenanceBatchArguments(params),
+            signal,
           ),
         ),
     }),
     defineTool({
-      description:
-        "Complete the required reconciliation checkpoint after an accepted Scribe-backed manuscript proposal when reconcile_accepted_document did not already complete it automatically. Call this only after rereading the accepted persisted document and current story state, and after applying every clear low-risk change through ordinary Maintain, recording each material author question, or finding no changes. This does not write story data. Use no_changes only when the checked accepted prose requires no canonical story update.",
-      label: "Complete story reconciliation",
-      name: "complete_story_reconciliation",
-      parameters: STORY_RECONCILIATION_COMPLETION_PARAMETERS,
-      execute: async (toolCallId, params) =>
+      ...AGENT_TOOL_DEFINITIONS.complete_story_reconciliation,
+      execute: async (toolCallId, params, signal) =>
         textToolResult(
           await requestTool(
             requestId,
             toolCallId,
             "complete_story_reconciliation",
             params,
+            signal,
           ),
         ),
     }),
     defineTool({
-      description:
-        "Atomically reconcile the Chronicle event depicted by the accepted Scribe-backed manuscript document, including clearly established new Personae, optional new Threads with their first linked beat, and advances to existing Threads. First read accepted_reconciliation. Existing entities use its refs; new Personae declare clientRef and event participants reference them as @clientRef in this same call. If no primary timeline exists, optionally supply its semantic title and summary or let Main create a neutral default. Main owns the accepted source/revision, story revision, timeline fallback, moments, ordering, IDs, links, and successful checkpoint completion. Use ordinary Maintain only for shapes this focused tool cannot represent.",
-      label: "Reconcile accepted document",
-      name: "reconcile_accepted_document",
-      parameters: ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS,
-      execute: async (toolCallId, params) =>
+      ...AGENT_TOOL_DEFINITIONS.reconcile_accepted_document,
+      execute: async (toolCallId, params, signal) =>
         textToolResult(
           await requestTool(
             requestId,
             toolCallId,
             "reconcile_accepted_document",
             params,
+            signal,
           ),
         ),
     }),
     defineTool({
-      description:
-        "Record one unresolved author question without changing canonical Personae, Chronicle, or Threads. Use this for possible aliases, uncertain fictional time, unclear relationships, contradictions, or another ambiguity whose answer materially affects canonical records. An intentionally unnamed character, omitted background detail, or unknown fact that does not block a faithful record is not by itself a question. Read story state first, do not duplicate an existing open question, and attach exact evidence when available. After accepted_reconciliation, use evidence sourceRef document:accepted so Main binds the persisted document ID and revision. Options are suggestions, not decisions.",
-      label: "Record story question",
-      name: "record_story_question",
-      parameters: STORY_QUESTION_PARAMETERS,
-      execute: async (toolCallId, params) =>
+      ...AGENT_TOOL_DEFINITIONS.record_story_question,
+      execute: async (toolCallId, params, signal) =>
         textToolResult(
-          await requestTool(requestId, toolCallId, "record_story_question", params),
+          await requestTool(requestId, toolCallId, "record_story_question", params, signal),
         ),
     }),
     defineTool({
-      description:
-        "Resolve an existing open story question only from the user's explicit answer. Read story_state with read_novel_context first and pass its request-scoped question ref with a concise faithful answer. Resolving the question does not itself mutate Personae, Chronicle, or Threads; apply any now-unambiguous low-risk record change separately with maintain_story_records.",
-      label: "Resolve story question",
-      name: "resolve_story_question",
-      parameters: RESOLVE_STORY_QUESTION_PARAMETERS,
-      execute: async (toolCallId, params) =>
+      ...AGENT_TOOL_DEFINITIONS.resolve_story_question,
+      execute: async (toolCallId, params, signal) =>
         textToolResult(
-          await requestTool(requestId, toolCallId, "resolve_story_question", params),
+          await requestTool(requestId, toolCallId, "resolve_story_question", params, signal),
         ),
     }),
     defineTool({
-      description:
-        "Submit one additive or linking Personae, Chronicle, or Threads change for explicit human review when the user asks to inspect a structured change before it is applied. Do not use this for routine synchronization of clear facts from accepted prose; use maintain_story_records for those. Do not turn ambiguity into a proposal; record a story question instead. The tool waits for the decision and never writes story state before review.",
-      label: "Propose story record change",
-      name: "propose_story_operation",
-      parameters: STORY_OPERATION_PARAMETERS,
-      execute: async (toolCallId, params) =>
+      ...AGENT_TOOL_DEFINITIONS.propose_story_operation,
+      execute: async (toolCallId, params, signal) =>
         textToolResult(
           await requestTool(
             requestId,
             toolCallId,
             "propose_story_operation",
             normalizeStoryMaintenanceArguments(params),
+            signal,
           ),
         ),
     }),
@@ -564,6 +476,7 @@ async function requestTool<Name extends AgentToolName>(
   toolCallId: string,
   toolName: Name,
   args: AgentToolContractMap[Name]["arguments"],
+  signal?: AbortSignal,
 ): Promise<string> {
   send({
     input: serializeToolPayload(args),
@@ -572,12 +485,14 @@ async function requestTool<Name extends AgentToolName>(
     toolName,
     type: "tool-started",
   });
+  let completionReported = false;
   try {
     const result = await toolResults.request(
       requestId,
       toolCallId,
       toolName,
       args,
+      signal,
     );
     observeToolProtocol(requestId, toolName, args, result);
     send({
@@ -588,16 +503,19 @@ async function requestTool<Name extends AgentToolName>(
       toolName,
       type: "tool-completed",
     });
-    return JSON.stringify(result);
+    completionReported = true;
+    return serializeSuccessfulToolResult(result);
   } catch (error) {
-    send({
-      failed: true,
-      output: serializeToolPayload({ error: "tool-result-unavailable" }),
-      requestId,
-      toolCallId,
-      toolName,
-      type: "tool-completed",
-    });
+    if (!completionReported) {
+      send({
+        failed: true,
+        output: serializeToolPayload({ error: "tool-result-unavailable" }),
+        requestId,
+        toolCallId,
+        toolName,
+        type: "tool-completed",
+      });
+    }
     throw error;
   }
 }
@@ -611,38 +529,12 @@ const observeToolProtocol = <Name extends AgentToolName>(
   if (!result.ok) return;
   const active = activeRequests.get(requestId);
   if (active === undefined) return;
-  if (toolName === 'delegate_writing') {
-    active.writingArtifactPending = true;
-    active.writingArtifactDomain = (
-      result.data as AgentToolContractMap['delegate_writing']['result']
-    ).documentDomain;
-    return;
-  }
   if (toolName === 'propose_document_writing') {
     if (isAcceptedProposalResult(result)) {
       active.reconciliationPending = (
         args as AgentToolContractMap['propose_document_writing']['arguments']
       ).documentDomain === 'manuscript';
     }
-    return;
-  }
-  if (
-    (toolName === 'propose_document_edit' ||
-      toolName === 'propose_document_file_operation') &&
-    'writingAssignmentId' in args &&
-    args.writingAssignmentId !== null
-  ) {
-    active.writingArtifactPending = false;
-  }
-  if (
-    (toolName === 'propose_document_edit' ||
-      toolName === 'propose_document_file_operation') &&
-    'writingAssignmentId' in args &&
-    args.writingAssignmentId !== null &&
-    isAcceptedProposalResult(result)
-  ) {
-    active.reconciliationPending = active.writingArtifactDomain === 'manuscript';
-    active.writingArtifactDomain = undefined;
     return;
   }
   if (closesStoryReconciliation(toolName, result)) {

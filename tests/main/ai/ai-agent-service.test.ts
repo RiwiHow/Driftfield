@@ -281,37 +281,6 @@ describe('AiAgentService', () => {
 
     workers[0].emit('message', {
       arguments: {
-        documentAction: 'create',
-        documentDomain: 'manuscript',
-        objective: 'Bypass the atomic proposal.',
-        requirements: [],
-        targetDocumentId: null,
-        targetLength: null,
-      },
-      requestId: 'request-1',
-      toolCallId: 'tool-forged-delegate',
-      toolName: 'delegate_writing',
-      type: 'tool-request',
-    });
-    await waitFor(() => workers[0].messages.some((message) =>
-      typeof message === 'object' && message !== null &&
-      (message as { toolCallId?: unknown }).toolCallId === 'tool-forged-delegate'));
-    expect(workers[0].messages).toContainEqual({
-      requestId: 'request-1',
-      result: {
-        error: {
-          code: 'invalid-arguments',
-          detail: 'This tool is not enabled for the Curator role.',
-        },
-        ok: false,
-        toolName: 'delegate_writing',
-      },
-      toolCallId: 'tool-forged-delegate',
-      type: 'tool-result',
-    });
-
-    workers[0].emit('message', {
-      arguments: {
         directoryIds: [],
         documentIds: [],
         include: ['structure'],
@@ -349,24 +318,14 @@ describe('AiAgentService', () => {
       (message as { role?: unknown }).role === 'scribe'));
     const child = workers[0].messages.find((message) =>
       typeof message === 'object' && message !== null &&
-      (message as { role?: unknown }).role === 'scribe') as { requestId: string };
-    workers[0].emit('message', {
-      arguments: {
-        documentAction: 'create',
-        documentDomain: 'manuscript',
-        objective: 'Attempt a nested task.',
-        requirements: [],
-        targetDocumentId: null,
-        targetLength: null,
-      },
-      requestId: child.requestId,
-      toolCallId: 'tool-nested-delegate',
-      toolName: 'delegate_writing',
-      type: 'tool-request',
-    });
-    await waitFor(() => workers[0].messages.some((message) =>
-      typeof message === 'object' && message !== null &&
-      (message as { toolCallId?: unknown }).toolCallId === 'tool-nested-delegate'));
+      (message as { role?: unknown }).role === 'scribe') as {
+        prompt: string;
+        requestId: string;
+      };
+    expect(child.prompt).not.toContain(child.requestId);
+    expect(child.prompt).not.toContain('assignmentId');
+    expect(child.prompt).not.toContain('writingAssignmentId');
+    expect(child.prompt).toContain('"targetDocumentId":null');
     workers[0].emit('message', {
       input: '{}',
       requestId: child.requestId,
@@ -420,16 +379,6 @@ describe('AiAgentService', () => {
       role: 'scribe',
       type: 'start',
     }));
-    expect(workers[0].messages).toContainEqual({
-      requestId: child.requestId,
-      result: {
-        error: { code: 'invalid-arguments' },
-        ok: false,
-        toolName: 'delegate_writing',
-      },
-      toolCallId: 'tool-nested-delegate',
-      type: 'tool-result',
-    });
     expect(events).toContainEqual(expect.objectContaining({
       agentRole: 'scribe',
       requestId: 'request-1',
@@ -480,6 +429,16 @@ describe('AiAgentService', () => {
     await waitFor(() => workers.length === 1);
     workers[0].emit('message', { type: 'ready' });
     await started;
+    workers[0].emit('message', {
+      arguments: { directoryIds: [], documentIds: [], include: ['structure'] },
+      requestId: 'request-invalid',
+      toolCallId: 'tool-read-structure',
+      toolName: 'read_novel_context',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-read-structure'));
     workers[0].emit('message', {
       arguments: {
         directoryIds: [],
@@ -579,6 +538,16 @@ describe('AiAgentService', () => {
     workers[0].emit('message', { type: 'ready' });
     await started;
     workers[0].emit('message', {
+      arguments: { directoryIds: [], documentIds: [], include: ['structure'] },
+      requestId: 'request-1',
+      toolCallId: 'tool-read-structure',
+      toolName: 'read_novel_context',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-read-structure'));
+    workers[0].emit('message', {
       arguments: {
         baseContentRevision: null,
         baseRevision: null,
@@ -588,8 +557,8 @@ describe('AiAgentService', () => {
         kind: 'chapter',
         metadataTitle: 'Second chapter',
         objective: 'Write the next chapter.',
-        parentId: 'manuscript-root',
-        projectRevision: 'a'.repeat(64),
+        parentId: 'directory:1',
+        projectRevision: 'revision:1',
         requirements: [],
         targetLength: null,
       },
@@ -731,6 +700,17 @@ describe('AiAgentService', () => {
     await started;
 
     workers[0].emit('message', {
+      arguments: { directoryIds: [], documentIds: [], include: ['structure'] },
+      requestId: 'request-1',
+      toolCallId: 'tool-read-structure',
+      toolName: 'read_novel_context',
+      type: 'tool-request',
+    });
+    await waitFor(() => workers[0].messages.some((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { toolCallId?: unknown }).toolCallId === 'tool-read-structure'));
+
+    workers[0].emit('message', {
       arguments: {
         baseContentRevision: null,
         baseRevision: null,
@@ -740,8 +720,8 @@ describe('AiAgentService', () => {
         kind: 'chapter',
         metadataTitle: 'Second chapter',
         objective: 'Write another chapter.',
-        parentId: 'manuscript-root',
-        projectRevision: 'a'.repeat(64),
+        parentId: 'directory:1',
+        projectRevision: 'revision:1',
         requirements: [],
         targetLength: null,
       },

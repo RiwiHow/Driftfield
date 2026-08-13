@@ -7,10 +7,6 @@ import type {
   AgentNovelStructureToolResult,
   AgentProjectStructureOperationArguments,
   AgentStructureNode,
-  AgentWritingAssignment,
-  AgentWritingAssignmentToolResult,
-  AgentWritingArtifactReplacement,
-  AgentWritingArtifactRevisionToolResult,
   AgentToolExecutionResult,
   AgentToolFailureResult,
   AgentToolContractMap,
@@ -20,6 +16,10 @@ import type {
   AgentStoryMaintenanceChange,
   AgentCanonicalStoryQuestionArguments,
 } from '../../shared/contracts/agent-tools';
+import type {
+  AgentWritingAssignment,
+  AgentWritingTaskResult,
+} from './agent-writing';
 import {
   isAgentToolRequest,
   isLongRunningAgentTool,
@@ -56,18 +56,12 @@ export interface AgentToolScope {
   delegateWriting?: (
     assignment: AgentWritingAssignment,
     resolvedTargetDocumentId: string | null,
-  ) => Promise<AgentWritingAssignmentToolResult>;
+  ) => Promise<AgentWritingTaskResult>;
   draftSnapshot?: AgentDraftSnapshot;
   ownerId: number;
   projectSessionId?: string;
   requestId: string;
   releaseWritingArtifactClaim?: (assignmentId: string) => void;
-  reviseWritingArtifact?: (
-    assignmentId: string,
-    replacements: AgentWritingArtifactReplacement[],
-  ) =>
-    | { ok: true; result: AgentWritingArtifactRevisionToolResult }
-    | { detail: string; ok: false };
   sendProposal?: (proposal: AgentProposal) => void;
   storyChanged?: (revision: number) => void;
 }
@@ -85,6 +79,8 @@ export const DEFAULT_AGENT_TOOL_POLICY: AgentToolPolicy = {
   maxTotalResultBytes: 4 * 1024 * 1024,
   timeoutMs: 15_000,
 };
+
+const MUTATING_TOOL_RESULT_RESERVATION_BYTES = 2 * 1024;
 
 interface RequestBudget {
   calls: number;
@@ -140,6 +136,16 @@ export class AgentToolDispatcher {
       );
     }
 
+    const mutating = request.toolName !== 'read_novel_context';
+    if (
+      mutating &&
+      (MUTATING_TOOL_RESULT_RESERVATION_BYTES > this.policy.maxResultBytes ||
+        budget.resultBytes + MUTATING_TOOL_RESULT_RESERVATION_BYTES >
+          this.policy.maxTotalResultBytes)
+    ) {
+      return this.error(request.toolName, 'tool-budget-exceeded');
+    }
+
     try {
       const operation = this.executeValidated(scope, request);
       const result = isLongRunningAgentTool(request.toolName)
@@ -147,8 +153,9 @@ export class AgentToolDispatcher {
         : await this.withTimeout(operation);
       const bytes = Buffer.byteLength(JSON.stringify(result), 'utf8');
       if (
-        bytes > this.policy.maxResultBytes ||
-        budget.resultBytes + bytes > this.policy.maxTotalResultBytes
+        !mutating &&
+        (bytes > this.policy.maxResultBytes ||
+          budget.resultBytes + bytes > this.policy.maxTotalResultBytes)
       ) {
         return this.error(request.toolName, 'tool-budget-exceeded');
       }
@@ -189,66 +196,6 @@ export class AgentToolDispatcher {
       ownerId: scope.ownerId,
       projectSessionId: scope.projectSessionId,
     };
-    if (request.toolName === 'delegate_writing') {
-      if (scope.delegateWriting === undefined) {
-        throw new ProjectContextError('internal-error');
-      }
-      const targetDocumentId = request.arguments.targetDocumentId === null
-        ? null
-        : refs.resolve(request.arguments.targetDocumentId, 'document');
-      if (targetDocumentId !== null) {
-        const structure = await this.context.getNovelStructure(contextScope);
-        const node = indexStructureNodes(structure).get(targetDocumentId);
-        if (node === undefined) {
-          throw nodeNotFound(request.arguments.targetDocumentId!);
-        }
-        if (node.type !== 'document') {
-          throw nodeKindMismatch(
-            request.arguments.targetDocumentId!,
-            'document',
-            node,
-          );
-        }
-        if (documentDomainForKind(node.kind) !== request.arguments.documentDomain) {
-          throw new ProjectContextError(
-            'invalid-arguments',
-            'The writing assignment domain does not match the target document.',
-          );
-        }
-      }
-      const result = await scope.delegateWriting(
-        request.arguments,
-        targetDocumentId,
-      );
-      return {
-        data: {
-          ...result,
-          assignmentId: refs.expose('assignment', result.assignmentId),
-        },
-        ok: true,
-        toolName: request.toolName,
-      };
-    }
-    if (request.toolName === 'revise_writing_artifact') {
-      if (scope.reviseWritingArtifact === undefined) {
-        throw new ProjectContextError('internal-error');
-      }
-      const outcome = scope.reviseWritingArtifact(
-        refs.resolve(request.arguments.writingAssignmentId, 'assignment'),
-        request.arguments.replacements,
-      );
-      if (!outcome.ok) {
-        throw new ProjectContextError('invalid-arguments', outcome.detail);
-      }
-      return {
-        data: {
-          ...outcome.result,
-          assignmentId: refs.expose('assignment', outcome.result.assignmentId),
-        },
-        ok: true,
-        toolName: request.toolName,
-      };
-    }
     if (request.toolName === 'read_novel_context') {
       const { directoryIds, documentIds, include } = request.arguments;
       const includeSet = new Set(include);
@@ -576,9 +523,9 @@ export class AgentToolDispatcher {
         targetLength: request.arguments.targetLength,
       };
       const artifact = await scope.delegateWriting(assignment, targetDocumentId);
-      const content = claimDocumentContent(
+      const content = claimWritingArtifact(
         scope,
-        { markdown: null, writingAssignmentId: artifact.assignmentId },
+        artifact.assignmentId,
         request.arguments.documentAction,
         targetDocumentId,
         request.arguments.documentDomain,
@@ -628,28 +575,15 @@ export class AgentToolDispatcher {
       if (documentNode.type !== 'document') {
         throw nodeKindMismatch(request.arguments.documentId, 'document', documentNode);
       }
-      const content = claimDocumentContent(
-        scope,
-        resolveDocumentContentReference(refs, request.arguments),
-        'replace',
+      const proposal = this.proposals.create(scope, {
+        baseContentRevision: refs.resolve(
+          request.arguments.baseContentRevision,
+          'revision',
+        ),
+        baseRevision: refs.resolve(request.arguments.baseRevision, 'revision'),
         documentId,
-        documentDomainForKind(documentNode.kind),
-      );
-      let proposal: ReturnType<AgentProposalService['create']>;
-      try {
-        proposal = this.proposals.create(scope, {
-          baseContentRevision: refs.resolve(
-            request.arguments.baseContentRevision,
-            'revision',
-          ),
-          baseRevision: refs.resolve(request.arguments.baseRevision, 'revision'),
-          documentId,
-          markdown: content.markdown,
-        });
-      } catch (error) {
-        content.release();
-        throw error;
-      }
+        markdown: request.arguments.markdown,
+      });
       if (scope.sendProposal === undefined) {
         this.proposals.cancelRequest(scope.requestId);
         throw new ProjectContextError('internal-error');
@@ -669,45 +603,30 @@ export class AgentToolDispatcher {
       if (this.proposals === undefined) {
         throw new ProjectContextError('internal-error');
       }
-      const content = request.arguments.operation === 'create'
-        ? claimDocumentContent(
-            scope,
-            resolveDocumentContentReference(refs, request.arguments),
-            'create',
-            null,
-            documentDomainForKind(request.arguments.kind),
-          )
-        : null;
-      let proposal: Awaited<ReturnType<AgentProposalService['createFileOperation']>>;
-      try {
-        const resolvedRequest = request.arguments.operation === 'create'
-          ? {
-              kind: request.arguments.kind,
-              markdown: content!.markdown,
-              operation: request.arguments.operation,
-              parentId: refs.resolve(request.arguments.parentId, 'directory'),
-              projectRevision: refs.resolve(
-                request.arguments.projectRevision,
-                'revision',
-              ),
-              metadataTitle: request.arguments.metadataTitle,
-            } satisfies ResolvedDocumentFileOperationArguments
-          : {
-              ...request.arguments,
-              baseRevision: refs.resolve(request.arguments.baseRevision, 'revision'),
-              documentId: refs.resolve(request.arguments.documentId, 'document'),
-              projectRevision: refs.resolve(
-                request.arguments.projectRevision,
-                'revision',
-              ),
-            };
-        proposal = await this.withTimeout(
-          this.proposals.createFileOperation(scope, resolvedRequest),
-        );
-      } catch (error) {
-        content?.release();
-        throw error;
-      }
+      const resolvedRequest = request.arguments.operation === 'create'
+        ? {
+            kind: request.arguments.kind,
+            markdown: request.arguments.markdown,
+            operation: request.arguments.operation,
+            parentId: refs.resolve(request.arguments.parentId, 'directory'),
+            projectRevision: refs.resolve(
+              request.arguments.projectRevision,
+              'revision',
+            ),
+            metadataTitle: request.arguments.metadataTitle,
+          } satisfies ResolvedDocumentFileOperationArguments
+        : {
+            ...request.arguments,
+            baseRevision: refs.resolve(request.arguments.baseRevision, 'revision'),
+            documentId: refs.resolve(request.arguments.documentId, 'document'),
+            projectRevision: refs.resolve(
+              request.arguments.projectRevision,
+              'revision',
+            ),
+          };
+      const proposal = await this.withTimeout(
+        this.proposals.createFileOperation(scope, resolvedRequest),
+      );
       if (scope.sendProposal === undefined) {
         this.proposals.cancelRequest(scope.requestId);
         throw new ProjectContextError('internal-error');
@@ -1142,16 +1061,6 @@ const resolveStructureOperation = (
 
 class ToolTimeoutError extends Error {}
 
-const resolveDocumentContentReference = <T extends {
-  markdown: string | null;
-  writingAssignmentId: string | null;
-}>(refs: AgentReferenceRegistry, source: T): T => source.writingAssignmentId === null
-  ? source
-  : {
-      ...source,
-      writingAssignmentId: refs.resolve(source.writingAssignmentId, 'assignment'),
-    };
-
 const exposeProposalResult = (
   refs: AgentReferenceRegistry,
   result: AgentToolContractMap['propose_document_edit']['result'],
@@ -1160,21 +1069,16 @@ const exposeProposalResult = (
   proposalId: refs.expose('proposal', result.proposalId),
 });
 
-const claimDocumentContent = (
+const claimWritingArtifact = (
   scope: AgentToolScope,
-  source: { markdown: string | null; writingAssignmentId: string | null },
+  assignmentId: string,
   documentAction: 'create' | 'replace',
   targetDocumentId: string | null,
   documentDomain: AgentDocumentDomain,
 ): { markdown: string; release: () => void } => {
-  if (source.markdown !== null) {
-    return { markdown: source.markdown, release: () => {} };
-  }
-  const assignmentId = source.writingAssignmentId;
-  if (assignmentId === null || scope.claimWritingArtifact === undefined) {
+  if (scope.claimWritingArtifact === undefined) {
     throw new ProjectContextError(
-      'invalid-arguments',
-      'A Scribe-backed proposal requires the current request’s writingAssignmentId.',
+      'internal-error',
     );
   }
   const markdown = scope.claimWritingArtifact(
@@ -1186,7 +1090,7 @@ const claimDocumentContent = (
   if (markdown === undefined) {
     throw new ProjectContextError(
       'invalid-arguments',
-      'The writingAssignmentId is missing, belongs to another request or target, or was already used.',
+      'The generated writing artifact is missing, belongs to another request or target, or was already used.',
     );
   }
   return {
@@ -1240,14 +1144,8 @@ const toolArgumentShapeHint = (
   toolName: AgentToolName,
   args: unknown,
 ): string | undefined => {
-  if (toolName === 'delegate_writing') {
-    return 'delegate_writing requires exactly documentAction, documentDomain, objective, requirements, targetDocumentId, and targetLength. create requires targetDocumentId null; replace requires the exact current request-scoped target document ref. Set targetLength to an integer from 1 to 200000, or null when unspecified.';
-  }
   if (toolName === 'propose_document_writing') {
     return 'propose_document_writing requires exactly 12 fields: documentAction, documentDomain, objective, requirements, targetLength, documentId, parentId, projectRevision, metadataTitle, kind, baseRevision, and baseContentRevision. For create, set documentId/baseRevision/baseContentRevision null and provide parentId/projectRevision/metadataTitle/kind. For replace, provide documentId/baseRevision/baseContentRevision and set parentId/projectRevision/metadataTitle/kind null. A chapter read for continuity is not a replacement target.';
-  }
-  if (toolName === 'revise_writing_artifact') {
-    return 'revise_writing_artifact requires exactly writingAssignmentId and 1 to 12 ordered replacements. Each replacement requires exactly find, replace, and expectedOccurrences; find must be non-empty and differ from replace.';
   }
   if (toolName === 'reconcile_accepted_document') {
     return 'reconcile_accepted_document requires events, newPersonae, newThreads, and threadAdvances, plus optional primaryTimeline only when accepted_reconciliation has none. events contains exactly one event. Existing participants use personaRef from accepted_reconciliation; new Personae declare clientRef and are referenced as @clientRef in the same call. Existing Thread advances use threadRef; newThreads embeds its first linked beat. Main owns timeline fallback, moments, sources, ordering, IDs, and checkpoint completion.';
@@ -1256,14 +1154,14 @@ const toolArgumentShapeHint = (
     return 'complete_story_reconciliation requires exactly status and reason. Read accepted_reconciliation after acceptance first. Use applied only after a successful reconciliation mutation, questions_recorded only after recording a question, or no_changes only when neither occurred.';
   }
   if (toolName === 'propose_document_edit') {
-    return 'propose_document_edit requires exactly baseContentRevision, baseRevision, documentId, markdown, and writingAssignmentId. For a direct edit, supply markdown with writingAssignmentId null. Generated Scribe prose uses propose_document_writing so Main freezes its target before generation.';
+    return 'propose_document_edit requires exactly baseContentRevision, baseRevision, documentId, and markdown. Use only request-scoped refs from read_novel_context. Generated Scribe prose uses propose_document_writing so Main freezes its target before generation.';
   }
   if (
     toolName === 'propose_document_file_operation' &&
     typeof args === 'object' && args !== null &&
     (args as { operation?: unknown }).operation === 'create'
   ) {
-    return 'Document creation requires exactly operation, parentId, projectRevision, metadataTitle, kind, markdown, and writingAssignmentId. metadataTitle is the raw title without generated numbering. For direct creation, supply markdown with writingAssignmentId null. Generated Scribe prose uses propose_document_writing.';
+    return 'Document creation requires exactly operation, parentId, projectRevision, metadataTitle, kind, and markdown. metadataTitle is the raw title without generated numbering. Generated Scribe prose uses propose_document_writing.';
   }
   if (
     toolName === 'propose_project_structure_operation' &&
@@ -1351,8 +1249,8 @@ const storyOperationArgumentError = (
     if (!allowClientRef || operation === 'link_beat_event') {
       return `${path}.clientRef is valid only on Maintain create operations.`;
     }
-    if (typeof clientRef !== 'string' || !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/u.test(clientRef)) {
-      return `${path}.clientRef must start with a letter and contain at most 64 letters, digits, underscores, or hyphens.`;
+    if (typeof clientRef !== 'string' || !/^[A-Za-z][A-Za-z0-9_-]{0,31}$/u.test(clientRef)) {
+      return `${path}.clientRef must start with a letter and contain at most 32 letters, digits, underscores, or hyphens.`;
     }
   }
   const { optional = [], required } = STORY_OPERATION_FIELDS[operation];

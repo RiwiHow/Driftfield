@@ -16,10 +16,22 @@ const stringEnum = <Values extends readonly string[]>(
       : { description: options.description }),
   });
 
+const requestRefPattern = (kind: string): string =>
+  `^${kind}:[1-9][0-9]{0,4}$`;
+
+const requestOrClientRefPattern = (kind: string): string =>
+  `^(?:${kind}:[1-9][0-9]{0,4}|@[A-Za-z][A-Za-z0-9_-]{0,31})$`;
+
+const requestRefPatternForKinds = (...kinds: string[]): string =>
+  `^(?:${kinds.join('|')}):[1-9][0-9]{0,4}$`;
+
+const requestOrClientRefPatternForKinds = (...kinds: string[]): string =>
+  `^(?:(?:${kinds.join('|')}):[1-9][0-9]{0,4}|@[A-Za-z][A-Za-z0-9_-]{0,31})$`;
+
 export const NOVEL_CONTEXT_PARAMETERS = Type.Object(
   {
     directoryIds: Type.Array(
-      Type.String({ maxLength: 128, minLength: 1 }),
+      Type.String({ pattern: requestRefPattern('directory') }),
       {
         description:
           'Request-scoped directory refs whose immediate document children should be read. Nested directories are not expanded. Use an empty array when none are needed.',
@@ -28,7 +40,7 @@ export const NOVEL_CONTEXT_PARAMETERS = Type.Object(
       },
     ),
     documentIds: Type.Array(
-      Type.String({ maxLength: 128, minLength: 1 }),
+      Type.String({ pattern: requestRefPattern('document') }),
       {
         description:
           'Request-scoped refs of persisted manuscript or lore documents to read. Use an empty array when none are needed.',
@@ -53,50 +65,18 @@ export const NOVEL_CONTEXT_PARAMETERS = Type.Object(
   },
 );
 
-export const WRITING_ASSIGNMENT_PARAMETERS = Type.Object(
-  {
-    documentAction: stringEnum(['create', 'replace'] as const, {
-      description:
-        'Use create only for a new document with targetDocumentId null. Use replace only when the user asked to replace the exact existing targetDocumentId. An existing chapter used for continuity context is not a replacement target.',
-    }),
-    documentDomain: stringEnum(['manuscript', 'lore'] as const, {
-      description:
-        'Use manuscript for chapter-like prose and lore for a World/Lore document. The assignment and eventual proposal target must use the same domain.',
-    }),
-    objective: Type.String({ maxLength: 4_000, minLength: 1 }),
-    requirements: Type.Array(
-      Type.String({ maxLength: 1_000, minLength: 1 }),
-      { maxItems: 20 },
-    ),
-    targetDocumentId: Type.Unsafe<string | null>({
-      description:
-        'For an existing document, use its request-scoped document ref from read_novel_context.structure. For a new document that does not exist yet, use null. Never use a directory ref, title, path, or placeholder.',
-      maxLength: 128,
-      type: ['string', 'null'],
-    }),
-    targetLength: Type.Unsafe<number | null>({
-      description:
-        'Requested approximate draft length when the user supplied one; otherwise use null.',
-      maximum: 200_000,
-      minimum: 1,
-      type: ['integer', 'null'],
-    }),
-  },
-  { additionalProperties: false },
-);
-
 export const DOCUMENT_WRITING_PARAMETERS = Type.Object(
   {
     baseContentRevision: Type.Unsafe<string | null>({
       description:
         'For replace, use the request-start draft content revision ref. For create, use null.',
-      pattern: '^revision:[1-9][0-9]*$',
+      pattern: requestRefPattern('revision'),
       type: ['string', 'null'],
     }),
     baseRevision: Type.Unsafe<string | null>({
       description:
         'For replace, use the request-start disk revision ref. For create, use null.',
-      pattern: '^revision:[1-9][0-9]*$',
+      pattern: requestRefPattern('revision'),
       type: ['string', 'null'],
     }),
     documentAction: stringEnum(['create', 'replace'] as const, {
@@ -107,7 +87,7 @@ export const DOCUMENT_WRITING_PARAMETERS = Type.Object(
     documentId: Type.Unsafe<string | null>({
       description:
         'For replace, the exact request-scoped document ref. For create, null. Do not put a continuity-reference chapter here.',
-      maxLength: 128,
+      pattern: requestRefPattern('document'),
       type: ['string', 'null'],
     }),
     kind: Type.Unsafe<
@@ -127,12 +107,12 @@ export const DOCUMENT_WRITING_PARAMETERS = Type.Object(
     parentId: Type.Unsafe<string | null>({
       description:
         'For create, the request-scoped destination directory ref. For replace, null.',
-      maxLength: 128,
+      pattern: requestRefPattern('directory'),
       type: ['string', 'null'],
     }),
     projectRevision: Type.Unsafe<string | null>({
       description: 'For create, the current project revision ref. For replace, null.',
-      pattern: '^revision:[1-9][0-9]*$',
+      pattern: requestRefPattern('revision'),
       type: ['string', 'null'],
     }),
     requirements: Type.Array(
@@ -164,45 +144,16 @@ export const WRITING_ARTIFACT_SUBMISSION_PARAMETERS = Type.Object(
   { additionalProperties: false },
 );
 
-export const WRITING_ARTIFACT_REVISION_PARAMETERS = Type.Object(
-  {
-    replacements: Type.Array(
-      Type.Object(
-        {
-          expectedOccurrences: Type.Integer({ maximum: 100, minimum: 1 }),
-          find: Type.String({ maxLength: 8_000, minLength: 1 }),
-          replace: Type.String({ maxLength: 8_000 }),
-        },
-        { additionalProperties: false },
-      ),
-      {
-        description:
-          'Ordered exact replacements in the current Scribe artifact. Each find string must occur exactly expectedOccurrences times at its step or the entire revision is rejected.',
-        maxItems: 12,
-        minItems: 1,
-      },
-    ),
-    writingAssignmentId: Type.String({ maxLength: 128, minLength: 1 }),
-  },
-  { additionalProperties: false },
-);
-
 export const DOCUMENT_EDIT_PARAMETERS = Type.Object(
   {
-    baseContentRevision: Type.String({ pattern: '^revision:[1-9][0-9]*$' }),
-    baseRevision: Type.String({ pattern: '^revision:[1-9][0-9]*$' }),
-    documentId: Type.String({ maxLength: 128, minLength: 1 }),
-    markdown: Type.Unsafe<string | null>({
+    baseContentRevision: Type.String({ pattern: requestRefPattern('revision') }),
+    baseRevision: Type.String({ pattern: requestRefPattern('revision') }),
+    documentId: Type.String({ pattern: requestRefPattern('document') }),
+    markdown: Type.String({
       description:
-        'Complete replacement Markdown for a direct edit, or null when reusing a reviewed Scribe result through writingAssignmentId.',
+        'Complete replacement Markdown for this direct edit.',
       maxLength: 512 * 1024,
-      type: ['string', 'null'],
-    }),
-    writingAssignmentId: Type.Unsafe<string | null>({
-      description:
-        'Reserved for Main-owned legacy handoff. Curator direct edits must supply markdown and use null; generated prose uses propose_document_writing. Exactly one of markdown and writingAssignmentId must be non-null.',
-      maxLength: 128,
-      type: ['string', 'null'],
+      minLength: 1,
     }),
   },
   { additionalProperties: false },
@@ -213,14 +164,13 @@ export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
     baseRevision: Type.Optional(
       Type.String({
         description: 'Required for delete: request-scoped revision ref returned by read_novel_context.',
-        pattern: '^revision:[1-9][0-9]*$',
+        pattern: requestRefPattern('revision'),
       }),
     ),
     documentId: Type.Optional(
       Type.String({
         description: 'Required for delete: request-scoped document ref from read_novel_context.structure.',
-        maxLength: 128,
-        minLength: 1,
+        pattern: requestRefPattern('document'),
       }),
     ),
     kind: Type.Optional(
@@ -237,24 +187,23 @@ export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
       ),
     ),
     markdown: Type.Optional(
-      Type.Unsafe<string | null>({
+      Type.String({
         description:
-          'Required for create: complete initial Markdown, or null when reusing a reviewed Scribe result through writingAssignmentId.',
+          'Required for create: complete initial Markdown.',
         maxLength: 512 * 1024,
-        type: ['string', 'null'],
+        minLength: 1,
       }),
     ),
     operation: stringEnum(['create', 'delete'] as const),
     parentId: Type.Optional(
       Type.String({
         description: 'Required for create: request-scoped parent directory ref from read_novel_context.structure.',
-        maxLength: 128,
-        minLength: 1,
+        pattern: requestRefPattern('directory'),
       }),
     ),
     projectRevision: Type.String({
       description: 'Current request-scoped project revision ref returned by read_novel_context.structure.',
-      pattern: '^revision:[1-9][0-9]*$',
+      pattern: requestRefPattern('revision'),
     }),
     metadataTitle: Type.Optional(
       Type.String({
@@ -262,14 +211,6 @@ export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
           'Required for create: raw document metadata title. Never copy displayTitle; generated numbering is applied separately by Main.',
         maxLength: 500,
         minLength: 1,
-      }),
-    ),
-    writingAssignmentId: Type.Optional(
-      Type.Unsafe<string | null>({
-        description:
-          'Reserved for Main-owned legacy handoff. Curator direct creates must supply markdown and use null; generated prose uses propose_document_writing. Exactly one of markdown and writingAssignmentId must be non-null.',
-        maxLength: 128,
-        type: ['string', 'null'],
       }),
     ),
   },
@@ -281,21 +222,19 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
     baseRevision: Type.Optional(
       Type.String({
         description: 'Required for move_document: request-scoped revision ref returned by read_novel_context.',
-        pattern: '^revision:[1-9][0-9]*$',
+        pattern: requestRefPattern('revision'),
       }),
     ),
     documentId: Type.Optional(
       Type.String({
         description: 'Required for move_document and rename_document: request-scoped document ref.',
-        maxLength: 128,
-        minLength: 1,
+        pattern: requestRefPattern('document'),
       }),
     ),
     directoryId: Type.Optional(
       Type.String({
         description: 'Required for delete_lore_category: request-scoped empty category ref.',
-        maxLength: 128,
-        minLength: 1,
+        pattern: requestRefPattern('directory'),
       }),
     ),
     icon: Type.Optional(
@@ -314,7 +253,7 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
     ),
     projectRevision: Type.String({
       description: 'Current request-scoped project revision ref returned by read_novel_context.structure.',
-      pattern: '^revision:[1-9][0-9]*$',
+      pattern: requestRefPattern('revision'),
     }),
     metadataTitle: Type.Optional(
       Type.String({
@@ -327,8 +266,7 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
     targetParentId: Type.Optional(
       Type.String({
         description: 'Required for move_document: request-scoped destination directory ref.',
-        maxLength: 128,
-        minLength: 1,
+        pattern: requestRefPattern('directory'),
       }),
     ),
     title: Type.Optional(
@@ -344,7 +282,7 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
 
 const STORY_CHANGE_PARAMETERS = Type.Object(
       {
-        beatId: Type.Optional(Type.String({ maxLength: 128, minLength: 1 })),
+        beatId: Type.Optional(Type.String({ pattern: requestRefPattern('beat') })),
         causes: Type.Optional(Type.String({ maxLength: 20_000 })),
         consequences: Type.Optional(Type.String({ maxLength: 20_000 })),
         description: Type.Optional(Type.String({ maxLength: 30_000 })),
@@ -352,10 +290,10 @@ const STORY_CHANGE_PARAMETERS = Type.Object(
         displayTime: Type.Optional(Type.String({ maxLength: 500, minLength: 1 })),
         dramaticPurpose: Type.Optional(Type.String({ maxLength: 10_000 })),
         endMomentId: Type.Optional(Type.Unsafe<string | null>({
-          maxLength: 128,
+          pattern: requestRefPattern('moment'),
           type: ['string', 'null'],
         })),
-        eventId: Type.Optional(Type.String({ maxLength: 128, minLength: 1 })),
+        eventId: Type.Optional(Type.String({ pattern: requestRefPattern('event') })),
         isPrimary: Type.Optional(Type.Boolean()),
         kind: Type.Optional(stringEnum(
           ['beat', 'setup', 'turning_point', 'climax', 'resolution'] as const,
@@ -379,13 +317,13 @@ const STORY_CHANGE_PARAMETERS = Type.Object(
         ),
         orderKey: Type.Optional(Type.Integer()),
         parentId: Type.Optional(Type.Unsafe<string | null>({
-          maxLength: 128,
+          pattern: requestRefPatternForKinds('thread', 'beat'),
           type: ['string', 'null'],
         })),
         participants: Type.Optional(Type.Array(Type.Object(
           {
             description: Type.String({ maxLength: 10_000 }),
-            personaId: Type.String({ maxLength: 128, minLength: 1 }),
+            personaId: Type.String({ pattern: requestRefPattern('persona') }),
             role: stringEnum(['actor', 'target', 'witness', 'affected'] as const),
           },
           { additionalProperties: false },
@@ -400,15 +338,15 @@ const STORY_CHANGE_PARAMETERS = Type.Object(
           maxLength: 500,
           type: ['string', 'null'],
         })),
-        startMomentId: Type.Optional(Type.String({ maxLength: 128, minLength: 1 })),
+        startMomentId: Type.Optional(Type.String({ pattern: requestRefPattern('moment') })),
         sources: Type.Optional(Type.Array(Type.Object(
           {
             anchor: Type.Unsafe<string | null>({
               maxLength: 10_000,
               type: ['string', 'null'],
             }),
-            documentId: Type.String({ maxLength: 128, minLength: 1 }),
-            documentRevision: Type.String({ pattern: '^revision:[1-9][0-9]*$' }),
+            documentId: Type.String({ pattern: requestRefPattern('document') }),
+            documentRevision: Type.String({ pattern: requestRefPattern('revision') }),
             relation: stringEnum(['depicted', 'mentioned', 'inferred'] as const),
             sourceKind: stringEnum(['manuscript'] as const),
           },
@@ -423,8 +361,8 @@ const STORY_CHANGE_PARAMETERS = Type.Object(
           { description: 'Required only for create_thread and create_beat.' },
         )),
         summary: Type.Optional(Type.String({ maxLength: 30_000 })),
-        threadId: Type.Optional(Type.String({ maxLength: 128, minLength: 1 })),
-        timelineId: Type.Optional(Type.String({ maxLength: 128, minLength: 1 })),
+        threadId: Type.Optional(Type.String({ pattern: requestRefPattern('thread') })),
+        timelineId: Type.Optional(Type.String({ pattern: requestRefPattern('timeline') })),
         title: Type.Optional(Type.String({ maxLength: 500, minLength: 1 })),
       },
       { additionalProperties: false },
@@ -446,25 +384,23 @@ const STORY_MAINTENANCE_CHANGE_PARAMETERS = Type.Object(
     ...STORY_CHANGE_PARAMETERS.properties,
     beatId: Type.Optional(Type.String({
       description: maintenanceReferenceDescription('beat'),
-      maxLength: 128,
-      minLength: 1,
+      pattern: requestOrClientRefPattern('beat'),
     })),
     clientRef: Type.Optional(Type.String({
       description:
         'Optional local name for an entity created by this change. Later changes in this same array may reference it as @clientRef. Valid only on create operations; Main owns persistent identity.',
-      maxLength: 64,
-      pattern: '^[A-Za-z][A-Za-z0-9_-]{0,63}$',
+      maxLength: 32,
+      pattern: '^[A-Za-z][A-Za-z0-9_-]{0,31}$',
     })),
     endMomentId: Type.Optional(Type.Unsafe<string | null>({
       description:
         `${maintenanceReferenceDescription('moment')} Use null when the event has no end moment.`,
-      maxLength: 128,
+      pattern: requestOrClientRefPattern('moment'),
       type: ['string', 'null'],
     })),
     eventId: Type.Optional(Type.String({
       description: maintenanceReferenceDescription('event'),
-      maxLength: 128,
-      minLength: 1,
+      pattern: requestOrClientRefPattern('event'),
     })),
     operation: stringEnum(
       [
@@ -484,7 +420,7 @@ const STORY_MAINTENANCE_CHANGE_PARAMETERS = Type.Object(
     parentId: Type.Optional(Type.Unsafe<string | null>({
       description:
         `${maintenanceReferenceDescription('parent thread or beat')} Use null for a root entity.`,
-      maxLength: 128,
+      pattern: requestOrClientRefPatternForKinds('thread', 'beat'),
       type: ['string', 'null'],
     })),
     participants: Type.Optional(Type.Array(Type.Object(
@@ -492,8 +428,7 @@ const STORY_MAINTENANCE_CHANGE_PARAMETERS = Type.Object(
         description: Type.String({ maxLength: 10_000 }),
         personaId: Type.String({
           description: maintenanceReferenceDescription('persona'),
-          maxLength: 128,
-          minLength: 1,
+          pattern: requestOrClientRefPattern('persona'),
         }),
         role: stringEnum(['actor', 'target', 'witness', 'affected'] as const),
       },
@@ -501,18 +436,15 @@ const STORY_MAINTENANCE_CHANGE_PARAMETERS = Type.Object(
     ), { maxItems: 100 })),
     startMomentId: Type.Optional(Type.String({
       description: maintenanceReferenceDescription('moment'),
-      maxLength: 128,
-      minLength: 1,
+      pattern: requestOrClientRefPattern('moment'),
     })),
     threadId: Type.Optional(Type.String({
       description: maintenanceReferenceDescription('thread'),
-      maxLength: 128,
-      minLength: 1,
+      pattern: requestOrClientRefPattern('thread'),
     })),
     timelineId: Type.Optional(Type.String({
       description: maintenanceReferenceDescription('timeline'),
-      maxLength: 128,
-      minLength: 1,
+      pattern: requestOrClientRefPattern('timeline'),
     })),
   },
   { additionalProperties: false },
@@ -553,7 +485,9 @@ export const ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS = Type.Object(
         participants: Type.Array(Type.Object(
           {
             description: Type.String({ maxLength: 10_000 }),
-            personaRef: Type.String({ maxLength: 64, minLength: 1 }),
+            personaRef: Type.String({
+              pattern: requestOrClientRefPattern('persona'),
+            }),
             role: stringEnum(['actor', 'target', 'witness', 'affected'] as const),
           },
           { additionalProperties: false },
@@ -576,9 +510,9 @@ export const ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS = Type.Object(
         clientRef: Type.String({
           description:
             'Local ref for this new Persona. Event participants may refer to it as @clientRef in this same call.',
-          maxLength: 64,
+          maxLength: 32,
           minLength: 1,
-          pattern: '^[A-Za-z][A-Za-z0-9_-]{0,63}$',
+          pattern: '^[A-Za-z][A-Za-z0-9_-]{0,31}$',
         }),
         name: Type.String({ maxLength: 500, minLength: 1 }),
         role: Type.Unsafe<string | null>({
@@ -644,7 +578,7 @@ export const ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS = Type.Object(
         relation: stringEnum(
           ['plans', 'realizes', 'reveals', 'foreshadows', 'resolves'] as const,
         ),
-        threadRef: Type.String({ maxLength: 64, minLength: 1 }),
+        threadRef: Type.String({ pattern: requestRefPattern('thread') }),
         title: Type.String({ maxLength: 500, minLength: 1 }),
       },
       { additionalProperties: false },
@@ -671,8 +605,8 @@ export const STORY_QUESTION_PARAMETERS = Type.Object(
           additionalProperties: false,
           properties: {
             anchor: { maxLength: 10_000, minLength: 1, type: 'string' },
-            documentId: { maxLength: 128, minLength: 1, type: 'string' },
-            documentRevision: { pattern: '^revision:[1-9][0-9]*$', type: 'string' },
+            documentId: { pattern: requestRefPattern('document'), type: 'string' },
+            documentRevision: { pattern: requestRefPattern('revision'), type: 'string' },
             sourceKind: { enum: ['manuscript'], type: 'string' },
           },
           required: ['anchor', 'documentId', 'documentRevision', 'sourceKind'],
@@ -708,7 +642,7 @@ export const STORY_QUESTION_PARAMETERS = Type.Object(
 export const RESOLVE_STORY_QUESTION_PARAMETERS = Type.Object(
   {
     answer: Type.String({ maxLength: 2_000, minLength: 1 }),
-    questionId: Type.String({ maxLength: 128, minLength: 1 }),
+    questionId: Type.String({ pattern: requestRefPattern('question') }),
   },
   { additionalProperties: false },
 );

@@ -49,10 +49,7 @@ interface CreateProposalRequest {
 }
 
 export type ResolvedDocumentFileOperationArguments =
-  | (Omit<
-      Extract<AgentDocumentFileOperationArguments, { operation: 'create' }>,
-      'markdown' | 'writingAssignmentId'
-    > & { markdown: string })
+  | Extract<AgentDocumentFileOperationArguments, { operation: 'create' }>
   | Extract<AgentDocumentFileOperationArguments, { operation: 'delete' }>;
 
 interface ProposalScope {

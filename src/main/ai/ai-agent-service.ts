@@ -10,9 +10,11 @@ import {
   type AgentDraftSnapshot,
   type AgentDocumentDomain,
   type AgentToolName,
-  type AgentWritingAssignment,
-  type AgentWritingAssignmentToolResult,
 } from '../../shared/contracts/agent-tools';
+import type {
+  AgentWritingAssignment,
+  AgentWritingTaskResult,
+} from './agent-writing';
 import type { AgentModelOption } from '../../shared/contracts/agent-configuration';
 import type {
   AgentModelSelection,
@@ -42,10 +44,7 @@ const WORKER_START_TIMEOUT_MS = 15_000;
 const WRITING_TASK_TIMEOUT_MS = 5 * 60_000;
 const MAX_WRITING_ARTIFACT_BYTES = 512 * 1024;
 const CURATOR_TOOLS = AGENT_TOOL_NAMES.filter(
-  (toolName) =>
-    toolName !== 'submit_writing_artifact' &&
-    toolName !== 'revise_writing_artifact' &&
-    toolName !== 'delegate_writing',
+  (toolName) => toolName !== 'submit_writing_artifact',
 );
 const CURATOR_TOOL_SET = new Set<AgentToolName>(CURATOR_TOOLS);
 const SCRIBE_TOOLS = [
@@ -84,7 +83,6 @@ interface ActiveAgentRequest {
     markdown: string;
     parentRequestId: string;
     proposedDocumentId?: string;
-    revised: boolean;
     targetDocumentId: string | null;
     targetLength: number | null;
   };
@@ -98,7 +96,7 @@ interface PendingWritingTask {
   documentDomain: AgentDocumentDomain;
   parentRequestId: string;
   reject: (error: Error) => void;
-  resolve: (result: AgentWritingAssignmentToolResult) => void;
+  resolve: (result: AgentWritingTaskResult) => void;
   targetDocumentId: string | null;
   targetLength: number | null;
   timeout: ReturnType<typeof setTimeout>;
@@ -465,56 +463,6 @@ export class AiAgentService {
                   artifact.claimed = false;
                 }
               },
-              reviseWritingArtifact: (assignmentId, replacements) => {
-                const artifact = active.writingArtifact;
-                if (
-                  artifact === undefined ||
-                  artifact.assignmentId !== assignmentId ||
-                  artifact.claimed ||
-                  artifact.revised
-                ) {
-                  return {
-                    detail:
-                      'The writingAssignmentId is missing, belongs to another request, was already used, or was already revised.',
-                    ok: false as const,
-                  };
-                }
-                let markdown = artifact.markdown;
-                let replacementsApplied = 0;
-                for (const [index, replacement] of replacements.entries()) {
-                  const occurrences = countExactOccurrences(markdown, replacement.find);
-                  if (occurrences !== replacement.expectedOccurrences) {
-                    return {
-                      detail:
-                        `Replacement ${index + 1} expected ${replacement.expectedOccurrences} occurrence(s) but found ${occurrences}; no changes were applied.`,
-                      ok: false as const,
-                    };
-                  }
-                  markdown = markdown.split(replacement.find).join(replacement.replace);
-                  replacementsApplied += occurrences;
-                }
-                const validation = validateManuscriptMarkdown(markdown, {
-                  maxBytes: MAX_WRITING_ARTIFACT_BYTES,
-                  targetLength: artifact.targetLength,
-                });
-                if (!validation.ok) {
-                  return {
-                    detail: `The revised Scribe artifact was rejected (${validation.code}); no changes were applied.`,
-                    ok: false as const,
-                  };
-                }
-                artifact.markdown = markdown;
-                artifact.revised = true;
-                this.persistWritingArtifact(active, 'validated');
-                return {
-                  ok: true as const,
-                  result: {
-                    assignmentId,
-                    replacementsApplied,
-                    status: 'revised' as const,
-                  },
-                };
-              },
               storyChanged: (revision) =>
                 active.sendEvent({
                   requestId: message.requestId,
@@ -638,25 +586,6 @@ export class AiAgentService {
       }
     }
     if (!result.ok) return;
-    if (
-      (message.toolName === 'propose_document_edit' ||
-        message.toolName === 'propose_document_file_operation') &&
-      isAgentToolArguments(message.toolName, message.arguments) &&
-      'writingAssignmentId' in message.arguments &&
-      message.arguments.writingAssignmentId !== null &&
-      isAcceptedProposalResult(result)
-    ) {
-      return;
-    }
-    if (
-      (message.toolName === 'propose_document_edit' ||
-        message.toolName === 'propose_document_file_operation') &&
-      isAgentToolArguments(message.toolName, message.arguments) &&
-      'writingAssignmentId' in message.arguments &&
-      message.arguments.writingAssignmentId !== null
-    ) {
-      return;
-    }
     if (!active.reconciliation.pending) return;
     if (
       message.toolName === 'read_novel_context' &&
@@ -669,12 +598,6 @@ export class AiAgentService {
       }
       if (message.arguments.include.includes('story_state')) {
         active.reconciliation.storyStateRead = true;
-      }
-      if (
-        active.reconciliation.documentId !== undefined &&
-        message.arguments.documentIds.includes(active.reconciliation.documentId)
-      ) {
-        active.reconciliation.acceptedDocumentRead = true;
       }
       return;
     }
@@ -747,7 +670,7 @@ export class AiAgentService {
     active: ActiveAgentRequest,
     assignment: AgentWritingAssignment,
     resolvedTargetDocumentId: string | null,
-  ): Promise<AgentWritingAssignmentToolResult> {
+  ): Promise<AgentWritingTaskResult> {
     if (
       active.cancelled ||
       active.writingTasks >= 1 ||
@@ -938,7 +861,6 @@ export class AiAgentService {
         documentDomain: task.documentDomain,
         markdown: task.artifactMarkdown,
         parentRequestId: task.parentRequestId,
-        revised: false,
         targetDocumentId: task.targetDocumentId,
         targetLength: task.targetLength,
       };
@@ -1182,22 +1104,3 @@ export class AiAgentService {
     this.writingTasks.clear();
   }
 }
-
-const countExactOccurrences = (source: string, find: string): number => {
-  let count = 0;
-  let offset = 0;
-  while (offset <= source.length - find.length) {
-    const index = source.indexOf(find, offset);
-    if (index === -1) break;
-    count += 1;
-    offset = index + find.length;
-  }
-  return count;
-};
-
-const isAcceptedProposalResult = (
-  result: unknown,
-): boolean => typeof result === 'object' && result !== null &&
-  'ok' in result && result.ok === true && 'data' in result &&
-  typeof result.data === 'object' && result.data !== null &&
-  'status' in result.data && result.data.status === 'accepted';

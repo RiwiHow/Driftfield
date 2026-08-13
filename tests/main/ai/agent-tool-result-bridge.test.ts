@@ -50,6 +50,27 @@ describe('AgentToolResultBridge', () => {
     await expect(result).rejects.toThrow('Agent request ended');
   });
 
+  it('stops waiting for a Main result when Pi aborts the tool call', async () => {
+    const controller = new AbortController();
+    const bridge = new AgentToolResultBridge(() => {}, 30_000);
+    const result = bridge.request(
+      'request-1',
+      'tool-1',
+      'read_novel_context',
+      { directoryIds: [], documentIds: [], include: ['current_document'] },
+      controller.signal,
+    );
+
+    controller.abort();
+
+    await expect(result).rejects.toThrow('Agent tool aborted');
+    expect(bridge.resolve('request-1', 'tool-1', {
+      data: { documents: [] },
+      ok: true,
+      toolName: 'read_novel_context',
+    })).toBe(false);
+  });
+
   it('keeps reviewed proposal tools pending until a user decision', async () => {
     vi.useFakeTimers();
     const bridge = new AgentToolResultBridge(() => {}, 30_000);
@@ -97,5 +118,28 @@ describe('AgentToolResultBridge', () => {
       }),
     ).toBe(false);
     await expect(result).rejects.toThrow('identity mismatch');
+  });
+
+  it('rejects a duplicate call identity without orphaning the first call', async () => {
+    const bridge = new AgentToolResultBridge(() => {}, 30_000);
+    const first = bridge.request(
+      'request:with:colons',
+      'tool:with:colons',
+      'read_novel_context',
+      { directoryIds: [], documentIds: [], include: ['current_document'] },
+    );
+    await expect(bridge.request(
+      'request:with:colons',
+      'tool:with:colons',
+      'read_novel_context',
+      { directoryIds: [], documentIds: [], include: ['current_document'] },
+    )).rejects.toThrow('Duplicate Agent tool call identity');
+
+    expect(bridge.resolve('request:with:colons', 'tool:with:colons', {
+      data: { currentDocument: null, documents: [] },
+      ok: true,
+      toolName: 'read_novel_context',
+    })).toBe(true);
+    await expect(first).resolves.toMatchObject({ ok: true });
   });
 });

@@ -31,9 +31,19 @@ domain contracts.
   applies a five-minute timeout and 512 KiB artifact limit, propagates
   cancellation, and exposes only the bounded novel-context reader plus a
   terminal artifact-submission tool to Scribe. Main retains the submitted
-  Markdown and returns only an assignment/domain/size receipt to Curator;
-  ordinary assistant text is discarded. The untrusted artifact never bypasses
-  the existing proposal workflow, and Renderer still shows the full proposal.
+  Markdown as internal task state while Curator's pre-bound
+  `propose_document_writing` call remains pending; no assignment ID or artifact
+  receipt is returned to the model. Ordinary assistant text is discarded. Main
+  constructs only the already-validated proposal target, so the untrusted
+  artifact never bypasses or rebinds the existing proposal workflow, and
+  Renderer still shows the full proposal.
+- Pi passes each native Tool `AbortSignal` into the worker bridge. Abort,
+  request completion, timeout, and duplicate call identities each settle and
+  remove exactly one pending bridge entry. Main request release independently
+  cancels pending proposal decisions and rejects obsolete project-session work.
+- Main Tool failures reject the Pi execution adapter and therefore become
+  native error ToolResults. Only the read-only context tool is parallel;
+  submissions, maintenance, reconciliation, and proposals are sequential.
 - Accepted Scribe-backed Manuscript proposals create durable project-database
   reconciliation jobs. Their pending state is supplied when a Curator request
   starts, so an interrupted run resumes the accepted-document workflow. Lore

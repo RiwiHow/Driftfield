@@ -4,21 +4,18 @@ import type { AgentToolName } from '../../shared/contracts/agent-tools';
 export type ResponseProtocolIssue =
   | 'length'
   | 'pseudo-tool-call'
-  | 'reconciliation'
-  | 'writing-artifact';
+  | 'reconciliation';
 
 export const responseProtocolIssue = (
   assistantText: string,
   stopReason: AgentStopReason,
   reconciliationPending: boolean,
-  writingArtifactPending: boolean,
   enabledToolNames: AgentToolName[],
 ): ResponseProtocolIssue | null => {
   if (stopReason === 'length') return 'length';
   if (containsPseudoToolCall(assistantText, enabledToolNames)) {
     return 'pseudo-tool-call';
   }
-  if (writingArtifactPending) return 'writing-artifact';
   return reconciliationPending ? 'reconciliation' : null;
 };
 
@@ -56,9 +53,6 @@ export const protocolCorrection = (issue: ResponseProtocolIssue): string => {
   }
   if (issue === 'pseudo-tool-call') {
     return 'Protocol correction: you printed tool-call markup as ordinary text. Never print or describe tool-call syntax. If the operation is still needed, invoke the available native application tool now, then finish concisely.';
-  }
-  if (issue === 'writing-artifact') {
-    return 'Workflow correction: the completed Scribe artifact has not been submitted through a reviewed document proposal. Reuse its assignmentId in the appropriate proposal tool now. Do not claim that a proposal exists unless that tool returns a decision.';
   }
   return 'Workflow correction: an accepted Scribe-backed manuscript proposal still requires reconciliation. Read the exact accepted persisted document and current story state, apply or record all evidenced changes, call complete_story_reconciliation, then finish concisely.';
 };

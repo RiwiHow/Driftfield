@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { AgentToolDispatcher } from '../../../src/main/ai/agent-tool-dispatcher';
 import {
-  ProjectContextError,
+  AgentToolDispatcher,
+  type AgentToolScope,
+} from '../../../src/main/ai/agent-tool-dispatcher';
+import {
   type ProjectContextService,
 } from '../../../src/main/ai/project-context-service';
 import type { AgentProposalService } from '../../../src/main/ai/agent-proposal-service';
@@ -60,6 +62,29 @@ const novelStructure = {
 
 const scope = { ownerId: 7, projectSessionId: 'session-1', requestId: 'request-1' };
 
+const readStructureRefs = async (
+  dispatcher: AgentToolDispatcher,
+  toolScope: AgentToolScope = scope,
+): Promise<void> => {
+  const result = await dispatcher.execute(toolScope, {
+    arguments: { directoryIds: [], documentIds: [], include: ['structure'] },
+    toolName: 'read_novel_context',
+  });
+  expect(result).toMatchObject({ ok: true, toolName: 'read_novel_context' });
+};
+
+const readFirstDocumentRefs = async (
+  dispatcher: AgentToolDispatcher,
+  toolScope: AgentToolScope = scope,
+): Promise<void> => {
+  await readStructureRefs(dispatcher, toolScope);
+  const result = await dispatcher.execute(toolScope, {
+    arguments: { directoryIds: [], documentIds: ['document:1'], include: [] },
+    toolName: 'read_novel_context',
+  });
+  expect(result).toMatchObject({ ok: true, toolName: 'read_novel_context' });
+};
+
 describe('AgentToolDispatcher', () => {
   it('reads selected novel context and persisted documents in one bounded call', async () => {
     const currentDocument = { ...documentResult, source: 'draft' as const };
@@ -86,6 +111,14 @@ describe('AgentToolDispatcher', () => {
       getStoryState: vi.fn().mockResolvedValue(storyState),
     } as unknown as ProjectContextService;
     const dispatcher = new AgentToolDispatcher(context);
+    await readStructureRefs(dispatcher, {
+      ...scope,
+      draftSnapshot: {
+        baseRevision: 'base',
+        documentId: 'chapter-1',
+        markdown: '# Chapter',
+      },
+    });
 
     await expect(dispatcher.execute({
       ...scope,
@@ -96,8 +129,8 @@ describe('AgentToolDispatcher', () => {
       },
     }, {
       arguments: {
-        directoryIds: ['world-directory'],
-        documentIds: ['chapter-1', 'lore-1'],
+        directoryIds: ['directory:3'],
+        documentIds: ['document:1', 'document:2'],
         include: ['structure', 'current_document', 'story_state'],
       },
       toolName: 'read_novel_context',
@@ -530,29 +563,24 @@ describe('AgentToolDispatcher', () => {
     ]));
   });
 
-  it('returns a typed node-kind error before reading a directory as a document', async () => {
+  it('rejects a directory request reference before reading it as a document', async () => {
     const context = {
       getDocument: vi.fn(),
       getNovelStructure: vi.fn().mockResolvedValue(novelStructure),
     } as unknown as ProjectContextService;
     const dispatcher = new AgentToolDispatcher(context);
+    await readStructureRefs(dispatcher);
 
     await expect(dispatcher.execute(scope, {
       arguments: {
         directoryIds: [],
-        documentIds: ['world-directory'],
+        documentIds: ['directory:3'],
         include: [],
       },
       toolName: 'read_novel_context',
     })).resolves.toEqual({
       error: {
-        code: 'node-kind-mismatch',
-        detail: JSON.stringify({
-          actualKind: 'directory',
-          expectedKind: 'document',
-          nodeId: 'world-directory',
-          title: 'World',
-        }),
+        code: 'invalid-arguments',
       },
       ok: false,
       toolName: 'read_novel_context',
@@ -581,10 +609,11 @@ describe('AgentToolDispatcher', () => {
       getNovelStructure: vi.fn().mockResolvedValue(oversizedStructure),
     } as unknown as ProjectContextService;
     const dispatcher = new AgentToolDispatcher(context);
+    await readStructureRefs(dispatcher);
 
     await expect(dispatcher.execute(scope, {
       arguments: {
-        directoryIds: ['world-directory'],
+        directoryIds: ['directory:3'],
         documentIds: [],
         include: [],
       },
@@ -598,191 +627,6 @@ describe('AgentToolDispatcher', () => {
       toolName: 'read_novel_context',
     });
     expect(context.getDocument).not.toHaveBeenCalled();
-  });
-
-  it('routes a bounded writing assignment through the Main-owned task callback', async () => {
-    const getNovelStructure = vi.fn().mockResolvedValue(novelStructure);
-    const dispatcher = new AgentToolDispatcher({
-      getNovelStructure,
-    } as unknown as ProjectContextService);
-    const delegateWriting = vi.fn(async () => ({
-      assignmentId: 'scribe-task-1',
-      characterCount: 7,
-      documentAction: 'replace' as const,
-      documentDomain: 'manuscript' as const,
-      status: 'completed' as const,
-    }));
-
-    await dispatcher.execute(scope, {
-      arguments: { directoryIds: [], documentIds: [], include: ['structure'] },
-      toolName: 'read_novel_context',
-    });
-
-    await expect(dispatcher.execute({
-      delegateWriting,
-      ownerId: 1,
-      requestId: 'request-1',
-    }, {
-      arguments: {
-        documentAction: 'replace',
-        documentDomain: 'manuscript',
-        objective: 'Write the next scene.',
-        requirements: ['Keep the established point of view.'],
-        targetDocumentId: 'document:1',
-        targetLength: 1_000,
-      },
-      toolName: 'delegate_writing',
-    })).resolves.toEqual({
-      data: {
-        assignmentId: 'assignment:1',
-        characterCount: 7,
-        documentAction: 'replace',
-        documentDomain: 'manuscript',
-        status: 'completed',
-      },
-      ok: true,
-      toolName: 'delegate_writing',
-    });
-    expect(delegateWriting).toHaveBeenCalledWith({
-      documentAction: 'replace',
-      documentDomain: 'manuscript',
-      objective: 'Write the next scene.',
-      requirements: ['Keep the established point of view.'],
-      targetDocumentId: 'document:1',
-      targetLength: 1_000,
-    }, 'chapter-1');
-    expect(getNovelStructure).toHaveBeenCalledTimes(2);
-  });
-
-  it('delegates new-document writing with a null target and rejects directory targets', async () => {
-    const getNovelStructure = vi.fn().mockResolvedValue(novelStructure);
-    const dispatcher = new AgentToolDispatcher({
-      getNovelStructure,
-    } as unknown as ProjectContextService);
-    const delegateWriting = vi.fn(async () => ({
-      assignmentId: 'scribe-task-1',
-      characterCount: 7,
-      documentAction: 'create' as const,
-      documentDomain: 'manuscript' as const,
-      status: 'completed' as const,
-    }));
-
-    await expect(dispatcher.execute({
-      ...scope,
-      delegateWriting,
-    }, {
-      arguments: {
-        documentAction: 'create',
-        documentDomain: 'manuscript',
-        objective: 'Write a new opening chapter.',
-        requirements: ['Return complete Markdown.'],
-        targetDocumentId: null,
-        targetLength: null,
-      },
-      toolName: 'delegate_writing',
-    })).resolves.toMatchObject({ ok: true, toolName: 'delegate_writing' });
-    expect(getNovelStructure).not.toHaveBeenCalled();
-
-    await expect(dispatcher.execute({
-      ...scope,
-      delegateWriting,
-    }, {
-      arguments: {
-        documentAction: 'replace',
-        documentDomain: 'manuscript',
-        objective: 'Write a new opening chapter.',
-        requirements: ['Return complete Markdown.'],
-        targetDocumentId: 'manuscript-root',
-        targetLength: null,
-      },
-      toolName: 'delegate_writing',
-    })).resolves.toEqual({
-      error: {
-        code: 'node-kind-mismatch',
-        detail: JSON.stringify({
-          actualKind: 'directory',
-          expectedKind: 'document',
-          nodeId: 'manuscript-root',
-          title: 'Manuscript',
-        }),
-      },
-      ok: false,
-      toolName: 'delegate_writing',
-    });
-    expect(delegateWriting).toHaveBeenCalledOnce();
-  });
-
-  it('binds existing writing assignments to the target document domain', async () => {
-    const dispatcher = new AgentToolDispatcher({
-      getNovelStructure: vi.fn().mockResolvedValue(novelStructure),
-    } as unknown as ProjectContextService);
-    const delegateWriting = vi.fn(async (assignment) => ({
-      assignmentId: 'scribe-task-1',
-      characterCount: 20,
-      documentAction: assignment.documentAction,
-      documentDomain: assignment.documentDomain,
-      status: 'completed' as const,
-    }));
-    await dispatcher.execute(scope, {
-      arguments: { directoryIds: [], documentIds: [], include: ['structure'] },
-      toolName: 'read_novel_context',
-    });
-
-    await expect(dispatcher.execute({ ...scope, delegateWriting }, {
-      arguments: {
-        documentAction: 'replace',
-        documentDomain: 'lore',
-        objective: 'Expand the world entry.',
-        requirements: [],
-        targetDocumentId: 'document:2',
-        targetLength: null,
-      },
-      toolName: 'delegate_writing',
-    })).resolves.toMatchObject({
-      data: { documentDomain: 'lore' },
-      ok: true,
-    });
-
-    await expect(dispatcher.execute({ ...scope, delegateWriting }, {
-      arguments: {
-        documentAction: 'replace',
-        documentDomain: 'manuscript',
-        objective: 'Misroute the world entry.',
-        requirements: [],
-        targetDocumentId: 'document:2',
-        targetLength: null,
-      },
-      toolName: 'delegate_writing',
-    })).resolves.toEqual({
-      error: {
-        code: 'invalid-arguments',
-        detail: 'The writing assignment domain does not match the target document.',
-      },
-      ok: false,
-      toolName: 'delegate_writing',
-    });
-  });
-
-  it('returns a recoverable hint for malformed writing assignments', async () => {
-    const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
-
-    await expect(dispatcher.execute(scope, {
-      arguments: {
-        documentAction: 'create',
-        documentDomain: 'manuscript',
-        objective: 'Write a new opening chapter.',
-        requirements: [],
-        targetDocumentId: '',
-      },
-      toolName: 'delegate_writing',
-    })).resolves.toEqual({
-      error: {
-        code: 'invalid-arguments',
-        detail: expect.stringContaining('create requires targetDocumentId null'),
-      },
-      ok: false,
-      toolName: 'delegate_writing',
-    });
   });
 
   it('pre-binds a generated new document before Scribe runs', async () => {
@@ -905,46 +749,6 @@ describe('AgentToolDispatcher', () => {
       toolName: 'propose_document_writing',
     });
     expect(delegateWriting).not.toHaveBeenCalled();
-  });
-
-  it('routes bounded exact Scribe artifact revisions through the active request scope', async () => {
-    const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
-    const reviseWritingArtifact = vi.fn(() => ({
-      ok: true as const,
-      result: {
-        assignmentId: 'assignment:1',
-        replacementsApplied: 2,
-        status: 'revised' as const,
-      },
-    }));
-    const replacements = [{
-      expectedOccurrences: 2,
-      find: '织母议会议会',
-      replace: '织母议会',
-    }];
-
-    await expect(dispatcher.execute({
-      ...scope,
-      reviseWritingArtifact,
-    }, {
-      arguments: {
-        replacements,
-        writingAssignmentId: 'scribe-task-1',
-      },
-      toolName: 'revise_writing_artifact',
-    })).resolves.toEqual({
-      data: {
-        assignmentId: 'assignment:1',
-        replacementsApplied: 2,
-        status: 'revised',
-      },
-      ok: true,
-      toolName: 'revise_writing_artifact',
-    });
-    expect(reviseWritingArtifact).toHaveBeenCalledWith(
-      'scribe-task-1',
-      replacements,
-    );
   });
 
   it('applies bounded story maintenance and emits the new revision', async () => {
@@ -1185,22 +989,28 @@ describe('AgentToolDispatcher', () => {
       }),
     } as unknown as AgentProposalService;
     const sendProposal = vi.fn();
-    const claimWritingArtifact = vi.fn(() => proposal.markdown);
     const dispatcher = new AgentToolDispatcher(
-      { getNovelStructure: vi.fn().mockResolvedValue(novelStructure) } as unknown as ProjectContextService,
+      {
+        getDocument: vi.fn().mockResolvedValue({
+          ...documentResult,
+          baseRevision: proposal.baseRevision,
+          contentRevision: proposal.baseContentRevision,
+        }),
+        getNovelStructure: vi.fn().mockResolvedValue(novelStructure),
+      } as unknown as ProjectContextService,
       undefined,
       proposals,
     );
+    await readFirstDocumentRefs(dispatcher);
 
     await expect(dispatcher.execute(
-      { ...scope, claimWritingArtifact, sendProposal },
+      { ...scope, sendProposal },
       {
         arguments: {
-          baseContentRevision: proposal.baseContentRevision,
-          baseRevision: proposal.baseRevision,
-          documentId: proposal.documentId,
-          markdown: null,
-          writingAssignmentId: 'scribe-task-1',
+          baseContentRevision: 'revision:3',
+          baseRevision: 'revision:2',
+          documentId: 'document:1',
+          markdown: proposal.markdown,
         },
         toolName: 'propose_document_edit',
       },
@@ -1209,12 +1019,6 @@ describe('AgentToolDispatcher', () => {
       ok: true,
       toolName: 'propose_document_edit',
     });
-    expect(claimWritingArtifact).toHaveBeenCalledWith(
-      'scribe-task-1',
-      'replace',
-      'chapter-1',
-      'manuscript',
-    );
     expect(proposals.create).toHaveBeenCalledWith(
       expect.anything(),
       {
@@ -1225,42 +1029,6 @@ describe('AgentToolDispatcher', () => {
       },
     );
     expect(sendProposal).toHaveBeenCalledWith(proposal);
-  });
-
-  it('releases a Scribe artifact claim when proposal construction fails', async () => {
-    const proposals = {
-      cancelRequest: vi.fn(),
-      create: vi.fn(() => {
-        throw new ProjectContextError('proposal-base-changed');
-      }),
-    } as unknown as AgentProposalService;
-    const claimWritingArtifact = vi.fn(() => '# Proposed');
-    const releaseWritingArtifactClaim = vi.fn();
-    const dispatcher = new AgentToolDispatcher(
-      { getNovelStructure: vi.fn().mockResolvedValue(novelStructure) } as unknown as ProjectContextService,
-      undefined,
-      proposals,
-    );
-
-    await expect(dispatcher.execute({
-      ...scope,
-      claimWritingArtifact,
-      releaseWritingArtifactClaim,
-    }, {
-      arguments: {
-        baseContentRevision: 'a'.repeat(64),
-        baseRevision: 'b'.repeat(64),
-        documentId: 'chapter-1',
-        markdown: null,
-        writingAssignmentId: 'scribe-task-1',
-      },
-      toolName: 'propose_document_edit',
-    })).resolves.toEqual({
-      error: { code: 'proposal-base-changed' },
-      ok: false,
-      toolName: 'propose_document_edit',
-    });
-    expect(releaseWritingArtifactClaim).toHaveBeenCalledWith('scribe-task-1');
   });
 
   it('keeps a proposal tool pending beyond ordinary tool timeouts until approval', async () => {
@@ -1292,19 +1060,26 @@ describe('AgentToolDispatcher', () => {
     } as unknown as AgentProposalService;
     const sendProposal = vi.fn();
     const dispatcher = new AgentToolDispatcher(
-      { getNovelStructure: vi.fn().mockResolvedValue(novelStructure) } as unknown as ProjectContextService,
-      { maxCalls: 2, maxResultBytes: 10_000, maxTotalResultBytes: 10_000, timeoutMs: 10 },
+      {
+        getDocument: vi.fn().mockResolvedValue({
+          ...documentResult,
+          baseRevision: proposal.baseRevision,
+          contentRevision: proposal.baseContentRevision,
+        }),
+        getNovelStructure: vi.fn().mockResolvedValue(novelStructure),
+      } as unknown as ProjectContextService,
+      { maxCalls: 3, maxResultBytes: 10_000, maxTotalResultBytes: 10_000, timeoutMs: 10 },
       proposals,
     );
+    await readFirstDocumentRefs(dispatcher);
     const result = dispatcher.execute(
       { ...scope, sendProposal },
       {
         arguments: {
-          baseContentRevision: proposal.baseContentRevision,
-          baseRevision: proposal.baseRevision,
-          documentId: proposal.documentId,
+          baseContentRevision: 'revision:3',
+          baseRevision: 'revision:2',
+          documentId: 'document:1',
           markdown: proposal.markdown,
-          writingAssignmentId: null,
         },
         toolName: 'propose_document_edit',
       },
@@ -1340,24 +1115,23 @@ describe('AgentToolDispatcher', () => {
       }),
     } as unknown as AgentProposalService;
     const sendProposal = vi.fn();
-    const claimWritingArtifact = vi.fn(() => proposal.markdown);
     const dispatcher = new AgentToolDispatcher(
-      {} as ProjectContextService,
+      { getNovelStructure: vi.fn().mockResolvedValue(novelStructure) } as unknown as ProjectContextService,
       undefined,
       proposals,
     );
+    await readStructureRefs(dispatcher);
 
     await expect(dispatcher.execute(
-      { ...scope, claimWritingArtifact, sendProposal },
+      { ...scope, sendProposal },
       {
         arguments: {
           kind: 'chapter',
-          markdown: null,
+          markdown: proposal.markdown,
           operation: 'create',
-          parentId: 'manuscript-1',
-          projectRevision: 'a'.repeat(64),
+          parentId: 'directory:1',
+          projectRevision: 'revision:1',
           metadataTitle: 'Created',
-          writingAssignmentId: 'scribe-task-1',
         },
         toolName: 'propose_document_file_operation',
       },
@@ -1366,20 +1140,14 @@ describe('AgentToolDispatcher', () => {
       ok: true,
       toolName: 'propose_document_file_operation',
     });
-    expect(claimWritingArtifact).toHaveBeenCalledWith(
-      'scribe-task-1',
-      'create',
-      null,
-      'manuscript',
-    );
     expect(proposals.createFileOperation).toHaveBeenCalledWith(
       expect.anything(),
       {
         kind: 'chapter',
         markdown: '# Created',
         operation: 'create',
-        parentId: 'manuscript-1',
-        projectRevision: 'a'.repeat(64),
+        parentId: 'manuscript-root',
+        projectRevision: 'revision',
         metadataTitle: 'Created',
       },
     );
@@ -1408,17 +1176,18 @@ describe('AgentToolDispatcher', () => {
     } as unknown as AgentProposalService;
     const sendProposal = vi.fn();
     const dispatcher = new AgentToolDispatcher(
-      {} as ProjectContextService,
+      { getNovelStructure: vi.fn().mockResolvedValue(novelStructure) } as unknown as ProjectContextService,
       undefined,
       proposals,
     );
+    await readStructureRefs(dispatcher);
 
     await expect(dispatcher.execute(
       { ...scope, sendProposal },
       {
         arguments: {
           operation: 'create_volume',
-          projectRevision: 'a'.repeat(64),
+          projectRevision: 'revision:1',
           title: 'Volume Two',
         },
         toolName: 'propose_project_structure_operation',
@@ -1433,7 +1202,7 @@ describe('AgentToolDispatcher', () => {
 
   it('emits a reviewed document metadata-title proposal', async () => {
     const proposal = {
-      documentId: 'chapter-3',
+      documentId: 'chapter-1',
       operation: 'rename_document' as const,
       previousTitle: '3. Silent Island',
       projectRevision: 'a'.repeat(64),
@@ -1451,17 +1220,18 @@ describe('AgentToolDispatcher', () => {
     } as unknown as AgentProposalService;
     const sendProposal = vi.fn();
     const dispatcher = new AgentToolDispatcher(
-      {} as ProjectContextService,
+      { getNovelStructure: vi.fn().mockResolvedValue(novelStructure) } as unknown as ProjectContextService,
       undefined,
       proposals,
     );
+    await readStructureRefs(dispatcher);
 
     await expect(dispatcher.execute({ ...scope, sendProposal }, {
       arguments: {
-        documentId: proposal.documentId,
+        documentId: 'document:1',
         metadataTitle: proposal.title,
         operation: 'rename_document',
-        projectRevision: proposal.projectRevision,
+        projectRevision: 'revision:1',
       },
       toolName: 'propose_project_structure_operation',
     })).resolves.toMatchObject({
@@ -1507,6 +1277,36 @@ describe('AgentToolDispatcher', () => {
       toolName: 'read_novel_context',
     });
     expect(context.getDocument).not.toHaveBeenCalled();
+  });
+
+  it('checks mutation receipt capacity before running the side effect', async () => {
+    const maintainStoryRecords = vi.fn();
+    const dispatcher = new AgentToolDispatcher({
+      maintainStoryRecords,
+    } as unknown as ProjectContextService, {
+      maxCalls: 1,
+      maxResultBytes: 1,
+      maxTotalResultBytes: 10_000,
+      timeoutMs: 1_000,
+    });
+
+    await expect(dispatcher.execute(scope, {
+      arguments: {
+        changes: [{
+          name: 'Lin',
+          operation: 'create_persona',
+          role: null,
+          summary: '',
+        }],
+        storyRevision: 0,
+      },
+      toolName: 'maintain_story_records',
+    })).resolves.toEqual({
+      error: { code: 'tool-budget-exceeded' },
+      ok: false,
+      toolName: 'maintain_story_records',
+    });
+    expect(maintainStoryRecords).not.toHaveBeenCalled();
   });
 
   it('returns a typed expired-ref error and preserves one bounded recovery call', async () => {
@@ -1594,8 +1394,9 @@ describe('AgentToolDispatcher', () => {
       maxTotalResultBytes: 10_000,
       timeoutMs: 25,
     });
+    await readStructureRefs(dispatcher);
     const result = dispatcher.execute(scope, {
-      arguments: { directoryIds: [], documentIds: ['chapter-1'], include: [] },
+      arguments: { directoryIds: [], documentIds: ['document:1'], include: [] },
       toolName: 'read_novel_context',
     });
 
@@ -1610,21 +1411,20 @@ describe('AgentToolDispatcher', () => {
 
   it('enforces cumulative result bytes and can release request state', async () => {
     const context = {
-      getDocument: vi.fn().mockResolvedValue(documentResult),
-      getNovelStructure: vi.fn().mockResolvedValue(novelStructure),
+      getCurrentDocument: vi.fn(),
     } as unknown as ProjectContextService;
     const dispatcher = new AgentToolDispatcher(context, {
       maxCalls: 3,
       maxResultBytes: 10_000,
-      maxTotalResultBytes: 250,
+      maxTotalResultBytes: 120,
       timeoutMs: 1_000,
     });
     const first = await dispatcher.execute(scope, {
-      arguments: { directoryIds: [], documentIds: ['chapter-1'], include: [] },
+      arguments: { directoryIds: [], documentIds: [], include: ['current_document'] },
       toolName: 'read_novel_context',
     });
     const second = await dispatcher.execute(scope, {
-      arguments: { directoryIds: [], documentIds: ['chapter-1'], include: [] },
+      arguments: { directoryIds: [], documentIds: [], include: ['current_document'] },
       toolName: 'read_novel_context',
     });
 
@@ -1636,7 +1436,7 @@ describe('AgentToolDispatcher', () => {
     });
     dispatcher.release(scope.requestId);
     await expect(dispatcher.execute(scope, {
-      arguments: { directoryIds: [], documentIds: ['chapter-1'], include: [] },
+      arguments: { directoryIds: [], documentIds: [], include: ['current_document'] },
       toolName: 'read_novel_context',
     })).resolves.toMatchObject({ ok: true });
   });

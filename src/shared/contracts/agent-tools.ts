@@ -1,6 +1,7 @@
 import {
   isProjectStoryOperation,
   isProjectStorySnapshot,
+  type ProjectStorySnapshot,
 } from './project-story';
 import { PROJECT_ICON_IDS } from './project-layout';
 
@@ -233,48 +234,16 @@ export type AgentCanonicalStoryQuestionArguments = Omit<
   'evidence'
 > & { evidence: import('./project-story').StoryQuestionEvidence | null };
 
-export interface AgentWritingAssignment {
-  documentAction: 'create' | 'replace';
-  documentDomain: AgentDocumentDomain;
-  objective: string;
-  requirements: string[];
-  targetDocumentId: string | null;
-  targetLength: number | null;
-}
-
-export interface AgentWritingAssignmentToolResult {
-  assignmentId: string;
-  characterCount: number;
-  documentAction: 'create' | 'replace';
-  documentDomain: AgentDocumentDomain;
-  status: 'completed';
-}
-
 export interface AgentWritingArtifactSubmissionToolResult {
   status: 'submitted';
 }
 
-export interface AgentWritingArtifactReplacement {
-  expectedOccurrences: number;
-  find: string;
-  replace: string;
-}
-
-export interface AgentWritingArtifactRevisionToolResult {
-  assignmentId: string;
-  replacementsApplied: number;
-  status: 'revised';
-}
-
-type AgentDocumentContentSource =
-  | { markdown: string; writingAssignmentId: null }
-  | { markdown: null; writingAssignmentId: string };
-
-export type AgentDocumentEditArguments = {
+export interface AgentDocumentEditArguments {
   baseContentRevision: string;
   baseRevision: string;
   documentId: string;
-} & AgentDocumentContentSource;
+  markdown: string;
+}
 
 export interface AgentDocumentWritingProposalArguments {
   baseContentRevision: string | null;
@@ -299,7 +268,7 @@ export interface AgentDocumentWritingProposalArguments {
 }
 
 export type AgentDocumentFileOperationArguments =
-  | ({
+  | {
       kind:
         | 'chapter'
         | 'prologue'
@@ -311,7 +280,8 @@ export type AgentDocumentFileOperationArguments =
       parentId: string;
       projectRevision: string;
       metadataTitle: string;
-    } & AgentDocumentContentSource)
+      markdown: string;
+    }
   | {
       baseRevision: string;
       documentId: string;
@@ -351,10 +321,6 @@ export type AgentProjectStructureOperationArguments =
     };
 
 export interface AgentToolContractMap {
-  delegate_writing: {
-    arguments: AgentWritingAssignment;
-    result: AgentWritingAssignmentToolResult;
-  };
   read_novel_context: {
     arguments: {
       directoryIds: string[];
@@ -366,13 +332,6 @@ export interface AgentToolContractMap {
   submit_writing_artifact: {
     arguments: { markdown: string };
     result: AgentWritingArtifactSubmissionToolResult;
-  };
-  revise_writing_artifact: {
-    arguments: {
-      replacements: AgentWritingArtifactReplacement[];
-      writingAssignmentId: string;
-    };
-    result: AgentWritingArtifactRevisionToolResult;
   };
   maintain_story_records: {
     arguments: {
@@ -428,10 +387,8 @@ export interface AgentToolContractMap {
 export type AgentToolName = keyof AgentToolContractMap;
 
 export const AGENT_TOOL_NAMES = [
-  'delegate_writing',
   'read_novel_context',
   'submit_writing_artifact',
-  'revise_writing_artifact',
   'maintain_story_records',
   'complete_story_reconciliation',
   'reconcile_accepted_document',
@@ -445,17 +402,18 @@ export const AGENT_TOOL_NAMES = [
 ] as const satisfies readonly AgentToolName[];
 
 export const LEGACY_AGENT_TOOL_NAMES = [
+  'delegate_writing',
   'get_novel_structure',
   'get_current_document',
   'get_document',
   'get_story_state',
+  'revise_writing_artifact',
 ] as const;
 
 export type LegacyAgentToolName = (typeof LEGACY_AGENT_TOOL_NAMES)[number];
 export type AgentToolAuditName = AgentToolName | LegacyAgentToolName;
 
 const LONG_RUNNING_AGENT_TOOL_NAMES = new Set<AgentToolName>([
-  'delegate_writing',
   'propose_document_edit',
   'propose_document_writing',
   'propose_document_file_operation',
@@ -544,24 +502,6 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
   value: unknown,
 ): value is AgentToolContractMap[Name]['arguments'] => {
   if (!isRecord(value)) return false;
-  if (toolName === 'delegate_writing') {
-    return (
-      Object.keys(value).length === 6 &&
-      (value.documentAction === 'create' || value.documentAction === 'replace') &&
-      (value.documentDomain === 'lore' || value.documentDomain === 'manuscript') &&
-      isBoundedText(value.objective, 4_000, false) &&
-      Array.isArray(value.requirements) &&
-      value.requirements.length <= 20 &&
-      value.requirements.every((requirement) =>
-        isBoundedText(requirement, 1_000, false)) &&
-      ((value.documentAction === 'create' && value.targetDocumentId === null) ||
-        (value.documentAction === 'replace' && isDocumentId(value.targetDocumentId))) &&
-      (value.targetLength === null ||
-        (Number.isSafeInteger(value.targetLength) &&
-          (value.targetLength as number) >= 1 &&
-          (value.targetLength as number) <= 200_000))
-    );
-  }
   if (toolName === 'propose_document_writing') {
     if (
       Object.keys(value).length !== 12 ||
@@ -580,14 +520,16 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
     if (value.documentAction === 'create') {
       return value.baseContentRevision === null &&
         value.baseRevision === null && value.documentId === null &&
-        isDocumentId(value.parentId) && isRevision(value.projectRevision) &&
+        isRequestReferenceOfKind(value.parentId, 'directory') &&
+        isRevision(value.projectRevision) &&
         isValidMetadataTitle(value.metadataTitle) &&
         typeof value.kind === 'string' &&
         ['chapter', 'prologue', 'interlude', 'epilogue', 'appendix', 'entry']
           .includes(value.kind);
     }
     return isRevision(value.baseContentRevision) &&
-      isRevision(value.baseRevision) && isDocumentId(value.documentId) &&
+      isRevision(value.baseRevision) &&
+      isRequestReferenceOfKind(value.documentId, 'document') &&
       value.kind === null && value.metadataTitle === null &&
       value.parentId === null && value.projectRevision === null;
   }
@@ -599,38 +541,32 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
       new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024
     );
   }
-  if (toolName === 'revise_writing_artifact') {
-    return (
-      Object.keys(value).length === 2 &&
-      isDocumentId(value.writingAssignmentId) &&
-      Array.isArray(value.replacements) &&
-      value.replacements.length >= 1 &&
-      value.replacements.length <= 12 &&
-      value.replacements.every(isWritingArtifactReplacement)
-    );
-  }
   if (toolName === 'propose_document_edit') {
     return (
-      Object.keys(value).length === 5 &&
-      isDocumentId(value.documentId) &&
+      Object.keys(value).length === 4 &&
+      isRequestReferenceOfKind(value.documentId, 'document') &&
       isRevision(value.baseRevision) &&
       isRevision(value.baseContentRevision) &&
-      isDocumentContentSource(value)
+      typeof value.markdown === 'string' &&
+      value.markdown.trim().length > 0 &&
+      new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024
     );
   }
   if (toolName === 'propose_document_file_operation') {
     if (
       value.operation === 'create' &&
-      Object.keys(value).length === 7
+      Object.keys(value).length === 6
     ) {
       return (
-        isDocumentId(value.parentId) &&
+        isRequestReferenceOfKind(value.parentId, 'directory') &&
         isRevision(value.projectRevision) &&
         typeof value.metadataTitle === 'string' &&
         value.metadataTitle.trim().length > 0 &&
         value.metadataTitle.length <= 500 &&
         !/[\u0000-\u001f\u007f]/u.test(value.metadataTitle) &&
-        isDocumentContentSource(value) &&
+        typeof value.markdown === 'string' &&
+        value.markdown.trim().length > 0 &&
+        new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024 &&
         typeof value.kind === 'string' &&
         ['chapter', 'prologue', 'interlude', 'epilogue', 'appendix', 'entry'].includes(value.kind)
       );
@@ -638,7 +574,7 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
     return (
       value.operation === 'delete' &&
       Object.keys(value).length === 4 &&
-      isDocumentId(value.documentId) &&
+      isRequestReferenceOfKind(value.documentId, 'document') &&
       isRevision(value.baseRevision) &&
       isRevision(value.projectRevision)
     );
@@ -649,7 +585,7 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
       Object.keys(value).length === 4
     ) {
       return (
-        isDocumentId(value.documentId) &&
+        isRequestReferenceOfKind(value.documentId, 'document') &&
         isRevision(value.projectRevision) &&
         typeof value.metadataTitle === 'string' &&
         value.metadataTitle.trim().length > 0 &&
@@ -686,13 +622,14 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
       value.operation === 'delete_lore_category' &&
       Object.keys(value).length === 3
     ) {
-      return isDocumentId(value.directoryId) && isRevision(value.projectRevision);
+      return isRequestReferenceOfKind(value.directoryId, 'directory') &&
+        isRevision(value.projectRevision);
     }
     return (
       value.operation === 'move_document' &&
       Object.keys(value).length === 5 &&
-      isDocumentId(value.documentId) &&
-      isDocumentId(value.targetParentId) &&
+      isRequestReferenceOfKind(value.documentId, 'document') &&
+      isRequestReferenceOfKind(value.targetParentId, 'directory') &&
       isRevision(value.baseRevision) &&
       isRevision(value.projectRevision)
     );
@@ -702,7 +639,7 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
       Object.keys(value).length === 2 &&
       Number.isSafeInteger(value.storyRevision) &&
       (value.storyRevision as number) >= 0 &&
-      isAgentStoryOperation(value.change)
+      isAgentStoryOperation(value.change, false)
     );
   }
   if (toolName === 'maintain_story_records') {
@@ -758,7 +695,8 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
   }
   if (toolName === 'resolve_story_question') {
     return Object.keys(value).length === 2 &&
-      isDocumentId(value.questionId) && isBoundedText(value.answer, 2_000, false);
+      isRequestReferenceOfKind(value.questionId, 'question') &&
+      isBoundedText(value.answer, 2_000, false);
   }
   if (toolName === 'read_novel_context') {
     return Object.keys(value).length === 3 &&
@@ -768,10 +706,12 @@ export const isAgentToolArguments = <Name extends AgentToolName>(
         AGENT_NOVEL_CONTEXT_SECTIONS.includes(section as AgentNovelContextSection)) &&
       new Set(value.include).size === value.include.length &&
       Array.isArray(value.documentIds) && value.documentIds.length <= 4 &&
-      value.documentIds.every(isDocumentId) &&
+      value.documentIds.every((documentId) =>
+        isRequestReferenceOfKind(documentId, 'document')) &&
       new Set(value.documentIds).size === value.documentIds.length &&
       Array.isArray(value.directoryIds) && value.directoryIds.length <= 4 &&
-      value.directoryIds.every(isDocumentId) &&
+      value.directoryIds.every((directoryId) =>
+        isRequestReferenceOfKind(directoryId, 'directory')) &&
       new Set(value.directoryIds).size === value.directoryIds.length &&
       (value.include.length > 0 || value.documentIds.length > 0 ||
         value.directoryIds.length > 0);
@@ -799,12 +739,8 @@ export const isAgentToolExecutionResult = (
 };
 
 const isToolData = (toolName: AgentToolName, value: unknown): boolean =>
-  toolName === 'delegate_writing'
-    ? isWritingAssignmentResult(value)
-    : toolName === 'submit_writing_artifact'
+  toolName === 'submit_writing_artifact'
       ? isWritingArtifactSubmissionResult(value)
-    : toolName === 'revise_writing_artifact'
-      ? isWritingArtifactRevisionResult(value)
     : toolName === 'read_novel_context'
       ? isNovelContextResult(value)
     : toolName === 'maintain_story_records'
@@ -844,26 +780,14 @@ const isNovelContextResult = (
   (value.storyState === undefined || isAgentStorySnapshot(value.storyState)) &&
   (value.structure === undefined || isNovelStructureResult(value.structure));
 
-const isWritingAssignmentResult = (value: unknown): boolean =>
-  isRecord(value) &&
-  Object.keys(value).length === 5 &&
-  isDocumentId(value.assignmentId) &&
-  Number.isSafeInteger(value.characterCount) &&
-  (value.characterCount as number) >= 1 &&
-  (value.characterCount as number) <= 512 * 1024 &&
-  (value.documentAction === 'create' || value.documentAction === 'replace') &&
-  (value.documentDomain === 'lore' || value.documentDomain === 'manuscript') &&
-  value.status === 'completed';
-
 const isAgentStorySnapshot = (value: unknown): boolean => {
-  if (isProjectStorySnapshot(value)) return true;
   if (!isRecord(value) || !Array.isArray(value.eventSources) ||
     !Array.isArray(value.questions)) return false;
   const canonicalRevision = (revision: unknown): unknown =>
-    typeof revision === 'string' && /^revision:[1-9][0-9]*$/u.test(revision)
+    isRequestReferenceOfKind(revision, 'revision')
       ? 'a'.repeat(64)
       : revision;
-  return isProjectStorySnapshot({
+  const canonical = {
     ...value,
     eventSources: value.eventSources.map((source) => isRecord(source)
       ? { ...source, documentRevision: canonicalRevision(source.documentRevision) }
@@ -878,7 +802,46 @@ const isAgentStorySnapshot = (value: unknown): boolean => {
         },
       };
     }),
-  });
+  };
+  if (!isProjectStorySnapshot(canonical)) return false;
+  const story = value as unknown as ProjectStorySnapshot;
+  return story.personae.every(({ id }) =>
+    isRequestReferenceOfKind(id, 'persona')) &&
+    story.timelines.every(({ id }) =>
+      isRequestReferenceOfKind(id, 'timeline')) &&
+    story.moments.every(({ id, timelineId }) =>
+      isRequestReferenceOfKind(id, 'moment') &&
+      isRequestReferenceOfKind(timelineId, 'timeline')) &&
+    story.events.every(({ endMomentId, id, startMomentId, timelineId }) =>
+      isRequestReferenceOfKind(id, 'event') &&
+      isRequestReferenceOfKind(timelineId, 'timeline') &&
+      isRequestReferenceOfKind(startMomentId, 'moment') &&
+      (endMomentId === null ||
+        isRequestReferenceOfKind(endMomentId, 'moment'))) &&
+    story.eventParticipants.every(({ eventId, personaId }) =>
+      isRequestReferenceOfKind(eventId, 'event') &&
+      isRequestReferenceOfKind(personaId, 'persona')) &&
+    story.eventSources.every((source) =>
+      isRequestReferenceOfKind(source.id, 'request') &&
+      isRequestReferenceOfKind(source.eventId, 'event') &&
+      isRequestReferenceOfKind(source.documentId, 'document') &&
+      isRequestReferenceOfKind(source.documentRevision, 'revision')) &&
+    story.threads.every(({ id, parentId }) =>
+      isRequestReferenceOfKind(id, 'thread') &&
+      (parentId === null || isRequestReferenceOfKind(parentId, 'thread'))) &&
+    story.beats.every(({ id, parentId, threadId }) =>
+      isRequestReferenceOfKind(id, 'beat') &&
+      isRequestReferenceOfKind(threadId, 'thread') &&
+      (parentId === null || isRequestReferenceOfKind(parentId, 'beat'))) &&
+    story.eventLinks.every(({ eventId, threadBeatId }) =>
+      isRequestReferenceOfKind(eventId, 'event') &&
+      isRequestReferenceOfKind(threadBeatId, 'beat')) &&
+    story.questions.every(({ evidence, id, originRequestId }) =>
+      isRequestReferenceOfKind(id, 'question') &&
+      isRequestReferenceOfKind(originRequestId, 'request') &&
+      (evidence === null ||
+        (isRequestReferenceOfKind(evidence.documentId, 'document') &&
+          isRequestReferenceOfKind(evidence.documentRevision, 'revision'))));
 };
 
 const isWritingArtifactSubmissionResult = (value: unknown): boolean =>
@@ -886,19 +849,9 @@ const isWritingArtifactSubmissionResult = (value: unknown): boolean =>
   Object.keys(value).length === 1 &&
   value.status === 'submitted';
 
-const isWritingArtifactRevisionResult = (value: unknown): boolean =>
-  isRecord(value) &&
-  Object.keys(value).length === 3 &&
-  isDocumentId(value.assignmentId) &&
-  Number.isSafeInteger(value.replacementsApplied) &&
-  (value.replacementsApplied as number) >= 1 &&
-  (value.replacementsApplied as number) <= 1_200 &&
-  value.status === 'revised';
-
 const isEditProposalResult = (value: unknown): boolean =>
   isRecord(value) &&
-  typeof value.proposalId === 'string' &&
-  value.proposalId.length > 0 &&
+  isRequestReferenceOfKind(value.proposalId, 'proposal') &&
   typeof value.status === 'string' &&
   ['accepted', 'rejected', 'conflict', 'missing', 'stale', 'failed']
     .includes(value.status);
@@ -937,7 +890,8 @@ const isAcceptedReconciliationEvent = (value: unknown): boolean =>
   Array.isArray(value.participants) && value.participants.length <= 100 &&
   value.participants.every((participant) =>
     isRecord(participant) && Object.keys(participant).length === 3 &&
-    isBoundedText(participant.personaRef, 64, false) &&
+    (isRequestReferenceOfKind(participant.personaRef, 'persona') ||
+      isStoryClientReferenceUse(participant.personaRef)) &&
     isBoundedText(participant.description, 10_000, true) &&
     typeof participant.role === 'string' &&
     ['actor', 'target', 'witness', 'affected'].includes(participant.role));
@@ -970,7 +924,7 @@ const isAcceptedThreadBeat = (value: unknown): boolean => {
 
 const isAcceptedThreadAdvance = (value: unknown): boolean =>
   isRecord(value) && Object.keys(value).includes('threadRef') &&
-  isBoundedText(value.threadRef, 64, false) &&
+  isRequestReferenceOfKind(value.threadRef, 'thread') &&
   isAcceptedThreadBeat(Object.fromEntries(
     Object.entries(value).filter(([key]) => key !== 'threadRef'),
   ));
@@ -978,7 +932,7 @@ const isAcceptedThreadAdvance = (value: unknown): boolean =>
 const isAcceptedNewPersona = (value: unknown): boolean =>
   isRecord(value) && Object.keys(value).length === 4 &&
   typeof value.clientRef === 'string' &&
-  /^[A-Za-z][A-Za-z0-9_-]{0,63}$/u.test(value.clientRef) &&
+  /^[A-Za-z][A-Za-z0-9_-]{0,31}$/u.test(value.clientRef) &&
   isBoundedText(value.name, 500, false) &&
   (value.role === null || isBoundedText(value.role, 500, true)) &&
   isBoundedText(value.summary, 20_000, true);
@@ -1006,7 +960,7 @@ const isAcceptedReconciliationContext = (value: unknown): boolean =>
   typeof value.acceptedDocument.markdown === 'string' &&
   Array.isArray(value.personae) &&
   value.personae.every((persona) => isRecord(persona) &&
-    isBoundedText(persona.ref, 64, false) &&
+    isRequestReferenceOfKind(persona.ref, 'persona') &&
     isBoundedText(persona.name, 500, false)) &&
   Array.isArray(value.chronicle) &&
   value.chronicle.every((event) => isRecord(event) &&
@@ -1014,7 +968,7 @@ const isAcceptedReconciliationContext = (value: unknown): boolean =>
     isBoundedText(event.summary, 30_000, true)) &&
   Array.isArray(value.threads) &&
   value.threads.every((thread) => isRecord(thread) &&
-    isBoundedText(thread.ref, 64, false) &&
+    isRequestReferenceOfKind(thread.ref, 'thread') &&
     isBoundedText(thread.title, 500, false) &&
     Array.isArray(thread.beats)) &&
   Array.isArray(value.questions) &&
@@ -1025,34 +979,77 @@ const isAcceptedReconciliationContext = (value: unknown): boolean =>
 const isStoryMaintenanceChange = (value: unknown): boolean => {
   if (!isRecord(value)) return false;
   const { clientRef, ...operation } = value;
-  if (!isAgentStoryOperation(operation)) return false;
+  if (!isAgentStoryOperation(operation, true)) return false;
   if (clientRef === undefined) return true;
   return operation.operation !== 'link_beat_event' && isStoryClientRef(clientRef);
 };
 
-const isAgentStoryOperation = (value: unknown): boolean => {
-  if (isProjectStoryOperation(value)) return true;
-  if (!isRecord(value) || value.operation !== 'create_event' ||
-    !Array.isArray(value.sources)) return false;
-  const sources = value.sources.map((source) => {
-    if (!isRecord(source) || !isRevision(source.documentRevision)) return source;
-    return {
-      ...source,
-      documentRevision: /^revision:/u.test(source.documentRevision as string)
-        ? 'a'.repeat(64)
-        : source.documentRevision,
+const isAgentStoryOperation = (
+  value: unknown,
+  allowClientReferences: boolean,
+): boolean => {
+  let canonical = value;
+  if (isRecord(value) && value.operation === 'create_event' &&
+    Array.isArray(value.sources)) {
+    canonical = {
+      ...value,
+      sources: value.sources.map((source) => {
+        if (!isRecord(source) || !isRevision(source.documentRevision)) {
+          return source;
+        }
+        return {
+          ...source,
+          documentRevision: 'a'.repeat(64),
+        };
+      }),
     };
-  });
-  return isProjectStoryOperation({ ...value, sources });
+  }
+  if (!isProjectStoryOperation(canonical)) return false;
+  const operation = value as import('./project-story').ProjectStoryOperation;
+  const isRef = (reference: unknown, kind: string): boolean =>
+    isRequestReferenceOfKind(reference, kind) ||
+    (allowClientReferences && isStoryClientReferenceUse(reference));
+  if (
+    operation.operation === 'create_persona' ||
+    operation.operation === 'create_timeline'
+  ) return true;
+  if (operation.operation === 'create_moment') {
+    return isRef(operation.timelineId, 'timeline');
+  }
+  if (operation.operation === 'create_event') {
+    return isRef(operation.timelineId, 'timeline') &&
+      isRef(operation.startMomentId, 'moment') &&
+      (operation.endMomentId === null ||
+        isRef(operation.endMomentId, 'moment')) &&
+      operation.participants.every((participant) =>
+        isRef(participant.personaId, 'persona')) &&
+      (operation.sources === undefined || operation.sources.every((source) =>
+        source.sourceKind === 'manuscript' &&
+        isRef(source.documentId, 'document') &&
+        isRequestReferenceOfKind(source.documentRevision, 'revision')));
+  }
+  if (operation.operation === 'create_thread') {
+    return operation.parentId === null || isRef(operation.parentId, 'thread');
+  }
+  if (operation.operation === 'create_beat') {
+    return isRef(operation.threadId, 'thread') &&
+      (operation.parentId === null || isRef(operation.parentId, 'beat'));
+  }
+  return isRef(operation.beatId, 'beat') &&
+    isRef(operation.eventId, 'event');
 };
 
 const isStoryClientRef = (value: unknown): value is string =>
-  typeof value === 'string' && /^[A-Za-z][A-Za-z0-9_-]{0,63}$/u.test(value);
+  typeof value === 'string' && /^[A-Za-z][A-Za-z0-9_-]{0,31}$/u.test(value);
+
+const isStoryClientReferenceUse = (value: unknown): value is string =>
+  typeof value === 'string' && /^@[A-Za-z][A-Za-z0-9_-]{0,31}$/u.test(value);
 
 const isStoryQuestionResult = (value: unknown): boolean =>
   isRecord(value) && Object.keys(value).length === 3 &&
   (value.status === 'recorded' || value.status === 'resolved') &&
-  isDocumentId(value.questionId) && Number.isSafeInteger(value.revision) &&
+  isRequestReferenceOfKind(value.questionId, 'question') &&
+  Number.isSafeInteger(value.revision) &&
   (value.revision as number) >= 0;
 
 const isQuestionEvidence = (value: unknown): boolean =>
@@ -1061,7 +1058,8 @@ const isQuestionEvidence = (value: unknown): boolean =>
     value.sourceRef === 'document:accepted') ||
     (Object.keys(value).length === 4 &&
       value.sourceKind === 'manuscript' &&
-      isDocumentId(value.documentId) && isRevision(value.documentRevision)));
+      isRequestReferenceOfKind(value.documentId, 'document') &&
+      isRequestReferenceOfKind(value.documentRevision, 'revision')));
 
 const isBoundedText = (
   value: unknown,
@@ -1074,46 +1072,24 @@ const isValidMetadataTitle = (value: unknown): value is string =>
   typeof value === 'string' && value.trim().length > 0 &&
   value.length <= 500 && !/[\u0000-\u001f\u007f]/u.test(value);
 
-const isDocumentId = (value: unknown): value is string =>
-  typeof value === 'string' && value.length > 0 && value.length <= 128;
+const isRequestReference = (value: unknown): value is string =>
+  typeof value === 'string' && /^[a-z]+:[1-9][0-9]{0,4}$/u.test(value);
 
-const isDocumentContentSource = (value: Record<string, unknown>): boolean =>
-  (
-    typeof value.markdown === 'string' &&
-    new TextEncoder().encode(value.markdown).byteLength <= 512 * 1024 &&
-    value.writingAssignmentId === null
-  ) || (
-    value.markdown === null &&
-    isDocumentId(value.writingAssignmentId)
-  );
-
-const isWritingArtifactReplacement = (
+const isRequestReferenceOfKind = (
   value: unknown,
-): value is AgentWritingArtifactReplacement =>
-  isRecord(value) &&
-  Object.keys(value).length === 3 &&
-  isBoundedText(value.find, 8_000, false) &&
-  typeof value.replace === 'string' &&
-  value.replace.length <= 8_000 &&
-  value.replace !== value.find &&
-  Number.isSafeInteger(value.expectedOccurrences) &&
-  (value.expectedOccurrences as number) >= 1 &&
-  (value.expectedOccurrences as number) <= 100;
+  kind: string,
+): value is string => typeof value === 'string' &&
+  value.startsWith(`${kind}:`) && isRequestReference(value);
 
 const isRevision = (value: unknown): value is string =>
-  typeof value === 'string' && (
-    /^revision:[1-9][0-9]*$/u.test(value) ||
-    // Accept canonical hashes from an already-running pre-upgrade worker. The
-    // current Main dispatcher never emits them to a model.
-    /^[a-f0-9]{64}$/u.test(value)
-  );
+  isRequestReferenceOfKind(value, 'revision');
 
 const isDocumentResult = (value: unknown): value is AgentDocumentToolResult =>
   isRecord(value) &&
-  typeof value.baseRevision === 'string' &&
-  typeof value.contentRevision === 'string' &&
+  isRequestReferenceOfKind(value.baseRevision, 'revision') &&
+  isRequestReferenceOfKind(value.contentRevision, 'revision') &&
   typeof value.displayTitle === 'string' &&
-  typeof value.documentId === 'string' &&
+  isRequestReferenceOfKind(value.documentId, 'document') &&
   typeof value.markdown === 'string' &&
   typeof value.metadataTitle === 'string' &&
   (value.source === 'disk' || value.source === 'draft') &&
@@ -1130,8 +1106,8 @@ const isNovelStructureResult = (
     new Set(value.availableIcons).size !== value.availableIcons.length ||
     value.format !== 'driftfield' ||
     !isRecord(value.project) ||
-    typeof value.project.id !== 'string' ||
-    typeof value.project.revision !== 'string' ||
+    !isRequestReferenceOfKind(value.project.id, 'project') ||
+    !isRequestReferenceOfKind(value.project.revision, 'revision') ||
     typeof value.project.title !== 'string'
   ) {
     return false;
@@ -1154,7 +1130,7 @@ const isStructureDirectory = (
     !isRecord(value) ||
     value.type !== 'directory' ||
     typeof value.title !== 'string' ||
-    typeof value.id !== 'string' ||
+    !isRequestReferenceOfKind(value.id, 'directory') ||
     (value.icon !== undefined && !isProjectIcon(value.icon)) ||
     ![
       'manuscript',
@@ -1183,10 +1159,11 @@ const isStructureNode = (
   }
   return (
     value.type === 'document' &&
-    typeof value.id === 'string' &&
+    isRequestReferenceOfKind(value.id, 'document') &&
     typeof value.displayTitle === 'string' &&
     typeof value.metadataTitle === 'string' &&
-    (value.revision === undefined || typeof value.revision === 'string') &&
+    (value.revision === undefined ||
+      isRequestReferenceOfKind(value.revision, 'revision')) &&
     [
       'chapter',
       'prologue',
@@ -1194,7 +1171,6 @@ const isStructureNode = (
       'epilogue',
       'appendix',
       'entry',
-      'document',
     ].includes(value.kind as string)
   );
 };

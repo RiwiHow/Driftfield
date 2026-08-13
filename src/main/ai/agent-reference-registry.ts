@@ -11,7 +11,6 @@ import type {
 import { ProjectContextError } from './project-context-service';
 
 type ReferenceKind =
-  | 'assignment'
   | 'beat'
   | 'document'
   | 'event'
@@ -31,6 +30,8 @@ interface ReferenceEntry {
   value: string;
 }
 
+const MAX_REQUEST_REFERENCE_INDEX = 99_999;
+
 /** Keeps persistent identities and content hashes on the Main side of one Agent request. */
 export class AgentReferenceRegistry {
   private readonly counts = new Map<ReferenceKind, number>();
@@ -42,6 +43,12 @@ export class AgentReferenceRegistry {
     const existing = this.values.get(key);
     if (existing !== undefined) return existing;
     const next = (this.counts.get(kind) ?? 0) + 1;
+    if (next > MAX_REQUEST_REFERENCE_INDEX) {
+      throw new ProjectContextError(
+        'selection-too-large',
+        `Too many request-scoped ${kind} references.`,
+      );
+    }
     this.counts.set(kind, next);
     const ref = `${kind}:${next}`;
     this.values.set(key, ref);
@@ -51,9 +58,6 @@ export class AgentReferenceRegistry {
 
   resolve(ref: string, ...kinds: ReferenceKind[]): string {
     const entry = this.refs.get(ref);
-    // Keep the Main-side dispatcher compatible with in-flight calls from older
-    // workers. New model-facing results never publish these canonical values.
-    if (entry === undefined && !/^[a-z]+:[1-9][0-9]*$/u.test(ref)) return ref;
     if (entry === undefined) {
       throw new ProjectContextError(
         'expired-request-reference',
