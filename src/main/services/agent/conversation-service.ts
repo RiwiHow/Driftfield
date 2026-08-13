@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import type {
-  AgentConversationMessage,
-  AgentConversationPart,
-  AgentConversationState,
-  AgentConversationSummary,
-  AgentProposalStatus,
+import {
+  appendConversationText,
+  type AgentConversationMessage,
+  type AgentConversationPart,
+  type AgentConversationState,
+  type AgentConversationSummary,
+  type AgentProposalStatus,
 } from '../../../shared/contracts/agent-conversations';
 import type {
   AgentProposal,
@@ -280,7 +281,7 @@ export class AgentConversationService {
     const message = active.message;
     if (event.type === 'text-delta') {
       message.content += event.delta;
-      message.parts = appendText(message.parts ?? [], event.delta);
+      message.parts = appendConversationText(message.parts ?? [], event.delta);
       this.scheduleFlush(active);
       return;
     }
@@ -623,16 +624,6 @@ const toMessage = (row: MessageRow): AgentConversationMessage => ({
   role: row.role,
   ...(row.terminal === null ? {} : { terminal: row.terminal }),
 });
-
-const appendText = (
-  parts: AgentConversationPart[],
-  delta: string,
-): AgentConversationPart[] => {
-  const last = parts.at(-1);
-  return last?.type === 'text'
-    ? [...parts.slice(0, -1), { ...last, content: last.content + delta }]
-    : [...parts, { content: delta, type: 'text' }];
-};
 
 const cancelTools = (parts: AgentConversationPart[]): AgentConversationPart[] =>
   parts.map((part) =>

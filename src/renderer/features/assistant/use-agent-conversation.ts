@@ -6,12 +6,13 @@ import type {
   AgentProposal,
   SuccessfulApplyAgentProposalResult,
 } from '../../../shared/contracts/agent-proposals';
-import type {
-  AgentConversationMessage,
-  AgentConversationPart,
-  AgentProposalStatus,
-  AgentConversationSummary,
-  AgentToolActivity,
+import {
+  appendConversationText,
+  type AgentConversationMessage,
+  type AgentConversationPart,
+  type AgentProposalStatus,
+  type AgentConversationSummary,
+  type AgentToolActivity,
 } from '../../../shared/contracts/agent-conversations';
 import {
   type AgentConversationErrorCode,
@@ -655,16 +656,6 @@ function setProposalStatusInMessages(
         }
       : message,
   );
-}
-
-export function appendConversationText(
-  parts: AgentConversationPart[],
-  delta: string,
-): AgentConversationPart[] {
-  const last = parts.at(-1);
-  return last?.type === 'text'
-    ? [...parts.slice(0, -1), { ...last, content: last.content + delta }]
-    : [...parts, { content: delta, type: 'text' }];
 }
 
 export function startToolActivity(

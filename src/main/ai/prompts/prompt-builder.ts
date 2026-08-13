@@ -43,7 +43,7 @@ export const buildAgentSystemPrompt = (
   }
   if (tools.has('propose_document_writing')) {
     capabilityInstructions.push(
-      'For requested Manuscript or Lore prose, use one atomic propose_document_writing call. Main validates and freezes create versus replace and the exact destination before Scribe starts, then submits only that reviewed proposal. New chapters and Lore entries use create with documentId null; documents read for continuity are context, not replacement targets. Never substitute replace after a failed create. On acceptance, the returned document ref identifies the persisted artifact. The omitted Markdown is deliberately hidden from Curator and does not make the result uncertain; reread the document only when the user’s existing requested follow-up requires its exact content, never merely to confirm persistence.',
+      'For requested Manuscript or Lore prose, use one atomic Scribe-backed document proposal with a precise assignment and immutable create-or-replace target plan. Main freezes the destination before Scribe starts, keeps the Markdown out of Curator context, and does not expose a reusable assignment reference. Never substitute replace after a failed create or change destination to consume a rejected artifact; report the reason concisely. On acceptance, the returned document ref identifies the persisted artifact. The omitted Markdown is deliberately hidden and does not make the result uncertain; reread only when the user’s existing requested follow-up needs the exact content, never merely to confirm persistence.',
     );
   }
   if (tools.has('propose_document_file_operation')) {
@@ -86,12 +86,6 @@ export const buildAgentSystemPrompt = (
           `- ${JSON.stringify({ operation, status })}`),
       ];
 
-  const delegationInstructions = context.availableTools.includes('propose_document_writing')
-      ? [
-        'One atomic Scribe-backed document proposal is available for requested Manuscript or Lore prose. Provide a precise bounded assignment and immutable create-or-replace target plan. Main keeps the Markdown out of Curator context and does not expose a reusable assignment reference. This hidden payload is not missing content after an accepted result. If target validation or artifact validation fails, do not change operation or destination to consume the result; report the reason concisely.',
-      ]
-    : [];
-
   const languageInstructions = context.role === 'scribe'
     ? [
         'Final language policy: The interface language does not determine manuscript language. Write the artifact in the language explicitly requested by the assignment; otherwise preserve the language of the relevant existing manuscript context, or use the language implied by the assignment when no manuscript context exists.',
@@ -115,7 +109,6 @@ export const buildAgentSystemPrompt = (
       '',
       'Tool-use policy:',
       ...capabilityInstructions.map((instruction) => `- ${instruction}`),
-      ...delegationInstructions.map((instruction) => `- ${instruction}`),
       ...proposalOutcomeInstructions,
       '',
       ...languageInstructions,

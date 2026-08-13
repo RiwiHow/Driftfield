@@ -40,6 +40,7 @@ const snapshot: ProjectSnapshot = {
   ],
   projectId: 'project-1',
   revision: 'project-revision-1',
+  rootTitles: { lore: 'Lore', manuscript: 'Manuscript' },
   tree: [],
 };
 

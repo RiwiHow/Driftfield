@@ -35,7 +35,7 @@ export interface ProjectSnapshot {
   projectId: string;
   projectIcon?: import('./project-layout').ProjectIconId;
   revision: string;
-  rootTitles?: {
+  rootTitles: {
     lore?: string;
     manuscript: string;
   };

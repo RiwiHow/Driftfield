@@ -5,6 +5,7 @@ import {
   ChevronRight,
   CircleStop,
   Cpu,
+  FolderOpen,
   LoaderCircle,
   Pencil,
   Settings2,
@@ -77,6 +78,7 @@ interface AssistantPanelProps {
   onProposalApplied: (
     result: SuccessfulApplyAgentProposalResult,
   ) => void;
+  onSelectProject: () => void;
   onStoryChanged: (revision: number) => void;
   settings: AgentSettings;
   projectId: string | null;
@@ -90,6 +92,7 @@ export function AssistantPanel({
   configurationLoading,
   onOpenSettings,
   onProposalApplied,
+  onSelectProject,
   onStoryChanged,
   projectId,
   settings,
@@ -146,9 +149,23 @@ export function AssistantPanel({
       id === settings.defaultModel?.modelId &&
       providerId === settings.defaultModel?.providerId,
   );
+  const hasProject = projectId !== null;
   const isConfigured = selectedModel !== undefined;
+  const composerEnabled = hasProject && isConfigured;
   const canSend =
-    isConfigured && activeConversationId !== null && !historyLoading;
+    composerEnabled && activeConversationId !== null && !historyLoading;
+  const composerPlaceholder = !hasProject
+    ? t('composer.projectPlaceholder')
+    : isConfigured
+      ? t('composer.placeholder')
+      : configurationLoading
+        ? t('status.loadingConfiguration')
+        : t('composer.setupPlaceholder');
+  const sendBlockedReason = !hasProject
+    ? t('composer.projectPlaceholder')
+    : !isConfigured
+      ? t('composer.setupPlaceholder')
+      : undefined;
   const activePhaseLabel = (
     currentPhase: AgentConversationPhase,
   ): string | undefined => {
@@ -449,7 +466,16 @@ export function AssistantPanel({
         ref={conversationRef}
       >
         {messages.length === 0 ? (
-          isConfigured ? (
+          !hasProject ? (
+            <div className="agent-setup-empty">
+              <FolderOpen aria-hidden="true" size={18} />
+              <strong>{t('empty.project')}</strong>
+              <p>{t('empty.projectBody')}</p>
+              <Button onClick={onSelectProject} size="sm" variant="outline">
+                {t('empty.projectAction')}
+              </Button>
+            </div>
+          ) : isConfigured ? (
             <div className="message-row assistant-message">
               <span className="message-avatar">
                 <Bot aria-hidden="true" size={14} />
@@ -578,10 +604,10 @@ export function AssistantPanel({
         ) : null}
       </div>
 
-      <div className="composer" data-disabled={!isConfigured || undefined}>
+      <div className="composer" data-disabled={!composerEnabled || undefined}>
         <textarea
           aria-label={t('actions.send')}
-          disabled={!isConfigured}
+          disabled={!composerEnabled}
           onChange={(event) => setPrompt(event.target.value)}
           onKeyDown={(event) => {
             if (
@@ -594,37 +620,51 @@ export function AssistantPanel({
               void submit();
             }
           }}
-          placeholder={
-            isConfigured
-              ? t('composer.placeholder')
-              : configurationLoading
-                ? t('status.loadingConfiguration')
-                : t('composer.setupPlaceholder')
-          }
+          placeholder={composerPlaceholder}
           rows={3}
           value={prompt}
         />
         <div className="composer-footer">
           <span className="composer-document" title={activeDocument?.title}>
-            {activeDocument?.title ?? t('composer.noChapter')}
+            {hasProject
+              ? (activeDocument?.title ?? t('composer.noChapter'))
+              : t('composer.noProject')}
           </span>
-          <Button
-            aria-label={isActive ? t('actions.stop') : t('actions.send')}
-            className="composer-send"
-            disabled={
-              isActive
-                ? phase === 'cancelling'
-                : !canSend || !prompt.trim()
-            }
-            onClick={() => void (isActive ? cancel() : submit())}
-            size="icon"
-          >
-            {isActive ? (
-              <CircleStop size={15} />
-            ) : (
-              <ArrowUp size={16} strokeWidth={2.2} />
-            )}
-          </Button>
+          {sendBlockedReason === undefined ? (
+            <Button
+              aria-label={isActive ? t('actions.stop') : t('actions.send')}
+              className="composer-send"
+              disabled={
+                isActive
+                  ? phase === 'cancelling'
+                  : !canSend || !prompt.trim()
+              }
+              onClick={() => void (isActive ? cancel() : submit())}
+              size="icon"
+            >
+              {isActive ? (
+                <CircleStop size={15} />
+              ) : (
+                <ArrowUp size={16} strokeWidth={2.2} />
+              )}
+            </Button>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="composer-send-wrap">
+                  <Button
+                    aria-label={t('actions.send')}
+                    className="composer-send"
+                    disabled
+                    size="icon"
+                  >
+                    <ArrowUp size={16} strokeWidth={2.2} />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{sendBlockedReason}</TooltipContent>
+            </Tooltip>
+          )}
         </div>
       </div>
 

@@ -72,7 +72,7 @@ describe('Agent prompt registry', () => {
       responseLanguage: 'en',
       role: 'curator',
     });
-    expect(built.prompt).toContain('One atomic Scribe-backed document proposal is available');
+    expect(built.prompt).toContain('atomic Scribe-backed document proposal');
     expect(built.prompt).toContain('requested Manuscript or Lore prose');
     expect(built.prompt).toContain('immutable create-or-replace target plan');
     expect(built.prompt).toContain('does not expose a reusable assignment reference');
@@ -87,7 +87,9 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain('report the reason concisely');
     expect(built.prompt).not.toContain('revise_writing_artifact');
     expect(built.prompt).toContain('Never supply, echo, or invent concurrency revisions');
-    expect(built.version).toBe(36);
+    expect(built.prompt).not.toContain('documentId null');
+    expect(built.prompt).not.toContain('documents read for continuity');
+    expect(built.version).toBe(37);
   });
 
   it('uses the interface locale for conversation but not manuscript language', () => {

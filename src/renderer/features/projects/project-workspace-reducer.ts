@@ -130,7 +130,7 @@ export const projectWorkspaceReducer = (
         projectIcon: action.project.projectIcon,
         projectId: action.project.projectId,
         projectLoreTree: action.project.loreTree,
-        projectRootTitles: action.project.rootTitles ?? null,
+        projectRootTitles: action.project.rootTitles,
         projectTree: action.project.tree,
       };
     }

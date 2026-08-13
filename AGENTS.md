@@ -264,10 +264,6 @@ product explicitly chooses otherwise:
   its only caller is a layout-service test. Confirm how project title and icon
   mutation will be exposed before either deleting the method or retaining it as
   the main-owned persistence operation.
-- `ProjectSnapshot.rootTitles.lore` is produced and transferred but not read by
-  Renderer, while `rootTitles` is optional even though the sole producer always
-  supplies it. Recheck planned Lore navigation before removing the Lore title
-  and making the snapshot field required.
 - Assistant text is maintained both in `conversation_messages.content` and in
   text entries inside `parts_json`. Any consolidation must choose one canonical
   representation and preserve transcript trimming, streaming flushes, message

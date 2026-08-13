@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  appendConversationText,
   branchConversationFromUserEdit,
   completeToolActivity,
   replaceAssistantMessage,
   startToolActivity,
 } from '../../../../src/renderer/features/assistant/use-agent-conversation';
 import { groupConsecutiveReadTools } from '../../../../src/renderer/features/assistant/agent-tool-activity';
-import type {
-  AgentConversationMessage,
-  AgentConversationPart,
+import {
+  appendConversationText,
+  type AgentConversationMessage,
+  type AgentConversationPart,
 } from '../../../../src/shared/contracts/agent-conversations';
 
 describe('Agent response timeline', () => {

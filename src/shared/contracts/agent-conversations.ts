@@ -68,3 +68,13 @@ export interface UpdateAgentConversationMessageRequest {
   conversationId: string;
   messageId: string;
 }
+
+export const appendConversationText = (
+  parts: AgentConversationPart[],
+  delta: string,
+): AgentConversationPart[] => {
+  const last = parts.at(-1);
+  return last?.type === 'text'
+    ? [...parts.slice(0, -1), { ...last, content: last.content + delta }]
+    : [...parts, { content: delta, type: 'text' }];
+};

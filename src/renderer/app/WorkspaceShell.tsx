@@ -320,6 +320,7 @@ export function WorkspaceShell({
               onProposalApplied={onAgentProposalApplied}
               onStoryChanged={onAgentStoryChanged}
               onOpenSettings={onOpenSettings}
+              onSelectProject={onSelectProject}
               projectId={projectId}
               settings={agentSettings}
             />

@@ -33,6 +33,7 @@ import {
 import { AGENT_TOOL_DEFINITIONS } from './agent-tool-definitions';
 import { serializeSuccessfulToolResult } from './agent-tool-model-result';
 import {
+  AGENT_TOOL_NAMES,
   isAgentToolName,
   type AgentToolContractMap,
   type AgentToolExecutionResult,
@@ -322,153 +323,40 @@ function selectModelHistory(
   return selected.reverse();
 }
 
+function normalizeToolArguments<Name extends AgentToolName>(
+  toolName: Name,
+  params: unknown,
+): AgentToolContractMap[Name]['arguments'] {
+  if (toolName === 'maintain_story_records') {
+    return normalizeStoryMaintenanceBatchArguments(
+      params as Parameters<typeof normalizeStoryMaintenanceBatchArguments>[0],
+    ) as AgentToolContractMap[Name]['arguments'];
+  }
+  if (toolName === 'propose_story_operation') {
+    return normalizeStoryMaintenanceArguments(
+      params as Parameters<typeof normalizeStoryMaintenanceArguments>[0],
+    ) as AgentToolContractMap[Name]['arguments'];
+  }
+  return params as AgentToolContractMap[Name]['arguments'];
+}
+
 function createNovelTools(requestId: string) {
-  return [
+  // defineTool is not generic over a union of parameter schemas.
+  return AGENT_TOOL_NAMES.map((toolName) =>
     defineTool({
-      ...AGENT_TOOL_DEFINITIONS.submit_writing_artifact,
+      ...AGENT_TOOL_DEFINITIONS[toolName],
       execute: async (toolCallId, params, signal) =>
         textToolResult(
           await requestTool(
             requestId,
             toolCallId,
-            "submit_writing_artifact",
-            params as AgentToolContractMap["submit_writing_artifact"]["arguments"],
+            toolName,
+            normalizeToolArguments(toolName, params),
             signal,
           ),
         ),
-    }),
-    defineTool({
-      ...AGENT_TOOL_DEFINITIONS.read_novel_context,
-      execute: async (toolCallId, params, signal) =>
-        textToolResult(
-          await requestTool(
-            requestId,
-            toolCallId,
-            "read_novel_context",
-            params as AgentToolContractMap["read_novel_context"]["arguments"],
-            signal,
-          ),
-        ),
-    }),
-    defineTool({
-      ...AGENT_TOOL_DEFINITIONS.propose_document_edit,
-      execute: async (toolCallId, params, signal) =>
-        textToolResult(
-          await requestTool(
-            requestId,
-            toolCallId,
-            "propose_document_edit",
-            params as AgentToolContractMap["propose_document_edit"]["arguments"],
-            signal,
-          ),
-        ),
-    }),
-    defineTool({
-      ...AGENT_TOOL_DEFINITIONS.propose_document_writing,
-      execute: async (toolCallId, params, signal) =>
-        textToolResult(
-          await requestTool(
-            requestId,
-            toolCallId,
-            "propose_document_writing",
-            params as AgentToolContractMap["propose_document_writing"]["arguments"],
-            signal,
-          ),
-        ),
-    }),
-    defineTool({
-      ...AGENT_TOOL_DEFINITIONS.propose_document_file_operation,
-      execute: async (toolCallId, params, signal) =>
-        textToolResult(
-          await requestTool(
-            requestId,
-            toolCallId,
-            "propose_document_file_operation",
-            params as AgentToolContractMap["propose_document_file_operation"]["arguments"],
-            signal,
-          ),
-        ),
-    }),
-    defineTool({
-      ...AGENT_TOOL_DEFINITIONS.propose_project_structure_operation,
-      execute: async (toolCallId, params, signal) =>
-        textToolResult(
-          await requestTool(
-            requestId,
-            toolCallId,
-            "propose_project_structure_operation",
-            params as AgentToolContractMap["propose_project_structure_operation"]["arguments"],
-            signal,
-          ),
-        ),
-    }),
-    defineTool({
-      ...AGENT_TOOL_DEFINITIONS.maintain_story_records,
-      execute: async (toolCallId, params, signal) =>
-        textToolResult(
-          await requestTool(
-            requestId,
-            toolCallId,
-            "maintain_story_records",
-            normalizeStoryMaintenanceBatchArguments(params),
-            signal,
-          ),
-        ),
-    }),
-    defineTool({
-      ...AGENT_TOOL_DEFINITIONS.complete_story_reconciliation,
-      execute: async (toolCallId, params, signal) =>
-        textToolResult(
-          await requestTool(
-            requestId,
-            toolCallId,
-            "complete_story_reconciliation",
-            params,
-            signal,
-          ),
-        ),
-    }),
-    defineTool({
-      ...AGENT_TOOL_DEFINITIONS.reconcile_accepted_document,
-      execute: async (toolCallId, params, signal) =>
-        textToolResult(
-          await requestTool(
-            requestId,
-            toolCallId,
-            "reconcile_accepted_document",
-            params,
-            signal,
-          ),
-        ),
-    }),
-    defineTool({
-      ...AGENT_TOOL_DEFINITIONS.record_story_question,
-      execute: async (toolCallId, params, signal) =>
-        textToolResult(
-          await requestTool(requestId, toolCallId, "record_story_question", params, signal),
-        ),
-    }),
-    defineTool({
-      ...AGENT_TOOL_DEFINITIONS.resolve_story_question,
-      execute: async (toolCallId, params, signal) =>
-        textToolResult(
-          await requestTool(requestId, toolCallId, "resolve_story_question", params, signal),
-        ),
-    }),
-    defineTool({
-      ...AGENT_TOOL_DEFINITIONS.propose_story_operation,
-      execute: async (toolCallId, params, signal) =>
-        textToolResult(
-          await requestTool(
-            requestId,
-            toolCallId,
-            "propose_story_operation",
-            normalizeStoryMaintenanceArguments(params),
-            signal,
-          ),
-        ),
-    }),
-  ];
+    } as Parameters<typeof defineTool>[0]),
+  );
 }
 
 async function requestTool<Name extends AgentToolName>(

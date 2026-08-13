@@ -21,6 +21,7 @@ const createSession = async (): Promise<ProjectSession> => {
       loreTree: null,
       projectId: 'project-1',
       revision: 'revision',
+      rootTitles: { manuscript: 'Manuscript' },
       tree: [],
     },
     refreshTimer: null,

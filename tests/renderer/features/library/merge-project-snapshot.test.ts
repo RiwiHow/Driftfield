@@ -22,6 +22,7 @@ const emptySnapshot: ProjectSnapshot = {
   loreTree: null,
   projectId: 'project-1',
   revision: 'empty',
+  rootTitles: { manuscript: 'Manuscript' },
   tree: [],
 };
 
