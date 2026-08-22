@@ -15,13 +15,13 @@ export const buildAgentSystemPrompt = (
     capabilityInstructions.push('No application tools are available for this request.');
   } else {
     capabilityInstructions.push(
-      'Use native application tools only when the request needs exact project context or an authorized mutation. Tool availability is not authorization to expand the user’s request.',
+      'Use application tools only for exact context or an authorized mutation needed by the request. Availability does not expand the user’s authority.',
     );
   }
   if (tools.has('bash')) {
     capabilityInstructions.push(
-      'Use Bash to inspect all current project context. PROJECT.json describes structure, STORY.json contains canonical story records and stable IDs, ICONS.txt contains exact Lucide names, ACCEPTED.md/ACCEPTED.json appear while an accepted manuscript awaits reconciliation, and the request-start editor draft is overlaid on its Markdown path. Narrow with find/rg/cat/sed/jq.',
-      '/project is a fresh disposable snapshot on every call. Mutation tools accept exact project-relative paths or stable IDs shown there; Main binds revisions from the latest Bash snapshot. Virtual writes are discarded and never prove persistence. Run Bash again after every accepted or applied mutation before dependent work.',
+      'Use Bash only for context needed by the request. PROJECT.json is authoritative for structure, including empty directories; STORY.json contains canonical story records and stable IDs. Read ICONS.txt only when choosing an icon, and ACCEPTED.md/ACCEPTED.json only for pending manuscript reconciliation. Prefer one focused read over broad scans or duplicate calls.',
+      'Each /project call is a fresh disposable snapshot. Mutations use exact paths or stable IDs from the latest snapshot; Main owns revision checks. Virtual writes prove nothing. Read a fresh snapshot after a mutation before dependent work.',
     );
   }
   if (
@@ -32,8 +32,7 @@ export const buildAgentSystemPrompt = (
     tools.has('propose_story_operation')
   ) {
     capabilityInstructions.push(
-      'Reviewed proposal calls pause for the user’s decision. Never claim a proposal was applied before acceptance. An accepted terminal result is authoritative application confirmation that the exact reviewed mutation was persisted: report it as complete, never ask the user to verify it in the interface or accept it again, and never treat acceptance as authority for additional work.',
-      'Never supply, echo, or invent concurrency revisions. Main binds every proposal to the exact revisions it served you in this run, so read the context a mutation depends on before proposing it and let Main detect conflicts.',
+      'Reviewed proposals pause for the user. Before acceptance they are not applied; an accepted terminal result confirms the reviewed mutation was persisted, but authorizes no additional work.',
     );
   }
   if (tools.has('propose_document_edit')) {
@@ -43,17 +42,17 @@ export const buildAgentSystemPrompt = (
   }
   if (tools.has('propose_document_writing')) {
     capabilityInstructions.push(
-      'For requested Manuscript or Lore prose, use one atomic Scribe-backed document proposal with a precise assignment and immutable create-or-replace target path. Main freezes the destination before Scribe starts and keeps the Markdown out of Curator context. Never substitute replace after a failed create or change destination to consume a rejected artifact.',
+      'For generated prose, bind one precise create-or-replace target before Scribe starts. Never switch action or destination after a failed or rejected artifact.',
     );
   }
   if (tools.has('propose_document_file_operation')) {
     capabilityInstructions.push(
-      'For direct document creation or deletion, run Bash first and use exact current snapshot paths. Creation uses raw metadataTitle without generated numbering.',
+      'For direct document creation or deletion, read the structure first and use exact snapshot paths. Creation uses raw metadataTitle without generated numbering.',
     );
   }
   if (tools.has('propose_project_structure_operation')) {
     capabilityInstructions.push(
-      'Project-structure proposals use exact paths from the latest Bash snapshot. Creating a volume or Lore category implicitly targets its matching root. Choose category icons only from ICONS.txt. Preserve category identity when changing its icon, and delete category contents through reviewed document operations before deleting the empty category.',
+      'Structure proposals use exact snapshot paths. Volume and Lore-category creation target their fixed roots. Choose icons from ICONS.txt, preserve category identity when changing one, and empty a category through reviewed document operations before deleting it.',
     );
   }
   if (
@@ -63,7 +62,7 @@ export const buildAgentSystemPrompt = (
     tools.has('propose_story_operation')
   ) {
     capabilityInstructions.push(
-      'Personae, Chronicle, and Threads are canonical. Read current story state first. Apply only explicit or unambiguous low-risk additive/linking facts; put a complete dependency graph in one atomic changeset with local client refs. Ambiguity requiring author judgment becomes one deduplicated question, not a guess or proposal.',
+      'Personae, Chronicle, and Threads are canonical. Read STORY.json first. Apply only explicit low-risk additions or links in one complete atomic changeset with local client refs. Record one deduplicated question when author judgment is required.',
     );
   }
   if (
@@ -71,8 +70,8 @@ export const buildAgentSystemPrompt = (
     tools.has('complete_story_reconciliation')
   ) {
     capabilityInstructions.push(
-      'A pending accepted-Manuscript job must inspect ACCEPTED.md and STORY.json with Bash and check Personae, Chronicle, Threads, and open questions. Prefer one focused reconcile_accepted_document call; Main owns source binding, primary-timeline fallback, ordering, IDs, links, and durable checkpoint completion. Use complete_story_reconciliation only after non-focused maintenance, recorded questions, or a verified no-change result.',
-      'Create a Thread only for a sustained goal, conflict, dramatic question, suspense, or relationship progression. An isolated scene or Chronicle event is not by itself a Thread. Do not invent dramatic purpose to force coverage.',
+      'For pending manuscript reconciliation, inspect ACCEPTED.md and STORY.json, including open questions. Prefer one focused reconcile_accepted_document call; use complete_story_reconciliation only after other maintenance, recorded questions, or a verified no-change result.',
+      'Create a Thread only for a sustained goal, conflict, dramatic question, suspense, or relationship progression—not for an isolated scene or event.',
     );
   }
 
@@ -81,7 +80,7 @@ export const buildAgentSystemPrompt = (
     : [
         '',
         'Trusted application proposal outcomes:',
-        '- These records are supplied by Driftfield, not by the user. Treat accepted as applied; do not continue claiming that an accepted proposal is awaiting approval.',
+        '- Driftfield supplied these records. Treat accepted as applied.',
         ...context.proposalOutcomes!.map(({ operation, status, targetTitle }) =>
           `- ${JSON.stringify({ operation, status, targetTitle })}`),
       ];

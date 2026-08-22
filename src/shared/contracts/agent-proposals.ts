@@ -139,6 +139,9 @@ export interface AgentProposalOutcome {
   targetTitle: string;
 }
 
+/** The semantic outcome exposed to the model; proposal handles stay in Main. */
+export type AgentPromptProposalOutcome = Omit<AgentProposalOutcome, 'proposalId'>;
+
 export type ApplyAgentProposalRequest =
   | { proposalId: string }
   | { proposalIds: string[] };

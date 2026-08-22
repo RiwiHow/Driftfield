@@ -108,12 +108,13 @@ describe('AiAgentService', () => {
     service: AiAgentService,
     requestId: string,
     sendEvent: (event: AgentEvent) => void = vi.fn(),
+    proposalOutcomes: Parameters<AiAgentService['start']>[0]['proposalOutcomes'] = [],
   ) =>
     service.start({
       currentDocumentId: 'chapter.md',
       customInstructions: 'Use restrained prose.',
       history: [],
-      proposalOutcomes: [],
+      proposalOutcomes,
       model: { modelId: 'model', providerId: 'anthropic' },
       ownerId: 7,
       projectSessionId: 'session-1',
@@ -123,6 +124,30 @@ describe('AiAgentService', () => {
       sendEvent,
       thinkingLevel: 'medium',
     });
+
+  it('removes proposal handles before crossing the worker boundary', async () => {
+    const service = new AiAgentService(userDataPath);
+    const started = start(service, 'request-1', vi.fn(), [{
+      operation: 'create',
+      proposalId: 'proposal-1',
+      status: 'accepted',
+      targetTitle: 'Chapter One',
+    }]);
+    await waitFor(() => workers.length === 1);
+    workers[0].emit('message', { type: 'ready' });
+    await started;
+
+    const curatorStart = workers[0].messages.find((message) =>
+      typeof message === 'object' && message !== null &&
+      (message as { role?: unknown }).role === 'curator') as {
+        proposalOutcomes: unknown;
+      };
+    expect(curatorStart.proposalOutcomes).toEqual([{
+      operation: 'create',
+      status: 'accepted',
+      targetTitle: 'Chapter One',
+    }]);
+  });
 
   it('handles cancellation while the worker is still starting', async () => {
     const service = new AiAgentService(userDataPath);

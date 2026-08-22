@@ -27,7 +27,10 @@ import {
 import type { AgentToolDispatcher } from './agent-tool-dispatcher';
 import { ProjectContextError } from './project-context-service';
 import type { AgentHistoryMessage } from '../services/agent/conversation-service';
-import type { AgentProposalOutcome } from '../../shared/contracts/agent-proposals';
+import type {
+  AgentPromptProposalOutcome,
+  AgentProposalOutcome,
+} from '../../shared/contracts/agent-proposals';
 import type { AppLanguage } from '../../shared/i18n/languages';
 import { ProjectDatabase } from '../database/project-database';
 import {
@@ -195,7 +198,7 @@ export class AiAgentService {
         modelsPath: active.modelsPath,
         modelId: request.model.modelId,
         prompt: request.prompt,
-        proposalOutcomes: request.proposalOutcomes,
+        proposalOutcomes: request.proposalOutcomes.map(toPromptProposalOutcome),
         providerId: request.model.providerId,
         reconciliationPending: active.reconciliation.pending,
         requestId: request.requestId,
@@ -1107,3 +1110,13 @@ export class AiAgentService {
     this.writingTasks.clear();
   }
 }
+
+const toPromptProposalOutcome = ({
+  operation,
+  status,
+  targetTitle,
+}: AgentProposalOutcome): AgentPromptProposalOutcome => ({
+  operation,
+  status,
+  targetTitle,
+});

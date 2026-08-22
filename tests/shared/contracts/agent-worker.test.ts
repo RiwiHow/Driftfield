@@ -24,6 +24,26 @@ describe('Agent utility-process protocol', () => {
     })).toBe(true);
   });
 
+  it('accepts only semantic proposal outcomes at the worker boundary', () => {
+    const command = {
+      authPath: '/app-data/auth.json', cwd: '/agent-data', customInstructions: '',
+      enabledTools: ['bash'], history: [], modelId: 'model',
+      modelsPath: '/app-data/models.json', prompt: 'Continue', providerId: 'anthropic',
+      reconciliationPending: false, requestId: 'request-1', responseLanguage: 'en',
+      role: 'curator', thinkingLevel: 'medium', type: 'start',
+    } as const;
+    expect(isAgentWorkerCommand({
+      ...command,
+      proposalOutcomes: [{ operation: 'create', status: 'accepted', targetTitle: 'Chapter One' }],
+    })).toBe(true);
+    expect(isAgentWorkerCommand({
+      ...command,
+      proposalOutcomes: [{
+        operation: 'create', proposalId: 'proposal-1', status: 'accepted', targetTitle: 'Chapter One',
+      }],
+    })).toBe(false);
+  });
+
   it('rejects removed tools and malformed path mutation requests', () => {
     expect(isAgentWorkerMessage({
       arguments: { directoryIds: [], documentIds: [], include: ['structure'] },

@@ -17,7 +17,7 @@ import {
   type AgentToolName,
   type AgentToolExecutionResult,
 } from "./agent-tools";
-import type { AgentProposalOutcome } from './agent-proposals';
+import type { AgentPromptProposalOutcome } from './agent-proposals';
 import { isAppLanguage, type AppLanguage } from '../i18n/languages';
 
 export interface AgentWorkerStartCommand {
@@ -29,7 +29,7 @@ export interface AgentWorkerStartCommand {
   modelsPath: string;
   modelId: string;
   prompt: string;
-  proposalOutcomes: AgentProposalOutcome[];
+  proposalOutcomes: AgentPromptProposalOutcome[];
   providerId: string;
   reconciliationPending: boolean;
   requestId: string;
@@ -244,13 +244,13 @@ const isModelOption = (value: unknown): value is AgentModelOption => {
 const isToolCallId = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0 && value.length <= 128;
 
-const isProposalOutcome = (value: unknown): value is AgentProposalOutcome => {
+const isProposalOutcome = (
+  value: unknown,
+): value is AgentPromptProposalOutcome => {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
-  const outcome = value as Partial<AgentProposalOutcome>;
+  const outcome = value as Partial<AgentPromptProposalOutcome>;
   return (
-    Object.keys(value).length === 4 &&
-    typeof outcome.proposalId === 'string' &&
-    outcome.proposalId.length > 0 && outcome.proposalId.length <= 128 &&
+    Object.keys(value).length === 3 &&
     typeof outcome.targetTitle === 'string' &&
     outcome.targetTitle.trim().length > 0 && outcome.targetTitle.length <= 500 &&
     ['edit', 'create', 'delete', 'create_volume', 'create_lore_category', 'delete_lore_category', 'set_lore_category_icon', 'move_document', 'rename_document', 'story']
