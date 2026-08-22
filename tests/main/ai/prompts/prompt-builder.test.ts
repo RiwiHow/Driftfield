@@ -80,16 +80,20 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain('requested Manuscript or Lore prose');
     expect(built.prompt).toContain('requested document language in the objective or requirements');
     expect(built.prompt).toContain('bind one precise create-or-replace target');
+    expect(built.prompt).toContain('Scribe owns the required content research');
     expect(built.prompt).toContain('Never switch action or destination');
     expect(built.prompt).toContain('accepted terminal result confirms');
     expect(built.prompt).toContain('do not expose tool names');
     expect(built.prompt).toContain('do not question its persistence');
     expect(built.prompt).toContain('Report the validation reason concisely');
+    expect(built.prompt).toContain('invoke the matching capability immediately');
+    expect(built.prompt).toContain('Never stop after saying that you will inspect');
+    expect(built.prompt).toContain('Do not repeat a resolved inspection');
     expect(built.prompt).not.toContain('revise_writing_artifact');
     expect(built.prompt).not.toContain('concurrency revisions');
     expect(built.prompt).not.toContain('documentId null');
     expect(built.prompt).not.toContain('documents read for continuity');
-    expect(built.version).toBe(52);
+    expect(built.version).toBe(53);
   });
 
   it('places raw user instructions at the very beginning', () => {

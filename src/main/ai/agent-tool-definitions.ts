@@ -44,7 +44,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   submit_writing_artifact: {
     description:
-      `Submit the complete assigned Manuscript or Lore Markdown exactly once. Inspect only relevant Markdown first; read ${AGENT_STORY_CONTEXT_PATH} only when the assignment requires canonical story continuity. Exclude analysis, planning, commentary, status text, and persistence claims. Ordinary assistant text is not part of the artifact.`,
+      `Submit the complete assigned Manuscript or Lore Markdown exactly once. Before writing Lore, inspect ${AGENT_STORY_CONTEXT_PATH} and search only relevant registered Manuscript and Lore Markdown for the named subject; an empty target Lore directory means only that its document does not exist yet. For Manuscript, inspect only context needed for continuity. Exclude analysis, planning, commentary, status text, and persistence claims. Ordinary assistant text is not part of the artifact.`,
     executionMode: 'sequential',
     label: 'Submit writing artifact',
     name: 'submit_writing_artifact',
@@ -100,7 +100,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   propose_document_writing: {
     description:
-      `Commission Scribe and submit exactly one pre-bound reviewed document proposal. Inspect the target directory and only relevant Markdown first; when the user names a display title instead of an exact path, read the nearest parent ${AGENT_DIRECTORY_INDEX_NAME}. Include canonical story continuity in the assignment only when it matters. Create uses the exact parentPath, raw title, and kind; replace uses the exact current documentPath. Main binds the latest snapshot revisions before Scribe runs and cannot rebind the artifact afterward.`,
+      `Commission Scribe and submit exactly one pre-bound reviewed document proposal. Curator inspects only enough structure to bind the target: for create, the exact parent directory and its nearest ${AGENT_DIRECTORY_INDEX_NAME}; for replace, the exact current document. Do not preflight character, event, setting, or prose continuity and do not infer missing source material from an empty target directory—Scribe owns story-state and relevant Markdown research after Main binds the target. Put the user's requested subject and output requirements in the assignment. Create uses the exact parentPath, raw title, and kind; replace uses the exact current documentPath. Main binds the latest snapshot revisions before Scribe runs and cannot rebind the artifact afterward.`,
     executionMode: 'sequential',
     label: 'Propose generated document',
     name: 'propose_document_writing',

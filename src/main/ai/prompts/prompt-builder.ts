@@ -42,7 +42,7 @@ export const buildAgentSystemPrompt = (
   }
   if (tools.has('propose_document_writing')) {
     capabilityInstructions.push(
-      'For generated prose, bind one precise create-or-replace target before Scribe starts. Never switch action or destination after a failed or rejected artifact.',
+      'For generated prose, inspect only enough structure to bind one precise create-or-replace target before Scribe starts. Scribe owns the required content research after binding. Never switch action or destination after a failed or rejected artifact.',
     );
   }
   if (tools.has('propose_document_file_operation')) {

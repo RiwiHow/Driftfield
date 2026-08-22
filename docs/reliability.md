@@ -70,8 +70,9 @@ Preserve these properties when changing affected subsystems.
   propose changes directly. A second delegation returns a
   typed non-retryable budget error rather than an internal error.
 - Cancellation remains terminal when it races with completion or output.
-- The worker preserves the provider stop reason, retries output truncation or
-  printed pseudo tool-call markup at most once, and never reports a still-open
+- The worker preserves the provider stop reason, retries output truncation,
+  printed pseudo tool-call markup, or a response that stops while narrating an
+  unexecuted immediate action at most once, and never reports a still-open
   accepted-manuscript reconciliation workflow or completed-but-unclaimed Scribe
   artifact as completed. Main validates the
   reconciliation checkpoint independently; pseudo tool markup is never

@@ -127,7 +127,9 @@ that the declared status matches successful activity in the current request.
 Create operations supply a parent path, document kind, metadata title, domain,
 objective, requirements, and optional length. Replace operations supply the
 exact current document path and are checked against the immutable request-start
-draft. Scribe can inspect the same bounded Bash snapshot and can only return
+draft. Curator binds the target; Scribe owns story-state and relevant prose
+research after binding, including Lore subjects not yet represented by a Lore
+document. Scribe can inspect the same bounded Bash snapshot and can only return
 Markdown through `submit_writing_artifact`.
 
 Main validates the artifact and constructs exactly the pre-bound proposal.

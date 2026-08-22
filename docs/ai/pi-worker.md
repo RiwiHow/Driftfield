@@ -22,7 +22,8 @@ domain contracts.
 - Stream typed deltas through cancellable IPC. Bind requests to application-owned
   project-session identity and reject obsolete output and tool calls.
 - Preserve the final provider stop reason. Output-limit responses and printed
-  pseudo tool-call markup receive at most one application-owned corrective
+  pseudo tool-call markup, and responses that stop while narrating an
+  unexecuted immediate action receive at most one application-owned corrective
   continuation; a second failure is terminal and typed, never a successful
   completion. Main independently gates accepted Scribe-backed manuscript runs
   on a validated story-reconciliation checkpoint.

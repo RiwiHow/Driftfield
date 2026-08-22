@@ -4,7 +4,8 @@ import type { AgentToolName } from '../../shared/contracts/agent-tools';
 export type ResponseProtocolIssue =
   | 'length'
   | 'pseudo-tool-call'
-  | 'reconciliation';
+  | 'reconciliation'
+  | 'stalled-action';
 
 export const responseProtocolIssue = (
   assistantText: string,
@@ -16,7 +17,25 @@ export const responseProtocolIssue = (
   if (containsPseudoToolCall(assistantText, enabledToolNames)) {
     return 'pseudo-tool-call';
   }
-  return reconciliationPending ? 'reconciliation' : null;
+  if (reconciliationPending) return 'reconciliation';
+  if (containsStalledActionNarration(assistantText)) {
+    return 'stalled-action';
+  }
+  return null;
+};
+
+export const containsStalledActionNarration = (text: string): boolean => {
+  const tail = text.trim().slice(-800);
+  if (tail.length === 0) return false;
+  const sentences = tail
+    .split(/(?<=[.!?。！？])\s*|\n+/u)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 0)
+    .slice(-4);
+  return sentences.some((sentence) =>
+    /^(?:let me|i(?:'ll| will) now|next,? i(?:'ll| will)|让我|我(?:先|来|现在|接下来|再)(?:去|来|会|将)?)[^.!?。！？]{0,160}(?:inspect|read|find|check|call|submit|propose|create|write|查看|读取|查找|确认|调用|提交|创建|生成|写)/iu
+      .test(sentence)
+  );
 };
 
 export const closesStoryReconciliation = (
@@ -53,6 +72,9 @@ export const protocolCorrection = (issue: ResponseProtocolIssue): string => {
   }
   if (issue === 'pseudo-tool-call') {
     return 'Protocol correction: you printed tool-call markup as ordinary text. Never print or describe tool-call syntax. If the operation is still needed, invoke the available native application tool now, then finish concisely.';
+  }
+  if (issue === 'stalled-action') {
+    return 'Workflow correction: your previous response stopped while narrating an action that you did not execute. Do not repeat the plan or inspect already resolved context. Invoke the needed native application tool now; if no tool is needed or available, state the concrete result or limitation concisely.';
   }
   return 'Workflow correction: an accepted Scribe-backed manuscript proposal still requires reconciliation. Read the exact accepted persisted document and current story state, apply or record all evidenced changes, call complete_story_reconciliation, then finish concisely.';
 };

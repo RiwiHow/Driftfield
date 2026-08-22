@@ -32,6 +32,12 @@ describe('Agent tool definitions', () => {
     expect(description).toContain('parentPath');
     expect(description).toContain('documentPath');
     expect(description).toContain('latest snapshot revisions');
+    expect(description).toContain('Curator inspects only enough structure');
+    expect(description).toContain('Scribe owns story-state and relevant Markdown research');
+    expect(AGENT_TOOL_DEFINITIONS.submit_writing_artifact.description)
+      .toContain('/context/story.json');
+    expect(AGENT_TOOL_DEFINITIONS.submit_writing_artifact.description)
+      .toContain('empty target Lore directory');
   });
 
   it('routes application context through domain tools instead of generic Bash', () => {

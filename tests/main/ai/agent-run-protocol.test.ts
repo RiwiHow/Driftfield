@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   closesStoryReconciliation,
+  containsStalledActionNarration,
   containsPseudoToolCall,
   normalizeStopReason,
   protocolCorrection,
@@ -38,6 +39,39 @@ describe('Agent run protocol', () => {
     expect(protocolCorrection('reconciliation')).toContain(
       'complete_story_reconciliation',
     );
+  });
+
+  it('detects responses that stop while narrating an unexecuted action', () => {
+    expect(containsStalledActionNarration(
+      '目录已经确认。让我现在提交角色卡创作提案。',
+    )).toBe(true);
+    expect(containsStalledActionNarration(
+      '让我先读取第一章。\n让我再用正确的路径查找。',
+    )).toBe(true);
+    expect(containsStalledActionNarration(
+      'The target is resolved. Let me submit the writing proposal now.',
+    )).toBe(true);
+    expect(containsStalledActionNarration(
+      '角色卡提案已经准备好，等待你的审阅。',
+    )).toBe(false);
+    expect(containsStalledActionNarration(
+      '如果需要，我可以继续补充她与白塔的关系。',
+    )).toBe(false);
+    expect(responseProtocolIssue(
+      '我现在提交角色卡。',
+      'stop',
+      false,
+      ['propose_document_writing'],
+    )).toBe('stalled-action');
+    expect(protocolCorrection('stalled-action')).toContain(
+      'stopped while narrating an action',
+    );
+    expect(responseProtocolIssue(
+      '让我先读取已接受的正文。',
+      'stop',
+      true,
+      [],
+    )).toBe('reconciliation');
   });
 
   it('recognizes both focused and explicit reconciliation completion', () => {
