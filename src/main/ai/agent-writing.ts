@@ -6,7 +6,7 @@ export interface AgentWritingAssignment {
   documentDomain: AgentDocumentDomain;
   objective: string;
   requirements: string[];
-  targetDocumentId: string | null;
+  targetDocumentPath: string | null;
   targetLength: number | null;
 }
 

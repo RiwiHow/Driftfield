@@ -22,7 +22,7 @@ describe('Agent response timeline', () => {
       input: '{}',
       status: 'running',
       toolCallId: 'tool-1',
-      toolName: 'get_novel_structure',
+      toolName: 'bash',
     });
     parts = completeToolActivity(parts, 'tool-1', false, '{"ok":true}');
     parts = appendConversationText(parts, 'The project has two chapters.');
@@ -47,7 +47,7 @@ describe('Agent response timeline', () => {
       input: '{}',
       status: 'running',
       toolCallId: 'tool-1',
-      toolName: 'get_current_document',
+      toolName: 'bash',
     });
     parts = appendConversationText(parts, 'Second sentence.');
 
@@ -65,7 +65,7 @@ describe('Agent response timeline', () => {
           output: '{"data":{"project":{"id":"project-1"}},"ok":true}',
           status: 'completed',
           toolCallId: 'tool-structure',
-          toolName: 'get_novel_structure',
+          toolName: 'bash',
         },
         type: 'tool',
       },
@@ -76,7 +76,7 @@ describe('Agent response timeline', () => {
           output: '{"data":{"revision":4},"ok":true}',
           status: 'completed',
           toolCallId: 'tool-story',
-          toolName: 'get_story_state',
+          toolName: 'bash',
         },
         type: 'tool',
       },
@@ -102,7 +102,7 @@ describe('Agent response timeline', () => {
         input: '{}',
         status: 'completed',
         toolCallId,
-        toolName: 'get_story_state',
+        toolName: 'bash',
       },
       type: 'tool',
     });
@@ -164,7 +164,7 @@ describe('Agent response timeline', () => {
               input: '{}',
               status: 'completed',
               toolCallId: 'tool-1',
-              toolName: 'get_current_document',
+              toolName: 'bash',
             },
             type: 'tool',
           },
@@ -185,7 +185,7 @@ describe('Agent response timeline', () => {
               input: '{}',
               status: 'completed',
               toolCallId: 'tool-1',
-              toolName: 'get_current_document',
+              toolName: 'bash',
             },
             type: 'tool',
           },

@@ -1,20 +1,20 @@
 import { lstat, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
+import { Bash } from 'just-bash';
 
 import type {
   AgentStoryMaintenanceChange,
-  AgentDocumentToolResult,
   AgentDraftSnapshot,
-  AgentNovelStructureToolResult,
+  AgentProjectBashResult,
   AgentStoryMaintenanceToolResult,
   AgentCanonicalStoryQuestionArguments,
   AgentStoryQuestionToolResult,
-  AgentStructureNode,
   AgentToolErrorCode,
 } from '../../shared/contracts/agent-tools';
-import type {
-  LoreEntry,
-  ManuscriptDocumentEntry,
+import type { ProjectTreeNode } from '../../shared/contracts/project';
+import {
+  PROJECT_ICON_IDS,
+  type ManuscriptDocumentEntry,
 } from '../../shared/contracts/project-layout';
 import {
   loadProjectLayout,
@@ -34,6 +34,38 @@ import type {
 import { ProjectStoryRevisionConflictError } from '../database/project-story-repository';
 
 export const MAX_AGENT_DOCUMENT_BYTES = 512 * 1024;
+const MAX_AGENT_PROJECT_SNAPSHOT_BYTES = 64 * 1024 * 1024;
+const MAX_AGENT_BASH_OUTPUT_BYTES = 192 * 1024;
+
+export interface AgentBashDocumentAnchor {
+  baseRevision: string;
+  contentRevision: string;
+  documentId: string;
+  kind: import('../../shared/contracts/project-layout').ManuscriptDocumentKind | 'entry';
+}
+
+export interface AgentBashAcceptedDocument {
+  baseRevision: string;
+  contentRevision: string;
+  displayTitle: string;
+  documentId: string;
+  markdown: string;
+  metadataTitle: string;
+}
+
+export interface AgentBashDirectoryAnchor {
+  directoryId: string;
+  kind: 'category' | 'lore' | 'manuscript' | 'volume';
+}
+
+export interface AgentProjectBashExecution {
+  acceptedDocument?: AgentBashAcceptedDocument;
+  directories: Map<string, AgentBashDirectoryAnchor>;
+  documents: Map<string, AgentBashDocumentAnchor>;
+  projectRevision: string;
+  result: AgentProjectBashResult;
+  story: ProjectStorySnapshot | null;
+}
 
 export class ProjectContextError extends Error {
   constructor(
@@ -56,10 +88,167 @@ export class ProjectContextService {
     private readonly stories?: ProjectStoryService,
   ) {}
 
-  async getStoryState(scope: ProjectContextScope): Promise<ProjectStorySnapshot> {
+  async executeProjectBash(
+    scope: ProjectContextScope,
+    command: string,
+    acceptedDocumentId?: string,
+  ): Promise<AgentProjectBashExecution> {
     const session = this.requireSession(scope);
-    if (this.stories === undefined) throw new ProjectContextError('internal-error');
-    return this.stories.getSnapshot(session);
+    const layout = await loadProjectLayout(session.directoryPath);
+    const files: Record<string, string> = {};
+    let totalBytes = 0;
+    const draft = scope.draftSnapshot;
+    const documents = new Map<string, AgentBashDocumentAnchor>();
+    const documentKinds = new Map<string, AgentBashDocumentAnchor['kind']>();
+    for (const child of layout.manuscript.index.children) {
+      if (child.kind !== 'volume') documentKinds.set(child.id, child.kind);
+    }
+    for (const volume of layout.manuscript.volumes) {
+      for (const child of volume.index.children) {
+        documentKinds.set(child.id, child.kind);
+      }
+    }
+    for (const entry of layout.lore?.entries ?? []) {
+      documentKinds.set(entry.id, 'entry');
+    }
+
+    for (const document of session.project.documents) {
+      const relativePath = document.relativePath.split('\\').join('/');
+      if (
+        relativePath.startsWith('/') ||
+        relativePath.split('/').includes('..') ||
+        (!relativePath.startsWith('manuscript/') &&
+          !relativePath.startsWith('lore/'))
+      ) {
+        throw new ProjectContextError('internal-error');
+      }
+      const markdown = draft?.documentId === document.id
+        ? draft.markdown
+        : document.markdown;
+      const bytes = Buffer.byteLength(markdown, 'utf8');
+      if (bytes > MAX_AGENT_DOCUMENT_BYTES) {
+        throw new ProjectContextError('document-too-large');
+      }
+      totalBytes += bytes;
+      if (totalBytes > MAX_AGENT_PROJECT_SNAPSHOT_BYTES) {
+        throw new ProjectContextError('selection-too-large');
+      }
+      files[`/project/${relativePath}`] = markdown;
+      documents.set(relativePath, {
+        baseRevision: document.revision,
+        contentRevision: contentRevision(markdown),
+        documentId: document.id,
+        kind: requireDocumentKind(documentKinds, document.id),
+      });
+    }
+
+    const directories = new Map<string, AgentBashDirectoryAnchor>();
+    directories.set('manuscript', {
+      directoryId: layout.manuscript.index.id,
+      kind: 'manuscript',
+    });
+    for (const volume of layout.manuscript.volumes) {
+      directories.set(`manuscript/${volume.directory}`, {
+        directoryId: volume.index.id,
+        kind: 'volume',
+      });
+    }
+    if (layout.lore !== null) {
+      directories.set('lore', {
+        directoryId: layout.lore.index.id,
+        kind: 'lore',
+      });
+      for (const category of layout.lore.categories) {
+        directories.set(`lore/${category.directory}`, {
+          directoryId: category.index.id,
+          kind: 'category',
+        });
+      }
+    }
+
+    const story = this.stories?.getSnapshot(session) ?? null;
+    if (story !== null) {
+      const storyJson = JSON.stringify(
+        stripStoryRevisions(story),
+        null,
+        2,
+      );
+      files['/project/STORY.json'] = storyJson;
+      totalBytes += Buffer.byteLength(storyJson, 'utf8');
+    }
+    const iconCatalog = `${PROJECT_ICON_IDS.join('\n')}\n`;
+    files['/project/ICONS.txt'] = iconCatalog;
+    totalBytes += Buffer.byteLength(iconCatalog, 'utf8');
+    const acceptedDocument = acceptedDocumentId === undefined
+      ? undefined
+      : await this.getDocument(scope, acceptedDocumentId);
+    if (acceptedDocument !== undefined) {
+      files['/project/ACCEPTED.md'] = acceptedDocument.markdown;
+      const acceptedMetadata = JSON.stringify({
+        displayTitle: acceptedDocument.displayTitle,
+        metadataTitle: acceptedDocument.metadataTitle,
+        path: [...documents.entries()].find(([, anchor]) =>
+          anchor.documentId === acceptedDocumentId)?.[0] ?? null,
+      }, null, 2);
+      files['/project/ACCEPTED.json'] = acceptedMetadata;
+      totalBytes += Buffer.byteLength(acceptedDocument.markdown, 'utf8');
+      totalBytes += Buffer.byteLength(acceptedMetadata, 'utf8');
+    }
+
+    const projectIndex = JSON.stringify({
+      format: 'driftfield-agent-snapshot',
+      roots: session.project.rootTitles,
+      title: layout.manifest.title,
+      tree: {
+        lore: session.project.loreTree?.map(toAgentBashTreeNode) ?? null,
+        manuscript: session.project.tree.map(toAgentBashTreeNode),
+      },
+    }, null, 2);
+    totalBytes += Buffer.byteLength(projectIndex, 'utf8');
+    if (totalBytes > MAX_AGENT_PROJECT_SNAPSHOT_BYTES) {
+      throw new ProjectContextError('selection-too-large');
+    }
+    files['/project/PROJECT.json'] = projectIndex;
+
+    const bash = new Bash({
+      cwd: '/project',
+      env: {
+        HOME: '/project',
+        LANG: 'C.UTF-8',
+        PWD: '/project',
+      },
+      executionLimitProfile: 'hardened',
+      executionLimits: {
+        maxCommandCount: 256,
+        maxExecutionTimeMs: 5_000,
+        maxFileSystemBytes: MAX_AGENT_PROJECT_SNAPSHOT_BYTES,
+        maxLoopIterations: 10_000,
+        maxOutputSize: MAX_AGENT_BASH_OUTPUT_BYTES,
+        maxSourceBytes: 8 * 1024,
+        maxTraversalEntries: 20_000,
+        maxTraversalWork: 100_000,
+      },
+      files,
+      javascript: false,
+      python: false,
+    });
+    const result = await bash.exec(command, {
+      cwd: '/project',
+      env: {},
+      replaceEnv: false,
+    });
+    return {
+      ...(acceptedDocument === undefined ? {} : { acceptedDocument }),
+      directories,
+      documents,
+      projectRevision: session.project.revision,
+      result: {
+        exitCode: result.exitCode,
+        stderr: result.stderr,
+        stdout: result.stdout,
+      },
+      story,
+    };
   }
 
   maintainStoryRecords(
@@ -123,36 +312,10 @@ export class ProjectContextService {
     };
   }
 
-  async getCurrentDocument(
-    scope: ProjectContextScope,
-  ): Promise<AgentDocumentToolResult> {
-    const draft = scope.draftSnapshot;
-    if (draft === undefined) throw new ProjectContextError('document-not-found');
-    const session = this.requireSession(scope);
-    const document = session.project.documents.find(({ id }) => id === draft.documentId);
-    if (!session.documentPaths.has(draft.documentId)) {
-      throw new ProjectContextError('document-not-found');
-    }
-    this.assertDocumentSize(draft.markdown);
-    const metadataTitle = await this.readMetadataTitle(
-      session.directoryPath,
-      draft.documentId,
-    ) ?? document?.name ?? draft.documentId;
-    return {
-      baseRevision: draft.baseRevision,
-      contentRevision: contentRevision(draft.markdown),
-      displayTitle: document?.name ?? metadataTitle,
-      documentId: draft.documentId,
-      markdown: draft.markdown,
-      metadataTitle,
-      source: 'draft',
-    };
-  }
-
-  async getDocument(
+  private async getDocument(
     scope: ProjectContextScope,
     documentId: string,
-  ): Promise<AgentDocumentToolResult> {
+  ): Promise<AgentBashAcceptedDocument> {
     const session = this.requireSession(scope);
     const relativePath = session.documentPaths.get(documentId);
     const knownDocument = session.project.documents.find(({ id }) => id === documentId);
@@ -181,78 +344,6 @@ export class ProjectContextService {
     );
   }
 
-  async getNovelStructure(
-    scope: ProjectContextScope,
-  ): Promise<AgentNovelStructureToolResult> {
-    const session = this.requireSession(scope);
-    const layout = await loadProjectLayout(session.directoryPath);
-    const documents = new Map(session.project.documents.map((document) => [document.id, document]));
-    const volumes = new Map(layout.manuscript.volumes.map((volume) => [volume.directory, volume]));
-    const manuscriptChildren: AgentStructureNode[] = layout.manuscript.index.children.map((child) => {
-      if (child.kind !== 'volume') return this.mapManuscriptDocument(child, documents);
-      const volume = volumes.get(child.directory);
-      if (volume === undefined) throw new ProjectContextError('internal-error');
-      return {
-        children: volume.index.children.map((entry) =>
-          this.mapManuscriptDocument(entry, documents),
-        ),
-        id: volume.index.id,
-        ...(volume.index.icon === undefined
-          ? {}
-          : { icon: volume.index.icon }),
-        kind: 'volume',
-        title: volume.index.title,
-        type: 'directory',
-      };
-    });
-    const result: AgentNovelStructureToolResult = {
-      format: 'driftfield',
-      manuscript: {
-        children: manuscriptChildren,
-        id: layout.manuscript.index.id,
-        ...(layout.manuscript.index.icon === undefined
-          ? {}
-          : { icon: layout.manuscript.index.icon }),
-        kind: 'manuscript',
-        title: layout.manuscript.index.title,
-        type: 'directory',
-      },
-      project: {
-        id: layout.manifest.id,
-        revision: session.project.revision,
-        title: layout.manifest.title,
-      },
-    };
-    if (layout.lore !== null) {
-      const categories = new Map(layout.lore.categories.map((category) => [category.directory, category]));
-      result.lore = {
-        children: layout.lore.index.children.map((child) => {
-          if (child.kind !== 'category') return this.mapLoreEntry(child);
-          const category = categories.get(child.directory);
-          if (category === undefined) throw new ProjectContextError('internal-error');
-          return {
-            children: category.index.children.map((entry) => this.mapLoreEntry(entry)),
-            id: category.index.id,
-            ...(category.index.icon === undefined
-              ? {}
-              : { icon: category.index.icon }),
-            kind: 'category',
-            title: category.index.title,
-            type: 'directory',
-          };
-        }),
-        id: layout.lore.index.id,
-        ...(layout.lore.index.icon === undefined
-          ? {}
-          : { icon: layout.lore.index.icon }),
-        kind: 'lore',
-        title: layout.lore.index.title,
-        type: 'directory',
-      };
-    }
-    return result;
-  }
-
   private requireSession(scope: ProjectContextScope) {
     const session = this.sessions.get(scope.ownerId);
     if (
@@ -271,7 +362,7 @@ export class ProjectContextService {
     documentId: string,
     displayTitle: string,
     metadataTitle: string,
-  ): Promise<AgentDocumentToolResult> {
+  ): Promise<AgentBashAcceptedDocument> {
     try {
       const canonicalProject = await realpath(projectDirectory);
       const candidate = path.resolve(canonicalProject, relativePath);
@@ -294,7 +385,6 @@ export class ProjectContextService {
         documentId,
         markdown: content.toString('utf8'),
         metadataTitle,
-        source: 'disk',
       };
     } catch (error) {
       if (error instanceof ProjectContextError) throw error;
@@ -311,42 +401,48 @@ export class ProjectContextService {
     }
   }
 
-  private async readMetadataTitle(
-    projectDirectory: string,
-    documentId: string,
-  ): Promise<string | undefined> {
-    try {
-      return findMetadataTitle(await loadProjectLayout(projectDirectory), documentId);
-    } catch {
-      return undefined;
-    }
-  }
-
-  private mapManuscriptDocument(
-    entry: ManuscriptDocumentEntry,
-    documents: Map<string, { name: string; revision: string }>,
-  ): AgentStructureNode {
-    const document = documents.get(entry.id);
-    return {
-      displayTitle: document?.name ?? entry.title,
-      id: entry.id,
-      kind: entry.kind,
-      metadataTitle: entry.title,
-      ...(document === undefined ? {} : { revision: document.revision }),
-      type: 'document',
-    };
-  }
-
-  private mapLoreEntry(entry: LoreEntry): AgentStructureNode {
-    return {
-      displayTitle: entry.title,
-      id: entry.id,
-      kind: 'entry',
-      metadataTitle: entry.title,
-      type: 'document',
-    };
-  }
 }
+
+const toAgentBashTreeNode = (node: ProjectTreeNode): object =>
+  node.type === 'file'
+    ? {
+        name: node.name,
+        path: node.relativePath,
+        type: node.type,
+      }
+    : {
+        children: node.children.map(toAgentBashTreeNode),
+        ...(node.icon === undefined ? {} : { icon: node.icon }),
+        name: node.name,
+        path: node.relativePath,
+        type: node.type,
+      };
+
+const stripStoryRevisions = (story: ProjectStorySnapshot): object => ({
+  ...story,
+  eventSources: story.eventSources.map(
+    ({ documentRevision: _documentRevision, ...source }) => source,
+  ),
+  questions: story.questions.map((question) => ({
+    ...question,
+    evidence: question.evidence === null
+      ? null
+      : {
+          anchor: question.evidence.anchor,
+          documentId: question.evidence.documentId,
+          sourceKind: question.evidence.sourceKind,
+        },
+  })),
+});
+
+const requireDocumentKind = (
+  kinds: Map<string, AgentBashDocumentAnchor['kind']>,
+  documentId: string,
+): AgentBashDocumentAnchor['kind'] => {
+  const kind = kinds.get(documentId);
+  if (kind === undefined) throw new ProjectContextError('internal-error');
+  return kind;
+};
 
 const findMetadataTitle = (
   layout: LoadedProjectLayout,

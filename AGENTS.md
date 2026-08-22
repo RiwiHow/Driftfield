@@ -131,8 +131,10 @@ See [Project Format](docs/project-format.md).
 - Pi runs only in the separately built native ESM `agent-worker.mjs` utility
   process. Main and preload remain Forge CommonJS targets.
 - A utility process is not a security sandbox. Do not enable Pi coding tools,
-  shell/filesystem tools, untrusted extensions, arbitrary resource discovery,
-  or generic code execution.
+  the host shell/filesystem, untrusted extensions, arbitrary resource discovery,
+  or generic code execution. A bounded virtual Bash inspection tool may run in
+  Main only over a fresh in-memory snapshot of registered novel Markdown; never
+  mount the opened directory, expose `.driftfield`, or persist virtual writes.
 - Pi works from application-owned Agent data, never the opened novel directory.
 - Bind Agent requests to project-session identity, propagate cancellation, and
   reject obsolete output and tool calls after project switches.
@@ -163,17 +165,15 @@ See [Project Format](docs/project-format.md).
 - Update shared contracts and add focused protocol, dispatcher, lifecycle, and
   packaged-worker tests appropriate to the changed capability.
 
-The current read-only surface is the single `read_novel_context` tool, whose
-`include` sections cover structure, the current document, explicitly selected
-documents and directory children, story state, and accepted-document
-reconciliation. It returns ref-based, path-free context through main-owned
-services. Do not broaden this surface with generic filesystem or database
-access.
+The current read-only surface is a disposable Main-owned virtual `bash`
+snapshot containing registered Markdown plus generated project, story, icon,
+and accepted-document files. Never expose the host filesystem, `.driftfield`,
+or database access through it.
 
 Concurrency revisions stay out of the model-facing surface. Reads do not expose
 document, node, or project revisions, and mutation tools do not accept them.
-Main anchors the revisions it served for each issued ref and binds later
-mutations to those anchors, so a mutation requires context read in the same
+Main anchors the revisions represented by the latest Bash snapshot and binds later
+mutations to those anchors, so a mutation requires inspection in the same
 request and still fails the ordinary revision check after a concurrent user
 edit.
 

@@ -73,7 +73,7 @@ describe('Agent conversation persistence', () => {
       input: '{"directoryIds":[],"documentIds":[],"include":["structure"]}',
       requestId: 'assistant-1',
       toolCallId: 'tool-1',
-      toolName: 'read_novel_context',
+      toolName: 'bash',
       type: 'tool-started',
     });
     service.recordEvent({
@@ -82,7 +82,7 @@ describe('Agent conversation persistence', () => {
       output: '{"ok":true}',
       requestId: 'assistant-1',
       toolCallId: 'tool-1',
-      toolName: 'read_novel_context',
+      toolName: 'bash',
       type: 'tool-completed',
     });
     service.recordEvent({ requestId: 'assistant-1', type: 'completed' });
@@ -186,47 +186,6 @@ describe('Agent conversation persistence', () => {
     service.dispose();
   });
 
-  it('expires request refs only in replayed model history', async () => {
-    const session = await createSession();
-    const service = new AgentConversationService();
-    const state = service.getState(session);
-    service.beginPrompt(session, {
-      conversationId: state.activeConversation.id,
-      prompt: 'Create the World entry.',
-      requestId: 'assistant-with-refs',
-      userMessageId: 'user-with-refs',
-    });
-    const visibleText =
-      'Use directory:5 with revision:2, then reconcile document:accepted on timeline:primary.';
-    service.recordEvent({
-      delta: visibleText,
-      requestId: 'assistant-with-refs',
-      type: 'text-delta',
-    });
-    service.recordEvent({ requestId: 'assistant-with-refs', type: 'completed' });
-
-    const next = service.beginPrompt(session, {
-      conversationId: state.activeConversation.id,
-      prompt: 'Continue.',
-      requestId: 'assistant-after-refs',
-      userMessageId: 'user-after-refs',
-    });
-
-    expect(next.history).toEqual([
-      { content: 'Create the World entry.', role: 'user' },
-      {
-        content:
-          'Use [expired request-scoped directory ref] with [expired request-scoped revision ref], then reconcile [expired request-scoped document ref] on [expired request-scoped timeline ref].',
-        role: 'assistant',
-      },
-    ]);
-    expect(
-      service.getState(session).activeConversation.messages
-        .find(({ id }) => id === 'assistant-with-refs')?.content,
-    ).toBe(visibleText);
-    service.dispose();
-  });
-
   it('previews the current model history without mutating the conversation', async () => {
     const session = await createSession();
     const service = new AgentConversationService();
@@ -246,11 +205,11 @@ describe('Agent conversation persistence', () => {
 
     expect(service.getPromptHistory(session).history).toEqual([
       {
-        content: 'Remember [expired request-scoped persona ref].',
+        content: 'Remember persona:4.',
         role: 'user',
       },
       {
-        content: 'Remembered [expired request-scoped document ref].',
+        content: 'Remembered document:2.',
         role: 'assistant',
       },
     ]);
@@ -455,6 +414,7 @@ describe('Agent conversation persistence', () => {
       operation: 'edit',
       proposalId: proposal.proposalId,
       status: 'accepted',
+      targetTitle: 'Chapter One',
     }]);
     service.dispose();
   });
@@ -504,8 +464,8 @@ describe('Agent conversation persistence', () => {
       userMessageId: 'user-after-sequential',
     });
     expect(next.proposalOutcomes).toEqual([
-      { operation: 'edit', proposalId: first.proposalId, status: 'accepted' },
-      { operation: 'edit', proposalId: second.proposalId, status: 'rejected' },
+      { operation: 'edit', proposalId: first.proposalId, status: 'accepted', targetTitle: 'Chapter One' },
+      { operation: 'edit', proposalId: second.proposalId, status: 'rejected', targetTitle: 'Chapter One' },
     ]);
     service.dispose();
 

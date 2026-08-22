@@ -29,13 +29,13 @@ domain contracts.
 - Curator Manuscript or Lore writing requests may create one Main-owned Scribe child task in the
   same utility process. Main assigns its task ID, binds it to the parent request,
   applies a five-minute timeout and 512 KiB artifact limit, propagates
-  cancellation, and exposes only the bounded novel-context reader plus a
+  cancellation, and exposes only the bounded Bash project snapshot plus a
   terminal artifact-submission tool to Scribe. Main retains the submitted
   Markdown as internal task state while Curator's pre-bound
   `propose_document_writing` call remains pending; no assignment ID, internal
   proposal UUID, or Markdown body is returned to the model. Ordinary assistant
   text is discarded. After acceptance, Curator receives only an authoritative
-  terminal status plus short request-scoped document and content-revision refs.
+  terminal status. Document identities and revisions remain Main-owned.
   Main constructs only the already-validated proposal target, so the untrusted
   artifact never bypasses or rebinds the existing proposal workflow, and
   Renderer still shows the full proposal.
@@ -50,8 +50,11 @@ domain contracts.
   reconciliation jobs. Their pending state is supplied when a Curator request
   starts, so an interrupted run resumes the accepted-document workflow. Lore
   proposals do not open that checkpoint.
-- Do not enable Pi coding tools, generic shell/filesystem tools, extensions, or
-  unrestricted resource discovery by default.
+- Do not enable Pi coding tools, the host shell, host filesystem mounts,
+  extensions, or unrestricted resource discovery. The optional Driftfield
+  `bash` tool is a Main-owned disposable `just-bash` snapshot containing only
+  registered novel Markdown and a generated tree index; it is not Pi shell
+  authority and has no persistent writes or host paths.
 
 An Electron utility process is a lifecycle and isolation boundary, not a
 security sandbox. Availability of Node APIs does not authorize untrusted

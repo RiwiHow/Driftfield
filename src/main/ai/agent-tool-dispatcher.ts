@@ -1,12 +1,8 @@
 import type {
   AgentAcceptedDocumentReconciliationArguments,
-  AgentAcceptedReconciliationContext,
-  AgentDocumentToolResult,
   AgentDraftSnapshot,
   AgentDocumentDomain,
-  AgentNovelStructureToolResult,
   AgentProjectStructureOperationArguments,
-  AgentStructureNode,
   AgentToolExecutionResult,
   AgentToolFailureResult,
   AgentToolContractMap,
@@ -22,13 +18,15 @@ import type {
   AgentWritingTaskResult,
 } from './agent-writing';
 import {
-  ACCEPTED_DOCUMENT_REFERENCE,
+  ACCEPTED_DOCUMENT_PATH,
   agentToolArgumentHint,
   isAgentToolRequest,
   isLongRunningAgentTool,
 } from '../../shared/contracts/agent-tools';
 import {
   ProjectContextError,
+  type AgentBashAcceptedDocument,
+  type AgentProjectBashExecution,
   type ProjectContextService,
 } from './project-context-service';
 import type {
@@ -43,9 +41,7 @@ import type {
   AgentProposal,
 } from '../../shared/contracts/agent-proposals';
 import type { ProjectStorySnapshot } from '../../shared/contracts/project-story';
-import { AgentReferenceRegistry } from './agent-reference-registry';
 import { contentRevision } from '../services/project/document-utils';
-import { searchProjectIcons } from './project-icon-search';
 
 export interface AgentToolScope {
   acceptedDocumentId?: string;
@@ -95,7 +91,6 @@ const BUDGET_EXHAUSTED_EXIT_DETAIL =
 
 interface RequestBudget {
   calls: number;
-  referenceRecoveries: number;
   resultBytes: number;
 }
 
@@ -115,7 +110,7 @@ interface ReconciliationRegistry {
 
 export class AgentToolDispatcher {
   private readonly budgets = new Map<string, RequestBudget>();
-  private readonly referenceRegistries = new Map<string, AgentReferenceRegistry>();
+  private readonly bashSnapshots = new Map<string, AgentProjectBashExecution>();
   private readonly reconciliationRegistries = new Map<string, ReconciliationRegistry>();
 
   constructor(
@@ -130,7 +125,6 @@ export class AgentToolDispatcher {
   ): Promise<AgentToolExecutionResult> {
     const budget = this.budgets.get(scope.requestId) ?? {
       calls: 0,
-      referenceRecoveries: 0,
       resultBytes: 0,
     };
     if (budget.calls >= this.policy.maxCalls) {
@@ -151,7 +145,7 @@ export class AgentToolDispatcher {
       );
     }
 
-    const mutating = request.toolName !== 'read_novel_context';
+    const mutating = request.toolName !== 'bash';
     if (
       mutating &&
       (MUTATING_TOOL_RESULT_RESERVATION_BYTES > this.policy.maxResultBytes ||
@@ -186,13 +180,6 @@ export class AgentToolDispatcher {
       return result;
     } catch (error) {
       if (error instanceof ProjectContextError) {
-        if (
-          error.code === 'expired-request-reference' &&
-          budget.referenceRecoveries === 0
-        ) {
-          budget.calls -= 1;
-          budget.referenceRecoveries += 1;
-        }
         return this.error(request.toolName, error.code, error.detail);
       }
       if (error instanceof ToolTimeoutError) return this.error(request.toolName, 'tool-timeout');
@@ -202,7 +189,7 @@ export class AgentToolDispatcher {
 
   release(requestId: string): void {
     this.budgets.delete(requestId);
-    this.referenceRegistries.delete(requestId);
+    this.bashSnapshots.delete(requestId);
     this.reconciliationRegistries.delete(requestId);
     this.proposals?.cancelRequest(requestId);
   }
@@ -211,158 +198,55 @@ export class AgentToolDispatcher {
     scope: AgentToolScope,
     request: AgentToolRequest,
   ): Promise<AgentToolSuccessResult> {
-    const refs = this.referenceRegistries.get(scope.requestId) ??
-      new AgentReferenceRegistry();
-    this.referenceRegistries.set(scope.requestId, refs);
     const contextScope = {
       ...(scope.draftSnapshot === undefined ? {} : { draftSnapshot: scope.draftSnapshot }),
       ownerId: scope.ownerId,
       projectSessionId: scope.projectSessionId,
     };
-    if (request.toolName === 'read_novel_context') {
-      const { directoryIds, documentIds, iconQuery, include } = request.arguments;
-      const includeSet = new Set(include);
-      const needsStructure = includeSet.has('structure') ||
-        documentIds.length > 0 || directoryIds.length > 0;
-      const needsAcceptedReconciliation = includeSet.has('accepted_reconciliation');
-      if (needsAcceptedReconciliation && scope.acceptedDocumentId === undefined) {
-        throw new ProjectContextError(
-          'invalid-arguments',
-          'No accepted Scribe-backed document is awaiting reconciliation.',
-        );
-      }
-      const [resolvedStructure, currentDocument, storyState, acceptedDocument] =
-        await Promise.all([
-          needsStructure
-            ? this.context.getNovelStructure(contextScope)
-            : undefined,
-          includeSet.has('current_document')
-            ? scope.draftSnapshot === undefined
-              ? null
-              : this.context.getCurrentDocument(contextScope)
-            : undefined,
-          includeSet.has('story_state') || needsAcceptedReconciliation
-            ? this.context.getStoryState(contextScope)
-            : undefined,
-          needsAcceptedReconciliation
-            ? this.context.getDocument(contextScope, scope.acceptedDocumentId!)
-            : undefined,
-        ]);
+    if (request.toolName === 'bash') {
+      const execution = await this.context.executeProjectBash(
+        contextScope,
+        request.arguments.command,
+        scope.acceptedDocumentId,
+      );
       if (
-        acceptedDocument !== undefined &&
+        execution.acceptedDocument !== undefined &&
         scope.acceptedDocumentRevision !== undefined &&
-        acceptedDocument.contentRevision !== scope.acceptedDocumentRevision
+        execution.acceptedDocument.contentRevision !== scope.acceptedDocumentRevision
       ) {
         throw new ProjectContextError(
           'proposal-base-changed',
-          'The accepted manuscript revision changed before story reconciliation.',
+          'The accepted manuscript changed before reconciliation.',
         );
       }
-      const nodes = resolvedStructure === undefined
-        ? new Map<string, AgentStructureNode>()
-        : indexStructureNodes(resolvedStructure);
-      const resolvedDocumentIds: string[] = [];
-      const seenDocumentIds = new Set<string>();
-      const addDocumentId = (documentId: string): void => {
-        if (seenDocumentIds.has(documentId)) return;
-        seenDocumentIds.add(documentId);
-        resolvedDocumentIds.push(documentId);
-      };
-      for (const documentRef of documentIds) {
-        const documentId = refs.resolve(documentRef, 'document');
-        const node = nodes.get(documentId);
-        if (node === undefined) throw nodeNotFound(documentRef);
-        if (node.type !== 'document') {
-          throw nodeKindMismatch(documentRef, 'document', node);
-        }
-        addDocumentId(documentId);
-      }
-      for (const directoryRef of directoryIds) {
-        const directoryId = refs.resolve(directoryRef, 'directory');
-        const node = nodes.get(directoryId);
-        if (node === undefined) throw nodeNotFound(directoryRef);
-        if (node.type !== 'directory') {
-          throw nodeKindMismatch(directoryRef, 'directory', node);
-        }
-        for (const child of node.children) {
-          if (child.type === 'document') addDocumentId(child.id);
-        }
-      }
-      if (resolvedDocumentIds.length > 4) {
-        throw new ProjectContextError(
-          'selection-too-large',
-          JSON.stringify({
-            limit: 4,
-            resolvedDocumentCount: resolvedDocumentIds.length,
-          }),
+      this.bashSnapshots.set(scope.requestId, execution);
+      if (execution.acceptedDocument !== undefined && execution.story !== null) {
+        this.buildReconciliationContext(
+          scope.requestId,
+          execution.acceptedDocument,
+          execution.story,
         );
       }
-      const documents = await Promise.all(resolvedDocumentIds.map(
-        (documentId) => this.context.getDocument(contextScope, documentId),
-      ));
-      const reconciliation = acceptedDocument === undefined || storyState === undefined
-        ? undefined
-        : this.buildReconciliationContext(
-            scope.requestId,
-            acceptedDocument,
-            storyState,
-          );
-      const exposedStructure = includeSet.has('structure') &&
-        resolvedStructure !== undefined
-          ? refs.exposeStructure(resolvedStructure)
-          : undefined;
-      const exposedCurrentDocument = currentDocument === undefined
-        ? undefined
-        : currentDocument === null
-          ? null
-          : refs.exposeDocument(currentDocument);
-      const exposedDocuments = documents.map((document) =>
-        refs.exposeDocument(document));
-      const exposedStoryState = !includeSet.has('story_state') || storyState === undefined
-        ? undefined
-        : refs.exposeStory(storyState);
-      const iconSuggestions = iconQuery === undefined
-        ? undefined
-        : { icons: searchProjectIcons(iconQuery), query: iconQuery };
-      if (iconSuggestions !== undefined) {
-        refs.anchorIconSuggestions(iconSuggestions.icons);
-      }
-      return {
-        data: {
-          ...(exposedCurrentDocument === undefined
-            ? {}
-            : { currentDocument: exposedCurrentDocument }),
-          documents: exposedDocuments,
-          ...(iconSuggestions === undefined ? {} : { iconSuggestions }),
-          ...(reconciliation === undefined ? {} : { reconciliation }),
-          ...(exposedStoryState === undefined
-            ? {}
-            : { storyState: exposedStoryState }),
-          ...(exposedStructure === undefined
-            ? {}
-            : { structure: exposedStructure }),
-        },
-        ok: true,
-        toolName: request.toolName,
-      };
+      return { data: execution.result, ok: true, toolName: request.toolName };
     }
     if (request.toolName === 'maintain_story_records') {
+      const snapshot = requireBashSnapshot(this.bashSnapshots, scope.requestId);
       const changes = request.arguments.changes.map((change) => {
         const clientRef = 'clientRef' in change ? change.clientRef : undefined;
         const operation = { ...change } as AgentStoryOperationInput & {
           clientRef?: string;
         };
         delete operation.clientRef;
-        const resolved = refs.resolveStoryOperation(operation);
+        const resolved = resolveStoryOperation(snapshot, operation);
         return clientRef === undefined ? resolved : { ...resolved, clientRef };
       }) as AgentStoryMaintenanceChange[];
       const data = await this.context.maintainStoryRecords(
         contextScope,
         scope.requestId,
-        refs.requireStoryRevision(),
+        requireStoryRevision(snapshot),
         changes,
       );
-      refs.anchorStoryRevision(data.revision);
+      this.bashSnapshots.delete(scope.requestId);
       scope.storyChanged?.(data.revision);
       return {
         data,
@@ -379,7 +263,7 @@ export class AgentToolDispatcher {
       ) {
         throw new ProjectContextError(
           'invalid-arguments',
-          'Read accepted_reconciliation context after the manuscript proposal is accepted.',
+          'Inspect ACCEPTED.md and STORY.json with Bash after the manuscript proposal is accepted.',
         );
       }
       const changes = buildAcceptedDocumentChanges(
@@ -392,7 +276,7 @@ export class AgentToolDispatcher {
         registry.storyRevision,
         changes,
       );
-      refs.anchorStoryRevision(data.revision);
+      this.bashSnapshots.delete(scope.requestId);
       if (scope.completeFocusedStoryReconciliation?.() !== true) {
         throw new ProjectContextError(
           'internal-error',
@@ -425,7 +309,7 @@ export class AgentToolDispatcher {
     }
     if (request.toolName === 'record_story_question') {
       const input = resolveStoryQuestionArguments(
-        refs,
+        requireBashSnapshot(this.bashSnapshots, scope.requestId),
         scope,
         this.reconciliationRegistries.get(scope.requestId),
         request.arguments,
@@ -435,23 +319,35 @@ export class AgentToolDispatcher {
         scope.requestId,
         input,
       );
-      refs.anchorStoryRevision(data.revision);
+      this.bashSnapshots.delete(scope.requestId);
       scope.storyChanged?.(data.revision);
       return {
-        data: { ...data, questionId: refs.expose('question', data.questionId) },
+        data,
         ok: true,
         toolName: request.toolName,
       };
     }
     if (request.toolName === 'resolve_story_question') {
+      const snapshot = requireBashSnapshot(this.bashSnapshots, scope.requestId);
+      if (
+        snapshot.story === null ||
+        !snapshot.story.questions.some(({ id, status }) =>
+          id === request.arguments.questionId && status === 'open')
+      ) {
+        throw new ProjectContextError(
+          'invalid-arguments',
+          `Unknown open story question ID: ${request.arguments.questionId}`,
+        );
+      }
       const data = this.context.resolveStoryQuestion(
         contextScope,
-        refs.resolve(request.arguments.questionId, 'question'),
+        request.arguments.questionId,
         request.arguments.answer,
       );
+      this.bashSnapshots.delete(scope.requestId);
       scope.storyChanged?.(data.revision);
       return {
-        data: { ...data, questionId: refs.expose('question', data.questionId) },
+        data,
         ok: true,
         toolName: request.toolName,
       };
@@ -464,27 +360,17 @@ export class AgentToolDispatcher {
       ) {
         throw new ProjectContextError('internal-error');
       }
-      const structure = await this.context.getNovelStructure(contextScope);
-      const nodes = indexStructureNodes(structure);
+      const snapshot = requireBashSnapshot(this.bashSnapshots, scope.requestId);
       const isCreate = request.arguments.documentAction === 'create';
-      const targetDocumentId = isCreate
+      const target = isCreate
         ? null
-        : refs.resolve(request.arguments.documentId!, 'document');
-      let resolvedProjectRevision: string | null = null;
-      let anchoredRevisions: { baseContentRevision: string; baseRevision: string } | null = null;
+        : requireDocumentPath(snapshot, request.arguments.documentPath!);
+      const parent = isCreate
+        ? requireDirectoryPath(snapshot, request.arguments.parentPath!)
+        : null;
       if (isCreate) {
-        const parentId = refs.resolve(request.arguments.parentId!, 'directory');
-        resolvedProjectRevision = refs.requireProjectRevision();
-        const parent = nodes.get(parentId);
-        if (parent === undefined) throw nodeNotFound(request.arguments.parentId!);
-        if (parent.type !== 'directory') {
-          throw nodeKindMismatch(request.arguments.parentId!, 'directory', parent);
-        }
-        if (resolvedProjectRevision !== structure.project.revision) {
-          throw new ProjectContextError('proposal-base-changed');
-        }
         if (
-          documentDomainForDirectoryKind(parent.kind) !==
+          documentDomainForDirectoryKind(parent!.kind) !==
             request.arguments.documentDomain ||
           documentDomainForKind(request.arguments.kind!) !==
             request.arguments.documentDomain
@@ -495,20 +381,7 @@ export class AgentToolDispatcher {
           );
         }
       } else {
-        const anchor = refs.requireDocumentContentAnchor(
-          targetDocumentId!,
-          request.arguments.documentId!,
-        );
-        anchoredRevisions = {
-          baseContentRevision: anchor.contentRevision,
-          baseRevision: anchor.baseRevision,
-        };
-        const target = nodes.get(targetDocumentId!);
-        if (target === undefined) throw nodeNotFound(request.arguments.documentId!);
-        if (target.type !== 'document') {
-          throw nodeKindMismatch(request.arguments.documentId!, 'document', target);
-        }
-        if (documentDomainForKind(target.kind) !== request.arguments.documentDomain) {
+        if (documentDomainForKind(target!.kind) !== request.arguments.documentDomain) {
           throw new ProjectContextError(
             'invalid-arguments',
             'The replacement target and writing domain must match.',
@@ -516,10 +389,9 @@ export class AgentToolDispatcher {
         }
         if (
           scope.draftSnapshot === undefined ||
-          scope.draftSnapshot.documentId !== targetDocumentId ||
-          scope.draftSnapshot.baseRevision !== anchoredRevisions.baseRevision ||
-          contentRevision(scope.draftSnapshot.markdown) !==
-            anchoredRevisions.baseContentRevision
+          scope.draftSnapshot.documentId !== target!.documentId ||
+          scope.draftSnapshot.baseRevision !== target!.baseRevision ||
+          contentRevision(scope.draftSnapshot.markdown) !== target!.contentRevision
         ) {
           throw new ProjectContextError(
             'proposal-base-changed',
@@ -532,9 +404,10 @@ export class AgentToolDispatcher {
         documentDomain: request.arguments.documentDomain,
         objective: request.arguments.objective,
         requirements: request.arguments.requirements,
-        targetDocumentId: request.arguments.documentId,
+        targetDocumentPath: request.arguments.documentPath,
         targetLength: request.arguments.targetLength,
       };
+      const targetDocumentId = target?.documentId ?? null;
       const artifact = await scope.delegateWriting(assignment, targetDocumentId);
       const content = claimWritingArtifact(
         scope,
@@ -553,8 +426,8 @@ export class AgentToolDispatcher {
               markdown: content.markdown,
               metadataTitle: request.arguments.metadataTitle!,
               operation: 'create',
-              parentId: refs.resolve(request.arguments.parentId!, 'directory'),
-              projectRevision: resolvedProjectRevision!,
+              parentId: parent!.directoryId,
+              projectRevision: snapshot.projectRevision,
             }),
           );
           if (createdProposal.operation !== 'create') {
@@ -563,8 +436,9 @@ export class AgentToolDispatcher {
           proposal = createdProposal;
         } else {
           proposal = this.proposals.create(scope, {
-            ...anchoredRevisions!,
-            documentId: targetDocumentId!,
+            baseContentRevision: target!.contentRevision,
+            baseRevision: target!.baseRevision,
+            documentId: target!.documentId,
             markdown: content.markdown,
           });
         }
@@ -577,33 +451,20 @@ export class AgentToolDispatcher {
         proposal.proposalId,
       );
       scope.sendProposal(proposal);
-      return {
-        data: exposeDocumentWritingResult(refs, proposal, await decision),
-        ok: true,
-        toolName: request.toolName,
-      };
+      const result = exposeProposalResult(await decision);
+      this.bashSnapshots.delete(scope.requestId);
+      return { data: result, ok: true, toolName: request.toolName };
     }
     if (request.toolName === 'propose_document_edit') {
       if (this.proposals === undefined) {
         throw new ProjectContextError('internal-error');
       }
-      const documentId = refs.resolve(request.arguments.documentId, 'document');
-      const structure = await this.context.getNovelStructure(contextScope);
-      const documentNode = indexStructureNodes(structure).get(documentId);
-      if (documentNode === undefined) {
-        throw nodeNotFound(request.arguments.documentId);
-      }
-      if (documentNode.type !== 'document') {
-        throw nodeKindMismatch(request.arguments.documentId, 'document', documentNode);
-      }
-      const anchor = refs.requireDocumentContentAnchor(
-        documentId,
-        request.arguments.documentId,
-      );
+      const snapshot = requireBashSnapshot(this.bashSnapshots, scope.requestId);
+      const target = requireDocumentPath(snapshot, request.arguments.documentPath);
       const proposal = this.proposals.create(scope, {
-        baseContentRevision: anchor.contentRevision,
-        baseRevision: anchor.baseRevision,
-        documentId,
+        baseContentRevision: target.contentRevision,
+        baseRevision: target.baseRevision,
+        documentId: target.documentId,
         markdown: request.arguments.markdown,
       });
       if (scope.sendProposal === undefined) {
@@ -615,35 +476,33 @@ export class AgentToolDispatcher {
         proposal.proposalId,
       );
       scope.sendProposal(proposal);
-      return {
-        data: exposeProposalResult(await decision),
-        ok: true,
-        toolName: request.toolName,
-      };
+      const result = exposeProposalResult(await decision);
+      this.bashSnapshots.delete(scope.requestId);
+      return { data: result, ok: true, toolName: request.toolName };
     }
     if (request.toolName === 'propose_document_file_operation') {
       if (this.proposals === undefined) {
         throw new ProjectContextError('internal-error');
       }
+      const snapshot = requireBashSnapshot(this.bashSnapshots, scope.requestId);
       const resolvedRequest = ((): ResolvedDocumentFileOperationArguments => {
         if (request.arguments.operation === 'create') {
+          const parent = requireDirectoryPath(snapshot, request.arguments.parentPath);
           return {
             kind: request.arguments.kind,
             markdown: request.arguments.markdown,
             operation: request.arguments.operation,
-            parentId: refs.resolve(request.arguments.parentId, 'directory'),
-            projectRevision: refs.requireProjectRevision(),
+            parentId: parent.directoryId,
+            projectRevision: snapshot.projectRevision,
             metadataTitle: request.arguments.metadataTitle,
           };
         }
-        const documentId = refs.resolve(request.arguments.documentId, 'document');
+        const document = requireDocumentPath(snapshot, request.arguments.documentPath);
         return {
-          ...request.arguments,
-          baseRevision: refs
-            .requireDocumentAnchor(documentId, request.arguments.documentId)
-            .baseRevision,
-          documentId,
-          projectRevision: refs.requireProjectRevision(),
+          baseRevision: document.baseRevision,
+          documentId: document.documentId,
+          operation: 'delete',
+          projectRevision: snapshot.projectRevision,
         };
       })();
       const proposal = await this.buildProposal(
@@ -659,8 +518,10 @@ export class AgentToolDispatcher {
         proposal.proposalId,
       );
       scope.sendProposal(proposal);
+      const result = exposeProposalResult(await decision);
+      this.bashSnapshots.delete(scope.requestId);
       return {
-        data: exposeProposalResult(await decision),
+        data: result,
         ok: true,
         toolName: request.toolName,
       };
@@ -669,7 +530,8 @@ export class AgentToolDispatcher {
       if (this.proposals === undefined) {
         throw new ProjectContextError('internal-error');
       }
-      const operation = resolveStructureOperation(refs, request.arguments);
+      const snapshot = requireBashSnapshot(this.bashSnapshots, scope.requestId);
+      const operation = resolveStructureOperation(snapshot, request.arguments);
       const proposal = await this.buildProposal(
         scope,
         this.proposals.createStructureOperation(scope, operation),
@@ -683,8 +545,10 @@ export class AgentToolDispatcher {
         proposal.proposalId,
       );
       scope.sendProposal(proposal);
+      const result = exposeProposalResult(await decision);
+      this.bashSnapshots.delete(scope.requestId);
       return {
-        data: exposeProposalResult(await decision),
+        data: result,
         ok: true,
         toolName: request.toolName,
       };
@@ -693,11 +557,12 @@ export class AgentToolDispatcher {
       if (this.proposals === undefined) {
         throw new ProjectContextError('internal-error');
       }
+      const snapshot = requireBashSnapshot(this.bashSnapshots, scope.requestId);
       const proposal = this.proposals.createStoryOperation(
         scope,
         {
-          change: refs.resolveStoryOperation(request.arguments.change),
-          storyRevision: refs.requireStoryRevision(),
+          change: resolveStoryOperation(snapshot, request.arguments.change),
+          storyRevision: requireStoryRevision(snapshot),
         },
       );
       if (scope.sendProposal === undefined) {
@@ -709,8 +574,10 @@ export class AgentToolDispatcher {
         proposal.proposalId,
       );
       scope.sendProposal(proposal);
+      const result = exposeProposalResult(await decision);
+      this.bashSnapshots.delete(scope.requestId);
       return {
-        data: exposeProposalResult(await decision),
+        data: result,
         ok: true,
         toolName: request.toolName,
       };
@@ -720,62 +587,25 @@ export class AgentToolDispatcher {
 
   private buildReconciliationContext(
     requestId: string,
-    acceptedDocument: AgentDocumentToolResult,
+    acceptedDocument: AgentBashAcceptedDocument,
     story: ProjectStorySnapshot,
-  ): AgentAcceptedReconciliationContext {
+  ): void {
     const primaryTimeline = story.timelines.find(({ isPrimary }) => isPrimary) ?? null;
-    const personaIds = new Map<string, string>();
-    const personae = story.personae.map((persona, index) => {
-      const ref = `persona:${index + 1}`;
-      personaIds.set(ref, persona.id);
-      return {
-        name: persona.name,
-        ref,
-        role: persona.role,
-        summary: persona.summary,
-      };
-    });
-    const threadIds = new Map<string, string>();
-    const threadStatuses = new Map<
-      string,
-      import('../../shared/contracts/project-story').ThreadStatus
-    >();
+    const personaIds = new Map(story.personae.map(({ id }) => [id, id]));
+    const threadIds = new Map(story.threads.map(({ id }) => [id, id]));
+    const threadStatuses = new Map(
+      story.threads.map(({ id, status }) => [id, status]),
+    );
     const beatOrderKeys = new Map<string, number>();
-    const threads = story.threads.map((thread, index) => {
-      const ref = `thread:${index + 1}`;
-      threadIds.set(ref, thread.id);
-      threadStatuses.set(thread.id, thread.status);
-      const beats = story.beats
-        .filter(({ threadId }) => threadId === thread.id)
-        .sort((left, right) => left.orderKey - right.orderKey);
+    for (const thread of story.threads) {
       beatOrderKeys.set(
         thread.id,
-        beats.reduce((maximum, beat) => Math.max(maximum, beat.orderKey), -1),
+        story.beats
+          .filter(({ threadId }) => threadId === thread.id)
+          .reduce((maximum, beat) => Math.max(maximum, beat.orderKey), -1),
       );
-      return {
-        beats: beats.map((beat) => ({
-          description: beat.description,
-          kind: beat.kind,
-          status: beat.status,
-          title: beat.title,
-        })),
-        ref,
-        status: thread.status,
-        summary: thread.summary,
-        title: thread.title,
-      };
-    });
-    const momentById = new Map(story.moments.map((moment) => [moment.id, moment]));
-    const personaById = new Map(story.personae.map((persona) => [persona.id, persona]));
-    const participantsByEvent = new Map<string, string[]>();
-    for (const participant of story.eventParticipants) {
-      const name = personaById.get(participant.personaId)?.name;
-      if (name === undefined) continue;
-      const participants = participantsByEvent.get(participant.eventId) ?? [];
-      participants.push(name);
-      participantsByEvent.set(participant.eventId, participants);
     }
-    const registry: ReconciliationRegistry = {
+    this.reconciliationRegistries.set(requestId, {
       acceptedDocumentId: acceptedDocument.documentId,
       acceptedDocumentRevision: acceptedDocument.contentRevision,
       acceptedDocumentTitle: acceptedDocument.displayTitle,
@@ -794,43 +624,8 @@ export class AgentToolDispatcher {
       ),
       threadIds,
       threadStatuses,
-    };
-    this.reconciliationRegistries.set(requestId, registry);
-    return {
-      acceptedDocument: {
-        displayTitle: acceptedDocument.displayTitle,
-        markdown: acceptedDocument.markdown,
-        metadataTitle: acceptedDocument.metadataTitle,
-        ref: 'document:accepted',
-      },
-      chronicle: story.events.map((event) => ({
-        displayTime: momentById.get(event.startMomentId)?.displayTime ?? '',
-        participants: participantsByEvent.get(event.id) ?? [],
-        status: event.status,
-        summary: event.summary,
-        title: event.title,
-      })),
-      personae,
-      primaryTimeline: primaryTimeline === null
-        ? null
-        : {
-            ref: 'timeline:primary',
-            summary: primaryTimeline.summary,
-            title: primaryTimeline.title,
-          },
-      questions: story.questions
-        .filter(({ status }) => status === 'open')
-        .map((question) => ({
-          context: question.context,
-          kind: question.kind,
-          options: question.options,
-          question: question.question,
-        })),
-      storyRef: 'story:accepted',
-      threads,
-    };
+    });
   }
-
   disposeOwner(ownerId: number): void {
     this.proposals?.disposeOwner(ownerId);
   }
@@ -896,7 +691,7 @@ const buildAcceptedDocumentChanges = (
   ) {
     throw new ProjectContextError(
       'invalid-arguments',
-      'primaryTimeline is valid only when accepted_reconciliation has no primary timeline.',
+      'primaryTimeline is valid only when STORY.json has no primary timeline.',
     );
   }
   const newPersonaRefs = new Map<string, string>();
@@ -930,13 +725,13 @@ const buildAcceptedDocumentChanges = (
   }
   const event = input.events[0];
   const participants = event.participants.map((participant) => {
-    const personaId = participant.personaRef.startsWith('@')
-      ? newPersonaRefs.get(participant.personaRef.slice(1))
-      : registry.personaIds.get(participant.personaRef);
+    const personaId = participant.personaId.startsWith('@')
+      ? newPersonaRefs.get(participant.personaId.slice(1))
+      : registry.personaIds.get(participant.personaId);
     if (personaId === undefined) {
       throw new ProjectContextError(
         'invalid-arguments',
-        `Unknown reconciliation persona ref: ${participant.personaRef}`,
+        `Unknown reconciliation Persona ID: ${participant.personaId}`,
       );
     }
     return {
@@ -1010,11 +805,11 @@ const buildAcceptedDocumentChanges = (
   });
   const beatOrderKeys = new Map(registry.beatOrderKeys);
   input.threadAdvances.forEach((advance, index) => {
-    const threadId = registry.threadIds.get(advance.threadRef);
+    const threadId = registry.threadIds.get(advance.threadId);
     if (threadId === undefined) {
       throw new ProjectContextError(
         'invalid-arguments',
-        `Unknown reconciliation thread ref: ${advance.threadRef}`,
+        `Unknown reconciliation Thread ID: ${advance.threadId}`,
       );
     }
     const beatRef = `accepted_beat_${index + 1}`;
@@ -1044,22 +839,21 @@ const buildAcceptedDocumentChanges = (
 };
 
 const resolveStoryQuestionArguments = (
-  refs: AgentReferenceRegistry,
+  snapshot: AgentProjectBashExecution,
   scope: AgentToolScope,
   registry: ReconciliationRegistry | undefined,
   input: AgentToolContractMap['record_story_question']['arguments'],
 ): AgentCanonicalStoryQuestionArguments => {
   if (input.evidence === null) return { ...input, evidence: null };
-  const { anchor, documentId } = input.evidence;
-  if (documentId !== ACCEPTED_DOCUMENT_REFERENCE) {
-    const resolved = refs.resolve(documentId, 'document');
+  const { anchor, documentPath } = input.evidence;
+  if (documentPath !== ACCEPTED_DOCUMENT_PATH) {
+    const document = requireDocumentPath(snapshot, documentPath);
     return {
       ...input,
       evidence: {
         anchor,
-        documentId: resolved,
-        documentRevision: refs
-          .requireDocumentAnchor(resolved, documentId).baseRevision,
+        documentId: document.documentId,
+        documentRevision: document.baseRevision,
         sourceKind: 'manuscript',
       },
     };
@@ -1071,7 +865,7 @@ const resolveStoryQuestionArguments = (
   ) {
     throw new ProjectContextError(
       'invalid-arguments',
-      'Read accepted_reconciliation before using document:accepted evidence.',
+      'Run Bash after accepting the manuscript before citing ACCEPTED.md.',
     );
   }
   return {
@@ -1086,49 +880,177 @@ const resolveStoryQuestionArguments = (
 };
 
 const resolveStructureOperation = (
-  refs: AgentReferenceRegistry,
+  snapshot: AgentProjectBashExecution,
   operation: AgentProjectStructureOperationArguments,
 ): ResolvedProjectStructureOperationArguments => {
-  const projectRevision = refs.requireProjectRevision();
+  const projectRevision = snapshot.projectRevision;
   switch (operation.operation) {
     case 'create_volume':
-      return { ...operation, projectRevision };
     case 'create_lore_category':
-      refs.requireIconSuggestion(operation.icon);
       return { ...operation, projectRevision };
     case 'delete_lore_category':
       return {
-        ...operation,
-        directoryId: refs.resolve(operation.directoryId, 'directory'),
+        operation: operation.operation,
+        directoryId: requireDirectoryPath(snapshot, operation.directoryPath).directoryId,
         projectRevision,
       };
     case 'set_lore_category_icon':
-      refs.requireIconSuggestion(operation.icon);
       return {
-        ...operation,
-        directoryId: refs.resolve(operation.directoryId, 'directory'),
+        icon: operation.icon,
+        operation: operation.operation,
+        directoryId: requireDirectoryPath(snapshot, operation.directoryPath).directoryId,
         projectRevision,
       };
     case 'move_document': {
-      const documentId = refs.resolve(operation.documentId, 'document');
+      const document = requireDocumentPath(snapshot, operation.documentPath);
       return {
-        ...operation,
-        baseRevision: refs
-          .requireDocumentAnchor(documentId, operation.documentId).baseRevision,
-        documentId,
+        baseRevision: document.baseRevision,
+        documentId: document.documentId,
+        operation: operation.operation,
         projectRevision,
-        targetParentId: refs.resolve(operation.targetParentId, 'directory'),
+        targetParentId: requireDirectoryPath(
+          snapshot,
+          operation.targetParentPath,
+        ).directoryId,
       };
     }
     case 'rename_document':
       return {
-        ...operation,
-        documentId: refs.resolve(operation.documentId, 'document'),
+        documentId: requireDocumentPath(snapshot, operation.documentPath).documentId,
+        metadataTitle: operation.metadataTitle,
+        operation: operation.operation,
         projectRevision,
       };
   }
 };
 
+const requireBashSnapshot = (
+  snapshots: Map<string, AgentProjectBashExecution>,
+  requestId: string,
+): AgentProjectBashExecution => {
+  const snapshot = snapshots.get(requestId);
+  if (snapshot === undefined) {
+    throw new ProjectContextError(
+      'invalid-arguments',
+      'Run Bash in this request before proposing or applying a project change.',
+    );
+  }
+  return snapshot;
+};
+
+const requireDocumentPath = (
+  snapshot: AgentProjectBashExecution,
+  documentPath: string,
+) => {
+  const document = snapshot.documents.get(documentPath);
+  if (document === undefined) {
+    throw new ProjectContextError(
+      'node-not-found',
+      JSON.stringify({ documentPath }),
+    );
+  }
+  return document;
+};
+
+const requireDirectoryPath = (
+  snapshot: AgentProjectBashExecution,
+  directoryPath: string,
+) => {
+  const directory = snapshot.directories.get(directoryPath);
+  if (directory === undefined) {
+    throw new ProjectContextError(
+      'node-not-found',
+      JSON.stringify({ directoryPath }),
+    );
+  }
+  return directory;
+};
+
+const requireStoryRevision = (snapshot: AgentProjectBashExecution): number => {
+  if (snapshot.story === null) {
+    throw new ProjectContextError('internal-error');
+  }
+  return snapshot.story.revision;
+};
+
+const resolveStoryOperation = (
+  snapshot: AgentProjectBashExecution,
+  operation: AgentStoryOperationInput,
+): import('../../shared/contracts/project-story').ProjectStoryOperation => {
+  validateStoryOperationReferences(snapshot, operation);
+  if (operation.operation !== 'create_event' || operation.sources === undefined) {
+    return operation as import('../../shared/contracts/project-story').ProjectStoryOperation;
+  }
+  return {
+    ...operation,
+    sources: operation.sources.map(({ documentPath, ...source }) => {
+      const document = requireDocumentPath(snapshot, documentPath);
+      return {
+        ...source,
+        documentId: document.documentId,
+        documentRevision: document.baseRevision,
+      };
+    }),
+  };
+};
+
+const validateStoryOperationReferences = (
+  snapshot: AgentProjectBashExecution,
+  operation: AgentStoryOperationInput,
+): void => {
+  const story = snapshot.story;
+  if (story === null) throw new ProjectContextError('internal-error');
+  const timelines = new Set(story.timelines.map(({ id }) => id));
+  const moments = new Set(story.moments.map(({ id }) => id));
+  const personae = new Set(story.personae.map(({ id }) => id));
+  const threads = new Set(story.threads.map(({ id }) => id));
+  const beats = new Set(story.beats.map(({ id }) => id));
+  const events = new Set(story.events.map(({ id }) => id));
+  switch (operation.operation) {
+    case 'create_persona':
+    case 'create_timeline':
+      return;
+    case 'create_moment':
+      requireStoryId(timelines, operation.timelineId, 'timeline');
+      return;
+    case 'create_event':
+      requireStoryId(timelines, operation.timelineId, 'timeline');
+      requireStoryId(moments, operation.startMomentId, 'moment');
+      if (operation.endMomentId !== null) {
+        requireStoryId(moments, operation.endMomentId, 'moment');
+      }
+      for (const participant of operation.participants) {
+        requireStoryId(personae, participant.personaId, 'persona');
+      }
+      return;
+    case 'create_thread':
+      if (operation.parentId !== null) {
+        requireStoryId(threads, operation.parentId, 'thread');
+      }
+      return;
+    case 'create_beat':
+      requireStoryId(threads, operation.threadId, 'thread');
+      if (operation.parentId !== null) {
+        requireStoryId(beats, operation.parentId, 'beat');
+      }
+      return;
+    case 'link_beat_event':
+      requireStoryId(beats, operation.beatId, 'beat');
+      requireStoryId(events, operation.eventId, 'event');
+  }
+};
+
+const requireStoryId = (
+  knownIds: Set<string>,
+  id: string,
+  kind: string,
+): void => {
+  if (id.startsWith('@') || knownIds.has(id)) return;
+  throw new ProjectContextError(
+    'invalid-arguments',
+    `Unknown ${kind} ID in the latest Bash snapshot: ${id}`,
+  );
+};
 class ToolTimeoutError extends Error {}
 
 const exposeProposalResult = (
@@ -1136,23 +1058,6 @@ const exposeProposalResult = (
 ): AgentToolContractMap['propose_document_edit']['result'] => ({
   status: decision.status,
 });
-
-const exposeDocumentWritingResult = (
-  refs: AgentReferenceRegistry,
-  proposal: AgentCreateDocumentProposal | AgentEditProposal,
-  decision: AgentProposalDecision,
-): AgentToolContractMap['propose_document_writing']['result'] => {
-  if (decision.status !== 'accepted') return { status: decision.status };
-  const persistedRevision = contentRevision(proposal.markdown);
-  refs.anchorDocument(proposal.documentId, {
-    baseRevision: persistedRevision,
-    contentRevision: persistedRevision,
-  });
-  return {
-    documentId: refs.expose('document', proposal.documentId),
-    status: 'accepted',
-  };
-};
 
 const claimWritingArtifact = (
   scope: AgentToolScope,
@@ -1184,43 +1089,13 @@ const claimWritingArtifact = (
   };
 };
 
-const indexStructureNodes = (
-  structure: AgentNovelStructureToolResult,
-): Map<string, AgentStructureNode> => {
-  const nodes = new Map<string, AgentStructureNode>();
-  const visit = (node: AgentStructureNode): void => {
-    nodes.set(node.id, node);
-    if (node.type === 'directory') node.children.forEach(visit);
-  };
-  visit(structure.manuscript);
-  if (structure.lore !== undefined) visit(structure.lore);
-  return nodes;
-};
 
 const documentDomainForKind = (
-  kind: import('../../shared/contracts/agent-tools').AgentStructureDocument['kind'],
+  kind: import('../../shared/contracts/project-layout').ManuscriptDocumentKind | 'entry',
 ): AgentDocumentDomain => kind === 'entry' ? 'lore' : 'manuscript';
 
 const documentDomainForDirectoryKind = (
-  kind: import('../../shared/contracts/agent-tools').AgentStructureDirectory['kind'],
+  kind: 'category' | 'lore' | 'manuscript' | 'volume',
 ): AgentDocumentDomain => kind === 'lore' || kind === 'category'
   ? 'lore'
   : 'manuscript';
-
-const nodeNotFound = (nodeId: string): ProjectContextError =>
-  new ProjectContextError('node-not-found', JSON.stringify({ nodeId }));
-
-const nodeKindMismatch = (
-  nodeId: string,
-  expectedKind: 'directory' | 'document',
-  node: AgentStructureNode,
-): ProjectContextError =>
-  new ProjectContextError(
-    'node-kind-mismatch',
-    JSON.stringify({
-      actualKind: node.type,
-      expectedKind,
-      nodeId,
-      title: node.type === 'document' ? node.displayTitle : node.title,
-    }),
-  );

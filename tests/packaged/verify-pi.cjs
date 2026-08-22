@@ -62,13 +62,18 @@ assert.match(
 );
 assert.match(
   workerBundle,
-  /metadataTitle.*displayTitle|displayTitle.*metadataTitle/,
-  'The packaged Pi worker does not distinguish metadata and display titles.',
+  /documentPath/,
+  'The packaged Pi worker is missing path-based document operations.',
 );
 assert.match(
   workerBundle,
-  /read_novel_context/,
-  'The packaged Pi worker is missing the unified novel-context read tool.',
+  /parentPath/,
+  'The packaged Pi worker is missing path-based document destinations.',
+);
+assert.match(
+  workerBundle,
+  /Inspect the current novel with Bash/,
+  'The packaged Pi worker is missing the disposable project-inspection tool.',
 );
 assert.match(
   workerBundle,
@@ -114,6 +119,26 @@ assert.doesNotMatch(
   workerBundle,
   /baseContentRevision|baseRevision|projectRevision|storyRevision/,
   'The packaged Pi worker still asks the model for concurrency revisions Main anchors itself.',
+);
+
+const mainBundle = asar.extractFile(
+  asarPath,
+  path.normalize('.vite/build/main.js'),
+).toString('utf8');
+assert.match(
+  mainBundle,
+  /executionLimitProfile:[`"]hardened[`"]/,
+  'The packaged Main bundle is missing hardened just-bash execution.',
+);
+assert.match(
+  mainBundle,
+  /\/project\/PROJECT\.json/,
+  'The packaged Main bundle is missing the virtual project snapshot.',
+);
+assert.match(
+  mainBundle,
+  /javascript:!1,python:!1/,
+  'The packaged Main bundle enables an unexpected just-bash runtime.',
 );
 
 const electronPath = require('electron');

@@ -6,7 +6,7 @@ import { buildAgentSystemPrompt } from '../../../../src/main/ai/prompts/prompt-b
 describe('Agent prompt registry', () => {
   it('requires Scribe to submit only a machine-delimited manuscript artifact', () => {
     const built = buildAgentSystemPrompt({
-      availableTools: ['read_novel_context', 'submit_writing_artifact'],
+      availableTools: ['bash', 'submit_writing_artifact'],
       responseLanguage: 'zh-CN',
       role: 'scribe',
     });
@@ -24,7 +24,8 @@ describe('Agent prompt registry', () => {
     expect(built.profileId).toBe(role);
     expect(built.version).toBeGreaterThan(0);
     expect(built.prompt).toContain('Never claim that content');
-    expect(built.prompt).toContain('no shell');
+    expect(built.prompt).toContain('earlier turns is not evidence');
+    expect(built.prompt).toContain('no unrestricted filesystem');
     expect(built.prompt).toContain(`Role profile: ${role}`);
   });
 
@@ -35,35 +36,32 @@ describe('Agent prompt registry', () => {
         operation: 'create_volume',
         proposalId: 'proposal-1',
         status: 'accepted',
+        targetTitle: 'Volume Two',
       }],
       responseLanguage: 'en',
       role: 'curator',
     });
     expect(built.prompt).toContain('Trusted application proposal outcomes');
     expect(built.prompt).toContain('"status":"accepted"');
+    expect(built.prompt).toContain('"targetTitle":"Volume Two"');
     expect(built.prompt).not.toContain('proposal-1');
     expect(built.prompt).toContain('do not continue claiming');
   });
 
   it('adds cross-tool policy without duplicating registered tool descriptions', () => {
     const built = buildAgentSystemPrompt({
-      availableTools: ['read_novel_context'],
+      availableTools: ['bash'],
       responseLanguage: 'en',
       role: 'curator',
     });
     expect(built.prompt).toContain('native application tools');
-    expect(built.prompt).toContain('Request-scoped refs are leases issued in this run');
-    expect(built.prompt).toContain('expired-request-reference');
-    expect(built.prompt).toContain('batch already-known needs');
-    expect(built.prompt).toContain('current_document is the immutable request-start draft');
-    expect(built.prompt).toContain('2 to 6 concrete English visual keywords');
+    expect(built.prompt).toContain('PROJECT.json');
+    expect(built.prompt).toContain('STORY.json');
+    expect(built.prompt).toContain('ICONS.txt');
+    expect(built.prompt).toContain('exact project-relative paths');
     expect(built.prompt).not.toContain('Prefer one reconcile_accepted_document call');
     expect(built.prompt).not.toContain('propose_document_file_operation');
     expect(built.prompt).not.toContain('One Scribe delegation is available');
-    expect(built.prompt).not.toContain('get_current_document:');
-    expect(built.prompt).not.toContain('get_novel_structure:');
-    expect(built.prompt).not.toContain('get_document:');
-    expect(built.prompt).not.toContain('read_novel_context:');
     expect(built.prompt).not.toContain('No application tools are available');
   });
 
@@ -75,22 +73,19 @@ describe('Agent prompt registry', () => {
     });
     expect(built.prompt).toContain('atomic Scribe-backed document proposal');
     expect(built.prompt).toContain('requested Manuscript or Lore prose');
-    expect(built.prompt).toContain('immutable create-or-replace target plan');
-    expect(built.prompt).toContain('does not expose a reusable assignment reference');
+    expect(built.prompt).toContain('immutable create-or-replace target path');
     expect(built.prompt).toContain('Never substitute replace after a failed create');
     expect(built.prompt).toContain('authoritative application confirmation');
     expect(built.prompt).toContain('never ask the user to verify it in the interface or accept it again');
-    expect(built.prompt).toContain('omitted Markdown is deliberately hidden');
-    expect(built.prompt).toContain('never merely to confirm persistence');
     expect(built.prompt).toContain('Do not hide all operational narration');
     expect(built.prompt).toContain('do not expose native tool names');
     expect(built.prompt).toContain('Never say that accepted content may be missing');
-    expect(built.prompt).toContain('report the reason concisely');
+    expect(built.prompt).toContain('Report the validation reason concisely');
     expect(built.prompt).not.toContain('revise_writing_artifact');
     expect(built.prompt).toContain('Never supply, echo, or invent concurrency revisions');
     expect(built.prompt).not.toContain('documentId null');
     expect(built.prompt).not.toContain('documents read for continuity');
-    expect(built.version).toBe(44);
+    expect(built.version).toBe(46);
   });
 
   it('places raw user instructions at the very beginning', () => {

@@ -29,9 +29,9 @@ New projects do not create `_index.yaml`, `conversations.sqlite`, or
   and last-opened-project state remain under Electron `userData`.
 - Paths, filenames, generated labels, and array positions are not identities.
 
-Renderer and Agent workers never open the database or construct project paths.
-They use serializable stable IDs or request-scoped references through narrow
-Main-owned operations.
+Renderer and Agent workers never open the database. Agents inspect a disposable
+Main-generated project tree with project-relative paths, while Main resolves
+those paths and stable story IDs through narrow operations.
 
 ## Project recognition
 

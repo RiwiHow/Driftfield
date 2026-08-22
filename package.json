@@ -31,6 +31,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "i18next": "^26.3.6",
+    "just-bash": "^3.3.0",
     "lucide-react": "^1.28.0",
     "mdast-util-from-markdown": "^2.0.3",
     "radix-ui": "^1.6.7",

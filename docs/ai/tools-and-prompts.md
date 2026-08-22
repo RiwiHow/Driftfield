@@ -1,509 +1,156 @@
 # Agent Tools and Prompts
 
-Agents receive novel data only through bounded, application-owned domain tools.
-Main-process services and repositories remain authoritative for files, metadata,
-future databases, permissions, and persistence.
+Agents receive project context through a disposable, Main-owned virtual
+filesystem and mutate projects only through narrow typed domain tools. Main
+remains authoritative for files, catalog metadata, story records, revisions,
+approvals, and persistence.
 
-The composition, context-budget, compact-receipt, and durable reconciliation
-rules for these tools are defined in
-[Domain Workflows and Context](domain-workflows-and-context.md).
+See [Domain Workflows and Context](domain-workflows-and-context.md),
+[Pi Worker Integration](pi-worker.md), and the
+[Reliability Baseline](../reliability.md).
 
-## Current read-only tool
+## Bash project snapshot
 
-The Agent data surface contains one bounded `read_novel_context` tool. One call
-may request any combination of the fixed `structure`, `current_document`,
-`story_state`, and `accepted_reconciliation` sections, persisted documents by
-request-scoped ref, directories by request-scoped ref, and one bounded Lucide
-icon search using concrete English visual keywords.
-`accepted_reconciliation` is available
-only after an accepted Scribe-backed manuscript proposal. It returns the exact
-persisted accepted document and a compact semantic view of Personae, Chronicle,
-Threads, and open questions. Existing entities use request-scoped refs such as
-`persona:1`, `thread:1`, and `timeline:primary`; persistent UUIDs and revisions
-remain Main-owned. A directory selection expands only its immediate document children,
-never nested directories. Explicit and expanded documents are deduplicated in
-request order and limited to four total results. Main validates every requested
-node against the current structure before reading and returns only path-free
-application-owned data. Missing nodes, document/directory kind mismatches, and
-oversized selections return distinct bounded typed errors. Every ordinary
-context result replaces persistent project, directory, document, story-entity,
-question, and source IDs plus SHA-256 content revisions with short refs such as
-`directory:3`, `document:2`, and `revision:1`. Main owns the per-request reverse
-mapping, reuses refs across repeated reads, resolves them before privileged
-operations, and releases them with request state. The model-facing surface does
-not emit persistent UUIDs or content hashes. Model-facing parameter schemas and
-shared runtime validators accept only the expected short-ref kind; a raw UUID,
-content hash, wrong-kind ref, or well-formed ref not issued by the active request
-fails closed instead of becoming authority. Issued numeric suffixes are capped
-at five digits, consistent with the bounded structure and story projections;
-call-local `@clientRef` aliases are capped at 32 characters.
-When `current_document` is requested without a request-start editor document,
-the section is returned as `null`; this is a successful absence and must not be
-retried.
-Refs are acquired lazily rather than injected into every conversation. A request
-that needs structure or story refs first reads only the relevant context with
-empty document and directory selectors, then reuses the returned refs for the
-rest of that request. Ref-like strings copied from user text or replayed
-conversation history are never authority. Main returns
-`expired-request-reference` when a well-formed ref was not issued by the active
-request, includes a bounded recovery hint, and refunds at most one such failure
-from the ordinary call budget so the Agent can reacquire minimal context once.
-Every document result separates its raw `metadataTitle` from its formatted
-`displayTitle`. Numbering and label templates affect only `displayTitle`; Agents
-use `metadataTitle` for creation and title changes and never copy generated
-numbering back into metadata.
-Concurrency revisions are never part of the model-facing surface. Reads do not
-expose a document's disk or content revision, a directory node's revision, or
-the project revision, and no mutation tool accepts them. Main records the exact
-revisions it served for each issued ref in the same request-scoped registry and
-anchors every later mutation to them, so a mutation is only possible for context
-the Agent actually read in this request, and a concurrent user edit still fails
-the ordinary revision check. The numeric story revision remains visible because
-it describes canonical story state rather than a value the Agent must echo.
-The current-document section is the immutable request-start editor draft,
-including unsaved edits; explicit document refs deliberately read persisted
-content. The story-state section contains Personae, Chronicle, Threads, open
-questions, and the numeric story revision. Empty requests and duplicate IDs
-within either selector are rejected. Agents batch already-known requirements
-but use a later call when an earlier structure result is needed to discover
-request-scoped refs.
+`bash` is the only model-facing read surface. Each call creates a fresh
+in-memory `/project` filesystem using `just-bash`. It is not the host shell and
+does not mount the opened novel directory.
 
-The bounded direct-maintenance surface contains:
+The snapshot contains:
 
-- `maintain_story_records`, which applies one ordered changeset of 1 to 24
-  typed additive or linking changes
-  to Personae, Chronicle, or Threads within the user's explicit request or
-  when unambiguously evidenced by accepted persisted prose. It
-  requires request-scoped refs and is anchored to the story revision Main last
-  served this request. Main
-  validates and
-  applies the changeset transactionally, records each item in the project
-  ledger, and returns the new revision. Ordered create operations may declare a
-  bounded `clientRef`; later operations in the same changeset refer to the
-  Main-generated entity as `@clientRef`. Main validates reference order and
-  entity kind and resolves references inside the transaction. Its concise
-  result contains only `status`, `revision`, and `appliedCount`; audit and
-  generated entity IDs remain Main-owned. It does not expose SQL and cannot
-  delete, merge, reorder, or edit Manuscript/Lore documents.
-- `reconcile_accepted_document`, which consumes only refs returned by the
-  current request's `accepted_reconciliation` read. It accepts one depicted
-  Chronicle event, clearly established new Personae, optional new Threads with
-  their first linked beat, and zero or more advances to existing Threads. New
-  Personae use call-local refs so the same event can link them without a second
-  read. When the project has no primary timeline, Main creates one in the same
-  transaction using an optional semantic title supplied by the Agent or a
-  neutral fallback. Main resolves the accepted document source and revision,
-  story revision, Persona and Thread UUIDs, moment, Thread and beat order keys,
-  generated IDs, and event-to-beat links, then applies the complete graph
-  through the same atomic Maintain transaction. A successful focused call also
-  closes the reconciliation checkpoint. Missing, stale, cross-request, or
-  wrong-kind refs fail closed. Low-level Maintain remains available for clear
-  shapes outside this focused path.
-- `complete_story_reconciliation`, which closes the Main-owned durable
-  reconciliation job after an accepted Scribe-backed Manuscript proposal when the
-  focused reconciliation tool did not already close it. Main requires
-  post-acceptance reads of both the persisted document and story state, and
-  validates that `applied` or
-  `questions_recorded` matches successful tool activity. `no_changes` is valid
-  only when no canonical mutation or question was recorded. The checkpoint does
-  not itself write story data.
-- `record_story_question`, which records a deduplicated unresolved ambiguity
-  without changing canonical story records or their revision. Questions carry
-  a bounded kind, author-facing wording, optional answer choices, request
-  identity, and optional exact manuscript evidence. In accepted-document
-  reconciliation, the `document:accepted` ref lets Main supply the persisted
-  document ID and revision without exposing either to the model.
-- `resolve_story_question`, which closes an open question only after an
-  explicit user answer. Resolution does not itself mutate canonical story
-  records; any resulting clear additive/linking fact is a separate Maintain
-  operation with its own audit entry.
+- registered Manuscript and Lore Markdown at their project-relative paths;
+- `PROJECT.json`, a path-based project tree and presentation summary;
+- `STORY.json`, the current Personae, Chronicle, Threads, and questions;
+- `ICONS.txt`, the complete bundled Lucide icon-name catalog;
+- `ACCEPTED.md` and `ACCEPTED.json` while an accepted Manuscript reconciliation
+  is pending.
 
-The bounded collaboration surface contains `propose_document_writing`, the
-Curator's single Scribe-backed document operation. It binds the semantic
-assignment and reviewed mutation target before generation begins:
+Main overlays the immutable request-start editor draft over its persisted file
+inside the snapshot. The model may inspect the snapshot with commands such as
+`find`, `rg`, `cat`, `sed`, `jq`, and `wc`. Writes affect only that one
+in-memory call and are discarded immediately.
 
-- `create` requires the exact request-scoped parent directory ref, document
-  kind, raw metadata title, and a null document target;
-- `replace` requires the exact request-start document ref and has no create
-  destination;
-- both actions carry the domain, bounded objective and requirements, and
-  optional target length.
+The virtual shell has no host filesystem, `.driftfield`, database, credentials,
+network, Node.js, JavaScript, Python, or persistent write access. Main applies
+filesystem-size, source-size, command-count, loop, traversal, execution-time,
+and output limits. The Renderer never receives filesystem authority.
 
-Main resolves and validates this entire plan before starting Scribe. A
-preceding chapter read for continuity is context for a new chapter, never its
-replacement target. Main owns the child identity, parentage, cancellation,
-timeout, and artifact-size limit. Scribe receives only the read-only novel
-tools plus the terminal `submit_writing_artifact` tool. Only Markdown submitted
-through that tool becomes the draft; ordinary assistant text is discarded.
-Scribe cannot delegate, propose, maintain story state, or persist content.
+`PROJECT.json` and Markdown use exact project-relative paths. `STORY.json`
+contains stable story entity IDs. No revision tokens are exposed. Main retains
+a private snapshot map from paths and story IDs to internal identities and the
+revisions represented by that Bash call.
 
-After artifact validation, Main constructs exactly the already-bound create or
-replace proposal and Renderer shows the complete Markdown for review. Curator
-does not receive a reusable assignment ref and cannot redirect the artifact in
-a later call. Delegation identity and artifact claims are Main-owned internal
-state; the retired `delegate_writing` and `revise_writing_artifact` names remain
-audit-only so historical conversations can still be rendered.
+## Mutation authority
 
-Proposal UUIDs remain Main-owned correlation state and never enter a
-model-facing Tool result. Ordinary proposal operations return only their
-terminal status. An accepted `propose_document_writing` call additionally
-returns a request-scoped `documentId` ref for an optional in-scope follow-up,
-and Main anchors the persisted revision to that ref rather than returning it.
-That compact receipt is authoritative confirmation that the
-exact reviewed artifact was persisted; it deliberately does not echo the full
-Markdown. Curator must not interpret the omitted body as uncertainty, ask the
-user to verify or accept it again, or reread it merely to confirm persistence.
+Every document, structure, or story mutation requires a successful Bash call
+in the same Agent request. Model-facing mutation arguments use:
 
-Acceptance of a Scribe-backed Manuscript proposal creates or ensures one
-durable `story_reconciliation_jobs` row bound to the accepted document and its
-exact content revision. The normal Curator run completes it; a later run
-restores any pending job after interruption. Proposal-to-artifact linkage lets
-recovery roll forward the narrow window where the document proposal was saved
-before the Agent observed its result, but only when the observed document hash
-matches the retained artifact. Lore acceptance never creates this job.
-Main blocks a new Scribe assignment until any restored pending job is settled,
-so later Lore or Manuscript work cannot hide an older checkpoint.
+- exact `manuscript/...` or `lore/...` paths for documents and directories;
+- stable IDs from the latest `STORY.json` for existing story entities;
+- bounded `@clientRef` aliases only for dependencies created earlier in the
+  same atomic story changeset;
+- exact icon names listed in `ICONS.txt`.
 
-The provider-facing Maintain schema keeps Chronicle event lifecycle and Thread
-lifecycle distinct: `create_event` uses `eventStatus` (`planned` or
-`established`), while `create_thread` and `create_beat` use `threadStatus`
-(`planned`, `active`, `resolved`, or `abandoned`). The worker normalizes these
-wire fields to the canonical repository `status` field before Main performs its
-strict operation-shape validation. This avoids advertising a status value for
-an operation that Main would reject. Invalid story shapes return a bounded
-operation-specific hint rather than only an opaque error code.
-Invalid Maintain batches report the exact failing array index and field using
-the provider-facing wire name, such as `changes[2].eventStatus`, rather than
-describing the first operation regardless of where validation failed.
+Main resolves these values only through the latest private Bash snapshot,
+anchors the project, document, content, and story revisions that snapshot
+represented, and performs the ordinary revision check during apply. A path or
+ID copied from conversation history is not sufficient authority. A mutation
+invalidates the snapshot, so dependent work must inspect a fresh snapshot.
 
-The reviewed mutation surface additionally contains:
+Paths must remain below the fixed lowercase `manuscript` or `lore` roots.
+Absolute paths, backtracking segments, unregistered files, and wrong-kind
+targets fail closed. Stable story IDs are checked against the latest snapshot
+before Main calls repositories.
 
-- `propose_document_edit`, which accepts direct replacement Markdown for the
-  request-start current-document snapshot. Main binds it to the disk base
-  revision and draft content revision it anchored when serving that snapshot, so
-  a document the request never read cannot be edited. Generated replacement
-  prose uses the atomic `propose_document_writing` path;
-- `propose_document_file_operation`, which proposes either creating a Markdown
-  document under a request-scoped directory ref or deleting a document by ref.
-  Direct creation carries a raw `metadataTitle`, domain kind, and supplied
-  Markdown. Generated creation uses `propose_document_writing`. Main binds both
-  actions to the anchored project revision, and deletion additionally to the
-  anchored document revision.
-- `propose_project_structure_operation`, which proposes creating a manuscript
-  volume, creating an icon-bearing lore category, changing an existing lore
-  category icon without changing its stable identity, deleting an empty lore
-  category, moving a document between compatible request-scoped directory refs, or
-  changing a document's metadata title without renaming its physical file.
-  `read_novel_context.structure` returns each directory's selected icon. Its
-  optional icon search ranks the complete bundled Lucide catalog by exact,
-  token, prefix, and substring matches and returns at most twelve names.
-  Category creation accepts an exact returned kebab-case name; Main validates
-  it against that exact catalog.
-  Volume and Lore-category creation implicitly target their corresponding root;
-  their calls do not accept a parent or directory ref. Refine reports exact
-  missing and unexpected fields so the Agent can correct one invalid call
-  without guessing operation-specific shapes.
-  Icon changes require both the current-request category ref and an icon issued
-  by a search in that same request. They update only the catalog metadata and
-  preserve the physical directory, stable ID, ordering, and children.
-  The catalog is not copied into every structure result or provider schema,
-  avoiding thousands of repeated model-context tokens. Category deletion is
-  rejected until every contained document has
-  been separately reviewed and deleted. Main binds these operations to the
-  anchored project revision, and a move additionally to the anchored document
-  revision; manuscript documents cannot be moved into lore or vice versa.
-- `propose_story_operation`, the reviewed protocol for additive or linking
-  story mutations when the user explicitly requests review before application.
-  Routine reconciliation of clear facts from accepted generated prose uses
-  bounded Maintain instead and does not interrupt the user. Main applies an
-  accepted set atomically and
-  rebases its individual ledger entries inside that transaction. Chronicle
-  events may carry validated manuscript source identity, relation, and a bounded
-  evidence anchor; Main supplies the source revision from the anchored document
-  ref.
+## Story tools
 
-Calling a reviewed mutation tool stores a reviewable proposal; it does not
-write the novel. Main generates created document and directory IDs, owns
-physical names and index updates, and the Agent never constructs or receives
-metadata paths.
-Story proposals are recorded as pending operations in `project.sqlite` while
-the conversation database retains the bounded audit projection needed by the
-chat UI. Acceptance applies the canonical rows, increments the story revision,
-and marks that same operation applied in one database transaction. Rejection,
-conflict, cancellation, and failure settle it without changing canonical story
-state.
+`maintain_story_records` applies one ordered transaction of 1 to 24 low-risk
+additive or linking changes to Personae, Chronicle, or Threads. It requires a
+fresh `STORY.json` inspection. Main validates reference kinds and ordering,
+applies all or none, records the mutation ledger, and returns a compact status,
+revision, and count. It cannot delete, merge, reorder, edit prose, or run SQL.
 
-A successful Maintain call writes canonical story rows immediately. The
-canonical change, revision increment, and applied `story_operations` row share
-one transaction. Each ledger row carries the originating Agent request ID, so a
-multi-step run remains auditable even though it does not interrupt the user for
-each additive step. Renderer receives a bounded `story-changed` notification
-and refreshes its story snapshot. Maintain applies one atomic changeset per
-tool call: all items share the original base revision and resulting revision,
-and any item failure rolls the entire set back. Dependencies between items use
-ordered `clientRef` references within that changeset. Concurrent reviewed story
-proposals from the same request and base
-revision are grouped in the UI and applied atomically with one decision.
-User-facing undo is not yet implemented.
+`record_story_question` records a deduplicated unresolved ambiguity with
+optional manuscript evidence resolved from a project path. It does not change
+canonical story records.
 
-Story reconciliation follows a risk split rather than universal approval:
-clear, low-risk, additive or linking facts from accepted persisted prose are
-maintained automatically; possible aliases, uncertain time, unclear
-relationships, contradictions, and other author judgments become open story
-questions and never enter canonical records; destructive or high-impact story
-mutations remain unavailable until a dedicated reviewed operation exists. The
-Agent raises newly recorded questions concisely in its response and avoids
-duplicating questions already returned by `read_novel_context.storyState`.
+`resolve_story_question` accepts only an open question ID present in the latest
+`STORY.json`, plus the user's explicit answer.
 
-Before finishing reconciliation, Curator explicitly checks Personae, Chronicle,
-Threads, and open questions in turn. Thread reconciliation first tests whether
-accepted prose advances, turns, reveals, resolves, or abandons an existing plot
-line, then creates and links a beat when that relationship is clear. A new
-Thread requires evidence of a continuing goal, conflict, dramatic question,
-suspense, or relationship progression. A chapter, scene, or isolated Chronicle
-event does not by itself justify a Thread, and Thread records must not merely
-duplicate Chronicle or invent dramatic purpose to achieve category coverage.
+`propose_story_operation` submits a higher-impact story change for review. It
+uses the same Bash snapshot anchoring and Main-owned apply path.
 
-Routine synchronization keeps concise progress narration, tool activity, and
-failures visible so the user can inspect whether the application workflow is
-behaving correctly. The final response summarizes canonical changes and any
-material unresolved questions. Intentionally unnamed characters and omitted
-background facts do not become questions unless resolving them materially
-affects canonical records.
+## Accepted Manuscript reconciliation
 
-The worker retains the final provider stop reason. A completed but unclaimed
-Scribe artifact is a protocol error and receives one corrective continuation
-that must submit the artifact through a reviewed proposal. A `length` response and a
-response that prints known tool-call markup as ordinary text receive one
-application-owned concise corrective continuation. If the retry is still
-truncated, contains pseudo tool markup, or leaves a required reconciliation
-checkpoint open, the request terminates with a typed incomplete error rather
-than `completed`. Main independently refuses completion while the checkpoint is
-open; pseudo tool text is never parsed or executed.
+Accepting a Scribe-backed Manuscript proposal creates or restores a durable
+reconciliation job bound to the exact persisted document revision. Lore
+acceptance does not create this job.
 
-A mutation tool call remains pending after the proposal is shown. Accepting or
-rejecting the proposal settles that exact tool call with a typed terminal result,
-then the worker resumes the same Agent run from that result. Approval does not
-create a second request, insert a synthetic user message, or authorize work
-beyond the user's original scope. For example, accepting a proposal that writes
-chapter one does not by itself authorize writing chapter two. One run may submit
-multiple sequential proposals when the original request requires them; every
-proposal and decision remains ordered in the assistant message audit timeline.
+During reconciliation, Bash exposes the persisted accepted prose as
+`ACCEPTED.md`, its presentation metadata as `ACCEPTED.json`, and current story
+records as `STORY.json`. Main rejects completion until the Agent has issued
+Bash commands that explicitly address both accepted-document and story files.
 
-Main validates typed arguments, resolves request-scoped refs through the active project
-session, rechecks document containment and regular-file status, and enforces
-per-request call, timeout, individual-result, and cumulative-result budgets.
-Results do not expose physical project paths or raw YAML.
-Maintain execution, proposal construction, and validation remain time-bounded,
-while the subsequent human review wait is intentionally excluded from the
-ordinary tool timeout. A timed-out build still finishes in the background, so
-Main abandons that request's late proposal instead of leaving it pending with no
-decision waiter. An exhausted call or result budget returns a bounded exit
-instruction telling the model to answer with what it already has, so budget
-enforcement cannot become a silent retry loop.
-Only `read_novel_context` may run in parallel. Artifact submission, maintenance,
-question resolution, reconciliation, and every proposal run sequentially so
-dependent refs, revisions, approvals, and mutation ordering cannot race. A
-mutation reserves room for its compact terminal receipt before side effects;
-result-budget enforcement never hides a mutation that already happened.
-Accepted generated-writing receipts contain only `status` and a short document
-ref. Internal proposal UUIDs and raw SHA-256 revisions remain behind Main's
-request-scoped reference registry.
-Typed Main failures make the worker's native Tool execution reject, so Pi and
-the provider receive an error ToolResult rather than successful text that merely
-contains `{ "ok": false }`.
-`read_novel_context.structure` exposes the optional knowledge root as `lore` with
-directory kind `lore`, matching the project format and application domain. Its
-path-free result includes selected directory icons; it never exposes YAML or
-physical metadata paths. The structure-operation schema identifies Lucide as
-the icon namespace while the optional icon search returns at most twelve exact
-candidate names and Main validates the selected name against the complete
-bundled catalog.
+`reconcile_accepted_document` is the focused atomic path. It accepts one
+depicted event, clearly established new Personae, optional new Threads and
+beats, and advances to existing Threads. Main owns source binding, the exact
+accepted revision, timeline fallback, ordering, generated IDs, and links. A
+successful call closes the durable checkpoint.
 
-The worker emits bounded Tool activity events around the Driftfield-owned tool
-bridge. Main annotates those events with the executing Agent role before they
-enter the conversation audit, so Renderer can distinguish delegated Scribe
-calls without inferring ownership from tool names or timeline position.
-Renderer shows the current call and its completion result in collapsible rows.
-Serialized activity is capped at 8 KiB per payload, and Markdown bodies are
-represented by byte counts instead of being duplicated into the activity log.
+`complete_story_reconciliation` closes the checkpoint after non-focused
+maintenance, recorded questions, or a verified no-change result. Main verifies
+that the declared status matches successful activity in the current request.
 
-`AgentToolContractMap` is the shared compile-time mapping from each tool name to
-its arguments and result. Request and result unions are derived from that map so
-a tool cannot be paired with another tool's payload. Runtime validators enforce
-the same correlation at the utility-process boundary. The worker derives the
-enabled Pi tool-name list from the actual `defineTool()` collection instead of
-maintaining separate prompt and session arrays.
+## Writing and reviewed project changes
 
-Agent requests capture a size-bounded immutable editor draft with its stable
-document ID and disk base revision. The `current_document` section returns that
-snapshot, while `documentIds` deliberately read persisted content.
+`propose_document_writing` binds a create or replace target before Scribe runs.
+Create operations supply a parent path, document kind, metadata title, domain,
+objective, requirements, and optional length. Replace operations supply the
+exact current document path and are checked against the immutable request-start
+draft. Scribe can inspect the same bounded Bash snapshot and can only return
+Markdown through `submit_writing_artifact`.
 
-Prefer future domain operations such as chapter summaries, context search,
-characters, timelines, and outlines over generic database, filesystem, shell, or
-code-execution tools. Validate project and document scope and bound output on
-every call.
+Main validates the artifact and constructs exactly the pre-bound proposal.
+Renderer previews the full Markdown. The user can accept or reject it; generated
+prose is never silently persisted. Curator receives only the terminal proposal
+status, not a reusable proposal or document reference.
 
-Canonical novel data, derived Agent memory or indexes, and generation audit
-records remain logically separate. Generated summaries are not canonical facts
-unless the application explicitly promotes them.
+`propose_document_edit` submits direct replacement Markdown for a path from the
+latest snapshot. `propose_document_file_operation` creates below an exact
+directory path or deletes an exact document path.
 
-Multi-turn dialogue is assembled from the active project conversation by Main
-and trimmed again in the worker against the selected model context window.
-Driftfield replays user and assistant text through a model-only history
-projection that replaces prior request-scoped refs with explicit expired-ref
-markers. Persisted conversation text is unchanged, so Renderer continues to
-show the original narration, refs, and Tool activity for inspection. Persisted
-Tool activity remains an audit/UI record and is not injected as dialogue.
-Terminal proposal outcomes are the exception: Main supplies a bounded typed
-list of accepted, rejected, or failed outcomes as trusted application context
-on later turns, so the model
-does not mistake an already accepted proposal for one still awaiting approval.
-This list includes every terminal proposal recorded in a multi-proposal
-assistant message, not only its latest proposal.
+`propose_project_structure_operation` can create a volume, create/delete a Lore
+category, update a Lore-category icon, move a document, or change its metadata
+title. Category creation implicitly targets Lore and does not accept a parent
+argument. User-facing default category names come from the UI locale; model
+output, filenames, and user-provided names are not localized.
 
-Main snapshots the validated application locale at request start and sends only
-the `en` or `zh-CN` enum to the worker. Curator uses it as the default language
-for user-facing explanations, questions, and summaries unless the user
-explicitly requests another language. The worker appends this policy at the end
-of the system prompt in the target language so that English tool policy does not
-overpower it. It is fixed application-owned policy, not a localized
-renderer-supplied prompt. It covers visible text before and after tool calls but
-never translates manuscript text or tool data. Scribe instead follows the
-assignment's explicit language and otherwise preserves the language of relevant
-existing prose.
+## Contracts and registration
 
-## Tool definitions and prompt policy
+Each tool's `defineTool()` registration is the source of truth for its name,
+description, and TypeBox parameter schema. The shared schema and Refine boundary
+live in `src/shared/contracts/agent-tool-schema.ts`. Do not create parallel
+dispatcher argument tables or duplicate individual tool descriptions in the
+system prompt.
 
-Each entry in `agent-tool-definitions.ts` is spread unchanged into its
-`defineTool()` registration and is the single model-facing source of truth for
-the tool's name, description, parameter schema, and execution mode. Native
-model Tool Calling communicates those definitions to the model. Do not copy
-individual tool descriptions into the system prompt. Registry tests require an
-exact one-to-one match with `AgentToolContractMap` and allow parallel execution
-only for the read-only context tool.
+Main validates worker envelopes, tool names, arguments, project-session
+identity, request state, call count, result size, and timeouts before executing
+privileged work. Internal failures become small serializable error contracts.
+Tool results are bounded and path-free except for the project-relative paths
+the Bash snapshot intentionally exposes.
 
-Keep model-facing parameter schemas portable across supported providers. Use a
-top-level object schema and plain `{ type: 'string', enum: [...] }` schemas for
-string enums; do not use root `Type.Union` or `Type.Literal` unions for
-operation variants. Express provider-sensitive conditional requirements
-through descriptions. The same TypeBox definitions live in
-`src/shared/contracts/agent-tool-schema.ts`: the JSON Schema object is shipped
-to the worker, and a `Type.Refine` attached to a cloned runtime schema is the
-Main trust boundary. `isAgentToolArguments` is `Value.Check` of that runtime
-schema, and recovery hints are the Refine error messages. Bounded-value checks
-(exact discriminated keys, control characters, Markdown byte length, unique
-local refs) belong in the Refine so they cannot drift from the hint text.
-For story operations, the worker normalizes the provider-facing
-`eventStatus`/`threadStatus` names to canonical `status` before IPC; the
-Main-side base schema is mechanically derived from the provider schema by that
-same field substitution rather than widened to an unbounded object.
-Do not reintroduce a parallel hand-written argument guard or dispatcher-local
-shape table.
+Versioned prompts under `src/main/ai/prompts/` contain role instructions,
+application boundaries, and cross-tool policy. Whenever tools or semantics
+change, review `prompt-builder.ts`, update the relevant policy, bump affected
+prompt profile versions, and update protocol, dispatcher, lifecycle, and
+packaged-worker tests.
 
-System prompts live under `src/main/ai/prompts/` as versioned,
-application-owned role profiles. The prompt registry composes:
+## UI audit and history
 
-- immutable application boundaries;
-- role instructions;
-- cross-tool usage policy.
+Renderer receives structured tool-call audit parts for progress and expandable
+details. Tool audit is not replayed as trusted context. Ordinary conversation
+text remains ordinary text; any path or story ID in earlier narration must be
+revalidated through a new Bash snapshot before mutation.
 
-The global application settings may contain a bounded user-authored additional
-instruction block. Main validates and snapshots it at request start, and the
-worker places the user-authored text verbatim at the very beginning of the
-system prompt without adding a title, explanation, delimiter, or serialization
-wrapper. Application boundaries, role instructions, tool policy, and the final
-language policy follow it. It applies to Curator and
-delegated Scribe runs. It is preference context only: it cannot replace or
-override application boundaries, role policy, tool permissions, or the user's
-current explicit request.
-
-Renderer may request a read-only prompt-context preview through a narrow Main
-IPC operation. Main builds the Curator and Scribe system prompts from the same
-versioned profiles, validated settings, tool allow-lists, terminal proposal
-outcomes, and model-history projection used by a real request. The preview may
-append the unsent composer draft for inspection, but never persists it. It
-lists enabled native tools separately because their definitions are supplied
-through model Tool Calling rather than duplicated into the system prompt.
-Novel context remains absent until a tool reads it, and provider-specific
-context-window trimming may remove older projected messages at request time.
-
-Do not embed complete prompts in the worker entry or accept arbitrary
-renderer-supplied system prompts. Future user writing instructions may be
-size-bounded additions, but cannot replace application boundaries.
-
-Whenever a tool is added, removed, or its semantics change:
-
-1. Update the shared TypeBox schema, its Refine trust-boundary checks, the
-   `defineTool()` registration, and the shared typed protocol together.
-2. Review `src/main/ai/prompts/prompt-builder.ts` for changes needed to the
-   cross-tool policy.
-3. Do not add per-tool descriptions to the system prompt.
-4. If model-facing prompt behavior changes, bump the affected prompt profile
-   versions.
-5. Add focused protocol, dispatcher, and packaged-worker coverage appropriate
-   to the capability.
-
-## Agent coordination
-
-Coordination is an application-owned task graph, not an authority hierarchy.
-`Curator` and `Scribe` are the default product and prompt-profile names for the
-current planning/review and drafting capabilities; task identity and permission
-checks never depend on those display names. Main owns task identity, parentage,
-authorization, budgets, cancellation, and artifact routing. An Agent may request
-a registered bounded task capability, but it never starts arbitrary processes
-or broadens the user's authority. The current build permits one Scribe child
-task during a Curator request. Accepted-prose reconciliation remains in the
-Curator run; the reviewed artifact and proposal protocol allows that stage to
-move to a separate specialist later without changing persistence semantics.
-
-- Give specialists only the context required for their role.
-- Register distinct capabilities such as drafting, continuity, plot, style,
-  research, editing, or story reconciliation only when they provide distinct
-  context or typed output. Display names may change without changing task or
-  artifact semantics.
-- Do not create multiple Agents to duplicate the same reasoning.
-- Return typed application-owned results with task, parent request, document,
-  and base-revision identity where applicable.
-- Do not pass Pi session objects or raw SDK events between application layers.
-- Propagate cancellation and bound concurrency, context, calls, and output.
-- Treat child results as untrusted proposals. Only main can confirm persistence.
-
-## Generated Markdown changes
-
-Agents may propose a complete document or edits at character, word, line,
-paragraph, or section granularity, but they never write files directly.
-
-The current implementation supports whole-current-document edit proposals and
-whole-document create/delete proposals.
-Main assigns the proposal ID and retains the authoritative proposed Markdown.
-Renderer acceptance sends only that ID back to Main. Main rejects proposals
-from another window or project session, and applies an accepted proposal only
-when its disk/project base revisions still match. Selective-edit proposals
-remain future work.
-
-- A create proposal carries complete Markdown and a stable parent directory ID.
-  Main chooses the stable document ID and physical filename, enforces the
-  parent/kind relationship, extension, containment, size, and non-overwrite
-  behavior, then applies the reviewed catalog/file mutation through Main's
-  project operation coordinator.
-- A delete proposal carries a stable document ID and reviewed base revisions.
-  Main moves the regular, non-symlink Markdown file to project trash and removes
-  its catalog node through the durable operation ledger, restoring the file if
-  the database step fails.
-- An empty Lore-category deletion proposal carries its stable directory ID and
-  project revision. Main rejects nonempty categories and untracked files, then
-  moves the directory to project trash and removes its catalog node through the
-  same durable operation ledger.
-- An edit proposal identifies a document and SHA-256 `baseRevision`, and carries
-  application-owned structured replacements or a patch against that revision.
-- Prefer exact-text anchors or ranges in the base snapshot over bare line
-  numbers.
-- Render a diff or equivalent preview. The current whole-document workflow lets
-  the user accept, reject, or cancel; selective application remains future work.
-- Apply accepted changes through `ProjectService` so revision checks,
-  serialization, atomic writes, conflicts, and recovery remain intact.
-- If the disk revision changed, stop and enter the conflict workflow or request
-  a reread. Never guess a merge or silently overwrite text.
-- Persist prompt, model metadata, tool activity, proposal, approval decision,
-  and resulting revision as application-owned generation records.
+Historical retired tool names may remain renderable only when explicitly kept
+in the legacy audit allow-list. They are never registered with Pi and cannot be
+called.

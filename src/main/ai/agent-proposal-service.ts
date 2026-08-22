@@ -55,23 +55,38 @@ interface CreateProposalRequest {
  * The model never supplies a concurrency token; Main anchors it.
  */
 export type ResolvedDocumentFileOperationArguments =
-  | (Extract<AgentDocumentFileOperationArguments, { operation: 'create' }> & {
+  | (Omit<Extract<AgentDocumentFileOperationArguments, { operation: 'create' }>, 'parentPath'> & {
+      parentId: string;
       projectRevision: string;
     })
-  | (Extract<AgentDocumentFileOperationArguments, { operation: 'delete' }> & {
+  | (Omit<Extract<AgentDocumentFileOperationArguments, { operation: 'delete' }>, 'documentPath'> & {
       baseRevision: string;
+      documentId: string;
       projectRevision: string;
     });
 
 export type ResolvedProjectStructureOperationArguments =
-  | (Exclude<
-      AgentProjectStructureOperationArguments,
-      { operation: 'move_document' }
+  | (Extract<AgentProjectStructureOperationArguments,
+      { operation: 'create_volume' | 'create_lore_category' }
     > & { projectRevision: string })
-  | (Extract<
+  | (Omit<Extract<AgentProjectStructureOperationArguments,
+      { operation: 'delete_lore_category' }
+    >, 'directoryPath'> & { directoryId: string; projectRevision: string })
+  | (Omit<Extract<AgentProjectStructureOperationArguments,
+      { operation: 'set_lore_category_icon' }
+    >, 'directoryPath'> & { directoryId: string; projectRevision: string })
+  | (Omit<Extract<AgentProjectStructureOperationArguments,
+      { operation: 'rename_document' }
+    >, 'documentPath'> & { documentId: string; projectRevision: string })
+  | (Omit<Extract<
       AgentProjectStructureOperationArguments,
       { operation: 'move_document' }
-    > & { baseRevision: string; projectRevision: string });
+    >, 'documentPath' | 'targetParentPath'> & {
+      baseRevision: string;
+      documentId: string;
+      projectRevision: string;
+      targetParentId: string;
+    });
 
 interface ProposalScope {
   draftSnapshot?: AgentDraftSnapshot;

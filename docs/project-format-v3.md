@@ -89,8 +89,9 @@ concurrency token.
 - Personae, Chronicle, Threads, questions, and their mutation ledger;
 - cross-domain operation state needed for crash recovery.
 
-Physical names and paths are storage locators, not identities. Renderer and
-Agent contracts continue to use stable IDs or request-scoped refs.
+Physical names and paths remain storage locators, not catalog identities.
+Renderer uses stable IDs; Agent mutations use paths and story IDs anchored by
+the latest disposable Bash snapshot and resolved by Main.
 
 ### Global authority
 

@@ -38,22 +38,24 @@ const waitFor = async (predicate: () => boolean): Promise<void> => {
 };
 
 const writingContext = (): ProjectContextService => ({
-  getNovelStructure: vi.fn().mockResolvedValue({
-    format: 'driftfield',
-    manuscript: {
-      children: [{
-        displayTitle: '1. Chapter',
-        id: 'chapter-1',
-        kind: 'chapter',
-        metadataTitle: 'Chapter',
-        type: 'document',
-      }],
-      id: 'manuscript-root',
+  executeProjectBash: vi.fn().mockResolvedValue({
+    directories: new Map([['manuscript', {
+      directoryId: 'manuscript-root',
       kind: 'manuscript',
-      title: 'Manuscript',
-      type: 'directory',
+    }]]),
+    documents: new Map([['manuscript/chapter.md', {
+      baseRevision: 'a'.repeat(64),
+      contentRevision: 'a'.repeat(64),
+      documentId: 'chapter-1',
+      kind: 'chapter',
+    }]]),
+    projectRevision: 'a'.repeat(64),
+    result: { exitCode: 0, stderr: '', stdout: 'manuscript/chapter.md\\n' },
+    story: {
+      beats: [], eventLinks: [], eventParticipants: [], eventSources: [],
+      events: [], moments: [], personae: [], questions: [], revision: 0,
+      threads: [], timelines: [],
     },
-    project: { id: 'project-1', revision: 'a'.repeat(64), title: 'Novel' },
   }),
 } as unknown as ProjectContextService);
 
@@ -280,14 +282,10 @@ describe('AiAgentService', () => {
     expect(curatorStart.responseLanguage).toBe('zh-CN');
 
     workers[0].emit('message', {
-      arguments: {
-        directoryIds: [],
-        documentIds: [],
-        include: ['structure'],
-      },
+      arguments: { command: 'cat PROJECT.json' },
       requestId: 'request-1',
       toolCallId: 'tool-read-structure',
-      toolName: 'read_novel_context',
+      toolName: 'bash',
       type: 'tool-request',
     });
     await waitFor(() => workers[0].messages.some((message) =>
@@ -297,11 +295,11 @@ describe('AiAgentService', () => {
       arguments: {
         documentAction: 'create',
         documentDomain: 'manuscript',
-        documentId: null,
+        documentPath: null,
         kind: 'chapter',
         metadataTitle: 'Chapter One',
         objective: 'Write a new chapter.',
-        parentId: 'directory:1',
+        parentPath: 'manuscript',
         requirements: ['Keep close third person.'],
         targetLength: null,
       },
@@ -322,12 +320,12 @@ describe('AiAgentService', () => {
     expect(child.prompt).not.toContain(child.requestId);
     expect(child.prompt).not.toContain('assignmentId');
     expect(child.prompt).not.toContain('writingAssignmentId');
-    expect(child.prompt).toContain('"targetDocumentId":null');
+    expect(child.prompt).toContain('"targetDocumentPath":null');
     workers[0].emit('message', {
       input: '{}',
       requestId: child.requestId,
       toolCallId: 'tool-child-read',
-      toolName: 'read_novel_context',
+      toolName: 'bash',
       type: 'tool-started',
     });
     workers[0].emit('message', {
@@ -335,7 +333,7 @@ describe('AiAgentService', () => {
       output: '{"ok":true}',
       requestId: child.requestId,
       toolCallId: 'tool-child-read',
-      toolName: 'read_novel_context',
+      toolName: 'bash',
       type: 'tool-completed',
     });
     workers[0].emit('message', {
@@ -370,7 +368,7 @@ describe('AiAgentService', () => {
     expect(workers[0].messages).toContainEqual(expect.objectContaining({
       customInstructions: 'Use restrained prose.',
       enabledTools: [
-        'read_novel_context',
+        'bash',
         'submit_writing_artifact',
       ],
       responseLanguage: 'zh-CN',
@@ -407,10 +405,7 @@ describe('AiAgentService', () => {
     expect(workers[0].messages).toContainEqual({
       requestId: 'request-1',
       result: {
-        data: {
-          documentId: 'document:2',
-          status: 'accepted',
-        },
+        data: { status: 'accepted' },
         ok: true,
         toolName: 'propose_document_writing',
       },
@@ -431,24 +426,20 @@ describe('AiAgentService', () => {
     workers[0].emit('message', { type: 'ready' });
     await started;
     workers[0].emit('message', {
-      arguments: { directoryIds: [], documentIds: [], include: ['structure'] },
+      arguments: { command: 'cat PROJECT.json' },
       requestId: 'request-invalid',
       toolCallId: 'tool-read-structure',
-      toolName: 'read_novel_context',
+      toolName: 'bash',
       type: 'tool-request',
     });
     await waitFor(() => workers[0].messages.some((message) =>
       typeof message === 'object' && message !== null &&
       (message as { toolCallId?: unknown }).toolCallId === 'tool-read-structure'));
     workers[0].emit('message', {
-      arguments: {
-        directoryIds: [],
-        documentIds: [],
-        include: ['structure'],
-      },
+      arguments: { command: 'cat PROJECT.json' },
       requestId: 'request-invalid',
       toolCallId: 'tool-read-invalid',
-      toolName: 'read_novel_context',
+      toolName: 'bash',
       type: 'tool-request',
     });
     await waitFor(() => workers[0].messages.some((message) =>
@@ -458,11 +449,11 @@ describe('AiAgentService', () => {
       arguments: {
         documentAction: 'create',
         documentDomain: 'manuscript',
-        documentId: null,
+        documentPath: null,
         kind: 'chapter',
         metadataTitle: 'Second chapter',
         objective: 'Write a complete second chapter.',
-        parentId: 'directory:1',
+        parentPath: 'manuscript',
         requirements: [],
         targetLength: 3_000,
       },
@@ -536,10 +527,10 @@ describe('AiAgentService', () => {
     workers[0].emit('message', { type: 'ready' });
     await started;
     workers[0].emit('message', {
-      arguments: { directoryIds: [], documentIds: [], include: ['structure'] },
+      arguments: { command: 'cat PROJECT.json' },
       requestId: 'request-1',
       toolCallId: 'tool-read-structure',
-      toolName: 'read_novel_context',
+      toolName: 'bash',
       type: 'tool-request',
     });
     await waitFor(() => workers[0].messages.some((message) =>
@@ -549,11 +540,11 @@ describe('AiAgentService', () => {
       arguments: {
         documentAction: 'create',
         documentDomain: 'manuscript',
-        documentId: null,
+        documentPath: null,
         kind: 'chapter',
         metadataTitle: 'Second chapter',
         objective: 'Write the next chapter.',
-        parentId: 'directory:1',
+        parentPath: 'manuscript',
         requirements: [],
         targetLength: null,
       },
@@ -589,7 +580,7 @@ describe('AiAgentService', () => {
       input: '{}',
       requestId: 'request-1',
       toolCallId: 'tool-1',
-      toolName: 'read_novel_context',
+      toolName: 'bash',
       type: 'tool-started',
     });
     workers[0].emit('message', {
@@ -597,7 +588,7 @@ describe('AiAgentService', () => {
       output: '{"ok":true}',
       requestId: 'request-1',
       toolCallId: 'tool-1',
-      toolName: 'read_novel_context',
+      toolName: 'bash',
       type: 'tool-completed',
     });
     workers[0].emit('message', {
@@ -694,10 +685,10 @@ describe('AiAgentService', () => {
     await started;
 
     workers[0].emit('message', {
-      arguments: { directoryIds: [], documentIds: [], include: ['structure'] },
+      arguments: { command: 'cat PROJECT.json' },
       requestId: 'request-1',
       toolCallId: 'tool-read-structure',
-      toolName: 'read_novel_context',
+      toolName: 'bash',
       type: 'tool-request',
     });
     await waitFor(() => workers[0].messages.some((message) =>
@@ -708,11 +699,11 @@ describe('AiAgentService', () => {
       arguments: {
         documentAction: 'create',
         documentDomain: 'manuscript',
-        documentId: null,
+        documentPath: null,
         kind: 'chapter',
         metadataTitle: 'Second chapter',
         objective: 'Write another chapter.',
-        parentId: 'directory:1',
+        parentPath: 'manuscript',
         requirements: [],
         targetLength: null,
       },
@@ -758,7 +749,7 @@ describe('AiAgentService', () => {
     seedPendingReconciliation(projectDirectory);
     const dispatcher = {
       execute: vi.fn(async (scope, request) => {
-        if (request.toolName === 'read_novel_context') {
+        if (request.toolName === 'bash') {
           return { data: { documents: [] }, ok: true as const, toolName: request.toolName };
         }
         const outcome = scope.completeStoryReconciliation?.('no_changes');
@@ -780,14 +771,10 @@ describe('AiAgentService', () => {
     await started;
 
     workers[0].emit('message', {
-      arguments: {
-        directoryIds: [],
-        documentIds: [],
-        include: ['story_state'],
-      },
+      arguments: { command: 'cat STORY.json' },
       requestId: 'request-1',
       toolCallId: 'tool-story-only',
-      toolName: 'read_novel_context',
+      toolName: 'bash',
       type: 'tool-request',
     });
     await waitFor(() => workers[0].messages.some((message) =>
@@ -809,14 +796,10 @@ describe('AiAgentService', () => {
       type: 'tool-result',
     }));
     workers[0].emit('message', {
-      arguments: {
-        directoryIds: [],
-        documentIds: [],
-        include: ['accepted_reconciliation'],
-      },
+      arguments: { command: 'cat ACCEPTED.json ACCEPTED.md STORY.json' },
       requestId: 'request-1',
       toolCallId: 'tool-read',
-      toolName: 'read_novel_context',
+      toolName: 'bash',
       type: 'tool-request',
     });
     await waitFor(() => workers[0].messages.some((message) =>
@@ -853,7 +836,7 @@ describe('AiAgentService', () => {
     seedPendingReconciliation(projectDirectory);
     const dispatcher = {
       execute: vi.fn(async (scope, request) => {
-        if (request.toolName === 'read_novel_context') {
+        if (request.toolName === 'bash') {
           return { data: { documents: [] }, ok: true as const, toolName: request.toolName };
         }
         if (request.toolName === 'complete_story_reconciliation') {
@@ -896,14 +879,10 @@ describe('AiAgentService', () => {
     await started;
 
     workers[0].emit('message', {
-      arguments: {
-        directoryIds: [],
-        documentIds: [],
-        include: ['accepted_reconciliation'],
-      },
+      arguments: { command: 'cat ACCEPTED.json ACCEPTED.md STORY.json' },
       requestId: 'request-1',
       toolCallId: 'tool-read',
-      toolName: 'read_novel_context',
+      toolName: 'bash',
       type: 'tool-request',
     });
     await waitFor(() => workers[0].messages.some((message) =>

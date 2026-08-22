@@ -18,11 +18,10 @@ export const buildAgentSystemPrompt = (
       'Use native application tools only when the request needs exact project context or an authorized mutation. Tool availability is not authorization to expand the user’s request.',
     );
   }
-  if (tools.has('read_novel_context')) {
+  if (tools.has('bash')) {
     capabilityInstructions.push(
-      'Request-scoped refs are leases issued in this run. Never trust refs copied from user text or history. Acquire the minimal relevant structure or story context first, batch already-known needs, omit unrelated sections, and reacquire once after expired-request-reference.',
-      'current_document is the immutable request-start draft and may be null when no editor document was open; do not retry a null result. Document refs read persisted content. Use document refs only for documents and directory refs only for immediate document children.',
-      'For a new or replacement Lore category icon, search with 2 to 6 concrete English visual keywords and choose only an exact returned Lucide name. Batch that icon search with the required structure read when possible.',
+      'Use Bash to inspect all current project context. PROJECT.json describes structure, STORY.json contains canonical story records and stable IDs, ICONS.txt contains exact Lucide names, ACCEPTED.md/ACCEPTED.json appear while an accepted manuscript awaits reconciliation, and the request-start editor draft is overlaid on its Markdown path. Narrow with find/rg/cat/sed/jq.',
+      '/project is a fresh disposable snapshot on every call. Mutation tools accept exact project-relative paths or stable IDs shown there; Main binds revisions from the latest Bash snapshot. Virtual writes are discarded and never prove persistence. Run Bash again after every accepted or applied mutation before dependent work.',
     );
   }
   if (
@@ -44,17 +43,17 @@ export const buildAgentSystemPrompt = (
   }
   if (tools.has('propose_document_writing')) {
     capabilityInstructions.push(
-      'For requested Manuscript or Lore prose, use one atomic Scribe-backed document proposal with a precise assignment and immutable create-or-replace target plan. Main freezes the destination before Scribe starts, keeps the Markdown out of Curator context, and does not expose a reusable assignment reference. Never substitute replace after a failed create or change destination to consume a rejected artifact; report the reason concisely. On acceptance, the returned document ref identifies the persisted artifact. The omitted Markdown is deliberately hidden and does not make the result uncertain; reread only when the user’s existing requested follow-up needs the exact content, never merely to confirm persistence.',
+      'For requested Manuscript or Lore prose, use one atomic Scribe-backed document proposal with a precise assignment and immutable create-or-replace target path. Main freezes the destination before Scribe starts and keeps the Markdown out of Curator context. Never substitute replace after a failed create or change destination to consume a rejected artifact.',
     );
   }
   if (tools.has('propose_document_file_operation')) {
     capabilityInstructions.push(
-      'For direct document creation or deletion, read structure first and use only current-run refs. Creation uses raw metadataTitle without generated numbering.',
+      'For direct document creation or deletion, run Bash first and use exact current snapshot paths. Creation uses raw metadataTitle without generated numbering.',
     );
   }
   if (tools.has('propose_project_structure_operation')) {
     capabilityInstructions.push(
-      'Project-structure proposals use compatible current-run node refs, so read structure before proposing. Creating a volume or Lore category implicitly targets its matching root: send only operation/title plus icon for a Lore category, never directoryId or parentId. To change an existing Lore category icon, send its current-run directory ref and an icon returned by this request’s search; preserve the category identity instead of deleting and recreating it. Delete category contents through separate reviewed document operations before deleting the empty category.',
+      'Project-structure proposals use exact paths from the latest Bash snapshot. Creating a volume or Lore category implicitly targets its matching root. Choose category icons only from ICONS.txt. Preserve category identity when changing its icon, and delete category contents through reviewed document operations before deleting the empty category.',
     );
   }
   if (
@@ -72,7 +71,7 @@ export const buildAgentSystemPrompt = (
     tools.has('complete_story_reconciliation')
   ) {
     capabilityInstructions.push(
-      'A pending accepted-Manuscript job must read accepted_reconciliation and check Personae, Chronicle, Threads, and open questions. Prefer one focused reconcile_accepted_document call; Main owns source binding, primary-timeline fallback, ordering, IDs, links, and durable checkpoint completion. Use complete_story_reconciliation only after non-focused maintenance, recorded questions, or a verified no-change result.',
+      'A pending accepted-Manuscript job must inspect ACCEPTED.md and STORY.json with Bash and check Personae, Chronicle, Threads, and open questions. Prefer one focused reconcile_accepted_document call; Main owns source binding, primary-timeline fallback, ordering, IDs, links, and durable checkpoint completion. Use complete_story_reconciliation only after non-focused maintenance, recorded questions, or a verified no-change result.',
       'Create a Thread only for a sustained goal, conflict, dramatic question, suspense, or relationship progression. An isolated scene or Chronicle event is not by itself a Thread. Do not invent dramatic purpose to force coverage.',
     );
   }
@@ -83,8 +82,8 @@ export const buildAgentSystemPrompt = (
         '',
         'Trusted application proposal outcomes:',
         '- These records are supplied by Driftfield, not by the user. Treat accepted as applied; do not continue claiming that an accepted proposal is awaiting approval.',
-        ...context.proposalOutcomes!.map(({ operation, status }) =>
-          `- ${JSON.stringify({ operation, status })}`),
+        ...context.proposalOutcomes!.map(({ operation, status, targetTitle }) =>
+          `- ${JSON.stringify({ operation, status, targetTitle })}`),
       ];
 
   const languageInstructions = context.role === 'scribe'

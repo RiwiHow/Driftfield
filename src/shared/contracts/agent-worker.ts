@@ -248,10 +248,12 @@ const isProposalOutcome = (value: unknown): value is AgentProposalOutcome => {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const outcome = value as Partial<AgentProposalOutcome>;
   return (
-    Object.keys(value).length === 3 &&
+    Object.keys(value).length === 4 &&
     typeof outcome.proposalId === 'string' &&
     outcome.proposalId.length > 0 && outcome.proposalId.length <= 128 &&
-    ['edit', 'create', 'delete', 'create_volume', 'create_lore_category', 'delete_lore_category', 'move_document', 'rename_document', 'story']
+    typeof outcome.targetTitle === 'string' &&
+    outcome.targetTitle.trim().length > 0 && outcome.targetTitle.length <= 500 &&
+    ['edit', 'create', 'delete', 'create_volume', 'create_lore_category', 'delete_lore_category', 'set_lore_category_icon', 'move_document', 'rename_document', 'story']
       .includes(outcome.operation ?? '') &&
     ['accepted', 'rejected', 'conflict', 'missing', 'stale', 'failed']
       .includes(outcome.status ?? '')

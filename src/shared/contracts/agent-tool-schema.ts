@@ -11,14 +11,23 @@ import type {
 import { isProjectIconId } from './project-layout';
 import { isProjectStoryOperation } from './project-story';
 
-export const AGENT_NOVEL_CONTEXT_SECTIONS = [
-  'structure',
-  'current_document',
-  'story_state',
-  'accepted_reconciliation',
-] as const;
+export const ACCEPTED_DOCUMENT_PATH = 'ACCEPTED.md';
 
-export const ACCEPTED_DOCUMENT_REFERENCE = 'document:accepted';
+export const PROJECT_BASH_PARAMETERS = Type.Object(
+  {
+    command: Type.String({
+      description:
+        'A Bash command for inspecting the disposable /project snapshot. Prefer find, rg, cat, sed, head, tail, jq, and wc. The shell has no network, host filesystem, JavaScript, Python, credentials, or persistence.',
+      maxLength: 4_000,
+      minLength: 1,
+    }),
+  },
+  {
+    additionalProperties: false,
+    description:
+      'Inspect the current novel through an isolated in-memory Bash filesystem. Every call starts from a fresh authoritative snapshot and discards all virtual writes afterward.',
+  },
+);
 
 const stringEnum = <Values extends readonly string[]>(
   values: Values,
@@ -32,62 +41,9 @@ const stringEnum = <Values extends readonly string[]>(
       : { description: options.description }),
   });
 
-const requestRefPattern = (kind: string): string =>
-  `^${kind}:[1-9][0-9]{0,4}$`;
-
-const requestOrClientRefPattern = (kind: string): string =>
-  `^(?:${kind}:[1-9][0-9]{0,4}|@[A-Za-z][A-Za-z0-9_-]{0,31})$`;
-
-const requestRefPatternForKinds = (...kinds: string[]): string =>
-  `^(?:${kinds.join('|')}):[1-9][0-9]{0,4}$`;
-
-const requestOrClientRefPatternForKinds = (...kinds: string[]): string =>
-  `^(?:(?:${kinds.join('|')}):[1-9][0-9]{0,4}|@[A-Za-z][A-Za-z0-9_-]{0,31})$`;
-
-export const NOVEL_CONTEXT_PARAMETERS = Type.Object(
-  {
-    directoryIds: Type.Array(
-      Type.String({ pattern: requestRefPattern('directory') }),
-      {
-        description:
-          'Request-scoped directory refs whose immediate document children should be read. Nested directories are not expanded. Use an empty array when none are needed.',
-        maxItems: 4,
-        uniqueItems: true,
-      },
-    ),
-    documentIds: Type.Array(
-      Type.String({ pattern: requestRefPattern('document') }),
-      {
-        description:
-          'Request-scoped refs of persisted manuscript or lore documents to read. Use an empty array when none are needed.',
-        maxItems: 4,
-        uniqueItems: true,
-      },
-    ),
-    iconQuery: Type.Optional(
-      Type.String({
-        description:
-          'Search the bundled Lucide catalog for a Lore category icon. Supply 2 to 6 concrete English visual keywords, such as "magic wand sparkles". The result returns at most 12 exact valid icon names.',
-        maxLength: 120,
-        minLength: 1,
-      }),
-    ),
-    include: Type.Array(
-      stringEnum(AGENT_NOVEL_CONTEXT_SECTIONS),
-      {
-        description:
-          'Additional context sections to read. current_document is the immutable request-start editor draft, or null when no document was open. Do not retry a null current_document. accepted_reconciliation is available only after an accepted Scribe-backed manuscript proposal and returns the exact accepted persisted document with request-scoped refs instead of stable IDs.',
-        maxItems: AGENT_NOVEL_CONTEXT_SECTIONS.length,
-        uniqueItems: true,
-      },
-    ),
-  },
-  {
-    additionalProperties: false,
-    description:
-      'Request at least one include section, document ref, or directory ref. Explicit and directory-expanded documents are deduplicated and limited to four total results. Results remain path-free and bounded.',
-  },
-);
+const projectPathPattern = '^(?:manuscript|lore)(?:/(?!\\.{1,2}(?:/|$))[^/\\r\\n]+)*$';
+const storyIdPattern = '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$';
+const storyOrClientIdPattern = '^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,127}|@[A-Za-z][A-Za-z0-9_-]{0,31})$';
 
 export const DOCUMENT_WRITING_PARAMETERS = Type.Object(
   {
@@ -96,10 +52,10 @@ export const DOCUMENT_WRITING_PARAMETERS = Type.Object(
         'Choose create for a new chapter or Lore entry. Choose replace only when the user explicitly wants to replace an existing document.',
     }),
     documentDomain: stringEnum(['manuscript', 'lore'] as const),
-    documentId: Type.Unsafe<string | null>({
+    documentPath: Type.Unsafe<string | null>({
       description:
-        'For replace, the exact request-scoped document ref. For create, null. Do not put a continuity-reference chapter here.',
-      pattern: requestRefPattern('document'),
+        'For replace, the exact project-relative Markdown path shown by Bash. For create, null.',
+      pattern: projectPathPattern,
       type: ['string', 'null'],
     }),
     kind: Type.Unsafe<
@@ -116,10 +72,10 @@ export const DOCUMENT_WRITING_PARAMETERS = Type.Object(
       type: ['string', 'null'],
     }),
     objective: Type.String({ maxLength: 4_000, minLength: 1 }),
-    parentId: Type.Unsafe<string | null>({
+    parentPath: Type.Unsafe<string | null>({
       description:
-        'For create, the request-scoped destination directory ref. For replace, null.',
-      pattern: requestRefPattern('directory'),
+        'For create, the exact project-relative destination directory shown by Bash. For replace, null.',
+      pattern: projectPathPattern,
       type: ['string', 'null'],
     }),
     requirements: Type.Array(
@@ -135,7 +91,7 @@ export const DOCUMENT_WRITING_PARAMETERS = Type.Object(
   {
     additionalProperties: false,
     description:
-      'Bind writing and its reviewed mutation before Scribe runs. create requires parentId, metadataTitle, and kind with documentId null. replace requires documentId with the creation fields null. Main anchors every revision from the context it served in this request.',
+      'Bind writing and its reviewed mutation before Scribe runs. create requires parentPath, metadataTitle, and kind with documentPath null. replace requires documentPath with the creation fields null. Main anchors revisions from the latest Bash snapshot in this request.',
   },
 );
 
@@ -153,7 +109,7 @@ export const WRITING_ARTIFACT_SUBMISSION_PARAMETERS = Type.Object(
 
 export const DOCUMENT_EDIT_PARAMETERS = Type.Object(
   {
-    documentId: Type.String({ pattern: requestRefPattern('document') }),
+    documentPath: Type.String({ pattern: projectPathPattern }),
     markdown: Type.String({
       description:
         'Complete replacement Markdown for this direct edit.',
@@ -166,10 +122,10 @@ export const DOCUMENT_EDIT_PARAMETERS = Type.Object(
 
 export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
   {
-    documentId: Type.Optional(
+    documentPath: Type.Optional(
       Type.String({
-        description: 'Required for delete: request-scoped document ref from read_novel_context.structure.',
-        pattern: requestRefPattern('document'),
+        description: 'Required for delete: exact project-relative Markdown path shown by Bash.',
+        pattern: projectPathPattern,
       }),
     ),
     kind: Type.Optional(
@@ -194,10 +150,10 @@ export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
       }),
     ),
     operation: stringEnum(['create', 'delete'] as const),
-    parentId: Type.Optional(
+    parentPath: Type.Optional(
       Type.String({
-        description: 'Required for create: request-scoped parent directory ref from read_novel_context.structure.',
-        pattern: requestRefPattern('directory'),
+        description: 'Required for create: exact project-relative parent directory shown by Bash.',
+        pattern: projectPathPattern,
       }),
     ),
     metadataTitle: Type.Optional(
@@ -214,23 +170,23 @@ export const DOCUMENT_FILE_OPERATION_PARAMETERS = Type.Object(
 
 export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
   {
-    documentId: Type.Optional(
+    documentPath: Type.Optional(
       Type.String({
-        description: 'Required for move_document and rename_document: request-scoped document ref.',
-        pattern: requestRefPattern('document'),
+        description: 'Required for move_document and rename_document: exact project-relative Markdown path shown by Bash.',
+        pattern: projectPathPattern,
       }),
     ),
-    directoryId: Type.Optional(
+    directoryPath: Type.Optional(
       Type.String({
         description:
-          'Required for delete_lore_category and set_lore_category_icon: request-scoped Lore category ref. Never send directoryId when creating a volume or Lore category.',
-        pattern: requestRefPattern('directory'),
+          'Required for delete_lore_category and set_lore_category_icon: exact project-relative Lore category path shown by Bash.',
+        pattern: projectPathPattern,
       }),
     ),
     icon: Type.Optional(
       Type.String({
         description:
-          'Required for create_lore_category and set_lore_category_icon. Use an exact kebab-case Lucide name returned by read_novel_context icon search.',
+          'Required for create_lore_category and set_lore_category_icon. Use an exact kebab-case Lucide name found in ICONS.txt.',
         maxLength: 35,
         pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$',
       }),
@@ -257,10 +213,10 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
         minLength: 1,
       }),
     ),
-    targetParentId: Type.Optional(
+    targetParentPath: Type.Optional(
       Type.String({
-        description: 'Required for move_document: request-scoped destination directory ref.',
-        pattern: requestRefPattern('directory'),
+        description: 'Required for move_document: exact project-relative destination directory shown by Bash.',
+        pattern: projectPathPattern,
       }),
     ),
     title: Type.Optional(
@@ -277,7 +233,7 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
 
 const STORY_CHANGE_PARAMETERS = Type.Object(
       {
-        beatId: Type.Optional(Type.String({ pattern: requestRefPattern('beat') })),
+        beatId: Type.Optional(Type.String({ pattern: storyIdPattern })),
         causes: Type.Optional(Type.String({ maxLength: 20_000 })),
         consequences: Type.Optional(Type.String({ maxLength: 20_000 })),
         description: Type.Optional(Type.String({ maxLength: 30_000 })),
@@ -285,10 +241,10 @@ const STORY_CHANGE_PARAMETERS = Type.Object(
         displayTime: Type.Optional(Type.String({ maxLength: 500, minLength: 1 })),
         dramaticPurpose: Type.Optional(Type.String({ maxLength: 10_000 })),
         endMomentId: Type.Optional(Type.Unsafe<string | null>({
-          pattern: requestRefPattern('moment'),
+          pattern: storyIdPattern,
           type: ['string', 'null'],
         })),
-        eventId: Type.Optional(Type.String({ pattern: requestRefPattern('event') })),
+        eventId: Type.Optional(Type.String({ pattern: storyIdPattern })),
         isPrimary: Type.Optional(Type.Boolean()),
         kind: Type.Optional(stringEnum(
           ['beat', 'setup', 'turning_point', 'climax', 'resolution'] as const,
@@ -312,13 +268,13 @@ const STORY_CHANGE_PARAMETERS = Type.Object(
         ),
         orderKey: Type.Optional(Type.Integer()),
         parentId: Type.Optional(Type.Unsafe<string | null>({
-          pattern: requestRefPatternForKinds('thread', 'beat'),
+          pattern: storyIdPattern,
           type: ['string', 'null'],
         })),
         participants: Type.Optional(Type.Array(Type.Object(
           {
             description: Type.String({ maxLength: 10_000 }),
-            personaId: Type.String({ pattern: requestRefPattern('persona') }),
+            personaId: Type.String({ pattern: storyIdPattern }),
             role: stringEnum(['actor', 'target', 'witness', 'affected'] as const),
           },
           { additionalProperties: false },
@@ -333,17 +289,17 @@ const STORY_CHANGE_PARAMETERS = Type.Object(
           maxLength: 500,
           type: ['string', 'null'],
         })),
-        startMomentId: Type.Optional(Type.String({ pattern: requestRefPattern('moment') })),
+        startMomentId: Type.Optional(Type.String({ pattern: storyIdPattern })),
         sources: Type.Optional(Type.Array(Type.Object(
           {
             anchor: Type.Unsafe<string | null>({
               maxLength: 10_000,
               type: ['string', 'null'],
             }),
-            documentId: Type.String({
+            documentPath: Type.String({
               description:
-                'Request-scoped ref of a document read in this request. Main binds the revision it served.',
-              pattern: requestRefPattern('document'),
+                'Project-relative manuscript path shown by Bash. Main binds the revision from that snapshot.',
+              pattern: projectPathPattern,
             }),
             relation: stringEnum(['depicted', 'mentioned', 'inferred'] as const),
             sourceKind: stringEnum(['manuscript'] as const),
@@ -359,8 +315,8 @@ const STORY_CHANGE_PARAMETERS = Type.Object(
           { description: 'Required only for create_thread and create_beat.' },
         )),
         summary: Type.Optional(Type.String({ maxLength: 30_000 })),
-        threadId: Type.Optional(Type.String({ pattern: requestRefPattern('thread') })),
-        timelineId: Type.Optional(Type.String({ pattern: requestRefPattern('timeline') })),
+        threadId: Type.Optional(Type.String({ pattern: storyIdPattern })),
+        timelineId: Type.Optional(Type.String({ pattern: storyIdPattern })),
         title: Type.Optional(Type.String({ maxLength: 500, minLength: 1 })),
       },
       { additionalProperties: false },
@@ -372,14 +328,14 @@ export const STORY_OPERATION_PARAMETERS = Type.Object(
 );
 
 const maintenanceReferenceDescription = (kind: string): string =>
-  `Request-scoped ${kind} ref, or @clientRef for a compatible entity created earlier in this same changeset.`;
+  `Stable ${kind} ID from STORY.json, or @clientRef for a compatible entity created earlier in this same changeset.`;
 
 const STORY_MAINTENANCE_CHANGE_PARAMETERS = Type.Object(
   {
     ...STORY_CHANGE_PARAMETERS.properties,
     beatId: Type.Optional(Type.String({
       description: maintenanceReferenceDescription('beat'),
-      pattern: requestOrClientRefPattern('beat'),
+      pattern: storyOrClientIdPattern,
     })),
     clientRef: Type.Optional(Type.String({
       description:
@@ -390,12 +346,12 @@ const STORY_MAINTENANCE_CHANGE_PARAMETERS = Type.Object(
     endMomentId: Type.Optional(Type.Unsafe<string | null>({
       description:
         `${maintenanceReferenceDescription('moment')} Use null when the event has no end moment.`,
-      pattern: requestOrClientRefPattern('moment'),
+      pattern: storyOrClientIdPattern,
       type: ['string', 'null'],
     })),
     eventId: Type.Optional(Type.String({
       description: maintenanceReferenceDescription('event'),
-      pattern: requestOrClientRefPattern('event'),
+      pattern: storyOrClientIdPattern,
     })),
     operation: stringEnum(
       [
@@ -415,7 +371,7 @@ const STORY_MAINTENANCE_CHANGE_PARAMETERS = Type.Object(
     parentId: Type.Optional(Type.Unsafe<string | null>({
       description:
         `${maintenanceReferenceDescription('parent thread or beat')} Use null for a root entity.`,
-      pattern: requestOrClientRefPatternForKinds('thread', 'beat'),
+      pattern: storyOrClientIdPattern,
       type: ['string', 'null'],
     })),
     participants: Type.Optional(Type.Array(Type.Object(
@@ -423,7 +379,7 @@ const STORY_MAINTENANCE_CHANGE_PARAMETERS = Type.Object(
         description: Type.String({ maxLength: 10_000 }),
         personaId: Type.String({
           description: maintenanceReferenceDescription('persona'),
-          pattern: requestOrClientRefPattern('persona'),
+          pattern: storyOrClientIdPattern,
         }),
         role: stringEnum(['actor', 'target', 'witness', 'affected'] as const),
       },
@@ -431,15 +387,15 @@ const STORY_MAINTENANCE_CHANGE_PARAMETERS = Type.Object(
     ), { maxItems: 100 })),
     startMomentId: Type.Optional(Type.String({
       description: maintenanceReferenceDescription('moment'),
-      pattern: requestOrClientRefPattern('moment'),
+      pattern: storyOrClientIdPattern,
     })),
     threadId: Type.Optional(Type.String({
       description: maintenanceReferenceDescription('thread'),
-      pattern: requestOrClientRefPattern('thread'),
+      pattern: storyOrClientIdPattern,
     })),
     timelineId: Type.Optional(Type.String({
       description: maintenanceReferenceDescription('timeline'),
-      pattern: requestOrClientRefPattern('timeline'),
+      pattern: storyOrClientIdPattern,
     })),
   },
   { additionalProperties: false },
@@ -511,8 +467,8 @@ export const ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS = Type.Object(
         participants: Type.Array(Type.Object(
           {
             description: Type.String({ maxLength: 10_000 }),
-            personaRef: Type.String({
-              pattern: requestOrClientRefPattern('persona'),
+            personaId: Type.String({
+              pattern: storyOrClientIdPattern,
             }),
             role: stringEnum(['actor', 'target', 'witness', 'affected'] as const),
           },
@@ -590,7 +546,7 @@ export const ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS = Type.Object(
       {
         additionalProperties: false,
         description:
-          'Optional semantic title and summary used only when accepted_reconciliation reports no primary timeline. If omitted, Main creates a neutral primary timeline automatically.',
+          'Optional semantic title and summary used only when STORY.json has no primary timeline. If omitted, Main creates a neutral primary timeline automatically.',
       },
     )),
     threadAdvances: Type.Array(Type.Object(
@@ -604,13 +560,13 @@ export const ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS = Type.Object(
         relation: stringEnum(
           ['plans', 'realizes', 'reveals', 'foreshadows', 'resolves'] as const,
         ),
-        threadRef: Type.String({ pattern: requestRefPattern('thread') }),
+        threadId: Type.String({ pattern: storyIdPattern }),
         title: Type.String({ maxLength: 500, minLength: 1 }),
       },
       { additionalProperties: false },
     ), {
       description:
-        'Existing Threads advanced by this accepted-document event, using refs from accepted_reconciliation context. Main creates and links beats atomically.',
+        'Existing Threads advanced by this accepted-document event, using stable IDs from STORY.json. Main creates and links beats atomically.',
       maxItems: 4,
     }),
   },
@@ -626,15 +582,14 @@ export const STORY_QUESTION_PARAMETERS = Type.Object(
         'The exact supporting quotation plus the document it came from, or null when no single passage applies. Main binds the revision it served for that document.',
       properties: {
         anchor: { maxLength: 10_000, minLength: 1, type: 'string' },
-        documentId: {
+        documentPath: {
           description:
-            `A request-scoped document ref read in this request, or ${ACCEPTED_DOCUMENT_REFERENCE} after reading accepted_reconciliation.`,
-          pattern:
-            `^(?:document:[1-9][0-9]{0,4}|${ACCEPTED_DOCUMENT_REFERENCE})$`,
+            `A project-relative manuscript path shown by Bash, or ${ACCEPTED_DOCUMENT_PATH} for the accepted manuscript.`,
+          pattern: `^(?:(?:manuscript|lore)(?:/[^/\\r\\n]+)*|${ACCEPTED_DOCUMENT_PATH})$`,
           type: 'string',
         },
       },
-      required: ['anchor', 'documentId'],
+      required: ['anchor', 'documentPath'],
       type: ['object', 'null'],
     }),
     kind: stringEnum([
@@ -655,7 +610,7 @@ export const STORY_QUESTION_PARAMETERS = Type.Object(
 export const RESOLVE_STORY_QUESTION_PARAMETERS = Type.Object(
   {
     answer: Type.String({ maxLength: 2_000, minLength: 1 }),
-    questionId: Type.String({ pattern: requestRefPattern('question') }),
+    questionId: Type.String({ pattern: storyIdPattern }),
   },
   { additionalProperties: false },
 );
@@ -745,16 +700,13 @@ const isValidMetadataTitle = (value: unknown): value is string =>
   value.length <= 500 &&
   !/[\u0000-\u001f\u007f]/u.test(value);
 
-const isRequestReference = (value: unknown): value is string =>
-  typeof value === 'string' && /^[a-z]+:[1-9][0-9]{0,4}$/u.test(value);
+const isStableStoryId = (value: unknown): value is string =>
+  typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(value);
 
-const isRequestReferenceOfKind = (
-  value: unknown,
-  kind: string,
-): value is string =>
+const isProjectPath = (value: unknown): value is string =>
   typeof value === 'string' &&
-  value.startsWith(`${kind}:`) &&
-  isRequestReference(value);
+  /^(?:manuscript|lore)(?:\/[^/\r\n]+)*$/u.test(value) &&
+  !value.split('/').includes('..');
 
 const isStoryClientRef = (value: unknown): value is string =>
   typeof value === 'string' && /^[A-Za-z][A-Za-z0-9_-]{0,31}$/u.test(value);
@@ -790,17 +742,21 @@ export const isAgentStoryOperation = (
   ) {
     canonical = {
       ...value,
-      sources: value.sources.map((source) =>
-        isRecord(source) && source.documentRevision === undefined
-          ? { ...source, documentRevision: PLACEHOLDER_REVISION }
-          : source,
-      ),
+      sources: value.sources.map((source) => {
+        if (!isRecord(source) || !isProjectPath(source.documentPath)) return source;
+        const { documentPath: _documentPath, ...canonicalSource } = source;
+        return {
+          ...canonicalSource,
+          documentId: 'placeholder',
+          documentRevision: PLACEHOLDER_REVISION,
+        };
+      }),
     };
   }
   if (!isProjectStoryOperation(canonical)) return false;
-  const operation = value as import('./project-story').ProjectStoryOperation;
-  const isRef = (reference: unknown, kind: string): boolean =>
-    isRequestReferenceOfKind(reference, kind) ||
+  const operation = value as AgentStoryChangeInput;
+  const isRef = (reference: unknown, _kind: string): boolean =>
+    isStableStoryId(reference) ||
     (allowClientReferences && isStoryClientReferenceUse(reference));
   if (
     operation.operation === 'create_persona' ||
@@ -819,7 +775,7 @@ export const isAgentStoryOperation = (
       (operation.sources === undefined ||
         operation.sources.every((source) =>
           source.sourceKind === 'manuscript' &&
-          isRef(source.documentId, 'document')))
+          isProjectPath(source.documentPath)))
     );
   }
   if (operation.operation === 'create_thread') {
@@ -898,9 +854,7 @@ const STORY_OPERATION_FIELDS: Record<string, {
 };
 
 const isStoryId = (value: unknown): boolean =>
-  typeof value === 'string' &&
-  (/^[a-z]+:[1-9][0-9]{0,4}$/u.test(value) ||
-    /^@[A-Za-z][A-Za-z0-9_-]{0,31}$/u.test(value));
+  isStableStoryId(value) || isStoryClientReferenceUse(value);
 
 const isStoryThreadStatus = (value: unknown): boolean =>
   typeof value === 'string' &&
@@ -941,7 +895,7 @@ const storyParticipantsError = (
       return `${itemPath} requires exactly description, personaId, and role.`;
     }
     if (!isStoryId(item.personaId)) {
-      return `${itemPath}.personaId must be a request-scoped ref or compatible earlier @clientRef.`;
+      return `${itemPath}.personaId must be a stable ID from STORY.json or compatible earlier @clientRef.`;
     }
     if (!['actor', 'target', 'witness', 'affected'].includes(item.role as string)) {
       return `${itemPath}.role is invalid.`;
@@ -970,14 +924,14 @@ const storySourcesError = (
     if (
       keys.length !== 4 ||
       keys.some((key) =>
-        !['anchor', 'documentId', 'relation', 'sourceKind'].includes(key))
+        !['anchor', 'documentPath', 'relation', 'sourceKind'].includes(key))
     ) {
-      return `${itemPath} requires exactly anchor, documentId, relation, and sourceKind.`;
+      return `${itemPath} requires exactly anchor, documentPath, relation, and sourceKind.`;
     }
     if (item.anchor !== null && !isBoundedStoryText(item.anchor, 10_000, true)) {
       return `${itemPath}.anchor must be null or a string of at most 10000 characters.`;
     }
-    if (!isStoryId(item.documentId)) return `${itemPath}.documentId is invalid.`;
+    if (!isProjectPath(item.documentPath)) return `${itemPath}.documentPath is invalid.`;
     if (!['depicted', 'mentioned', 'inferred'].includes(item.relation as string)) {
       return `${itemPath}.relation is invalid.`;
     }
@@ -1007,7 +961,7 @@ const storyOperationValueError = (
   const id = (field: string, nullable = false): string | undefined =>
     (nullable && change[field] === null) || isStoryId(change[field])
       ? undefined
-      : `${path}.${field} must be ${nullable ? 'null or ' : ''}a request-scoped ref or compatible earlier @clientRef.`;
+      : `${path}.${field} must be ${nullable ? 'null or ' : ''}a stable ID from STORY.json or compatible earlier @clientRef.`;
   const integer = (field: string): string | undefined =>
     Number.isSafeInteger(change[field])
       ? undefined
@@ -1144,20 +1098,12 @@ const storyOperationArgumentError = (
   return storyOperationValueError(operationFields, path, operation);
 };
 
-const issueNovelContext = (value: unknown): string | undefined => {
-  if (!Check(NOVEL_CONTEXT_PARAMETERS, value)) return '';
-  const args = value as AgentToolContractMap['read_novel_context']['arguments'];
-  const iconQueryIsValid = args.iconQuery === undefined ||
-    (isBoundedText(args.iconQuery, 120, false) &&
-      /[a-z0-9]/iu.test(args.iconQuery));
-  if (!iconQueryIsValid) return '';
-  if (
-    args.include.length > 0 ||
-    args.documentIds.length > 0 ||
-    args.directoryIds.length > 0 ||
-    args.iconQuery !== undefined
-  ) return undefined;
-  return '';
+const issueProjectBash = (value: unknown): string | undefined => {
+  if (!Check(PROJECT_BASH_PARAMETERS, value)) return '';
+  const command = (value as { command: string }).command;
+  return command.trim().length > 0 && !containsUnsafeTextControl(command)
+    ? undefined
+    : '';
 };
 
 const issueWritingArtifact = (value: unknown): string | undefined => {
@@ -1169,7 +1115,7 @@ const issueWritingArtifact = (value: unknown): string | undefined => {
 const issueDocumentEdit = (value: unknown): string | undefined => {
   if (Check(DOCUMENT_EDIT_PARAMETERS, value) &&
     isNonEmptyMarkdown((value as { markdown: unknown }).markdown)) return undefined;
-  return 'propose_document_edit requires exactly documentId and markdown. Use only request-scoped refs from read_novel_context. Generated Scribe prose uses propose_document_writing so Main freezes its target before generation.';
+  return 'propose_document_edit requires exactly documentPath and markdown. Use the exact project-relative path shown by Bash.';
 };
 
 const issueDocumentWriting = (value: unknown): string | undefined => {
@@ -1179,25 +1125,25 @@ const issueDocumentWriting = (value: unknown): string | undefined => {
       (args.requirements as unknown[]).every((requirement) =>
         isBoundedText(requirement, 1_000, false));
     const targetIsValid = args.documentAction === 'create'
-      ? args.documentId === null && isValidMetadataTitle(args.metadataTitle) &&
-        args.parentId !== null && args.kind !== null
-      : args.documentId !== null && args.kind === null &&
-        args.metadataTitle === null && args.parentId === null;
+      ? args.documentPath === null && isValidMetadataTitle(args.metadataTitle) &&
+        args.parentPath !== null && args.kind !== null
+      : args.documentPath !== null && args.kind === null &&
+        args.metadataTitle === null && args.parentPath === null;
     if (proseIsValid && targetIsValid) return undefined;
   }
-  return 'propose_document_writing requires exactly 9 fields: documentAction, documentDomain, objective, requirements, targetLength, documentId, parentId, metadataTitle, and kind. For create, set documentId null and provide parentId/metadataTitle/kind. For replace, provide documentId and set parentId/metadataTitle/kind null. A chapter read for continuity is not a replacement target.';
+  return 'propose_document_writing requires exactly 9 fields: documentAction, documentDomain, objective, requirements, targetLength, documentPath, parentPath, metadataTitle, and kind. For create, set documentPath null and provide parentPath/metadataTitle/kind. For replace, provide documentPath and set parentPath/metadataTitle/kind null.';
 };
 
 const issueDocumentFileOperation = (value: unknown): string | undefined => {
   if (!Check(DOCUMENT_FILE_OPERATION_PARAMETERS, value)) return '';
   const args = value as Record<string, unknown>;
   if (args.operation === 'create') {
-    if (hasExactKeys(args, ['operation', 'parentId', 'metadataTitle', 'kind', 'markdown']) &&
+    if (hasExactKeys(args, ['operation', 'parentPath', 'metadataTitle', 'kind', 'markdown']) &&
       isValidMetadataTitle(args.metadataTitle) &&
       isNonEmptyMarkdown(args.markdown)) return undefined;
-    return 'Document creation requires exactly operation, parentId, metadataTitle, kind, and markdown. metadataTitle is the raw title without generated numbering. Generated Scribe prose uses propose_document_writing.';
+    return 'Document creation requires exactly operation, parentPath, metadataTitle, kind, and markdown.';
   }
-  return hasExactKeys(args, ['operation', 'documentId']) ? undefined : '';
+  return hasExactKeys(args, ['operation', 'documentPath']) ? undefined : '';
 };
 
 const issueProjectStructureOperation = (value: unknown): string | undefined => {
@@ -1208,10 +1154,10 @@ const issueProjectStructureOperation = (value: unknown): string | undefined => {
   const operationKeys = {
     create_volume: ['operation', 'title'],
     create_lore_category: ['operation', 'title', 'icon'],
-    delete_lore_category: ['operation', 'directoryId'],
-    set_lore_category_icon: ['operation', 'directoryId', 'icon'],
-    move_document: ['operation', 'documentId', 'targetParentId'],
-    rename_document: ['operation', 'documentId', 'metadataTitle'],
+    delete_lore_category: ['operation', 'directoryPath'],
+    set_lore_category_icon: ['operation', 'directoryPath', 'icon'],
+    move_document: ['operation', 'documentPath', 'targetParentPath'],
+    rename_document: ['operation', 'documentPath', 'metadataTitle'],
   } as const;
   const expectedKeys = operationKeys[
     args.operation as keyof typeof operationKeys
@@ -1224,9 +1170,9 @@ const issueProjectStructureOperation = (value: unknown): string | undefined => {
     !(expectedKeys as readonly string[]).includes(key));
   if (unexpected.length > 0) {
     const createTargetHint = args.operation === 'create_lore_category'
-      ? ' The Lore root is implicit; do not pass directoryId or parentId.'
+      ? ' The Lore root is implicit; do not pass directoryPath or parentPath.'
       : args.operation === 'create_volume'
-        ? ' The Manuscript root is implicit; do not pass directoryId or parentId.'
+        ? ' The Manuscript root is implicit; do not pass directoryPath or parentPath.'
         : '';
     return `${String(args.operation)} accepts exactly ${expectedDescription}. Remove unsupported ${unexpected.join(', ')}.${createTargetHint}`;
   }
@@ -1235,7 +1181,7 @@ const issueProjectStructureOperation = (value: unknown): string | undefined => {
     return `${String(args.operation)} requires exactly ${expectedDescription}. Missing ${missing.join(', ')}.`;
   }
   if (!Check(PROJECT_STRUCTURE_OPERATION_PARAMETERS, value)) {
-    return `${String(args.operation)} contains an invalid field value; use the documented request-scoped refs and bounded text.`;
+    return `${String(args.operation)} contains an invalid field value; use exact Bash paths and bounded text.`;
   }
   const titleIsValid = args.title === undefined || isValidMetadataTitle(args.title);
   const iconIsValid = ![
@@ -1245,7 +1191,7 @@ const issueProjectStructureOperation = (value: unknown): string | undefined => {
     isProjectIconId(args.icon);
   if (!titleIsValid) return `${String(args.operation)} title must be non-empty.`;
   if (!iconIsValid) {
-    return `${String(args.operation)} icon must be an exact name returned by read_novel_context icon search.`;
+    return `${String(args.operation)} icon must be an exact name from ICONS.txt.`;
   }
   return undefined;
 };
@@ -1284,11 +1230,11 @@ const issueStoryMaintenance = (value: unknown): string | undefined => {
 const issueReconciliationCompletion = (value: unknown): string | undefined => {
   if (Check(STORY_RECONCILIATION_COMPLETION_PARAMETERS, value) &&
     isBoundedText((value as { reason: unknown }).reason, 2_000, false)) return undefined;
-  return 'complete_story_reconciliation requires exactly status and reason. Read accepted_reconciliation after acceptance first. Use applied only after a successful reconciliation mutation, questions_recorded only after recording a question, or no_changes only when neither occurred.';
+  return 'complete_story_reconciliation requires exactly status and reason. Inspect ACCEPTED.md and STORY.json with Bash after acceptance first. Use applied only after a successful reconciliation mutation, questions_recorded only after recording a question, or no_changes only when neither occurred.';
 };
 
 const issueAcceptedReconciliation = (value: unknown): string | undefined => {
-  const hint = 'reconcile_accepted_document requires events, newPersonae, newThreads, and threadAdvances, plus optional primaryTimeline only when accepted_reconciliation has none. events contains exactly one event. Existing participants use personaRef from accepted_reconciliation; new Personae declare clientRef and are referenced as @clientRef in the same call. Existing Thread advances use threadRef; newThreads embeds its first linked beat. Main owns timeline fallback, moments, sources, ordering, IDs, and checkpoint completion.';
+  const hint = 'reconcile_accepted_document requires events, newPersonae, newThreads, and threadAdvances, plus optional primaryTimeline only when STORY.json has none. Existing participants and Threads use stable IDs from STORY.json; new Personae use @clientRef in the same call.';
   if (!Check(ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS, value)) return hint;
   const args = value as AgentAcceptedDocumentReconciliationArguments;
   const requiredText = [
@@ -1328,7 +1274,7 @@ const issueResolveStoryQuestion = (value: unknown): string | undefined => {
 };
 
 const AGENT_TOOL_ARGUMENT_ISSUES = {
-  read_novel_context: issueNovelContext,
+  bash: issueProjectBash,
   submit_writing_artifact: issueWritingArtifact,
   maintain_story_records: issueStoryMaintenance,
   complete_story_reconciliation: issueReconciliationCompletion,
@@ -1343,9 +1289,9 @@ const AGENT_TOOL_ARGUMENT_ISSUES = {
 } as const satisfies Record<AgentToolName, (value: unknown) => string | undefined>;
 
 const AGENT_TOOL_RUNTIME_SCHEMAS = {
-  read_novel_context: guarded(
-    NOVEL_CONTEXT_PARAMETERS,
-    AGENT_TOOL_ARGUMENT_ISSUES.read_novel_context,
+  bash: guarded(
+    PROJECT_BASH_PARAMETERS,
+    AGENT_TOOL_ARGUMENT_ISSUES.bash,
   ),
   submit_writing_artifact: guarded(
     WRITING_ARTIFACT_SUBMISSION_PARAMETERS,

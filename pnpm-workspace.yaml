@@ -4,6 +4,8 @@ blockExoticSubdeps: false
 nodeLinker: hoisted
 allowBuilds:
   '@google/genai': true
+  '@mongodb-js/zstd': false
   fs-xattr: true
   macos-alias: true
+  node-liblzma: false
   protobufjs: true

@@ -48,7 +48,7 @@ export const CURATOR_TOOLS = AGENT_TOOL_NAMES.filter(
 );
 const CURATOR_TOOL_SET = new Set<AgentToolName>(CURATOR_TOOLS);
 export const SCRIBE_TOOLS = [
-  'read_novel_context',
+  'bash',
   'submit_writing_artifact',
 ] as const satisfies readonly AgentToolName[];
 
@@ -592,15 +592,13 @@ export class AiAgentService {
     if (!result.ok) return;
     if (!active.reconciliation.pending) return;
     if (
-      message.toolName === 'read_novel_context' &&
-      isAgentToolArguments(message.toolName, message.arguments)
+      message.toolName === 'bash'
     ) {
-      if (message.arguments.include.includes('accepted_reconciliation')) {
+      const command = (message.arguments as { command: string }).command;
+      if (/\bACCEPTED\.(?:md|json)\b/.test(command)) {
         active.reconciliation.acceptedDocumentRead = true;
-        active.reconciliation.storyStateRead = true;
-        return;
       }
-      if (message.arguments.include.includes('story_state')) {
+      if (/\bSTORY\.json\b/.test(command)) {
         active.reconciliation.storyStateRead = true;
       }
       return;
@@ -634,7 +632,7 @@ export class AiAgentService {
     }
     if (!reconciliation.acceptedDocumentRead || !reconciliation.storyStateRead) {
       return {
-        detail: 'Read both the accepted persisted document and current story_state after acceptance before completing reconciliation.',
+        detail: 'Inspect both ACCEPTED.md (or ACCEPTED.json) and STORY.json after acceptance before completing reconciliation.',
         ok: false,
       };
     }

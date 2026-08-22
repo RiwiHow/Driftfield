@@ -16,10 +16,10 @@ describe('Agent tool definitions', () => {
     }
   });
 
-  it('allows parallel execution only for the read-only context tool', () => {
+  it('allows parallel execution only for read-only inspection tools', () => {
     expect(Object.values(AGENT_TOOL_DEFINITIONS)
       .filter(({ executionMode }) => executionMode === 'parallel')
-      .map(({ name }) => name)).toEqual(['read_novel_context']);
+      .map(({ name }) => name)).toEqual(['bash']);
   });
 
   it('does not advertise retired writing protocol fields or tools', () => {
@@ -30,10 +30,10 @@ describe('Agent tool definitions', () => {
     }
   });
 
-  it('defines accepted generated writing as an authoritative compact receipt', () => {
+  it('defines generated writing with Bash paths and Main-owned revisions', () => {
     const description = AGENT_TOOL_DEFINITIONS.propose_document_writing.description;
-    expect(description).toContain('authoritatively means');
-    expect(description).toContain('request-scoped document ref');
-    expect(description).toContain('omission of the full Markdown is intentional');
+    expect(description).toContain('parentPath');
+    expect(description).toContain('documentPath');
+    expect(description).toContain('latest snapshot revisions');
   });
 });

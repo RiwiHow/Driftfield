@@ -5,11 +5,7 @@ import type {
 import type { AgentToolAuditName } from '../../../shared/contracts/agent-tools';
 
 const READ_ONLY_TOOL_NAMES = new Set<AgentToolAuditName>([
-  'read_novel_context',
-  'get_novel_structure',
-  'get_current_document',
-  'get_document',
-  'get_story_state',
+  'bash',
 ]);
 
 export type AgentTimelinePart =

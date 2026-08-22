@@ -135,6 +135,8 @@ export interface AgentProposalOutcome {
     | 'story';
   proposalId: string;
   status: AgentProposalOutcomeStatus;
+  /** Human-readable semantic target copied from the reviewed proposal. */
+  targetTitle: string;
 }
 
 export type ApplyAgentProposalRequest =

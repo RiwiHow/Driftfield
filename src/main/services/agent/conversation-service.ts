@@ -22,7 +22,6 @@ import { isAgentToolAuditName } from '../../../shared/contracts/agent-tools';
 import { isProjectIconId } from '../../../shared/contracts/project-layout';
 import { ProjectDatabase } from '../../database/project-database';
 import type { ProjectSession } from '../project/session-service';
-import { expireRequestScopedReferences } from './model-history';
 
 const DEFAULT_TITLE = '';
 const MAX_CONTEXT_CHARACTERS = 120_000;
@@ -579,10 +578,7 @@ const selectBoundedHistory = (
   let characters = 0;
   for (const row of rows) {
     if (row.content.length === 0) continue;
-    const historyRow = {
-      ...row,
-      content: expireRequestScopedReferences(row.content),
-    };
+    const historyRow = row;
     if (
       selected.length > 0 &&
       characters + historyRow.content.length > MAX_CONTEXT_CHARACTERS
@@ -612,6 +608,7 @@ const parseProposalOutcomeRows = (
           : 'edit',
         proposalId: part.proposal.proposalId,
         status: toProposalOutcomeStatus(part.status),
+        targetTitle: part.proposal.title,
       })),
   )
   .slice(-50);
