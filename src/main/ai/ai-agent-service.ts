@@ -5,6 +5,9 @@ import path from 'node:path';
 
 import type { AgentEvent } from '../../shared/contracts/agent';
 import {
+  ACCEPTED_DOCUMENT_METADATA_PATH,
+  ACCEPTED_DOCUMENT_PATH,
+  AGENT_STORY_CONTEXT_PATH,
   AGENT_TOOL_NAMES,
   isAgentToolArguments,
   type AgentDraftSnapshot,
@@ -598,10 +601,17 @@ export class AiAgentService {
       message.toolName === 'bash'
     ) {
       const command = (message.arguments as { command: string }).command;
-      if (/\bACCEPTED\.(?:md|json)\b/.test(command)) {
+      if (
+        command.includes(ACCEPTED_DOCUMENT_PATH) ||
+        command.includes(ACCEPTED_DOCUMENT_METADATA_PATH) ||
+        /\baccepted\.(?:md|json)\b/.test(command)
+      ) {
         active.reconciliation.acceptedDocumentRead = true;
       }
-      if (/\bSTORY\.json\b/.test(command)) {
+      if (
+        command.includes(AGENT_STORY_CONTEXT_PATH) ||
+        /\bstory\.json\b/.test(command)
+      ) {
         active.reconciliation.storyStateRead = true;
       }
       return;
@@ -635,7 +645,7 @@ export class AiAgentService {
     }
     if (!reconciliation.acceptedDocumentRead || !reconciliation.storyStateRead) {
       return {
-        detail: 'Inspect both ACCEPTED.md (or ACCEPTED.json) and STORY.json after acceptance before completing reconciliation.',
+        detail: `Inspect both ${ACCEPTED_DOCUMENT_PATH} (or ${ACCEPTED_DOCUMENT_METADATA_PATH}) and ${AGENT_STORY_CONTEXT_PATH} after acceptance before completing reconciliation.`,
         ok: false,
       };
     }

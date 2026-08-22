@@ -38,9 +38,12 @@ There is no ambient host-directory access. Context is acquired lazily with
 - Lore writing inspects the target area and relevant Lore Markdown.
 - Manuscript writing inspects relevant Lore, story state, preceding prose, and
   the target draft when replacing.
-- Story maintenance inspects `STORY.json` and relevant source Markdown.
-- Structure work inspects `PROJECT.json`; icon work inspects `ICONS.txt`.
-- Accepted-prose reconciliation inspects `ACCEPTED.md` and `STORY.json`.
+- Story maintenance inspects `/context/story.json` and relevant source
+  Markdown.
+- Structure work inspects `/context/project.json`; icon work searches
+  `/context/icons.txt`.
+- Accepted-prose reconciliation inspects `/context/accepted.md` and
+  `/context/story.json`.
 
 Main overlays the request-start editor draft. It privately binds paths and IDs
 to the revisions represented by the latest snapshot. A mutation consumes that
@@ -66,7 +69,7 @@ never becomes a blank or partial document.
 
 ## Story maintenance
 
-The model supplies semantic facts and stable IDs from `STORY.json`. Main owns
+The model supplies semantic facts and stable IDs from `/context/story.json`. Main owns
 transactions, dependency resolution, generated identities, ordering, and the
 mutation ledger. `@clientRef` is limited to dependencies created earlier in one
 atomic changeset and has no lifetime beyond that call.
@@ -85,8 +88,8 @@ the checkpoint is settled.
 ```text
 accepted Manuscript proposal
     |
-    +-- ACCEPTED.md / ACCEPTED.json
-    +-- STORY.json
+    +-- /context/accepted.md / accepted.json
+    +-- /context/story.json
     |
     v
 focused story delta or verified no-change decision

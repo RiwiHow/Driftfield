@@ -72,8 +72,13 @@ assert.match(
 );
 assert.match(
   workerBundle,
-  /Inspect the current novel with Bash/,
+  /Inspect only the context needed for the current request/,
   'The packaged Pi worker is missing the disposable project-inspection tool.',
+);
+assert.match(
+  workerBundle,
+  /\/context\/story\.json/,
+  'The packaged Pi worker is missing routed story context.',
 );
 assert.match(
   workerBundle,
@@ -132,7 +137,7 @@ assert.match(
 );
 assert.match(
   mainBundle,
-  /\/project\/PROJECT\.json/,
+  /\/context\/project\.json/,
   'The packaged Main bundle is missing the virtual project snapshot.',
 );
 assert.match(

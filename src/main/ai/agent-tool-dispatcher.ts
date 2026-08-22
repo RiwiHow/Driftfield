@@ -19,6 +19,7 @@ import type {
 } from './agent-writing';
 import {
   ACCEPTED_DOCUMENT_PATH,
+  AGENT_STORY_CONTEXT_PATH,
   agentToolArgumentHint,
   isAgentToolRequest,
   isLongRunningAgentTool,
@@ -263,7 +264,7 @@ export class AgentToolDispatcher {
       ) {
         throw new ProjectContextError(
           'invalid-arguments',
-          'Inspect ACCEPTED.md and STORY.json with Bash after the manuscript proposal is accepted.',
+          `Inspect ${ACCEPTED_DOCUMENT_PATH} and ${AGENT_STORY_CONTEXT_PATH} with Bash after the manuscript proposal is accepted.`,
         );
       }
       const changes = buildAcceptedDocumentChanges(
@@ -691,7 +692,7 @@ const buildAcceptedDocumentChanges = (
   ) {
     throw new ProjectContextError(
       'invalid-arguments',
-      'primaryTimeline is valid only when STORY.json has no primary timeline.',
+      `primaryTimeline is valid only when ${AGENT_STORY_CONTEXT_PATH} has no primary timeline.`,
     );
   }
   const newPersonaRefs = new Map<string, string>();
@@ -865,7 +866,7 @@ const resolveStoryQuestionArguments = (
   ) {
     throw new ProjectContextError(
       'invalid-arguments',
-      'Run Bash after accepting the manuscript before citing ACCEPTED.md.',
+      `Run Bash after accepting the manuscript before citing ${ACCEPTED_DOCUMENT_PATH}.`,
     );
   }
   return {

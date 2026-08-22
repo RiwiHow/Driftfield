@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -76,10 +76,13 @@ describe('ProjectContextService', () => {
 
     const inspected = await context.executeProjectBash(
       scope,
-      `find . -type f -print && cat PROJECT.json && cat ${JSON.stringify(relativePath)} && rg -n Unsaved .`,
+      `find . -type f -print && cat /context/project.json && cat ${JSON.stringify(relativePath)} && rg -n Unsaved .`,
     );
     expect(inspected.result.exitCode).toBe(0);
-    expect(inspected.result.stdout).toContain('./PROJECT.json');
+    expect(inspected.result.stdout).toContain('"format": "driftfield-agent-snapshot"');
+    expect(inspected.result.stdout).not.toContain('project.json\n');
+    expect(inspected.result.stdout).not.toContain('story.json\n');
+    expect(inspected.result.stdout).not.toContain('icons.txt\n');
     expect(inspected.result.stdout).toContain(`# Unsaved in editor`);
     expect(inspected.result.stdout).not.toContain('.driftfield');
     expect(inspected.result.stdout).not.toContain(temporaryDirectories[0]);
@@ -94,6 +97,25 @@ describe('ProjectContextService', () => {
       `cat ${JSON.stringify(relativePath)}`,
     );
     expect(reread.result.stdout).toBe('# Unsaved in editor\n');
+  });
+
+  it('materializes registered empty directories without exposing unregistered ones', async () => {
+    const { context, project, session } = await createContext();
+    await mkdir(path.join(session.directoryPath, 'lore', 'unregistered'));
+
+    const inspected = await context.executeProjectBash(
+      { ownerId: 7, projectSessionId: 'session-1' },
+      'find manuscript lore -type d -print',
+    );
+
+    expect(inspected.result.exitCode).toBe(0);
+    expect(inspected.result.stdout).toContain('manuscript');
+    for (const node of project.loreTree ?? []) {
+      if (node.type === 'folder') {
+        expect(inspected.result.stdout).toContain(node.relativePath);
+      }
+    }
+    expect(inspected.result.stdout).not.toContain('unregistered');
   });
 
   it('exposes story citations as project paths without IDs or revisions', async () => {
@@ -113,7 +135,7 @@ describe('ProjectContextService', () => {
       question: 'Who arrived?',
     });
 
-    const inspected = await context.executeProjectBash(scope, 'cat STORY.json');
+    const inspected = await context.executeProjectBash(scope, 'cat /context/story.json');
     expect(inspected.result.stdout).toContain(relativePath);
     expect(inspected.result.stdout).toContain('"documentPath"');
     expect(inspected.result.stdout).not.toContain('chapter-1');
@@ -161,7 +183,7 @@ describe('ProjectContextService', () => {
       code: 'invalid-arguments',
       detail: expect.stringContaining('startMomentId expects moment'),
     }));
-    await expect(context.executeProjectBash(scope, 'cat STORY.json')).resolves.toMatchObject({
+    await expect(context.executeProjectBash(scope, 'cat /context/story.json')).resolves.toMatchObject({
       story: {
       events: [],
       revision: 0,

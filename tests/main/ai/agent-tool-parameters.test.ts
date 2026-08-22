@@ -36,6 +36,16 @@ describe('path-based Agent tool schemas', () => {
       sources: [{ anchor: 'Text', documentPath: 'manuscript/chapter.md', relation: 'depicted', sourceKind: 'manuscript' }],
       startMomentId: 'moment_uuid-1', summary: '', timelineId: 'timeline_uuid-1', title: 'Event',
     }] })).toBe(true);
+    expect(isAgentToolArguments('record_story_question', {
+      context: 'Accepted chapter',
+      evidence: {
+        anchor: 'The bell rang.',
+        documentPath: '/context/accepted.md',
+      },
+      kind: 'other',
+      options: [],
+      question: 'Which bell?',
+    })).toBe(true);
   });
 
   it('ships one schema for every registered tool', () => {

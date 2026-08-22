@@ -17,7 +17,7 @@ const bashExecution = (): AgentProjectBashExecution => ({
     kind: 'chapter',
   }]]),
   projectRevision: 'project-revision',
-  result: { exitCode: 0, stderr: '', stdout: './PROJECT.json\n' },
+  result: { exitCode: 0, stderr: '', stdout: '/context/project.json\n' },
   story: {
     beats: [], eventLinks: [], eventParticipants: [], eventSources: [], events: [],
     moments: [{
@@ -39,7 +39,7 @@ describe('AgentToolDispatcher Bash snapshots', () => {
     await expect(dispatcher.execute(scope, {
       arguments: { command: 'find . -type f' }, toolName: 'bash',
     })).resolves.toEqual({
-      data: { exitCode: 0, stderr: '', stdout: './PROJECT.json\n' }, ok: true, toolName: 'bash',
+      data: { exitCode: 0, stderr: '', stdout: '/context/project.json\n' }, ok: true, toolName: 'bash',
     });
   });
 
@@ -57,7 +57,7 @@ describe('AgentToolDispatcher Bash snapshots', () => {
       maintainStoryRecords: vi.fn().mockReturnValue({ appliedCount: 1, revision: 4, status: 'applied' }),
     } as unknown as ProjectContextService;
     const dispatcher = new AgentToolDispatcher(context);
-    await dispatcher.execute(scope, { arguments: { command: 'cat STORY.json' }, toolName: 'bash' });
+    await dispatcher.execute(scope, { arguments: { command: 'cat /context/story.json' }, toolName: 'bash' });
     const result = await dispatcher.execute(scope, {
       arguments: { changes: [{
         causes: '', consequences: '', endMomentId: null, status: 'established',

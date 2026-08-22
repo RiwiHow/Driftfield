@@ -20,7 +20,7 @@ export const buildAgentSystemPrompt = (
   }
   if (tools.has('bash')) {
     capabilityInstructions.push(
-      'Use Bash only for context needed by the request. PROJECT.json is authoritative for structure, including empty directories; STORY.json contains canonical story records and stable IDs. Read ICONS.txt only when choosing an icon, and ACCEPTED.md/ACCEPTED.json only for pending manuscript reconciliation. Prefer one focused read over broad scans or duplicate calls.',
+      'Use Bash only for context needed by the request. /project contains the registered novel tree and Markdown. Application metadata may be available under /context; read a context file only when the selected domain tool requires it. Prefer one focused read over broad scans or duplicate calls.',
       'Each /project call is a fresh disposable snapshot. Mutations use exact paths or stable IDs from the latest snapshot; Main owns revision checks. Virtual writes prove nothing. Read a fresh snapshot after a mutation before dependent work.',
     );
   }
@@ -52,7 +52,7 @@ export const buildAgentSystemPrompt = (
   }
   if (tools.has('propose_project_structure_operation')) {
     capabilityInstructions.push(
-      'Structure proposals use exact snapshot paths. Volume and Lore-category creation target their fixed roots. Choose icons from ICONS.txt, preserve category identity when changing one, and empty a category through reviewed document operations before deleting it.',
+      'Structure proposals use exact snapshot paths and semantic project context. Volume and Lore-category creation target their fixed roots. Inspect the icon catalog only when choosing or changing an icon, preserve category identity when changing one, and empty a category through reviewed document operations before deleting it.',
     );
   }
   if (
@@ -62,7 +62,7 @@ export const buildAgentSystemPrompt = (
     tools.has('propose_story_operation')
   ) {
     capabilityInstructions.push(
-      'Personae, Chronicle, and Threads are canonical. Read STORY.json first. Apply only explicit low-risk additions or links in one complete atomic changeset with local client refs. Record one deduplicated question when author judgment is required.',
+      'Personae, Chronicle, and Threads are canonical. Read current story context first. Apply only explicit low-risk additions or links in one complete atomic changeset with local client refs. Record one deduplicated question when author judgment is required.',
     );
   }
   if (
@@ -70,7 +70,7 @@ export const buildAgentSystemPrompt = (
     tools.has('complete_story_reconciliation')
   ) {
     capabilityInstructions.push(
-      'For pending manuscript reconciliation, inspect ACCEPTED.md and STORY.json, including open questions. Prefer one focused reconcile_accepted_document call; use complete_story_reconciliation only after other maintenance, recorded questions, or a verified no-change result.',
+      'For pending manuscript reconciliation, inspect the accepted document and current story context, including open questions. Prefer one focused reconcile_accepted_document call; use complete_story_reconciliation only after other maintenance, recorded questions, or a verified no-change result.',
       'Create a Thread only for a sustained goal, conflict, dramatic question, suspense, or relationship progression—not for an isolated scene or event.',
     );
   }

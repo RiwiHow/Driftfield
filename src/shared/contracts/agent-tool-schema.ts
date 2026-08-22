@@ -11,13 +11,17 @@ import type {
 import { isProjectIconId } from './project-layout';
 import { isProjectStoryOperation } from './project-story';
 
-export const ACCEPTED_DOCUMENT_PATH = 'ACCEPTED.md';
+export const ACCEPTED_DOCUMENT_PATH = '/context/accepted.md';
+export const AGENT_ICON_CONTEXT_PATH = '/context/icons.txt';
+export const AGENT_PROJECT_CONTEXT_PATH = '/context/project.json';
+export const AGENT_STORY_CONTEXT_PATH = '/context/story.json';
+export const ACCEPTED_DOCUMENT_METADATA_PATH = '/context/accepted.json';
 
 export const PROJECT_BASH_PARAMETERS = Type.Object(
   {
     command: Type.String({
       description:
-        'A Bash command for inspecting the disposable /project snapshot. Prefer find, rg, cat, sed, head, tail, jq, and wc. The shell has no network, host filesystem, JavaScript, Python, credentials, or persistence.',
+        'A Bash command for inspecting the disposable novel under /project. Prefer ls, find, tree, rg, cat, sed, head, tail, jq, and wc. Application metadata may be available under /context; read it only when the selected domain operation requires it. The shell has no network, host filesystem, JavaScript, Python, credentials, or persistence.',
       maxLength: 4_000,
       minLength: 1,
     }),
@@ -42,6 +46,10 @@ const stringEnum = <Values extends readonly string[]>(
   });
 
 const projectPathPattern = '^(?:manuscript|lore)(?:/(?!\\.{1,2}(?:/|$))[^/\\r\\n]+)*$';
+const acceptedDocumentPathPattern = ACCEPTED_DOCUMENT_PATH.replace(
+  /[.*+?^${}()|[\]\\]/gu,
+  '\\$&',
+);
 const storyIdPattern = '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$';
 const storyOrClientIdPattern = '^(?:[A-Za-z0-9][A-Za-z0-9._-]{0,127}|@[A-Za-z][A-Za-z0-9_-]{0,31})$';
 
@@ -186,7 +194,7 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
     icon: Type.Optional(
       Type.String({
         description:
-          'Required for create_lore_category and set_lore_category_icon. Use an exact kebab-case Lucide name found in ICONS.txt.',
+          `Required for create_lore_category and set_lore_category_icon. Search ${AGENT_ICON_CONTEXT_PATH} and use an exact kebab-case Lucide name.`,
         maxLength: 35,
         pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$',
       }),
@@ -328,7 +336,7 @@ export const STORY_OPERATION_PARAMETERS = Type.Object(
 );
 
 const maintenanceReferenceDescription = (kind: string): string =>
-  `Stable ${kind} ID from STORY.json, or @clientRef for a compatible entity created earlier in this same changeset.`;
+  `Stable ${kind} ID from ${AGENT_STORY_CONTEXT_PATH}, or @clientRef for a compatible entity created earlier in this same changeset.`;
 
 const STORY_MAINTENANCE_CHANGE_PARAMETERS = Type.Object(
   {
@@ -546,7 +554,7 @@ export const ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS = Type.Object(
       {
         additionalProperties: false,
         description:
-          'Optional semantic title and summary used only when STORY.json has no primary timeline. If omitted, Main creates a neutral primary timeline automatically.',
+          `Optional semantic title and summary used only when ${AGENT_STORY_CONTEXT_PATH} has no primary timeline. If omitted, Main creates a neutral primary timeline automatically.`,
       },
     )),
     threadAdvances: Type.Array(Type.Object(
@@ -566,7 +574,7 @@ export const ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS = Type.Object(
       { additionalProperties: false },
     ), {
       description:
-        'Existing Threads advanced by this accepted-document event, using stable IDs from STORY.json. Main creates and links beats atomically.',
+        `Existing Threads advanced by this accepted-document event, using stable IDs from ${AGENT_STORY_CONTEXT_PATH}. Main creates and links beats atomically.`,
       maxItems: 4,
     }),
   },
@@ -585,7 +593,7 @@ export const STORY_QUESTION_PARAMETERS = Type.Object(
         documentPath: {
           description:
             `A project-relative manuscript path shown by Bash, or ${ACCEPTED_DOCUMENT_PATH} for the accepted manuscript.`,
-          pattern: `^(?:(?:manuscript|lore)(?:/[^/\\r\\n]+)*|${ACCEPTED_DOCUMENT_PATH})$`,
+          pattern: `^(?:(?:manuscript|lore)(?:/[^/\\r\\n]+)*|${acceptedDocumentPathPattern})$`,
           type: 'string',
         },
       },
@@ -895,7 +903,7 @@ const storyParticipantsError = (
       return `${itemPath} requires exactly description, personaId, and role.`;
     }
     if (!isStoryId(item.personaId)) {
-      return `${itemPath}.personaId must be a stable ID from STORY.json or compatible earlier @clientRef.`;
+      return `${itemPath}.personaId must be a stable ID from ${AGENT_STORY_CONTEXT_PATH} or compatible earlier @clientRef.`;
     }
     if (!['actor', 'target', 'witness', 'affected'].includes(item.role as string)) {
       return `${itemPath}.role is invalid.`;
@@ -961,7 +969,7 @@ const storyOperationValueError = (
   const id = (field: string, nullable = false): string | undefined =>
     (nullable && change[field] === null) || isStoryId(change[field])
       ? undefined
-      : `${path}.${field} must be ${nullable ? 'null or ' : ''}a stable ID from STORY.json or compatible earlier @clientRef.`;
+      : `${path}.${field} must be ${nullable ? 'null or ' : ''}a stable ID from ${AGENT_STORY_CONTEXT_PATH} or compatible earlier @clientRef.`;
   const integer = (field: string): string | undefined =>
     Number.isSafeInteger(change[field])
       ? undefined
@@ -1191,7 +1199,7 @@ const issueProjectStructureOperation = (value: unknown): string | undefined => {
     isProjectIconId(args.icon);
   if (!titleIsValid) return `${String(args.operation)} title must be non-empty.`;
   if (!iconIsValid) {
-    return `${String(args.operation)} icon must be an exact name from ICONS.txt.`;
+    return `${String(args.operation)} icon must be an exact name from ${AGENT_ICON_CONTEXT_PATH}.`;
   }
   return undefined;
 };
@@ -1230,11 +1238,11 @@ const issueStoryMaintenance = (value: unknown): string | undefined => {
 const issueReconciliationCompletion = (value: unknown): string | undefined => {
   if (Check(STORY_RECONCILIATION_COMPLETION_PARAMETERS, value) &&
     isBoundedText((value as { reason: unknown }).reason, 2_000, false)) return undefined;
-  return 'complete_story_reconciliation requires exactly status and reason. Inspect ACCEPTED.md and STORY.json with Bash after acceptance first. Use applied only after a successful reconciliation mutation, questions_recorded only after recording a question, or no_changes only when neither occurred.';
+  return `complete_story_reconciliation requires exactly status and reason. Inspect ${ACCEPTED_DOCUMENT_PATH} and ${AGENT_STORY_CONTEXT_PATH} with Bash after acceptance first. Use applied only after a successful reconciliation mutation, questions_recorded only after recording a question, or no_changes only when neither occurred.`;
 };
 
 const issueAcceptedReconciliation = (value: unknown): string | undefined => {
-  const hint = 'reconcile_accepted_document requires events, newPersonae, newThreads, and threadAdvances, plus optional primaryTimeline only when STORY.json has none. Existing participants and Threads use stable IDs from STORY.json; new Personae use @clientRef in the same call.';
+  const hint = `reconcile_accepted_document requires events, newPersonae, newThreads, and threadAdvances, plus optional primaryTimeline only when ${AGENT_STORY_CONTEXT_PATH} has none. Existing participants and Threads use stable IDs from ${AGENT_STORY_CONTEXT_PATH}; new Personae use @clientRef in the same call.`;
   if (!Check(ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS, value)) return hint;
   const args = value as AgentAcceptedDocumentReconciliationArguments;
   const requiredText = [

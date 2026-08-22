@@ -11,6 +11,13 @@ import type {
   AgentStoryQuestionToolResult,
   AgentToolErrorCode,
 } from '../../shared/contracts/agent-tools';
+import {
+  ACCEPTED_DOCUMENT_METADATA_PATH,
+  ACCEPTED_DOCUMENT_PATH,
+  AGENT_ICON_CONTEXT_PATH,
+  AGENT_PROJECT_CONTEXT_PATH,
+  AGENT_STORY_CONTEXT_PATH,
+} from '../../shared/contracts/agent-tool-schema';
 import type { ProjectTreeNode } from '../../shared/contracts/project';
 import {
   PROJECT_ICON_IDS,
@@ -173,24 +180,24 @@ export class ProjectContextService {
         null,
         2,
       );
-      files['/project/STORY.json'] = storyJson;
+      files[AGENT_STORY_CONTEXT_PATH] = storyJson;
       totalBytes += Buffer.byteLength(storyJson, 'utf8');
     }
     const iconCatalog = `${PROJECT_ICON_IDS.join('\n')}\n`;
-    files['/project/ICONS.txt'] = iconCatalog;
+    files[AGENT_ICON_CONTEXT_PATH] = iconCatalog;
     totalBytes += Buffer.byteLength(iconCatalog, 'utf8');
     const acceptedDocument = acceptedDocumentId === undefined
       ? undefined
       : await this.getDocument(scope, acceptedDocumentId);
     if (acceptedDocument !== undefined) {
-      files['/project/ACCEPTED.md'] = acceptedDocument.markdown;
+      files[ACCEPTED_DOCUMENT_PATH] = acceptedDocument.markdown;
       const acceptedMetadata = JSON.stringify({
         displayTitle: acceptedDocument.displayTitle,
         metadataTitle: acceptedDocument.metadataTitle,
         path: [...documents.entries()].find(([, anchor]) =>
           anchor.documentId === acceptedDocumentId)?.[0] ?? null,
       }, null, 2);
-      files['/project/ACCEPTED.json'] = acceptedMetadata;
+      files[ACCEPTED_DOCUMENT_METADATA_PATH] = acceptedMetadata;
       totalBytes += Buffer.byteLength(acceptedDocument.markdown, 'utf8');
       totalBytes += Buffer.byteLength(acceptedMetadata, 'utf8');
     }
@@ -208,7 +215,7 @@ export class ProjectContextService {
     if (totalBytes > MAX_AGENT_PROJECT_SNAPSHOT_BYTES) {
       throw new ProjectContextError('selection-too-large');
     }
-    files['/project/PROJECT.json'] = projectIndex;
+    files[AGENT_PROJECT_CONTEXT_PATH] = projectIndex;
 
     const bash = new Bash({
       cwd: '/project',
@@ -232,6 +239,9 @@ export class ProjectContextService {
       javascript: false,
       python: false,
     });
+    for (const relativePath of directories.keys()) {
+      await bash.fs.mkdir(`/project/${relativePath}`, { recursive: true });
+    }
     const result = await bash.exec(command, {
       cwd: '/project',
       env: {},

@@ -1,5 +1,9 @@
 import type { AgentToolName } from '../../shared/contracts/agent-tools';
 import {
+  ACCEPTED_DOCUMENT_PATH,
+  AGENT_ICON_CONTEXT_PATH,
+  AGENT_PROJECT_CONTEXT_PATH,
+  AGENT_STORY_CONTEXT_PATH,
   ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS,
   DOCUMENT_EDIT_PARAMETERS,
   DOCUMENT_FILE_OPERATION_PARAMETERS,
@@ -32,7 +36,7 @@ type AgentToolDefinitionRegistry = {
 export const AGENT_TOOL_DEFINITIONS = {
   bash: {
     description:
-      'Inspect the current novel with Bash inside a fresh disposable /project filesystem. Use ordinary read commands such as find, rg, cat, sed, head, tail, jq, and wc. PROJECT.json describes the current tree, STORY.json contains canonical story records, and ICONS.txt lists exact Lucide names. ACCEPTED.md and ACCEPTED.json appear only while an accepted manuscript awaits reconciliation. The filesystem has no .driftfield data, host paths, network, credentials, JavaScript, Python, or persistent writes. Run a new call whenever you need to verify state after an accepted mutation.',
+      'Inspect only the context needed for the current request. The fresh disposable /project filesystem contains registered Manuscript and Lore directories and Markdown; application metadata may be available under /context when a selected domain tool explicitly requires it. The filesystem has no .driftfield data, unregistered files, host paths, network, credentials, JavaScript, Python, or persistent writes. Run a new call after an accepted mutation before dependent work.',
     executionMode: 'parallel',
     label: 'Inspect project with Bash',
     name: 'bash',
@@ -40,7 +44,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   submit_writing_artifact: {
     description:
-      'Submit the complete assigned Manuscript or Lore Markdown exactly once. Exclude analysis, planning, commentary, status text, and persistence claims. Ordinary assistant text is not part of the artifact.',
+      `Submit the complete assigned Manuscript or Lore Markdown exactly once. Inspect only relevant Markdown first; read ${AGENT_STORY_CONTEXT_PATH} only when the assignment requires canonical story continuity. Exclude analysis, planning, commentary, status text, and persistence claims. Ordinary assistant text is not part of the artifact.`,
     executionMode: 'sequential',
     label: 'Submit writing artifact',
     name: 'submit_writing_artifact',
@@ -48,7 +52,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   maintain_story_records: {
     description:
-      'Atomically maintain one ordered changeset of 1 to 24 low-risk additive or linking changes in Personae, Chronicle, or Threads when explicitly requested by the user or unambiguously evidenced by accepted persisted prose. Inspect STORY.json with Bash first and use its stable entity IDs. For a created entity needed by a later change, assign clientRef and reference it later as @clientRef; include the complete dependency graph in this one call. Main resolves references, owns persistent identities and revisions, and applies all or none with one story revision. The concise result reports only status, revision, and appliedCount. Never include ambiguity or inference requiring author judgment; record a story question instead. This tool cannot delete, merge, reorder, edit manuscript text, or execute SQL.',
+      `Atomically maintain one ordered changeset of 1 to 24 low-risk additive or linking changes in Personae, Chronicle, or Threads when explicitly requested by the user or unambiguously evidenced by accepted persisted prose. Inspect ${AGENT_STORY_CONTEXT_PATH} with Bash first and use its stable entity IDs. For a created entity needed by a later change, assign clientRef and reference it later as @clientRef; include the complete dependency graph in this one call. Main resolves references, owns persistent identities and revisions, and applies all or none with one story revision. The concise result reports only status, revision, and appliedCount. Never include ambiguity or inference requiring author judgment; record a story question instead. This tool cannot delete, merge, reorder, edit manuscript text, or execute SQL.`,
     executionMode: 'sequential',
     label: 'Maintain story records',
     name: 'maintain_story_records',
@@ -64,7 +68,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   reconcile_accepted_document: {
     description:
-      'Atomically reconcile the Chronicle event depicted by ACCEPTED.md. Run Bash first and use stable Persona and Thread IDs from STORY.json; new Personae declare clientRef and participants reference them as @clientRef in the same call. Main owns the accepted source revision, story revision, ordering, IDs, links, and checkpoint completion.',
+      `Atomically reconcile the Chronicle event depicted by ${ACCEPTED_DOCUMENT_PATH}. Run Bash first and use stable Persona and Thread IDs from ${AGENT_STORY_CONTEXT_PATH}; new Personae declare clientRef and participants reference them as @clientRef in the same call. Main owns the accepted source revision, story revision, ordering, IDs, links, and checkpoint completion.`,
     executionMode: 'sequential',
     label: 'Reconcile accepted document',
     name: 'reconcile_accepted_document',
@@ -72,7 +76,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   record_story_question: {
     description:
-      'Record one unresolved author question without changing canonical story records. Run Bash first, avoid duplicating an open question from STORY.json, and cite an exact project-relative manuscript path or ACCEPTED.md when evidence exists.',
+      `Record one unresolved author question without changing canonical story records. Run Bash first, avoid duplicating an open question from ${AGENT_STORY_CONTEXT_PATH}, and cite an exact project-relative manuscript path or ${ACCEPTED_DOCUMENT_PATH} when evidence exists.`,
     executionMode: 'sequential',
     label: 'Record story question',
     name: 'record_story_question',
@@ -80,7 +84,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   resolve_story_question: {
     description:
-      "Resolve an existing open story question only from the user's explicit answer. Run Bash first and pass the stable question ID from STORY.json with a concise faithful answer.",
+      `Resolve an existing open story question only from the user's explicit answer. Run Bash first and pass the stable question ID from ${AGENT_STORY_CONTEXT_PATH} with a concise faithful answer.`,
     executionMode: 'sequential',
     label: 'Resolve story question',
     name: 'resolve_story_question',
@@ -96,7 +100,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   propose_document_writing: {
     description:
-      'Commission Scribe and submit exactly one pre-bound reviewed document proposal. Run Bash first. Create uses the exact parentPath, raw title, and kind; replace uses the exact current documentPath. Main binds the latest snapshot revisions before Scribe runs and cannot rebind the artifact afterward.',
+      'Commission Scribe and submit exactly one pre-bound reviewed document proposal. Inspect the target directory and only relevant Markdown first; include canonical story continuity in the assignment only when it matters. Create uses the exact parentPath, raw title, and kind; replace uses the exact current documentPath. Main binds the latest snapshot revisions before Scribe runs and cannot rebind the artifact afterward.',
     executionMode: 'sequential',
     label: 'Propose generated document',
     name: 'propose_document_writing',
@@ -112,7 +116,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   propose_project_structure_operation: {
     description:
-      "Submit a reviewable project-structure proposal using exact project-relative paths from the latest Bash snapshot. Icons must be exact names from ICONS.txt. Creating a volume or Lore category targets its root implicitly. Main owns identities, revision checks, and persistence.",
+      `Submit a reviewable project-structure proposal using exact project-relative paths from the latest Bash snapshot. Inspect ${AGENT_PROJECT_CONTEXT_PATH}; only for category creation or icon changes, search ${AGENT_ICON_CONTEXT_PATH} with rg or grep and use one exact name. Creating a volume or Lore category targets its root implicitly. Main owns identities, revision checks, and persistence.`,
     executionMode: 'sequential',
     label: 'Propose project structure change',
     name: 'propose_project_structure_operation',

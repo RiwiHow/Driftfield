@@ -5,9 +5,9 @@ import { serializeSuccessfulToolResult } from '../../../src/main/ai/agent-tool-m
 describe('Agent tool model results', () => {
   it('serializes a successful Bash inspection result', () => {
     expect(serializeSuccessfulToolResult({
-      data: { exitCode: 0, stderr: '', stdout: './PROJECT.json\n' },
+      data: { exitCode: 0, stderr: '', stdout: '/context/project.json\n' },
       ok: true,
       toolName: 'bash',
-    })).toBe('{"data":{"exitCode":0,"stderr":"","stdout":"./PROJECT.json\\n"},"ok":true,"toolName":"bash"}');
+    })).toBe('{"data":{"exitCode":0,"stderr":"","stdout":"/context/project.json\\n"},"ok":true,"toolName":"bash"}');
   });
 });
