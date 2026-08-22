@@ -25,8 +25,9 @@ The `/project` tree contains:
 
 Application-generated context is separate from the novel under `/context`:
 
-- `/context/story.json`, the current Personae, Chronicle, Threads, and
-  questions;
+- `/context/story/index.json`, a small count-and-navigation index whose
+  referenced, bounded JSONL shards contain current Personae, Chronicle,
+  Threads, relations, and questions;
 - `/context/icons.txt`, the complete bundled Lucide icon-name catalog;
 - `/context/accepted.md` and `/context/accepted.json` while an accepted
   Manuscript reconciliation is pending.
@@ -42,10 +43,11 @@ Ordinary project inspection stays under `/project`. `ls` and `tree` omit the
 hidden indexes, while a domain tool can read only the nearest `.index.json`
 needed to map a display title, icon, or explicit child order. Prose scans use
 the `.md` and `.markdown` extensions so they do not collect indexes. Other
-context files are routed by the domain tool that needs them: story work uses
-`story.json`, icon work searches `icons.txt`, and reconciliation uses the
-accepted document plus story state. The generic Bash description does not
-advertise individual context files as an initialization checklist.
+context files are routed by the domain tool that needs them: story work reads
+`story/index.json` and searches only relevant JSONL shards, icon work searches
+`icons.txt`, and reconciliation uses the accepted document plus story state.
+The generic Bash description does not advertise individual context files as an
+initialization checklist.
 
 The virtual shell has no host filesystem, `.driftfield`, database, credentials,
 network, Node.js, JavaScript, Python, or persistent write access. Main applies
@@ -53,8 +55,8 @@ filesystem-size, source-size, command-count, loop, traversal, execution-time,
 and output limits. The Renderer never receives filesystem authority.
 
 Local `.index.json` files and Markdown use exact project-relative paths.
-`/context/story.json`
-contains stable story entity IDs and path-based manuscript citations. No
+Story JSONL records contain stable story entity IDs and path-based manuscript
+citations; the index contains only counts and shard paths. No
 revision tokens, document IDs, or request IDs are exposed. Main retains
 a private snapshot map from paths and story IDs to internal identities and the
 revisions represented by that Bash call.
@@ -65,7 +67,8 @@ Every document, structure, or story mutation requires a successful Bash call
 in the same Agent request. Model-facing mutation arguments use:
 
 - exact `manuscript/...` or `lore/...` paths for documents and directories;
-- stable IDs from the latest `/context/story.json` for existing story entities;
+- stable IDs from JSONL shards referenced by the latest
+  `/context/story/index.json` for existing story entities;
 - bounded `@clientRef` aliases only for dependencies created earlier in the
   same atomic story changeset;
 - exact icon names listed in `/context/icons.txt`.
@@ -85,16 +88,17 @@ before Main calls repositories.
 
 `maintain_story_records` applies one ordered transaction of 1 to 24 low-risk
 additive or linking changes to Personae, Chronicle, or Threads. It requires a
-fresh `/context/story.json` inspection. Main validates reference kinds and ordering,
-applies all or none, records the mutation ledger, and returns a compact status,
-revision, and count. It cannot delete, merge, reorder, edit prose, or run SQL.
+fresh index inspection and a focused search of the relevant JSONL shards. Main
+validates reference kinds and ordering, applies all or none, records the
+mutation ledger, and returns a compact status, revision, and count. It cannot
+delete, merge, reorder, edit prose, or run SQL.
 
 `record_story_question` records a deduplicated unresolved ambiguity with
 optional manuscript evidence resolved from a project path. It does not change
 canonical story records.
 
 `resolve_story_question` accepts only an open question ID present in the latest
-`/context/story.json`, plus the user's explicit answer.
+open-question JSONL shards, plus the user's explicit answer.
 
 `propose_story_operation` submits a higher-impact story change for review. It
 uses the same Bash snapshot anchoring and Main-owned apply path.
@@ -107,7 +111,7 @@ acceptance does not create this job.
 
 During reconciliation, Bash exposes the persisted accepted prose as
 `/context/accepted.md`, its presentation metadata as
-`/context/accepted.json`, and current story records as `/context/story.json`.
+`/context/accepted.json`, and current story records as `/context/story/index.json`.
 Main rejects completion until the Agent has issued
 Bash commands that explicitly address both accepted-document and story files.
 

@@ -11,7 +11,7 @@ import type {
   StoryQuestionEvidence,
   StoryQuestionKind,
 } from '../../../shared/contracts/project-story';
-import { ProjectDatabase } from '../../database/project-database';
+import { ProjectStoreRegistry } from '../../database/project-store';
 import {
   ProjectStoryRepository,
   type StoryOperationAudit,
@@ -42,8 +42,10 @@ interface StoryMaintenanceChangeResult {
 export class StoryMaintenanceReferenceError extends Error {}
 
 export class ProjectStoryService {
+  constructor(private readonly stores: ProjectStoreRegistry) {}
+
   getSnapshot(session: ProjectSession): ProjectStorySnapshot {
-    return this.withRepository(session, (repository) => repository.getSnapshot());
+    return this.withRepository(session, (repository) => repository.getSnapshot(), 'read');
   }
 
   recordQuestion(
@@ -226,13 +228,12 @@ export class ProjectStoryService {
   private withRepository<T>(
     session: ProjectSession,
     operation: (repository: ProjectStoryRepository) => T,
+    mode: 'read' | 'write' = 'write',
   ): T {
-    const database = new ProjectDatabase(session.directoryPath);
-    try {
-      return operation(new ProjectStoryRepository(database));
-    } finally {
-      database.close();
-    }
+    const store = this.stores.get(session.directoryPath);
+    return mode === 'read'
+      ? store.read(({ stories }) => operation(stories))
+      : store.write(({ stories }) => operation(stories));
   }
 
   private assertOperationSources(

@@ -796,7 +796,7 @@ describe('AiAgentService', () => {
     await started;
 
     workers[0].emit('message', {
-      arguments: { command: 'cat /context/story.json' },
+      arguments: { command: 'cat /context/story/index.json' },
       requestId: 'request-1',
       toolCallId: 'tool-story-only',
       toolName: 'bash',
@@ -821,7 +821,7 @@ describe('AiAgentService', () => {
       type: 'tool-result',
     }));
     workers[0].emit('message', {
-      arguments: { command: 'cat /context/accepted.json /context/accepted.md /context/story.json' },
+      arguments: { command: 'cat /context/accepted.json /context/accepted.md /context/story/index.json' },
       requestId: 'request-1',
       toolCallId: 'tool-read',
       toolName: 'bash',
@@ -904,7 +904,7 @@ describe('AiAgentService', () => {
     await started;
 
     workers[0].emit('message', {
-      arguments: { command: 'cat /context/accepted.json /context/accepted.md /context/story.json' },
+      arguments: { command: 'cat /context/accepted.json /context/accepted.md /context/story/index.json' },
       requestId: 'request-1',
       toolCallId: 'tool-read',
       toolName: 'bash',

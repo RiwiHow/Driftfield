@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { AgentProposalService } from '../../../../src/main/ai/agent/proposal-service';
 import { contentRevision } from '../../../../src/main/services/project/document-utils';
@@ -11,6 +11,18 @@ import { createProjectSnapshot } from '../../../../src/main/services/project/sna
 import { ProjectStoryService } from '../../../../src/main/services/project/story-service';
 import type { ProjectSession } from '../../../../src/main/services/project/session-service';
 import { ProjectDatabase } from '../../../../src/main/database/project-database';
+import { ProjectStoreRegistry } from '../../../../src/main/database/project-store';
+
+const storeRegistries: ProjectStoreRegistry[] = [];
+const createStoryService = (): ProjectStoryService => {
+  const stores = new ProjectStoreRegistry();
+  storeRegistries.push(stores);
+  return new ProjectStoryService(stores);
+};
+
+afterEach(() => {
+  for (const stores of storeRegistries.splice(0)) stores.dispose();
+});
 
 const createFixture = async () => {
   const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-proposal-'));
@@ -38,7 +50,7 @@ describe('AgentProposalService', () => {
       id: 'session-maintain-batch',
       project: await createProjectSnapshot(directoryPath),
     } as unknown as ProjectSession;
-    const stories = new ProjectStoryService();
+    const stories = createStoryService();
 
     const result = stories.maintainOperations(session, 0, [
       { name: 'Mara', operation: 'create_persona', role: 'Student', summary: '' },
@@ -82,7 +94,7 @@ describe('AgentProposalService', () => {
       id: 'session-maintain-refs',
       project: await createProjectSnapshot(directoryPath),
     } as unknown as ProjectSession;
-    const stories = new ProjectStoryService();
+    const stories = createStoryService();
 
     const result = stories.maintainOperations(session, 0, [
       {
@@ -215,7 +227,7 @@ describe('AgentProposalService', () => {
       id: 'session-maintain-ref-error',
       project: await createProjectSnapshot(directoryPath),
     } as unknown as ProjectSession;
-    const stories = new ProjectStoryService();
+    const stories = createStoryService();
 
     expect(() => stories.maintainOperations(session, 0, [
       {
@@ -256,7 +268,7 @@ describe('AgentProposalService', () => {
       id: 'session-maintain-batch-failure',
       project: await createProjectSnapshot(directoryPath),
     } as unknown as ProjectSession;
-    const stories = new ProjectStoryService();
+    const stories = createStoryService();
 
     expect(() => stories.maintainOperations(session, 0, [
       { name: 'Mara', operation: 'create_persona', role: null, summary: '' },
@@ -286,7 +298,7 @@ describe('AgentProposalService', () => {
       project: await createProjectSnapshot(directoryPath),
     };
     const sessions = { get: () => session } as unknown as ProjectSessionService;
-    const stories = new ProjectStoryService();
+    const stories = createStoryService();
     const service = new AgentProposalService(sessions, undefined, stories);
     const proposal = service.createStoryOperation(
       {
@@ -346,7 +358,7 @@ describe('AgentProposalService', () => {
       project: await createProjectSnapshot(directoryPath),
     };
     const sessions = { get: () => session } as unknown as ProjectSessionService;
-    const stories = new ProjectStoryService();
+    const stories = createStoryService();
     const service = new AgentProposalService(sessions, undefined, stories);
     const scope = {
       ownerId: 7,
@@ -409,7 +421,7 @@ describe('AgentProposalService', () => {
       project: await createProjectSnapshot(directoryPath),
     };
     const sessions = { get: () => session } as unknown as ProjectSessionService;
-    const stories = new ProjectStoryService();
+    const stories = createStoryService();
     const service = new AgentProposalService(sessions, undefined, stories);
     const scope = {
       ownerId: 7,
@@ -455,7 +467,7 @@ describe('AgentProposalService', () => {
       project: await createProjectSnapshot(directoryPath),
     };
     const sessions = { get: () => session } as unknown as ProjectSessionService;
-    const stories = new ProjectStoryService();
+    const stories = createStoryService();
     const storySession = session as unknown as ProjectSession;
     const timeline = stories.applyOperation(storySession, 0, {
       isPrimary: true,

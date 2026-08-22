@@ -9,6 +9,7 @@ import {
   ProjectSettingsService,
 } from '../../../../src/main/services/project/settings-service';
 import type { ProjectSession } from '../../../../src/main/services/project/session-service';
+import { ProjectStoreRegistry } from '../../../../src/main/database/project-store';
 
 const directories: string[] = [];
 
@@ -46,7 +47,8 @@ describe('project Agent settings', () => {
   it('persists settings per project without leaking between projects', async () => {
     const first = await createSession();
     const second = await createSession();
-    const service = new ProjectSettingsService();
+    const stores = new ProjectStoreRegistry();
+    const service = new ProjectSettingsService(stores);
 
     service.update(first, {
       defaultModel: { modelId: 'model-a', providerId: 'anthropic' },
@@ -69,7 +71,7 @@ describe('project Agent settings', () => {
       thinkingLevel: 'medium',
       useGlobal: true,
     });
-    service.dispose();
+    stores.dispose();
   });
 
   it('ignores an incompatible retired settings sidecar during an explicit reset', async () => {
@@ -86,7 +88,8 @@ describe('project Agent settings', () => {
       VALUES (999, datetime('now'));
     `);
     database.close();
-    const service = new ProjectSettingsService();
+    const stores = new ProjectStoreRegistry();
+    const service = new ProjectSettingsService(stores);
 
     expect(service.get(session)).toEqual({
       defaultModel: null,
@@ -98,6 +101,6 @@ describe('project Agent settings', () => {
       thinkingLevel: 'medium',
       useGlobal: true,
     });
-    service.dispose();
+    stores.dispose();
   });
 });

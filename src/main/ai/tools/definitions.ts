@@ -44,7 +44,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   submit_writing_artifact: {
     description:
-      `Submit the complete assigned Manuscript or Lore Markdown exactly once. Before writing Lore, inspect ${AGENT_STORY_CONTEXT_PATH} and search only relevant registered Manuscript and Lore Markdown for the named subject; an empty target Lore directory means only that its document does not exist yet. For Manuscript, inspect only context needed for continuity. Exclude analysis, planning, commentary, status text, and persistence claims. Ordinary assistant text is not part of the artifact.`,
+      `Submit the complete assigned Manuscript or Lore Markdown exactly once. Before writing Lore, inspect ${AGENT_STORY_CONTEXT_PATH}, search only its relevant JSONL shards, and search only relevant registered Manuscript and Lore Markdown for the named subject; an empty target Lore directory means only that its document does not exist yet. For Manuscript, inspect only context needed for continuity. Exclude analysis, planning, commentary, status text, and persistence claims. Ordinary assistant text is not part of the artifact.`,
     executionMode: 'sequential',
     label: 'Submit writing artifact',
     name: 'submit_writing_artifact',
@@ -52,7 +52,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   maintain_story_records: {
     description:
-      `Atomically maintain one ordered changeset of 1 to 24 low-risk additive or linking changes in Personae, Chronicle, or Threads when explicitly requested by the user or unambiguously evidenced by accepted persisted prose. Inspect ${AGENT_STORY_CONTEXT_PATH} with Bash first and use its stable entity IDs. For a created entity needed by a later change, assign clientRef and reference it later as @clientRef; include the complete dependency graph in this one call. Main resolves references, owns persistent identities and revisions, and applies all or none with one story revision. The concise result reports only status, revision, and appliedCount. Never include ambiguity or inference requiring author judgment; record a story question instead. This tool cannot delete, merge, reorder, edit manuscript text, or execute SQL.`,
+      `Atomically maintain one ordered changeset of 1 to 24 low-risk additive or linking changes in Personae, Chronicle, or Threads when explicitly requested by the user or unambiguously evidenced by accepted persisted prose. Inspect ${AGENT_STORY_CONTEXT_PATH} with Bash first, search only the relevant referenced JSONL shards, and use stable entity IDs from those records. For a created entity needed by a later change, assign clientRef and reference it later as @clientRef; include the complete dependency graph in this one call. Main resolves references, owns persistent identities and revisions, and applies all or none with one story revision. The concise result reports only status, revision, and appliedCount. Never include ambiguity or inference requiring author judgment; record a story question instead. This tool cannot delete, merge, reorder, edit manuscript text, or execute SQL.`,
     executionMode: 'sequential',
     label: 'Maintain story records',
     name: 'maintain_story_records',
@@ -68,7 +68,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   reconcile_accepted_document: {
     description:
-      `Atomically reconcile the Chronicle event depicted by ${ACCEPTED_DOCUMENT_PATH}. Run Bash first and use stable Persona and Thread IDs from ${AGENT_STORY_CONTEXT_PATH}; new Personae declare clientRef and participants reference them as @clientRef in the same call. Main owns the accepted source revision, story revision, ordering, IDs, links, and checkpoint completion.`,
+      `Atomically reconcile the Chronicle event depicted by ${ACCEPTED_DOCUMENT_PATH}. Run Bash first, follow ${AGENT_STORY_CONTEXT_PATH} to the relevant JSONL shards, and use stable Persona and Thread IDs from those records; new Personae declare clientRef and participants reference them as @clientRef in the same call. Main owns the accepted source revision, story revision, ordering, IDs, links, and checkpoint completion.`,
     executionMode: 'sequential',
     label: 'Reconcile accepted document',
     name: 'reconcile_accepted_document',
@@ -76,7 +76,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   record_story_question: {
     description:
-      `Record one unresolved author question without changing canonical story records. Run Bash first, avoid duplicating an open question from ${AGENT_STORY_CONTEXT_PATH}, and cite an exact project-relative manuscript path or ${ACCEPTED_DOCUMENT_PATH} when evidence exists.`,
+      `Record one unresolved author question without changing canonical story records. Run Bash first, follow ${AGENT_STORY_CONTEXT_PATH} to the open-question shards and avoid duplicates, and cite an exact project-relative manuscript path or ${ACCEPTED_DOCUMENT_PATH} when evidence exists.`,
     executionMode: 'sequential',
     label: 'Record story question',
     name: 'record_story_question',
@@ -84,7 +84,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   resolve_story_question: {
     description:
-      `Resolve an existing open story question only from the user's explicit answer. Run Bash first and pass the stable question ID from ${AGENT_STORY_CONTEXT_PATH} with a concise faithful answer.`,
+      `Resolve an existing open story question only from the user's explicit answer. Run Bash first, follow ${AGENT_STORY_CONTEXT_PATH} to the open-question shards, and pass the stable question ID with a concise faithful answer.`,
     executionMode: 'sequential',
     label: 'Resolve story question',
     name: 'resolve_story_question',

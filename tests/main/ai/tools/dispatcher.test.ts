@@ -57,7 +57,7 @@ describe('AgentToolDispatcher Bash snapshots', () => {
       maintainStoryRecords: vi.fn().mockReturnValue({ appliedCount: 1, revision: 4, status: 'applied' }),
     } as unknown as ProjectContextService;
     const dispatcher = new AgentToolDispatcher(context);
-    await dispatcher.execute(scope, { arguments: { command: 'cat /context/story.json' }, toolName: 'bash' });
+    await dispatcher.execute(scope, { arguments: { command: 'cat /context/story/index.json' }, toolName: 'bash' });
     const result = await dispatcher.execute(scope, {
       arguments: { changes: [{
         causes: '', consequences: '', endMomentId: null, status: 'established',

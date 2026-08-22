@@ -11,5 +11,5 @@ export const curatorPrompt: AgentPromptDescriptor = {
     'After an accepted result, state that the requested change was created, saved, or applied; do not question its persistence or request another confirmation. Before acceptance, distinguish proposed text from canonical facts and preserve the user’s ability to accept, reject, or revise it.',
     'Do not broaden the assignment or claim delegation or persistence without the relevant successful application result.',
   ],
-  version: 53,
+  version: 54,
 };

@@ -14,7 +14,8 @@ import { isProjectStoryOperation } from './project-story';
 export const ACCEPTED_DOCUMENT_PATH = '/context/accepted.md';
 export const AGENT_DIRECTORY_INDEX_NAME = '.index.json';
 export const AGENT_ICON_CONTEXT_PATH = '/context/icons.txt';
-export const AGENT_STORY_CONTEXT_PATH = '/context/story.json';
+export const AGENT_STORY_CONTEXT_ROOT = '/context/story';
+export const AGENT_STORY_CONTEXT_PATH = `${AGENT_STORY_CONTEXT_ROOT}/index.json`;
 export const ACCEPTED_DOCUMENT_METADATA_PATH = '/context/accepted.json';
 
 export const PROJECT_BASH_PARAMETERS = Type.Object(
@@ -336,7 +337,7 @@ export const STORY_OPERATION_PARAMETERS = Type.Object(
 );
 
 const maintenanceReferenceDescription = (kind: string): string =>
-  `Stable ${kind} ID from ${AGENT_STORY_CONTEXT_PATH}, or @clientRef for a compatible entity created earlier in this same changeset.`;
+  `Stable ${kind} ID from a JSONL shard referenced by ${AGENT_STORY_CONTEXT_PATH}, or @clientRef for a compatible entity created earlier in this same changeset.`;
 
 const STORY_MAINTENANCE_CHANGE_PARAMETERS = Type.Object(
   {
@@ -554,7 +555,7 @@ export const ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS = Type.Object(
       {
         additionalProperties: false,
         description:
-          `Optional semantic title and summary used only when ${AGENT_STORY_CONTEXT_PATH} has no primary timeline. If omitted, Main creates a neutral primary timeline automatically.`,
+          `Optional semantic title and summary used only when the Chronicle shards referenced by ${AGENT_STORY_CONTEXT_PATH} have no primary timeline. If omitted, Main creates a neutral primary timeline automatically.`,
       },
     )),
     threadAdvances: Type.Array(Type.Object(
@@ -574,7 +575,7 @@ export const ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS = Type.Object(
       { additionalProperties: false },
     ), {
       description:
-        `Existing Threads advanced by this accepted-document event, using stable IDs from ${AGENT_STORY_CONTEXT_PATH}. Main creates and links beats atomically.`,
+        `Existing Threads advanced by this accepted-document event, using stable IDs from JSONL shards referenced by ${AGENT_STORY_CONTEXT_PATH}. Main creates and links beats atomically.`,
       maxItems: 4,
     }),
   },

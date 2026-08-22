@@ -62,7 +62,7 @@ export const buildAgentSystemPrompt = (
     tools.has('propose_story_operation')
   ) {
     capabilityInstructions.push(
-      'Personae, Chronicle, and Threads are canonical. Read current story context first. Apply only explicit low-risk additions or links in one complete atomic changeset with local client refs. Record one deduplicated question when author judgment is required.',
+      'Personae, Chronicle, and Threads are canonical. Read /context/story/index.json first, then search only the relevant bounded JSONL shards it references. Apply only explicit low-risk additions or links in one complete atomic changeset with local client refs. Record one deduplicated question when author judgment is required.',
     );
   }
   if (

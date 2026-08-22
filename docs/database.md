@@ -39,6 +39,13 @@ Agent workers never receive database handles or issue SQL. Internal
 foreign-key relationships are enabled; references from global stores use
 validated stable IDs.
 
+Project settings and story runtime services share one project-scoped
+`ProjectStore`. The Store owns their connection and transaction boundary and
+exposes domain repositories through read and write units of work. Remaining
+project domains will move behind the same boundary as their repositories are
+extracted. Project recognition, migration, and recovery checks may use bounded
+short-lived connections before a runtime session is established.
+
 ## Runtime rules
 
 - Enable foreign keys, defensive mode, bounded SQLite limits, and a busy

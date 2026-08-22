@@ -4,7 +4,7 @@ import {
   type ProjectAgentSettings,
   type UpdateProjectAgentSettingsRequest,
 } from '../../../shared/contracts/settings';
-import { ProjectDatabase } from '../../database/project-database';
+import { ProjectStoreRegistry } from '../../database/project-store';
 import type { ProjectSession } from './session-service';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -54,60 +54,23 @@ export const parseProjectAgentSettingsUpdate = (
 };
 
 export class ProjectSettingsService {
-  private readonly databases = new Map<string, ProjectDatabase>();
+  constructor(private readonly stores: ProjectStoreRegistry) {}
 
   get(session: ProjectSession): ProjectAgentSettings {
-    const row = this.getDatabase(session).connection.prepare(`
-      SELECT provider_id, model_id, thinking_level, use_global
-      FROM agent_settings WHERE singleton = 1
-    `).get() as {
-      model_id: string | null;
-      provider_id: string | null;
-      thinking_level: ProjectAgentSettings['thinkingLevel'];
-      use_global: number;
-    };
-    return {
-      defaultModel:
-        row.provider_id === null || row.model_id === null
-          ? null
-          : { modelId: row.model_id, providerId: row.provider_id },
-      thinkingLevel: row.thinking_level,
-      useGlobal: row.use_global === 1,
-    };
+    return this.stores.get(session.directoryPath).read(({ settings }) => settings.get());
   }
 
   update(
     session: ProjectSession,
     settings: UpdateProjectAgentSettingsRequest,
   ): ProjectAgentSettings {
-    this.getDatabase(session).connection.prepare(`
-      UPDATE agent_settings
-      SET provider_id = ?, model_id = ?, thinking_level = ?, use_global = ?
-      WHERE singleton = 1
-    `).run(
-      settings.defaultModel?.providerId ?? null,
-      settings.defaultModel?.modelId ?? null,
-      settings.thinkingLevel,
-      settings.useGlobal ? 1 : 0,
+    return this.stores.get(session.directoryPath).write(
+      ({ settings: repository }) => repository.update(settings),
     );
-    return this.get(session);
   }
 
   reset(session: ProjectSession): ProjectAgentSettings {
     return this.update(session, DEFAULT_PROJECT_AGENT_SETTINGS);
   }
 
-  dispose(): void {
-    for (const database of this.databases.values()) database.close();
-    this.databases.clear();
-  }
-
-  private getDatabase(session: ProjectSession): ProjectDatabase {
-    let database = this.databases.get(session.directoryPath);
-    if (database === undefined) {
-      database = new ProjectDatabase(session.directoryPath);
-      this.databases.set(session.directoryPath, database);
-    }
-    return database;
-  }
 }

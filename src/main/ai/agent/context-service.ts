@@ -16,7 +16,6 @@ import {
   ACCEPTED_DOCUMENT_PATH,
   AGENT_DIRECTORY_INDEX_NAME,
   AGENT_ICON_CONTEXT_PATH,
-  AGENT_STORY_CONTEXT_PATH,
 } from '../../../shared/contracts/agent-tool-schema';
 import type { ProjectTreeNode } from '../../../shared/contracts/project';
 import {
@@ -39,6 +38,10 @@ import type {
   ProjectStorySnapshot,
 } from '../../../shared/contracts/project-story';
 import { ProjectStoryRevisionConflictError } from '../../database/project-story-repository';
+import {
+  ShardedStoryContextProjection,
+  type StoryContextProjection,
+} from './story-context-projection';
 
 export const MAX_AGENT_DOCUMENT_BYTES = 512 * 1024;
 const MAX_AGENT_PROJECT_SNAPSHOT_BYTES = 64 * 1024 * 1024;
@@ -93,6 +96,8 @@ export class ProjectContextService {
   constructor(
     private readonly sessions: ProjectSessionService,
     private readonly stories?: ProjectStoryService,
+    private readonly storyProjection: StoryContextProjection =
+      new ShardedStoryContextProjection(),
   ) {}
 
   async executeProjectBash(
@@ -175,13 +180,11 @@ export class ProjectContextService {
 
     const story = this.stories?.getSnapshot(session) ?? null;
     if (story !== null) {
-      const storyJson = JSON.stringify(
-        toAgentBashStory(story, documents),
-        null,
-        2,
-      );
-      files[AGENT_STORY_CONTEXT_PATH] = storyJson;
-      totalBytes += Buffer.byteLength(storyJson, 'utf8');
+      const storyFiles = this.storyProjection.build(story, documents);
+      for (const [storyPath, content] of Object.entries(storyFiles)) {
+        files[storyPath] = content;
+        totalBytes += Buffer.byteLength(content, 'utf8');
+      }
     }
     const iconCatalog = `${PROJECT_ICON_IDS.join('\n')}\n`;
     files[AGENT_ICON_CONTEXT_PATH] = iconCatalog;
@@ -482,47 +485,6 @@ const buildAgentDirectoryIndexes = (
     writeFolderIndexes(lore);
   }
   return indexes;
-};
-
-const toAgentBashStory = (
-  story: ProjectStorySnapshot,
-  documents: Map<string, AgentBashDocumentAnchor>,
-): object => {
-  const pathsByDocumentId = new Map(
-    [...documents.entries()].map(([relativePath, anchor]) => [
-      anchor.documentId,
-      relativePath,
-    ]),
-  );
-  const { eventSources, questions, revision: _revision, ...rest } = story;
-  return {
-    ...rest,
-    eventSources: eventSources.flatMap(
-      ({ documentId, documentRevision: _documentRevision, ...source }) => {
-        const documentPath = pathsByDocumentId.get(documentId);
-        return documentPath === undefined ? [] : [{ ...source, documentPath }];
-      },
-    ),
-    questions: questions.map(({ originRequestId: _originRequestId, ...question }) => ({
-      ...question,
-      evidence: toAgentBashEvidence(question.evidence, pathsByDocumentId),
-    })),
-  };
-};
-
-const toAgentBashEvidence = (
-  evidence: ProjectStorySnapshot['questions'][number]['evidence'],
-  pathsByDocumentId: Map<string, string>,
-): { anchor: string; documentPath: string; sourceKind: 'manuscript' } | null => {
-  if (evidence === null) return null;
-  const documentPath = pathsByDocumentId.get(evidence.documentId);
-  return documentPath === undefined
-    ? null
-    : {
-        anchor: evidence.anchor,
-        documentPath,
-        sourceKind: evidence.sourceKind,
-      };
 };
 
 const requireDocumentKind = (

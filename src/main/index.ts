@@ -18,6 +18,7 @@ import { AgentModelConfigService } from "./services/agent/model-config-service";
 import { AgentConversationService } from './services/agent/conversation-service';
 import { ProjectSettingsService } from './services/project/settings-service';
 import { ProjectStoryService } from './services/project/story-service';
+import { ProjectStoreRegistry } from './database/project-store';
 import { initializeMainI18n } from "./i18n/main-i18n";
 import { createMainWindow } from "./windows/main-window";
 import type { RendererNavigationPolicy } from "./windows/navigation-policy";
@@ -27,7 +28,8 @@ const navigationPolicies = new WeakMap<
   BrowserWindow,
   RendererNavigationPolicy
 >();
-const projectSessions = new ProjectSessionService();
+const projectStores = new ProjectStoreRegistry();
+const projectSessions = new ProjectSessionService(projectStores);
 const lifecycleStates = new WeakMap<BrowserWindow, WindowLifecycleState>();
 let isQuitting = false;
 let pendingQuit = false;
@@ -149,8 +151,8 @@ void app.whenReady().then(async () => {
       app.getPath("userData"),
     );
     const agentConversationService = new AgentConversationService();
-    const projectSettingsService = new ProjectSettingsService();
-    const projectStoryService = new ProjectStoryService();
+    const projectSettingsService = new ProjectSettingsService(projectStores);
+    const projectStoryService = new ProjectStoryService(projectStores);
     const agentProposalService = new AgentProposalService(
       projectSessions,
       agentConversationService,
@@ -176,8 +178,8 @@ void app.whenReady().then(async () => {
     disposeActiveServices = () => {
       aiAgentService.dispose();
       agentConversationService.dispose();
-      projectSettingsService.dispose();
       agentModelConfigService.dispose();
+      projectStores.dispose();
     };
     registerIpcHandlers({
       agentConversationService,

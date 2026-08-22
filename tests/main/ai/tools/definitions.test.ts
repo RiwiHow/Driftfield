@@ -35,7 +35,7 @@ describe('Agent tool definitions', () => {
     expect(description).toContain('Curator inspects only enough structure');
     expect(description).toContain('Scribe owns story-state and relevant Markdown research');
     expect(AGENT_TOOL_DEFINITIONS.submit_writing_artifact.description)
-      .toContain('/context/story.json');
+      .toContain('/context/story/index.json');
     expect(AGENT_TOOL_DEFINITIONS.submit_writing_artifact.description)
       .toContain('empty target Lore directory');
   });
@@ -53,7 +53,7 @@ describe('Agent tool definitions', () => {
     expect(AGENT_TOOL_DEFINITIONS.propose_project_structure_operation.description)
       .toContain('/context/icons.txt');
     expect(AGENT_TOOL_DEFINITIONS.maintain_story_records.description)
-      .toContain('/context/story.json');
+      .toContain('/context/story/index.json');
     expect(AGENT_TOOL_DEFINITIONS.reconcile_accepted_document.description)
       .toContain('/context/accepted.md');
   });

@@ -77,7 +77,7 @@ assert.match(
 );
 assert.match(
   workerBundle,
-  /\/context\/story\.json/,
+  /\/context\/story\/index\.json/,
   'The packaged Pi worker is missing routed story context.',
 );
 assert.match(

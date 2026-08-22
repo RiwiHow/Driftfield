@@ -8,6 +8,7 @@ import {
   ACCEPTED_DOCUMENT_METADATA_PATH,
   ACCEPTED_DOCUMENT_PATH,
   AGENT_STORY_CONTEXT_PATH,
+  AGENT_STORY_CONTEXT_ROOT,
   AGENT_TOOL_NAMES,
   isAgentToolArguments,
   type AgentDraftSnapshot,
@@ -610,7 +611,7 @@ export class AiAgentService {
       }
       if (
         command.includes(AGENT_STORY_CONTEXT_PATH) ||
-        /\bstory\.json\b/.test(command)
+        command.includes(`${AGENT_STORY_CONTEXT_ROOT}/`)
       ) {
         active.reconciliation.storyStateRead = true;
       }

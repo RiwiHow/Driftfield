@@ -8,6 +8,7 @@ import type {
   ProjectWatcherStatus,
 } from '../../../shared/contracts/project';
 import { createProjectSnapshot } from './snapshot-service';
+import type { ProjectStoreRegistry } from '../../database/project-store';
 
 export interface ProjectSession {
   directoryPath: string;
@@ -22,6 +23,8 @@ export interface ProjectSession {
 export class ProjectSessionService {
   private readonly sessions = new Map<number, ProjectSession>();
 
+  constructor(private readonly stores: ProjectStoreRegistry) {}
+
   close(webContentsId: number): void {
     const session = this.sessions.get(webContentsId);
     if (session === undefined) return;
@@ -29,6 +32,7 @@ export class ProjectSessionService {
     if (session.restartTimer !== null) clearTimeout(session.restartTimer);
     session.watcher?.close();
     this.sessions.delete(webContentsId);
+    this.stores.release(session.directoryPath);
   }
 
   get(webContentsId: number): ProjectSession | undefined {
@@ -63,6 +67,7 @@ export class ProjectSessionService {
       watcher: null,
     };
     this.sessions.set(webContentsId, session);
+    this.stores.retain(directoryPath);
     this.startWatcher(window, session);
   }
 

@@ -14,10 +14,13 @@ import type {
 import { createStructuredProjectDocument } from '../../../../src/main/services/project/structural-document-service';
 import { ProjectCatalogRepository } from '../../../../src/main/database/project-catalog-repository';
 import { ProjectDatabase } from '../../../../src/main/database/project-database';
+import { ProjectStoreRegistry } from '../../../../src/main/database/project-store';
 
 const temporaryDirectories: string[] = [];
+const storeRegistries: ProjectStoreRegistry[] = [];
 
 afterEach(async () => {
+  for (const stores of storeRegistries.splice(0)) stores.dispose();
   await Promise.all(
     temporaryDirectories.splice(0).map((directory) =>
       rm(directory, { force: true, recursive: true }),
@@ -53,8 +56,10 @@ const createContext = async () => {
     watcher: null,
   };
   const sessions = { get: (ownerId: number) => ownerId === 7 ? session : undefined } as ProjectSessionService;
+  const stores = new ProjectStoreRegistry();
+  storeRegistries.push(stores);
   return {
-    context: new ProjectContextService(sessions, new ProjectStoryService()),
+    context: new ProjectContextService(sessions, new ProjectStoryService(stores)),
     project,
     session,
   };
@@ -167,7 +172,10 @@ describe('ProjectContextService', () => {
       question: 'Who arrived?',
     });
 
-    const inspected = await context.executeProjectBash(scope, 'cat /context/story.json');
+    const inspected = await context.executeProjectBash(
+      scope,
+      'cat /context/story/index.json && rg -n . /context/story/questions/open',
+    );
     expect(inspected.result.stdout).toContain(relativePath);
     expect(inspected.result.stdout).toContain('"documentPath"');
     expect(inspected.result.stdout).not.toContain('chapter-1');
@@ -215,7 +223,7 @@ describe('ProjectContextService', () => {
       code: 'invalid-arguments',
       detail: expect.stringContaining('startMomentId expects moment'),
     }));
-    await expect(context.executeProjectBash(scope, 'cat /context/story.json')).resolves.toMatchObject({
+    await expect(context.executeProjectBash(scope, 'cat /context/story/index.json')).resolves.toMatchObject({
       story: {
       events: [],
       revision: 0,
