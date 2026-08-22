@@ -3,7 +3,7 @@ import type {
   AgentToolName,
 } from '../../../shared/contracts/agent-tools';
 
-/** Converts only successful Main results into Pi tool content. */
+/** Serializes only successful Main results into Pi tool content. */
 export const serializeSuccessfulToolResult = <Name extends AgentToolName>(
   result: AgentToolExecutionResult<Name>,
 ): string => {

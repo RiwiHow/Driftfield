@@ -13,7 +13,7 @@ import {
   STORY_QUESTION_PARAMETERS,
   STORY_RECONCILIATION_COMPLETION_PARAMETERS,
   WRITING_ARTIFACT_SUBMISSION_PARAMETERS,
-} from '../../../../src/main/ai/tools/agent-tool-parameters';
+} from '../../../../src/main/ai/tools/parameters';
 import { AGENT_TOOL_NAMES, isAgentToolArguments, type AgentToolName } from '../../../../src/shared/contracts/agent-tools';
 
 describe('path-based Agent tool schemas', () => {

@@ -25,7 +25,7 @@ const config = {
           target: 'preload',
         },
         {
-          entry: 'src/main/ai/agent-worker.ts',
+          entry: 'src/main/ai/agent/worker.ts',
           config: 'config/vite/agent-worker.config.mts',
           target: 'main',
         },

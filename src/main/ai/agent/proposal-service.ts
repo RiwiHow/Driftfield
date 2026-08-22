@@ -13,21 +13,21 @@ import type {
   AgentStoryProposal,
   AgentProposalOutcomeStatus,
   ApplyAgentProposalResult,
-} from '../../shared/contracts/agent-proposals';
+} from '../../../shared/contracts/agent-proposals';
 import type {
   AgentDocumentFileOperationArguments,
   AgentProjectStructureOperationArguments,
   AgentDraftSnapshot,
-} from '../../shared/contracts/agent-tools';
-import type { ProjectStoryOperation } from '../../shared/contracts/project-story';
-import type { ProjectStoryService } from '../services/project/story-service';
-import { ProjectStoryRevisionConflictError } from '../database/project-story-repository';
-import { saveProjectDocument } from '../services/project/document-service';
-import { contentRevision } from '../services/project/document-utils';
-import type { ProjectSessionService } from '../services/project/session-service';
-import type { AgentConversationService } from '../services/agent/conversation-service';
-import { MAX_AGENT_DOCUMENT_BYTES, ProjectContextError } from './project-context-service';
-import { createProjectSnapshot } from '../services/project/snapshot-service';
+} from '../../../shared/contracts/agent-tools';
+import type { ProjectStoryOperation } from '../../../shared/contracts/project-story';
+import type { ProjectStoryService } from '../../services/project/story-service';
+import { ProjectStoryRevisionConflictError } from '../../database/project-story-repository';
+import { saveProjectDocument } from '../../services/project/document-service';
+import { contentRevision } from '../../services/project/document-utils';
+import type { ProjectSessionService } from '../../services/project/session-service';
+import type { AgentConversationService } from '../../services/agent/conversation-service';
+import { MAX_AGENT_DOCUMENT_BYTES, ProjectContextError } from './context-service';
+import { createProjectSnapshot } from '../../services/project/snapshot-service';
 import {
   createStructuredProjectDocument,
   createStructuredProjectDirectory,
@@ -39,9 +39,9 @@ import {
   moveStructuredProjectDocument,
   renameStructuredProjectDocument,
   setStructuredLoreCategoryIcon,
-} from '../services/project/structural-document-service';
-import { parseProjectTitle } from '../services/project/metadata-parser';
-import { assertValidManuscriptMarkdown } from '../services/project/manuscript-markdown-validator';
+} from '../../services/project/structural-document-service';
+import { parseProjectTitle } from '../../services/project/metadata-parser';
+import { assertValidManuscriptMarkdown } from '../../services/project/manuscript-markdown-validator';
 
 interface CreateProposalRequest {
   baseContentRevision: string;

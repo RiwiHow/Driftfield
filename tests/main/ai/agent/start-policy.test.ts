@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { getAgentStartConfigurationError } from '../../../src/main/ai/agent-start-policy';
-import type { AgentProviderStatus } from '../../../src/shared/contracts/agent-configuration';
-import type { AgentSettings } from '../../../src/shared/contracts/settings';
+import { getAgentStartConfigurationError } from '../../../../src/main/ai/agent/start-policy';
+import type { AgentProviderStatus } from '../../../../src/shared/contracts/agent-configuration';
+import type { AgentSettings } from '../../../../src/shared/contracts/settings';
 
 const providers: AgentProviderStatus[] = [
   { configured: false, providerId: 'anthropic' },

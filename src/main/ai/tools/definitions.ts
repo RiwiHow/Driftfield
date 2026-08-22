@@ -16,7 +16,7 @@ import {
   STORY_QUESTION_PARAMETERS,
   STORY_RECONCILIATION_COMPLETION_PARAMETERS,
   WRITING_ARTIFACT_SUBMISSION_PARAMETERS,
-} from './agent-tool-parameters';
+} from './parameters';
 
 type AgentToolDefinitionRegistry = {
   [Name in AgentToolName]: {

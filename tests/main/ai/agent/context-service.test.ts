@@ -3,17 +3,17 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ProjectContextService } from '../../../src/main/ai/project-context-service';
-import { initializeProjectLayout } from '../../../src/main/services/project/layout-service';
-import { createProjectSnapshot } from '../../../src/main/services/project/snapshot-service';
-import { ProjectStoryService } from '../../../src/main/services/project/story-service';
+import { ProjectContextService } from '../../../../src/main/ai/agent/context-service';
+import { initializeProjectLayout } from '../../../../src/main/services/project/layout-service';
+import { createProjectSnapshot } from '../../../../src/main/services/project/snapshot-service';
+import { ProjectStoryService } from '../../../../src/main/services/project/story-service';
 import type {
   ProjectSession,
   ProjectSessionService,
-} from '../../../src/main/services/project/session-service';
-import { createStructuredProjectDocument } from '../../../src/main/services/project/structural-document-service';
-import { ProjectCatalogRepository } from '../../../src/main/database/project-catalog-repository';
-import { ProjectDatabase } from '../../../src/main/database/project-database';
+} from '../../../../src/main/services/project/session-service';
+import { createStructuredProjectDocument } from '../../../../src/main/services/project/structural-document-service';
+import { ProjectCatalogRepository } from '../../../../src/main/database/project-catalog-repository';
+import { ProjectDatabase } from '../../../../src/main/database/project-database';
 
 const temporaryDirectories: string[] = [];
 

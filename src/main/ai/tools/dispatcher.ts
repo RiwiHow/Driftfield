@@ -16,7 +16,7 @@ import type {
 import type {
   AgentWritingAssignment,
   AgentWritingTaskResult,
-} from '../agent-writing';
+} from '../agent/writing';
 import {
   ACCEPTED_DOCUMENT_PATH,
   AGENT_STORY_CONTEXT_PATH,
@@ -29,13 +29,13 @@ import {
   type AgentBashAcceptedDocument,
   type AgentProjectBashExecution,
   type ProjectContextService,
-} from '../project-context-service';
+} from '../agent/context-service';
 import type {
   AgentProposalDecision,
   AgentProposalService,
   ResolvedDocumentFileOperationArguments,
   ResolvedProjectStructureOperationArguments,
-} from '../agent-proposal-service';
+} from '../agent/proposal-service';
 import type {
   AgentCreateDocumentProposal,
   AgentEditProposal,
@@ -44,6 +44,7 @@ import type {
 import type { ProjectStorySnapshot } from '../../../shared/contracts/project-story';
 import { contentRevision } from '../../services/project/document-utils';
 
+/** Main-owned authority available to one bounded Agent tool request. */
 export interface AgentToolScope {
   acceptedDocumentId?: string;
   acceptedDocumentRevision?: string;

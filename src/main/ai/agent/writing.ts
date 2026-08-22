@@ -1,4 +1,4 @@
-import type { AgentDocumentDomain } from '../../shared/contracts/agent-tools';
+import type { AgentDocumentDomain } from '../../../shared/contracts/agent-tools';
 
 /** Internal Curator-to-Scribe input; it is never registered as a model tool. */
 export interface AgentWritingAssignment {

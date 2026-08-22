@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AGENT_TOOL_DEFINITIONS } from '../../../../src/main/ai/tools/agent-tool-definitions';
+import { AGENT_TOOL_DEFINITIONS } from '../../../../src/main/ai/tools/definitions';
 import { AGENT_TOOL_NAMES } from '../../../../src/shared/contracts/agent-tools';
 
 describe('Agent tool definitions', () => {

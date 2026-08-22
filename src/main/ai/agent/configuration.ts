@@ -1,8 +1,8 @@
-import type { AgentConfiguration } from "../../shared/contracts/agent-configuration";
-import type { AgentCredentialService } from "../services/agent/credential-service";
-import type { AgentModelConfigService } from "../services/agent/model-config-service";
-import type { AiAgentService } from "./ai-agent-service";
-import type { ProjectSession } from '../services/project/session-service';
+import type { AgentConfiguration } from "../../../shared/contracts/agent-configuration";
+import type { AgentCredentialService } from "../../services/agent/credential-service";
+import type { AgentModelConfigService } from "../../services/agent/model-config-service";
+import type { AiAgentService } from "./service";
+import type { ProjectSession } from '../../services/project/session-service';
 
 export const getAgentConfiguration = async (
   aiAgentService: AiAgentService,

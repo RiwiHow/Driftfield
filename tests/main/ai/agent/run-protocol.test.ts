@@ -7,7 +7,7 @@ import {
   normalizeStopReason,
   protocolCorrection,
   responseProtocolIssue,
-} from '../../../src/main/ai/agent-run-protocol';
+} from '../../../../src/main/ai/agent/run-protocol';
 
 describe('Agent run protocol', () => {
   it('recognizes output truncation and preserves known stop reasons', () => {

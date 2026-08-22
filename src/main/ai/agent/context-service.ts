@@ -10,35 +10,35 @@ import type {
   AgentCanonicalStoryQuestionArguments,
   AgentStoryQuestionToolResult,
   AgentToolErrorCode,
-} from '../../shared/contracts/agent-tools';
+} from '../../../shared/contracts/agent-tools';
 import {
   ACCEPTED_DOCUMENT_METADATA_PATH,
   ACCEPTED_DOCUMENT_PATH,
   AGENT_DIRECTORY_INDEX_NAME,
   AGENT_ICON_CONTEXT_PATH,
   AGENT_STORY_CONTEXT_PATH,
-} from '../../shared/contracts/agent-tool-schema';
-import type { ProjectTreeNode } from '../../shared/contracts/project';
+} from '../../../shared/contracts/agent-tool-schema';
+import type { ProjectTreeNode } from '../../../shared/contracts/project';
 import {
   PROJECT_ICON_IDS,
   type ManuscriptDocumentEntry,
-} from '../../shared/contracts/project-layout';
+} from '../../../shared/contracts/project-layout';
 import {
   loadProjectLayout,
   type LoadedProjectLayout,
-} from '../services/project/layout-service';
+} from '../../services/project/layout-service';
 import {
   contentRevision,
   isPathInside,
   supportedDocumentExtensions,
-} from '../services/project/document-utils';
-import type { ProjectSessionService } from '../services/project/session-service';
-import type { ProjectStoryService } from '../services/project/story-service';
-import { StoryMaintenanceReferenceError } from '../services/project/story-service';
+} from '../../services/project/document-utils';
+import type { ProjectSessionService } from '../../services/project/session-service';
+import type { ProjectStoryService } from '../../services/project/story-service';
+import { StoryMaintenanceReferenceError } from '../../services/project/story-service';
 import type {
   ProjectStorySnapshot,
-} from '../../shared/contracts/project-story';
-import { ProjectStoryRevisionConflictError } from '../database/project-story-repository';
+} from '../../../shared/contracts/project-story';
+import { ProjectStoryRevisionConflictError } from '../../database/project-story-repository';
 
 export const MAX_AGENT_DOCUMENT_BYTES = 512 * 1024;
 const MAX_AGENT_PROJECT_SNAPSHOT_BYTES = 64 * 1024 * 1024;
@@ -48,7 +48,7 @@ export interface AgentBashDocumentAnchor {
   baseRevision: string;
   contentRevision: string;
   documentId: string;
-  kind: import('../../shared/contracts/project-layout').ManuscriptDocumentKind | 'entry';
+  kind: import('../../../shared/contracts/project-layout').ManuscriptDocumentKind | 'entry';
 }
 
 export interface AgentBashAcceptedDocument {

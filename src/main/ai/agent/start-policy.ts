@@ -1,6 +1,6 @@
-import type { AgentProviderStatus } from '../../shared/contracts/agent-configuration';
-import type { StartAgentErrorCode } from '../../shared/contracts/agent';
-import type { AgentSettings } from '../../shared/contracts/settings';
+import type { AgentProviderStatus } from '../../../shared/contracts/agent-configuration';
+import type { StartAgentErrorCode } from '../../../shared/contracts/agent';
+import type { AgentSettings } from '../../../shared/contracts/settings';
 
 export const getAgentStartConfigurationError = (
   settings: AgentSettings,

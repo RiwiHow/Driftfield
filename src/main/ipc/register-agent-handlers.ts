@@ -2,10 +2,10 @@ import { ipcMain } from "electron";
 
 import { IPC_CHANNELS } from "../../shared/contracts/ipc-channels";
 import { DEFAULT_APP_SETTINGS, resolveProjectAgentSettings } from "../../shared/contracts/settings";
-import { getAgentStartConfigurationError } from "../ai/agent-start-policy";
-import { CURATOR_TOOLS, SCRIBE_TOOLS } from '../ai/ai-agent-service';
+import { getAgentStartConfigurationError } from "../ai/agent/start-policy";
+import { CURATOR_TOOLS, SCRIBE_TOOLS } from '../ai/agent/service';
 import { buildAgentSystemPrompt } from '../ai/prompts/prompt-builder';
-import { getAgentConfiguration } from "../ai/get-agent-configuration";
+import { getAgentConfiguration } from "../ai/agent/configuration";
 import type { IpcHandlerContext } from "./ipc-handler-context";
 import { parseAgentModelOverrideRequest } from "../services/agent/model-config-service";
 import {

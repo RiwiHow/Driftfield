@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { AgentEvent } from '../../shared/contracts/agent';
+import type { AgentEvent } from '../../../shared/contracts/agent';
 import {
   ACCEPTED_DOCUMENT_METADATA_PATH,
   ACCEPTED_DOCUMENT_PATH,
@@ -13,38 +13,38 @@ import {
   type AgentDraftSnapshot,
   type AgentDocumentDomain,
   type AgentToolName,
-} from '../../shared/contracts/agent-tools';
+} from '../../../shared/contracts/agent-tools';
 import type {
   AgentWritingAssignment,
   AgentWritingTaskResult,
-} from './agent-writing';
-import type { AgentModelOption } from '../../shared/contracts/agent-configuration';
+} from './writing';
+import type { AgentModelOption } from '../../../shared/contracts/agent-configuration';
 import type {
   AgentModelSelection,
   AgentThinkingLevel,
-} from '../../shared/contracts/settings';
+} from '../../../shared/contracts/settings';
 import {
   isAgentWorkerMessage,
   type AgentWorkerMessage,
-} from '../../shared/contracts/agent-worker';
-import type { AgentToolDispatcher } from './tools/agent-tool-dispatcher';
-import { ProjectContextError } from './project-context-service';
-import type { AgentHistoryMessage } from '../services/agent/conversation-service';
+} from '../../../shared/contracts/agent-worker';
+import type { AgentToolDispatcher } from '../tools/dispatcher';
+import { ProjectContextError } from './context-service';
+import type { AgentHistoryMessage } from '../../services/agent/conversation-service';
 import type {
   AgentPromptProposalOutcome,
   AgentProposalOutcome,
-} from '../../shared/contracts/agent-proposals';
-import type { AppLanguage } from '../../shared/i18n/languages';
-import { ProjectDatabase } from '../database/project-database';
+} from '../../../shared/contracts/agent-proposals';
+import type { AppLanguage } from '../../../shared/i18n/languages';
+import { ProjectDatabase } from '../../database/project-database';
 import {
   ProjectReconciliationRepository,
   type StoryReconciliationJob,
   type StoryReconciliationOutcome,
-} from '../database/project-reconciliation-repository';
+} from '../../database/project-reconciliation-repository';
 import {
   validateManuscriptMarkdown,
   type ManuscriptMarkdownValidationCode,
-} from '../services/project/manuscript-markdown-validator';
+} from '../../services/project/manuscript-markdown-validator';
 
 const WORKER_START_TIMEOUT_MS = 15_000;
 const WRITING_TASK_TIMEOUT_MS = 5 * 60_000;
@@ -575,7 +575,7 @@ export class AiAgentService {
   private observeToolResult(
     active: ActiveAgentRequest,
     message: Extract<AgentWorkerMessage, { type: 'tool-request' }>,
-    result: import('../../shared/contracts/agent-tools').AgentToolExecutionResult,
+    result: import('../../../shared/contracts/agent-tools').AgentToolExecutionResult,
   ): void {
     if (
       active.writingArtifact?.claimed === true &&

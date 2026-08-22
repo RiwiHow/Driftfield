@@ -1,3 +1,4 @@
+/** Model-facing parameter schemas re-exported from the shared trust boundary. */
 export {
   ACCEPTED_DOCUMENT_METADATA_PATH,
   ACCEPTED_DOCUMENT_PATH,

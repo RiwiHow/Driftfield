@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron';
 
 import { IPC_CHANNELS } from '../../shared/contracts/ipc-channels';
-import { getAgentConfiguration } from '../ai/get-agent-configuration';
+import { getAgentConfiguration } from '../ai/agent/configuration';
 import { parseSettingsUpdate } from '../services/settings-service';
 import { parseProjectAgentSettingsUpdate } from '../services/project/settings-service';
 import {

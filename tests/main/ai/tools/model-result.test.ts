@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { serializeSuccessfulToolResult } from '../../../../src/main/ai/tools/agent-tool-model-result';
+import { serializeSuccessfulToolResult } from '../../../../src/main/ai/tools/model-result';
 
 describe('Agent tool model results', () => {
   it('serializes a successful Bash inspection result', () => {

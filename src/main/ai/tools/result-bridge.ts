@@ -21,6 +21,7 @@ type AgentToolBridgeRequest = SharedAgentToolRequest & {
   toolCallId: string;
 };
 
+/** Bridges worker tool calls to their bounded Main-owned results. */
 export class AgentToolResultBridge {
   private readonly pending = new Map<string, PendingToolResult>();
 

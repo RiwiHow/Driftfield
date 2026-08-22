@@ -12,13 +12,13 @@ vi.mock('electron', () => ({
   utilityProcess: { fork: electronMock.fork },
 }));
 
-import { AiAgentService } from '../../../src/main/ai/ai-agent-service';
-import { AgentToolDispatcher } from '../../../src/main/ai/tools/agent-tool-dispatcher';
-import type { AgentProposalService } from '../../../src/main/ai/agent-proposal-service';
-import type { ProjectContextService } from '../../../src/main/ai/project-context-service';
-import { ProjectDatabase } from '../../../src/main/database/project-database';
-import { ProjectReconciliationRepository } from '../../../src/main/database/project-reconciliation-repository';
-import type { AgentEvent } from '../../../src/shared/contracts/agent';
+import { AiAgentService } from '../../../../src/main/ai/agent/service';
+import { AgentToolDispatcher } from '../../../../src/main/ai/tools/dispatcher';
+import type { AgentProposalService } from '../../../../src/main/ai/agent/proposal-service';
+import type { ProjectContextService } from '../../../../src/main/ai/agent/context-service';
+import { ProjectDatabase } from '../../../../src/main/database/project-database';
+import { ProjectReconciliationRepository } from '../../../../src/main/database/project-reconciliation-repository';
+import type { AgentEvent } from '../../../../src/shared/contracts/agent';
 
 class FakeUtilityProcess extends EventEmitter {
   readonly messages: unknown[] = [];

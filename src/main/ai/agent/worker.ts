@@ -17,29 +17,29 @@ import {
   type AgentWorkerCommand,
   type AgentWorkerMessage,
   type AgentWorkerStartCommand,
-} from "../../shared/contracts/agent-worker";
-import { buildAgentSystemPrompt } from "./prompts/prompt-builder";
-import { AgentToolResultBridge } from "./tools/agent-tool-result-bridge";
+} from "../../../shared/contracts/agent-worker";
+import { buildAgentSystemPrompt } from "../prompts/prompt-builder";
+import { AgentToolResultBridge } from "../tools/result-bridge";
 import {
   closesStoryReconciliation,
   normalizeStopReason,
   protocolCorrection,
   responseProtocolIssue,
-} from './agent-run-protocol';
+} from './run-protocol';
 import {
   normalizeStoryMaintenanceBatchArguments,
   normalizeStoryMaintenanceArguments,
-} from "./tools/agent-tool-parameters";
-import { AGENT_TOOL_DEFINITIONS } from './tools/agent-tool-definitions';
-import { serializeSuccessfulToolResult } from './tools/agent-tool-model-result';
+} from "../tools/parameters";
+import { AGENT_TOOL_DEFINITIONS } from '../tools/definitions';
+import { serializeSuccessfulToolResult } from '../tools/model-result';
 import {
   AGENT_TOOL_NAMES,
   isAgentToolName,
   type AgentToolContractMap,
   type AgentToolExecutionResult,
   type AgentToolName,
-} from "../../shared/contracts/agent-tools";
-import type { AgentStopReason } from '../../shared/contracts/agent';
+} from "../../../shared/contracts/agent-tools";
+import type { AgentStopReason } from '../../../shared/contracts/agent';
 
 const TOOL_RESULT_TIMEOUT_MS = 30_000;
 

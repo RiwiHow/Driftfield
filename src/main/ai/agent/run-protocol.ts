@@ -1,5 +1,5 @@
-import type { AgentStopReason } from '../../shared/contracts/agent';
-import type { AgentToolName } from '../../shared/contracts/agent-tools';
+import type { AgentStopReason } from '../../../shared/contracts/agent';
+import type { AgentToolName } from '../../../shared/contracts/agent-tools';
 
 export type ResponseProtocolIssue =
   | 'length'
