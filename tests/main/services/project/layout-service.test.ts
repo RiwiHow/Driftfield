@@ -87,6 +87,29 @@ describe('Driftfield project layout', () => {
     ]);
   });
 
+  it('seeds Chinese default lore categories for a new Chinese-language project', async () => {
+    const directory = await createTemporaryDirectory();
+
+    const layout = await openProjectLayout(directory, 'zh-CN');
+
+    expect(await readdir(path.join(directory, 'lore'))).toEqual(
+      expect.arrayContaining(['人物', '地点', '世界']),
+    );
+    expect(layout.lore?.categories.map(({ directory, index }) => ({
+      directory,
+      icon: index.icon,
+      title: index.title,
+    }))).toEqual([
+      { directory: '人物', icon: 'users', title: '人物' },
+      { directory: '地点', icon: 'map', title: '地点' },
+      { directory: '世界', icon: 'earth', title: '世界' },
+    ]);
+
+    const reopenedInEnglish = await openProjectLayout(directory, 'en');
+    expect(reopenedInEnglish.lore?.categories.map(({ index }) => index.title))
+      .toEqual(['人物', '地点', '世界']);
+  });
+
   it('rejects a nonempty folder without the project database', async () => {
     const directory = await createTemporaryDirectory();
     await writeFile(path.join(directory, 'chapter.md'), '# Existing\n');

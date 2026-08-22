@@ -46,6 +46,12 @@ Every registered locator is normalized, canonically contained, checked against
 the expected regular file or directory kind, and limited to `.md` or
 `.markdown` for documents. `.driftfield` is never scanned as content.
 
+New-project initialization seeds the three default Lore categories using the
+current application language (`Personae`, `Locations`, and `World` in English;
+`人物`, `地点`, and `世界` in Simplified Chinese). The selected titles and
+locators are persisted once; changing application language never renames an
+existing project category.
+
 ## Catalog
 
 `project_nodes` is the authoritative catalog. It stores stable IDs, parent IDs,

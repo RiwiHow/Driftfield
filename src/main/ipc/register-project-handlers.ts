@@ -49,7 +49,7 @@ export const registerProjectIpcHandlers = ({
       const selectedPath = result.filePaths[0];
       if (result.canceled || selectedPath === undefined) return null;
       const directoryPath = await resolveSelectedDirectory(selectedPath);
-      const layout = await initializeProjectLayout(directoryPath);
+      const layout = await initializeProjectLayout(directoryPath, language);
       const project = await createProjectSnapshot(directoryPath, layout);
       await settingsService.setLastProjectDirectoryPath(directoryPath);
       aiAgentService.disposeOwner(window.webContents.id);
@@ -65,14 +65,14 @@ export const registerProjectIpcHandlers = ({
 
   ipcMain.handle(IPC_CHANNELS.restoreLastProject, async (event) => {
     const window = getTrustedSenderWindow(event);
-    const { lastProjectDirectoryPath } = settingsService.get();
+    const { language, lastProjectDirectoryPath } = settingsService.get();
     if (lastProjectDirectoryPath === null) return null;
 
     try {
       const directoryPath = await resolveSelectedDirectory(
         lastProjectDirectoryPath,
       );
-      const layout = await openProjectLayout(directoryPath);
+      const layout = await openProjectLayout(directoryPath, language);
       const project = await createProjectSnapshot(directoryPath, layout);
       aiAgentService.disposeOwner(window.webContents.id);
       projectSessions.watch(window, directoryPath, project);
@@ -127,7 +127,7 @@ export const registerProjectIpcHandlers = ({
       const selectedPath = result.filePaths[0];
       if (result.canceled || selectedPath === undefined) return null;
       const directoryPath = await resolveSelectedDirectory(selectedPath);
-      const layout = await openProjectLayout(directoryPath);
+      const layout = await openProjectLayout(directoryPath, language);
       const project = await createProjectSnapshot(directoryPath, layout);
       await settingsService.setLastProjectDirectoryPath(directoryPath);
       aiAgentService.disposeOwner(window.webContents.id);

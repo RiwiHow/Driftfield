@@ -18,6 +18,7 @@ import {
   type ProjectIconId,
   type VolumeIndex,
 } from '../../../shared/contracts/project-layout';
+import type { AppLanguage } from '../../../shared/i18n/languages';
 import {
   ProjectCatalogRepository,
   type ProjectCatalogNode,
@@ -698,18 +699,20 @@ export const loadProjectLayout = async (
 
 export const initializeProjectLayout = async (
   directoryPath: string,
+  language: AppLanguage = 'en',
 ): Promise<LoadedProjectLayout> => {
-  const projectPath = await initializeProjectLayoutFiles(directoryPath);
+  const projectPath = await initializeProjectLayoutFiles(directoryPath, language);
   const loaded = await loadProjectLayout(projectPath);
   return loaded;
 };
 
 export const openProjectLayout = async (
   directoryPath: string,
+  language: AppLanguage = 'en',
 ): Promise<LoadedProjectLayout> => {
   const names = await readdir(directoryPath);
   if (names.length === 0) {
-    return initializeProjectLayout(directoryPath);
+    return initializeProjectLayout(directoryPath, language);
   }
   return loadProjectLayout(directoryPath);
 };

@@ -12,13 +12,32 @@ import {
   DRIFTFIELD_PROJECT_FORMAT_VERSION,
   PROJECT_ROOT_DIRECTORIES,
 } from '../../../shared/contracts/project-layout';
-import { ProjectCatalogRepository } from '../../database/project-catalog-repository';
+import type { AppLanguage } from '../../../shared/i18n/languages';
+import {
+  ProjectCatalogRepository,
+  type InitialLoreCategory,
+} from '../../database/project-catalog-repository';
 import { ProjectDatabase } from '../../database/project-database';
 
-const INITIAL_LORE_CATEGORIES = ['Personae', 'Locations', 'World'] as const;
+const INITIAL_LORE_CATEGORIES = {
+  en: [
+    { icon: 'users', title: 'Personae' },
+    { icon: 'map', title: 'Locations' },
+    { icon: 'earth', title: 'World' },
+  ],
+  'zh-CN': [
+    { icon: 'users', title: '人物' },
+    { icon: 'map', title: '地点' },
+    { icon: 'earth', title: '世界' },
+  ],
+} as const satisfies Record<
+  AppLanguage,
+  readonly InitialLoreCategory[]
+>;
 
 export const initializeProjectLayoutFiles = async (
   directoryPath: string,
+  language: AppLanguage = 'en',
 ): Promise<string> => {
   const projectPath = await realpath(directoryPath);
   const existingNames = await readdir(projectPath);
@@ -37,12 +56,13 @@ export const initializeProjectLayoutFiles = async (
   const lorePath = path.join(stagingPath, PROJECT_ROOT_DIRECTORIES.lore);
   const projectId = randomUUID();
   const projectTitle = path.basename(projectPath) || 'Untitled Novel';
+  const initialLoreCategories = INITIAL_LORE_CATEGORIES[language];
 
   await Promise.all([
     mkdir(manuscriptPath, { recursive: true, mode: 0o700 }),
     mkdir(lorePath, { recursive: true, mode: 0o700 }),
-    ...INITIAL_LORE_CATEGORIES.map((directory) =>
-      mkdir(path.join(lorePath, directory), { recursive: true, mode: 0o700 }),
+    ...initialLoreCategories.map(({ title }) =>
+      mkdir(path.join(lorePath, title), { recursive: true, mode: 0o700 }),
     ),
   ]);
   try {
@@ -53,7 +73,9 @@ export const initializeProjectLayoutFiles = async (
         DRIFTFIELD_PROJECT_FORMAT_VERSION,
         projectTitle,
       );
-      new ProjectCatalogRepository(database).initializeDefault();
+      new ProjectCatalogRepository(database).initializeDefault(
+        initialLoreCategories,
+      );
     } finally {
       database.close();
     }

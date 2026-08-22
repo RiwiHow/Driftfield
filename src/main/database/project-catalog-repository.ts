@@ -34,6 +34,11 @@ export interface ProjectCatalogNode {
 
 export interface NewProjectCatalogNode extends ProjectCatalogNode {}
 
+export interface InitialLoreCategory {
+  icon: ProjectIconId;
+  title: string;
+}
+
 const rowToNode = (row: {
   backing_status: 'missing' | 'present';
   content_revision: string | null;
@@ -94,7 +99,7 @@ export class ProjectCatalogRepository {
     return row === undefined ? null : rowToNode(row);
   }
 
-  initializeDefault(): void {
+  initializeDefault(loreCategories: readonly InitialLoreCategory[]): void {
     if (this.list().length !== 0) {
       throw new Error('Project catalog is already initialized');
     }
@@ -129,11 +134,7 @@ export class ProjectCatalogRepository {
         title: 'Lore',
         type: 'directory',
       },
-      ...([
-        ['Personae', 'users'],
-        ['Locations', 'map'],
-        ['World', 'earth'],
-      ] as const).map(([title, icon], sortKey) => ({
+      ...loreCategories.map(({ title, icon }, sortKey) => ({
         backingStatus: 'present' as const,
         contentRevision: null,
         icon,
