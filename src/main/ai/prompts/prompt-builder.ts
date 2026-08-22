@@ -20,7 +20,7 @@ export const buildAgentSystemPrompt = (
   }
   if (tools.has('bash')) {
     capabilityInstructions.push(
-      'Use Bash only for context needed by the request. /project contains the registered novel tree and Markdown; hidden local .index.json files map display metadata for one directory at a time. Application metadata may be available under /context; read an index or context file only when the selected domain tool requires it. Prefer one focused read over broad scans or duplicate calls, and restrict prose scans to .md/.markdown.',
+      'Use Bash only for context needed by the request. /project contains the registered novel tree and Markdown; hidden local .index.json files map display metadata for one directory at a time. Application metadata may be available under /context; read an index or context file only when the selected domain tool requires it. Do not enumerate index files or reread resolved ancestor indexes. Prefer one focused read over broad scans or duplicate calls, and restrict prose scans to .md/.markdown.',
       'Each /project call is a fresh disposable snapshot. Mutations use exact paths or stable IDs from the latest snapshot; Main owns revision checks. Virtual writes prove nothing. Read a fresh snapshot after a mutation before dependent work.',
     );
   }

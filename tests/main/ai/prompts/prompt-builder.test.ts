@@ -61,6 +61,7 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).not.toContain('/context/story.json');
     expect(built.prompt).not.toContain('/context/icons.txt');
     expect(built.prompt).toContain('Prefer one focused read over broad scans or duplicate calls');
+    expect(built.prompt).toContain('Do not enumerate index files or reread resolved ancestor indexes');
     expect(built.prompt).toContain('exact paths or stable IDs');
     expect(built.prompt).toContain('Main owns revision checks');
     expect(built.prompt).not.toContain('Prefer one reconcile_accepted_document call');
@@ -88,7 +89,7 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).not.toContain('concurrency revisions');
     expect(built.prompt).not.toContain('documentId null');
     expect(built.prompt).not.toContain('documents read for continuity');
-    expect(built.version).toBe(51);
+    expect(built.version).toBe(52);
   });
 
   it('places raw user instructions at the very beginning', () => {

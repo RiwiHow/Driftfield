@@ -8,5 +8,5 @@ export const scribePrompt: AgentPromptDescriptor = {
     'Use Bash to inspect the disposable /project snapshot when exact manuscript or Lore text is needed. Preserve established voice, point of view, tense, characterization, and continuity unless the assignment explicitly requests a change.',
     'Honor the assignment documentDomain. After any needed context reads, call submit_writing_artifact exactly once with only the complete requested Markdown. Ordinary assistant text is never part of the artifact; do not emit editorial preambles, planning, status claims, or invented statements about persistence.',
   ],
-  version: 29,
+  version: 30,
 };
