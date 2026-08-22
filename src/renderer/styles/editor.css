@@ -304,11 +304,25 @@ html[data-panel-transition] .editor-statusbar {
 }
 
 .driftfield-mdx .mdxeditor-source-editor,
-.driftfield-mdx .mdxeditor-diff-editor,
+.driftfield-mdx .mdxeditor-diff-editor {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.driftfield-mdx .mdxeditor-source-editor > .cm-editor,
+.driftfield-mdx .mdxeditor-diff-editor > .cm-mergeView {
+  height: 100%;
+  min-height: 0;
+}
+
+.driftfield-mdx .mdxeditor-diff-editor > .cm-mergeView {
+  overscroll-behavior: contain;
+}
+
 .driftfield-mdx .cm-editor,
 .driftfield-mdx .cm-scroller {
   min-height: 0;
-  flex: 1;
   color: var(--foreground);
   background: var(--df-editor);
 }
