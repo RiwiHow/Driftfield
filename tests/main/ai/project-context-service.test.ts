@@ -96,6 +96,33 @@ describe('ProjectContextService', () => {
     expect(reread.result.stdout).toBe('# Unsaved in editor\n');
   });
 
+  it('exposes story citations as project paths without IDs or revisions', async () => {
+    const { context, project } = await createContext();
+    const scope = { ownerId: 7, projectSessionId: 'session-1' };
+    const relativePath = project.documents[0].relativePath.split('\\').join('/');
+    context.recordStoryQuestion(scope, 'request-1', {
+      context: 'Arrival',
+      evidence: {
+        anchor: 'Opening',
+        documentId: 'chapter-1',
+        documentRevision: project.documents[0].revision,
+        sourceKind: 'manuscript',
+      },
+      kind: 'other',
+      options: [],
+      question: 'Who arrived?',
+    });
+
+    const inspected = await context.executeProjectBash(scope, 'cat STORY.json');
+    expect(inspected.result.stdout).toContain(relativePath);
+    expect(inspected.result.stdout).toContain('"documentPath"');
+    expect(inspected.result.stdout).not.toContain('chapter-1');
+    expect(inspected.result.stdout).not.toContain('"documentId"');
+    expect(inspected.result.stdout).not.toContain('"documentRevision"');
+    expect(inspected.result.stdout).not.toContain('"originRequestId"');
+    expect(inspected.result.stdout).not.toContain('"revision"');
+  });
+
   it('rejects obsolete sessions', async () => {
     const { context } = await createContext();
     await expect(

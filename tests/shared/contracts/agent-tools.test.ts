@@ -10,6 +10,8 @@ describe('Agent tool contracts', () => {
   it('uses Bash as the only project read tool', () => {
     expect(isAgentToolName('bash')).toBe(true);
     expect(isAgentToolName('obsolete_context_reader')).toBe(false);
+    expect(isAgentToolName('delegate_writing')).toBe(false);
+    expect(isAgentToolName('revise_writing_artifact')).toBe(false);
     expect(isAgentToolRequest({
       arguments: { command: "rg -n 'White Tower' lore" }, toolName: 'bash',
     })).toBe(true);

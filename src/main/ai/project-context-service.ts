@@ -169,7 +169,7 @@ export class ProjectContextService {
     const story = this.stories?.getSnapshot(session) ?? null;
     if (story !== null) {
       const storyJson = JSON.stringify(
-        stripStoryRevisions(story),
+        toAgentBashStory(story, documents),
         null,
         2,
       );
@@ -319,19 +319,11 @@ export class ProjectContextService {
     const session = this.requireSession(scope);
     const relativePath = session.documentPaths.get(documentId);
     const knownDocument = session.project.documents.find(({ id }) => id === documentId);
+    if (relativePath === undefined || knownDocument === undefined) {
+      throw new ProjectContextError('document-not-found');
+    }
     const layout = await loadProjectLayout(session.directoryPath);
     const metadataTitle = findMetadataTitle(layout, documentId);
-    if (relativePath === undefined || knownDocument === undefined) {
-      const loreEntry = layout?.lore?.entries.find(({ id }) => id === documentId);
-      if (loreEntry === undefined) throw new ProjectContextError('document-not-found');
-      return this.readDiskDocument(
-        session.directoryPath,
-        loreEntry.relativePath,
-        documentId,
-        loreEntry.title,
-        loreEntry.title,
-      );
-    }
     if (metadataTitle === undefined) {
       throw new ProjectContextError('document-not-found');
     }
@@ -418,22 +410,46 @@ const toAgentBashTreeNode = (node: ProjectTreeNode): object =>
         type: node.type,
       };
 
-const stripStoryRevisions = (story: ProjectStorySnapshot): object => ({
-  ...story,
-  eventSources: story.eventSources.map(
-    ({ documentRevision: _documentRevision, ...source }) => source,
-  ),
-  questions: story.questions.map((question) => ({
-    ...question,
-    evidence: question.evidence === null
-      ? null
-      : {
-          anchor: question.evidence.anchor,
-          documentId: question.evidence.documentId,
-          sourceKind: question.evidence.sourceKind,
-        },
-  })),
-});
+const toAgentBashStory = (
+  story: ProjectStorySnapshot,
+  documents: Map<string, AgentBashDocumentAnchor>,
+): object => {
+  const pathsByDocumentId = new Map(
+    [...documents.entries()].map(([relativePath, anchor]) => [
+      anchor.documentId,
+      relativePath,
+    ]),
+  );
+  const { eventSources, questions, revision: _revision, ...rest } = story;
+  return {
+    ...rest,
+    eventSources: eventSources.flatMap(
+      ({ documentId, documentRevision: _documentRevision, ...source }) => {
+        const documentPath = pathsByDocumentId.get(documentId);
+        return documentPath === undefined ? [] : [{ ...source, documentPath }];
+      },
+    ),
+    questions: questions.map(({ originRequestId: _originRequestId, ...question }) => ({
+      ...question,
+      evidence: toAgentBashEvidence(question.evidence, pathsByDocumentId),
+    })),
+  };
+};
+
+const toAgentBashEvidence = (
+  evidence: ProjectStorySnapshot['questions'][number]['evidence'],
+  pathsByDocumentId: Map<string, string>,
+): { anchor: string; documentPath: string; sourceKind: 'manuscript' } | null => {
+  if (evidence === null) return null;
+  const documentPath = pathsByDocumentId.get(evidence.documentId);
+  return documentPath === undefined
+    ? null
+    : {
+        anchor: evidence.anchor,
+        documentPath,
+        sourceKind: evidence.sourceKind,
+      };
+};
 
 const requireDocumentKind = (
   kinds: Map<string, AgentBashDocumentAnchor['kind']>,

@@ -13,6 +13,8 @@ describe('Agent prompt registry', () => {
 
     expect(built.prompt).toContain('call submit_writing_artifact exactly once');
     expect(built.prompt).toContain('Ordinary assistant text is never part of the artifact');
+    expect(built.prompt).toContain('Use Bash to inspect the disposable /project snapshot');
+    expect(built.prompt).not.toContain('current_document');
   });
 
   it.each(AGENT_ROLES)('applies application boundaries to %s', (role) => {
@@ -85,7 +87,7 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain('Never supply, echo, or invent concurrency revisions');
     expect(built.prompt).not.toContain('documentId null');
     expect(built.prompt).not.toContain('documents read for continuity');
-    expect(built.version).toBe(46);
+    expect(built.version).toBe(47);
   });
 
   it('places raw user instructions at the very beginning', () => {

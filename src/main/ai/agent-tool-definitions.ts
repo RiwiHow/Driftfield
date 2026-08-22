@@ -32,7 +32,7 @@ type AgentToolDefinitionRegistry = {
 export const AGENT_TOOL_DEFINITIONS = {
   bash: {
     description:
-      'Inspect the current novel with Bash inside a fresh disposable /project filesystem. Use ordinary read commands such as find, rg, cat, sed, head, tail, jq, and wc. PROJECT.json describes the current tree. The filesystem contains only project Markdown plus that generated index; it has no .driftfield data, host paths, network, credentials, JavaScript, Python, or persistent writes. Run a new call whenever you need to verify state after an accepted mutation.',
+      'Inspect the current novel with Bash inside a fresh disposable /project filesystem. Use ordinary read commands such as find, rg, cat, sed, head, tail, jq, and wc. PROJECT.json describes the current tree, STORY.json contains canonical story records, and ICONS.txt lists exact Lucide names. ACCEPTED.md and ACCEPTED.json appear only while an accepted manuscript awaits reconciliation. The filesystem has no .driftfield data, host paths, network, credentials, JavaScript, Python, or persistent writes. Run a new call whenever you need to verify state after an accepted mutation.',
     executionMode: 'parallel',
     label: 'Inspect project with Bash',
     name: 'bash',

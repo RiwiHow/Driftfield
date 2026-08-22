@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { AGENT_TOOL_DEFINITIONS } from '../../../src/main/ai/agent-tool-definitions';
-import {
-  AGENT_TOOL_NAMES,
-  LEGACY_AGENT_TOOL_NAMES,
-} from '../../../src/shared/contracts/agent-tools';
+import { AGENT_TOOL_NAMES } from '../../../src/shared/contracts/agent-tools';
 
 describe('Agent tool definitions', () => {
   it('defines every active tool exactly once from one model-facing registry', () => {
@@ -25,7 +22,7 @@ describe('Agent tool definitions', () => {
   it('does not advertise retired writing protocol fields or tools', () => {
     const serialized = JSON.stringify(AGENT_TOOL_DEFINITIONS);
     expect(serialized).not.toContain('writingAssignmentId');
-    for (const toolName of LEGACY_AGENT_TOOL_NAMES) {
+    for (const toolName of ['delegate_writing', 'revise_writing_artifact'] as const) {
       expect(serialized).not.toContain(`"name":"${toolName}"`);
     }
   });

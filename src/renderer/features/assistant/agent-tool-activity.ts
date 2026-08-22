@@ -2,9 +2,9 @@ import type {
   AgentConversationPart,
   AgentToolActivity,
 } from '../../../shared/contracts/agent-conversations';
-import type { AgentToolAuditName } from '../../../shared/contracts/agent-tools';
+import type { AgentToolName } from '../../../shared/contracts/agent-tools';
 
-const READ_ONLY_TOOL_NAMES = new Set<AgentToolAuditName>([
+const READ_ONLY_TOOL_NAMES = new Set<AgentToolName>([
   'bash',
 ]);
 

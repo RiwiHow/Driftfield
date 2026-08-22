@@ -35,7 +35,8 @@ filesystem-size, source-size, command-count, loop, traversal, execution-time,
 and output limits. The Renderer never receives filesystem authority.
 
 `PROJECT.json` and Markdown use exact project-relative paths. `STORY.json`
-contains stable story entity IDs. No revision tokens are exposed. Main retains
+contains stable story entity IDs and path-based manuscript citations. No
+revision tokens, document IDs, or request IDs are exposed. Main retains
 a private snapshot map from paths and story IDs to internal identities and the
 revisions represented by that Bash call.
 
@@ -151,6 +152,4 @@ details. Tool audit is not replayed as trusted context. Ordinary conversation
 text remains ordinary text; any path or story ID in earlier narration must be
 revalidated through a new Bash snapshot before mutation.
 
-Historical retired tool names may remain renderable only when explicitly kept
-in the legacy audit allow-list. They are never registered with Pi and cannot be
-called.
+Conversation history stores only currently registered tool names.

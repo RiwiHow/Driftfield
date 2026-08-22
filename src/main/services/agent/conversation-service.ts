@@ -18,7 +18,7 @@ import {
   type AgentEvent,
   type AgentRole,
 } from '../../../shared/contracts/agent';
-import { isAgentToolAuditName } from '../../../shared/contracts/agent-tools';
+import { isAgentToolName } from '../../../shared/contracts/agent-tools';
 import { isProjectIconId } from '../../../shared/contracts/project-layout';
 import { ProjectDatabase } from '../../database/project-database';
 import type { ProjectSession } from '../project/session-service';
@@ -719,7 +719,7 @@ const parseStoredParts = (value: string): AgentConversationPart[] => {
       typeof tool.toolCallId !== 'string' ||
       tool.toolCallId.length === 0 ||
       tool.toolCallId.length > 128 ||
-      !isAgentToolAuditName(tool.toolName)
+      !isAgentToolName(tool.toolName)
     ) {
       throw new Error('Invalid stored Agent tool activity');
     }

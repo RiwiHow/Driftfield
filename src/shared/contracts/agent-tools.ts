@@ -322,14 +322,6 @@ export const AGENT_TOOL_NAMES = [
   'propose_story_operation',
 ] as const satisfies readonly AgentToolName[];
 
-export const LEGACY_AGENT_TOOL_NAMES = [
-  'delegate_writing',
-  'revise_writing_artifact',
-] as const;
-
-export type LegacyAgentToolName = (typeof LEGACY_AGENT_TOOL_NAMES)[number];
-export type AgentToolAuditName = AgentToolName | LegacyAgentToolName;
-
 const LONG_RUNNING_AGENT_TOOL_NAMES = new Set<AgentToolName>([
   'propose_document_edit',
   'propose_document_writing',
@@ -365,7 +357,6 @@ export type AgentToolErrorCode =
   | 'project-session-changed'
   | 'document-not-found'
   | 'node-not-found'
-  | 'node-kind-mismatch'
   | 'selection-too-large'
   | 'document-too-large'
   | 'proposal-base-changed'
@@ -378,7 +369,6 @@ export const AGENT_TOOL_ERROR_CODES = [
   'project-session-changed',
   'document-not-found',
   'node-not-found',
-  'node-kind-mismatch',
   'selection-too-large',
   'document-too-large',
   'proposal-base-changed',
@@ -404,13 +394,6 @@ export type AgentToolExecutionResult<
 export const isAgentToolName = (value: unknown): value is AgentToolName =>
   typeof value === 'string' &&
   AGENT_TOOL_NAMES.includes(value as AgentToolName);
-
-export const isAgentToolAuditName = (
-  value: unknown,
-): value is AgentToolAuditName =>
-  isAgentToolName(value) ||
-  (typeof value === 'string' &&
-    LEGACY_AGENT_TOOL_NAMES.includes(value as LegacyAgentToolName));
 
 export const isAgentToolRequest = (value: unknown): value is AgentToolRequest => {
   if (!isRecord(value) || !isAgentToolName(value.toolName)) return false;
