@@ -307,7 +307,7 @@ describe('AiAgentService', () => {
     expect(curatorStart.responseLanguage).toBe('zh-CN');
 
     workers[0].emit('message', {
-      arguments: { command: 'cat /context/project.json' },
+      arguments: { command: 'cat /project/.index.json' },
       requestId: 'request-1',
       toolCallId: 'tool-read-structure',
       toolName: 'bash',
@@ -451,7 +451,7 @@ describe('AiAgentService', () => {
     workers[0].emit('message', { type: 'ready' });
     await started;
     workers[0].emit('message', {
-      arguments: { command: 'cat /context/project.json' },
+      arguments: { command: 'cat /project/.index.json' },
       requestId: 'request-invalid',
       toolCallId: 'tool-read-structure',
       toolName: 'bash',
@@ -461,7 +461,7 @@ describe('AiAgentService', () => {
       typeof message === 'object' && message !== null &&
       (message as { toolCallId?: unknown }).toolCallId === 'tool-read-structure'));
     workers[0].emit('message', {
-      arguments: { command: 'cat /context/project.json' },
+      arguments: { command: 'cat /project/.index.json' },
       requestId: 'request-invalid',
       toolCallId: 'tool-read-invalid',
       toolName: 'bash',
@@ -552,7 +552,7 @@ describe('AiAgentService', () => {
     workers[0].emit('message', { type: 'ready' });
     await started;
     workers[0].emit('message', {
-      arguments: { command: 'cat /context/project.json' },
+      arguments: { command: 'cat /project/.index.json' },
       requestId: 'request-1',
       toolCallId: 'tool-read-structure',
       toolName: 'bash',
@@ -710,7 +710,7 @@ describe('AiAgentService', () => {
     await started;
 
     workers[0].emit('message', {
-      arguments: { command: 'cat /context/project.json' },
+      arguments: { command: 'cat /project/.index.json' },
       requestId: 'request-1',
       toolCallId: 'tool-read-structure',
       toolName: 'bash',

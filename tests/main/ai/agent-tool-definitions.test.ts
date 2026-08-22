@@ -38,12 +38,12 @@ describe('Agent tool definitions', () => {
     const bash = AGENT_TOOL_DEFINITIONS.bash.description;
     expect(bash).toContain('/project');
     expect(bash).toContain('/context');
-    expect(bash).not.toContain('project.json');
+    expect(bash).not.toContain('.index.json');
     expect(bash).not.toContain('story.json');
     expect(bash).not.toContain('icons.txt');
 
     expect(AGENT_TOOL_DEFINITIONS.propose_project_structure_operation.description)
-      .toContain('/context/project.json');
+      .toContain('.index.json');
     expect(AGENT_TOOL_DEFINITIONS.propose_project_structure_operation.description)
       .toContain('/context/icons.txt');
     expect(AGENT_TOOL_DEFINITIONS.maintain_story_records.description)

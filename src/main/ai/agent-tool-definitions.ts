@@ -1,8 +1,8 @@
 import type { AgentToolName } from '../../shared/contracts/agent-tools';
 import {
   ACCEPTED_DOCUMENT_PATH,
+  AGENT_DIRECTORY_INDEX_NAME,
   AGENT_ICON_CONTEXT_PATH,
-  AGENT_PROJECT_CONTEXT_PATH,
   AGENT_STORY_CONTEXT_PATH,
   ACCEPTED_DOCUMENT_RECONCILIATION_PARAMETERS,
   DOCUMENT_EDIT_PARAMETERS,
@@ -100,7 +100,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   propose_document_writing: {
     description:
-      'Commission Scribe and submit exactly one pre-bound reviewed document proposal. Inspect the target directory and only relevant Markdown first; include canonical story continuity in the assignment only when it matters. Create uses the exact parentPath, raw title, and kind; replace uses the exact current documentPath. Main binds the latest snapshot revisions before Scribe runs and cannot rebind the artifact afterward.',
+      `Commission Scribe and submit exactly one pre-bound reviewed document proposal. Inspect the target directory and only relevant Markdown first; when the user names a display title instead of an exact path, read the nearest parent ${AGENT_DIRECTORY_INDEX_NAME}. Include canonical story continuity in the assignment only when it matters. Create uses the exact parentPath, raw title, and kind; replace uses the exact current documentPath. Main binds the latest snapshot revisions before Scribe runs and cannot rebind the artifact afterward.`,
     executionMode: 'sequential',
     label: 'Propose generated document',
     name: 'propose_document_writing',
@@ -116,7 +116,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   propose_project_structure_operation: {
     description:
-      `Submit a reviewable project-structure proposal using exact project-relative paths from the latest Bash snapshot. Inspect ${AGENT_PROJECT_CONTEXT_PATH}; only for category creation or icon changes, search ${AGENT_ICON_CONTEXT_PATH} with rg or grep and use one exact name. Creating a volume or Lore category targets its root implicitly. Main owns identities, revision checks, and persistence.`,
+      `Submit a reviewable project-structure proposal using exact project-relative paths from the latest Bash snapshot. Read only the nearest ${AGENT_DIRECTORY_INDEX_NAME} needed to map display titles, icons, or explicit child order; only for category creation or icon changes, search ${AGENT_ICON_CONTEXT_PATH} with rg or grep and use one exact name. Creating a volume or Lore category targets its root implicitly. Main owns identities, revision checks, and persistence.`,
     executionMode: 'sequential',
     label: 'Propose project structure change',
     name: 'propose_project_structure_operation',

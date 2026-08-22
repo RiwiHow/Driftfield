@@ -76,11 +76,11 @@ describe('ProjectContextService', () => {
 
     const inspected = await context.executeProjectBash(
       scope,
-      `find . -type f -print && cat /context/project.json && cat ${JSON.stringify(relativePath)} && rg -n Unsaved .`,
+      `find . -type f \\( -name '*.md' -o -name '*.markdown' \\) -print && cat /project/.index.json && cat ${JSON.stringify(relativePath)} && rg -n Unsaved .`,
     );
     expect(inspected.result.exitCode).toBe(0);
-    expect(inspected.result.stdout).toContain('"format": "driftfield-agent-snapshot"');
-    expect(inspected.result.stdout).not.toContain('project.json\n');
+    expect(inspected.result.stdout).toContain('"format": "driftfield-agent-directory-index"');
+    expect(inspected.result.stdout).not.toContain('.index.json\n');
     expect(inspected.result.stdout).not.toContain('story.json\n');
     expect(inspected.result.stdout).not.toContain('icons.txt\n');
     expect(inspected.result.stdout).toContain(`# Unsaved in editor`);
@@ -116,6 +116,38 @@ describe('ProjectContextService', () => {
       }
     }
     expect(inspected.result.stdout).not.toContain('unregistered');
+  });
+
+  it('exposes semantic metadata through shallow local hidden indexes', async () => {
+    const { context, project } = await createContext();
+    const scope = { ownerId: 7, projectSessionId: 'session-1' };
+    const listing = await context.executeProjectBash(
+      scope,
+      'ls -R /project',
+    );
+    expect(listing.result.stdout).not.toContain('.index.json');
+    expect(listing.result.stdout).toContain('Arrival');
+
+    const root = await context.executeProjectBash(
+      scope,
+      'cat /project/.index.json',
+    );
+    expect(root.result.stdout).not.toContain('Arrival');
+
+    const manuscript = await context.executeProjectBash(
+      scope,
+      'cat /project/manuscript/.index.json',
+    );
+    expect(manuscript.result.stdout).toContain('Arrival');
+    expect(manuscript.result.stdout).toContain(project.documents[0].relativePath);
+
+    const lore = await context.executeProjectBash(
+      scope,
+      'cat /project/lore/.index.json',
+    );
+    for (const node of project.loreTree ?? []) {
+      expect(lore.result.stdout).toContain(node.relativePath);
+    }
   });
 
   it('exposes story citations as project paths without IDs or revisions', async () => {

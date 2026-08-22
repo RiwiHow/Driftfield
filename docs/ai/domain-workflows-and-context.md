@@ -40,8 +40,8 @@ There is no ambient host-directory access. Context is acquired lazily with
   the target draft when replacing.
 - Story maintenance inspects `/context/story.json` and relevant source
   Markdown.
-- Structure work inspects `/context/project.json`; icon work searches
-  `/context/icons.txt`.
+- Structure work reads only the nearest virtual `.index.json`; icon work
+  searches `/context/icons.txt`.
 - Accepted-prose reconciliation inspects `/context/accepted.md` and
   `/context/story.json`.
 

@@ -20,10 +20,11 @@ The `/project` tree contains:
 - registered Manuscript and Lore directories, including empty catalog
   directories;
 - registered Manuscript and Lore Markdown at their project-relative paths;
+- a virtual `.index.json` in each registered directory containing only that
+  directory's display metadata and direct children.
 
 Application-generated context is separate from the novel under `/context`:
 
-- `/context/project.json`, a path-based project tree and presentation summary;
 - `/context/story.json`, the current Personae, Chronicle, Threads, and
   questions;
 - `/context/icons.txt`, the complete bundled Lucide icon-name catalog;
@@ -37,10 +38,13 @@ registered directories remain visible, while unregistered and Main-owned
 paths do not. Writes affect only that one in-memory call and are discarded
 immediately.
 
-Ordinary project inspection stays under `/project`. Context files are routed
-by the domain tool that needs them: structure work uses `project.json`, story
-work uses `story.json`, icon work searches `icons.txt`, and reconciliation uses
-the accepted document plus story state. The generic Bash description does not
+Ordinary project inspection stays under `/project`. `ls` and `tree` omit the
+hidden indexes, while a domain tool can read only the nearest `.index.json`
+needed to map a display title, icon, or explicit child order. Prose scans use
+the `.md` and `.markdown` extensions so they do not collect indexes. Other
+context files are routed by the domain tool that needs them: story work uses
+`story.json`, icon work searches `icons.txt`, and reconciliation uses the
+accepted document plus story state. The generic Bash description does not
 advertise individual context files as an initialization checklist.
 
 The virtual shell has no host filesystem, `.driftfield`, database, credentials,
@@ -48,7 +52,7 @@ network, Node.js, JavaScript, Python, or persistent write access. Main applies
 filesystem-size, source-size, command-count, loop, traversal, execution-time,
 and output limits. The Renderer never receives filesystem authority.
 
-`/context/project.json` and Markdown use exact project-relative paths.
+Local `.index.json` files and Markdown use exact project-relative paths.
 `/context/story.json`
 contains stable story entity IDs and path-based manuscript citations. No
 revision tokens, document IDs, or request IDs are exposed. Main retains

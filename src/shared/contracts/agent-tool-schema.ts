@@ -12,8 +12,8 @@ import { isProjectIconId } from './project-layout';
 import { isProjectStoryOperation } from './project-story';
 
 export const ACCEPTED_DOCUMENT_PATH = '/context/accepted.md';
+export const AGENT_DIRECTORY_INDEX_NAME = '.index.json';
 export const AGENT_ICON_CONTEXT_PATH = '/context/icons.txt';
-export const AGENT_PROJECT_CONTEXT_PATH = '/context/project.json';
 export const AGENT_STORY_CONTEXT_PATH = '/context/story.json';
 export const ACCEPTED_DOCUMENT_METADATA_PATH = '/context/accepted.json';
 

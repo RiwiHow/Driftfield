@@ -17,7 +17,7 @@ const bashExecution = (): AgentProjectBashExecution => ({
     kind: 'chapter',
   }]]),
   projectRevision: 'project-revision',
-  result: { exitCode: 0, stderr: '', stdout: '/context/project.json\n' },
+  result: { exitCode: 0, stderr: '', stdout: '/project/.index.json\n' },
   story: {
     beats: [], eventLinks: [], eventParticipants: [], eventSources: [], events: [],
     moments: [{
@@ -39,7 +39,7 @@ describe('AgentToolDispatcher Bash snapshots', () => {
     await expect(dispatcher.execute(scope, {
       arguments: { command: 'find . -type f' }, toolName: 'bash',
     })).resolves.toEqual({
-      data: { exitCode: 0, stderr: '', stdout: '/context/project.json\n' }, ok: true, toolName: 'bash',
+      data: { exitCode: 0, stderr: '', stdout: '/project/.index.json\n' }, ok: true, toolName: 'bash',
     });
   });
 

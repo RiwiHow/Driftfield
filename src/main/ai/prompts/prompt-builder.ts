@@ -20,7 +20,7 @@ export const buildAgentSystemPrompt = (
   }
   if (tools.has('bash')) {
     capabilityInstructions.push(
-      'Use Bash only for context needed by the request. /project contains the registered novel tree and Markdown. Application metadata may be available under /context; read a context file only when the selected domain tool requires it. Prefer one focused read over broad scans or duplicate calls.',
+      'Use Bash only for context needed by the request. /project contains the registered novel tree and Markdown; hidden local .index.json files map display metadata for one directory at a time. Application metadata may be available under /context; read an index or context file only when the selected domain tool requires it. Prefer one focused read over broad scans or duplicate calls, and restrict prose scans to .md/.markdown.',
       'Each /project call is a fresh disposable snapshot. Mutations use exact paths or stable IDs from the latest snapshot; Main owns revision checks. Virtual writes prove nothing. Read a fresh snapshot after a mutation before dependent work.',
     );
   }
@@ -52,7 +52,7 @@ export const buildAgentSystemPrompt = (
   }
   if (tools.has('propose_project_structure_operation')) {
     capabilityInstructions.push(
-      'Structure proposals use exact snapshot paths and semantic project context. Volume and Lore-category creation target their fixed roots. Inspect the icon catalog only when choosing or changing an icon, preserve category identity when changing one, and empty a category through reviewed document operations before deleting it.',
+      'Structure proposals use exact snapshot paths and only the nearest local directory index needed. Volume and Lore-category creation target their fixed roots. Inspect the icon catalog only when choosing or changing an icon, preserve category identity when changing one, and empty a category through reviewed document operations before deleting it.',
     );
   }
   if (

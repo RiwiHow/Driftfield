@@ -14,8 +14,8 @@ import type {
 import {
   ACCEPTED_DOCUMENT_METADATA_PATH,
   ACCEPTED_DOCUMENT_PATH,
+  AGENT_DIRECTORY_INDEX_NAME,
   AGENT_ICON_CONTEXT_PATH,
-  AGENT_PROJECT_CONTEXT_PATH,
   AGENT_STORY_CONTEXT_PATH,
 } from '../../shared/contracts/agent-tool-schema';
 import type { ProjectTreeNode } from '../../shared/contracts/project';
@@ -202,20 +202,19 @@ export class ProjectContextService {
       totalBytes += Buffer.byteLength(acceptedMetadata, 'utf8');
     }
 
-    const projectIndex = JSON.stringify({
-      format: 'driftfield-agent-snapshot',
-      roots: session.project.rootTitles,
-      title: layout.manifest.title,
-      tree: {
-        lore: session.project.loreTree?.map(toAgentBashTreeNode) ?? null,
-        manuscript: session.project.tree.map(toAgentBashTreeNode),
-      },
-    }, null, 2);
-    totalBytes += Buffer.byteLength(projectIndex, 'utf8');
+    const directoryIndexes = buildAgentDirectoryIndexes(
+      layout.manifest.title,
+      session.project.rootTitles,
+      session.project.tree,
+      session.project.loreTree,
+    );
+    for (const [indexPath, indexJson] of Object.entries(directoryIndexes)) {
+      files[indexPath] = indexJson;
+      totalBytes += Buffer.byteLength(indexJson, 'utf8');
+    }
     if (totalBytes > MAX_AGENT_PROJECT_SNAPSHOT_BYTES) {
       throw new ProjectContextError('selection-too-large');
     }
-    files[AGENT_PROJECT_CONTEXT_PATH] = projectIndex;
 
     const bash = new Bash({
       cwd: '/project',
@@ -405,7 +404,7 @@ export class ProjectContextService {
 
 }
 
-const toAgentBashTreeNode = (node: ProjectTreeNode): object =>
+const toAgentBashIndexNode = (node: ProjectTreeNode): object =>
   node.type === 'file'
     ? {
         name: node.name,
@@ -413,12 +412,77 @@ const toAgentBashTreeNode = (node: ProjectTreeNode): object =>
         type: node.type,
       }
     : {
-        children: node.children.map(toAgentBashTreeNode),
         ...(node.icon === undefined ? {} : { icon: node.icon }),
         name: node.name,
         path: node.relativePath,
         type: node.type,
       };
+
+const buildAgentDirectoryIndexes = (
+  projectTitle: string,
+  rootTitles: { lore?: string; manuscript: string },
+  manuscript: ProjectTreeNode[],
+  lore: ProjectTreeNode[] | null,
+): Record<string, string> => {
+  const indexes: Record<string, string> = {};
+  const writeIndex = (
+    directoryPath: string,
+    value: object,
+  ): void => {
+    const prefix = directoryPath.length === 0
+      ? '/project'
+      : `/project/${directoryPath}`;
+    indexes[`${prefix}/${AGENT_DIRECTORY_INDEX_NAME}`] = JSON.stringify(
+      value,
+      null,
+      2,
+    );
+  };
+  const writeFolderIndexes = (nodes: ProjectTreeNode[]): void => {
+    for (const node of nodes) {
+      if (node.type !== 'folder') continue;
+      writeIndex(node.relativePath, {
+        children: node.children.map(toAgentBashIndexNode),
+        ...(node.icon === undefined ? {} : { icon: node.icon }),
+        name: node.name,
+        path: node.relativePath,
+        type: node.type,
+      });
+      writeFolderIndexes(node.children);
+    }
+  };
+
+  const rootChildren = [
+    { name: rootTitles.manuscript, path: 'manuscript', type: 'folder' },
+    ...(lore === null
+      ? []
+      : [{ name: rootTitles.lore!, path: 'lore', type: 'folder' as const }]),
+  ];
+  writeIndex('', {
+    children: rootChildren,
+    format: 'driftfield-agent-directory-index',
+    name: projectTitle,
+    path: '.',
+    type: 'project',
+  });
+  writeIndex('manuscript', {
+    children: manuscript.map(toAgentBashIndexNode),
+    name: rootTitles.manuscript,
+    path: 'manuscript',
+    type: 'folder',
+  });
+  writeFolderIndexes(manuscript);
+  if (lore !== null) {
+    writeIndex('lore', {
+      children: lore.map(toAgentBashIndexNode),
+      name: rootTitles.lore!,
+      path: 'lore',
+      type: 'folder',
+    });
+    writeFolderIndexes(lore);
+  }
+  return indexes;
+};
 
 const toAgentBashStory = (
   story: ProjectStorySnapshot,

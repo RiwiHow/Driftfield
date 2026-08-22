@@ -137,8 +137,8 @@ assert.match(
 );
 assert.match(
   mainBundle,
-  /\/context\/project\.json/,
-  'The packaged Main bundle is missing the virtual project snapshot.',
+  /\.index\.json/,
+  'The packaged Main bundle is missing local virtual directory indexes.',
 );
 assert.match(
   mainBundle,
