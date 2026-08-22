@@ -3,6 +3,8 @@ import { ipcMain } from "electron";
 import { IPC_CHANNELS } from "../../shared/contracts/ipc-channels";
 import { DEFAULT_APP_SETTINGS, resolveProjectAgentSettings } from "../../shared/contracts/settings";
 import { getAgentStartConfigurationError } from "../ai/agent-start-policy";
+import { CURATOR_TOOLS, SCRIBE_TOOLS } from '../ai/ai-agent-service';
+import { buildAgentSystemPrompt } from '../ai/prompts/prompt-builder';
 import { getAgentConfiguration } from "../ai/get-agent-configuration";
 import type { IpcHandlerContext } from "./ipc-handler-context";
 import { parseAgentModelOverrideRequest } from "../services/agent/model-config-service";
@@ -18,6 +20,7 @@ import {
   isRenameAgentConversationRequest,
   isSelectAgentConversationRequest,
   isUpdateAgentConversationMessageRequest,
+  isAgentPromptPreviewRequest,
 } from "./validators/agent-requests";
 
 export const registerAgentIpcHandlers = ({
@@ -41,6 +44,48 @@ export const registerAgentIpcHandlers = ({
   ipcMain.handle(IPC_CHANNELS.getAgentConversationState, (event) => {
     const { session } = getProjectSession(event);
     return agentConversationService.getState(session);
+  });
+  ipcMain.handle(IPC_CHANNELS.getAgentPromptPreview, (event, value: unknown) => {
+    const { session } = getProjectSession(event);
+    if (!isAgentPromptPreviewRequest(value)) {
+      throw new Error('Invalid Agent prompt preview request');
+    }
+    const settings = settingsService.get();
+    const promptHistory = agentConversationService.getPromptHistory(session);
+    const curator = buildAgentSystemPrompt({
+      availableTools: CURATOR_TOOLS,
+      customInstructions: settings.agentCustomInstructions,
+      proposalOutcomes: promptHistory.proposalOutcomes,
+      responseLanguage: settings.language,
+      role: 'curator',
+    });
+    const scribe = buildAgentSystemPrompt({
+      availableTools: SCRIBE_TOOLS,
+      customInstructions: settings.agentCustomInstructions,
+      responseLanguage: settings.language,
+      role: 'scribe',
+    });
+    const currentPrompt = value.prompt.trim();
+    return {
+      curator: {
+        enabledTools: [...CURATOR_TOOLS],
+        profileId: curator.profileId,
+        systemPrompt: curator.prompt,
+        version: curator.version,
+      },
+      messages: [
+        ...promptHistory.history,
+        ...(currentPrompt.length === 0
+          ? []
+          : [{ content: currentPrompt, role: 'user' as const }]),
+      ],
+      scribe: {
+        enabledTools: [...SCRIBE_TOOLS],
+        profileId: scribe.profileId,
+        systemPrompt: scribe.prompt,
+        version: scribe.version,
+      },
+    };
   });
   ipcMain.handle(IPC_CHANNELS.createAgentConversation, (event, value: unknown) => {
     const { session } = getProjectSession(event);

@@ -46,6 +46,10 @@ import type {
   UpdateAgentConversationMessageRequest,
 } from './contracts/agent-conversations';
 import type { ProjectStorySnapshot } from './contracts/project-story';
+import type {
+  AgentPromptPreview,
+  AgentPromptPreviewRequest,
+} from './contracts/agent-prompt-preview';
 
 export interface DriftfieldAPI {
   platform: string;
@@ -64,6 +68,9 @@ export interface DriftfieldAPI {
   cutEditorSelection: () => Promise<void>;
   getAgentConfiguration: () => Promise<AgentConfiguration>;
   getAgentConversationState: () => Promise<AgentConversationState>;
+  getAgentPromptPreview: (
+    request: AgentPromptPreviewRequest,
+  ) => Promise<AgentPromptPreview>;
   getAppSettings: () => Promise<AppSettings>;
   getProjectAgentSettings: () => Promise<ProjectAgentSettings>;
   getProjectStory: () => Promise<ProjectStorySnapshot>;

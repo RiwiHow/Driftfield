@@ -399,6 +399,16 @@ delegated Scribe runs. It is preference context only: it cannot replace or
 override application boundaries, role policy, tool permissions, or the user's
 current explicit request.
 
+Renderer may request a read-only prompt-context preview through a narrow Main
+IPC operation. Main builds the Curator and Scribe system prompts from the same
+versioned profiles, validated settings, tool allow-lists, terminal proposal
+outcomes, and model-history projection used by a real request. The preview may
+append the unsent composer draft for inspection, but never persists it. It
+lists enabled native tools separately because their definitions are supplied
+through model Tool Calling rather than duplicated into the system prompt.
+Novel context remains absent until a tool reads it, and provider-specific
+context-window trimming may remove older projected messages at request time.
+
 Do not embed complete prompts in the worker entry or accept arbitrary
 renderer-supplied system prompts. Future user writing instructions may be
 size-bounded additions, but cannot replace application boundaries.

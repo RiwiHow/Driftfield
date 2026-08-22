@@ -28,6 +28,7 @@ const invocationChannels = [
   IPC_CHANNELS.createAgentConversation,
   IPC_CHANNELS.deleteAgentConversation,
   IPC_CHANNELS.getAgentConversationState,
+  IPC_CHANNELS.getAgentPromptPreview,
   IPC_CHANNELS.renameAgentConversation,
   IPC_CHANNELS.selectAgentConversation,
   IPC_CHANNELS.updateAgentConversationMessage,
@@ -168,6 +169,29 @@ describe("IPC handler composition", () => {
     );
   });
 
+  it('builds the prompt preview in Main from current settings and history', async () => {
+    const context = createContext();
+    vi.mocked(context.agentConversationService.getPromptHistory).mockReturnValue({
+      history: [{ content: 'Earlier question', role: 'user' }],
+      proposalOutcomes: [],
+    });
+    registerIpcHandlers(context);
+    const preview = handlers.get(IPC_CHANNELS.getAgentPromptPreview);
+    if (preview === undefined) throw new Error('Prompt preview handler was not registered');
+
+    expect(preview({}, { prompt: 'Current draft' })).toMatchObject({
+      curator: {
+        profileId: 'curator',
+        systemPrompt: expect.stringContaining('Keep responses concise.'),
+      },
+      messages: [
+        { content: 'Earlier question', role: 'user' },
+        { content: 'Current draft', role: 'user' },
+      ],
+      scribe: { profileId: 'scribe' },
+    });
+  });
+
   it('routes one reviewed story set through the bounded batch apply path', async () => {
     const context = createContext();
     registerIpcHandlers(context);
@@ -263,6 +287,7 @@ const createContext = (): IpcHandlerContext => {
       create: vi.fn(),
       delete: vi.fn(),
       getState: vi.fn(),
+      getPromptHistory: vi.fn(() => ({ history: [], proposalOutcomes: [] })),
       recordEvent: vi.fn(),
       rename: vi.fn(),
       select: vi.fn(),

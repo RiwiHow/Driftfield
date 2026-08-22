@@ -43,11 +43,11 @@ import {
 const WORKER_START_TIMEOUT_MS = 15_000;
 const WRITING_TASK_TIMEOUT_MS = 5 * 60_000;
 const MAX_WRITING_ARTIFACT_BYTES = 512 * 1024;
-const CURATOR_TOOLS = AGENT_TOOL_NAMES.filter(
+export const CURATOR_TOOLS = AGENT_TOOL_NAMES.filter(
   (toolName) => toolName !== 'submit_writing_artifact',
 );
 const CURATOR_TOOL_SET = new Set<AgentToolName>(CURATOR_TOOLS);
-const SCRIBE_TOOLS = [
+export const SCRIBE_TOOLS = [
   'read_novel_context',
   'submit_writing_artifact',
 ] as const satisfies readonly AgentToolName[];

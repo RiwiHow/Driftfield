@@ -227,6 +227,37 @@ describe('Agent conversation persistence', () => {
     service.dispose();
   });
 
+  it('previews the current model history without mutating the conversation', async () => {
+    const session = await createSession();
+    const service = new AgentConversationService();
+    const state = service.getState(session);
+    service.beginPrompt(session, {
+      conversationId: state.activeConversation.id,
+      prompt: 'Remember persona:4.',
+      requestId: 'assistant-preview',
+      userMessageId: 'user-preview',
+    });
+    service.recordEvent({
+      delta: 'Remembered document:2.',
+      requestId: 'assistant-preview',
+      type: 'text-delta',
+    });
+    service.recordEvent({ requestId: 'assistant-preview', type: 'completed' });
+
+    expect(service.getPromptHistory(session).history).toEqual([
+      {
+        content: 'Remember [expired request-scoped persona ref].',
+        role: 'user',
+      },
+      {
+        content: 'Remembered [expired request-scoped document ref].',
+        role: 'assistant',
+      },
+    ]);
+    expect(service.getState(session).activeConversation.messages).toHaveLength(2);
+    service.dispose();
+  });
+
   it('restores a pending edit proposal for main-owned revalidation', async () => {
     const session = await createSession();
     const service = new AgentConversationService();

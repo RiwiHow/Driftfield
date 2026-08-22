@@ -62,6 +62,94 @@
   flex: none;
 }
 
+.prompt-context-dialog {
+  width: min(900px, calc(100vw - 32px));
+  max-width: 900px;
+  max-height: calc(100vh - 32px);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.prompt-context-tabs {
+  display: flex;
+  gap: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.prompt-context-content {
+  min-height: 0;
+  padding-right: 4px;
+  overflow: auto;
+  user-select: text;
+}
+
+.prompt-context-meta {
+  display: flex;
+  gap: 14px;
+  color: var(--muted-foreground);
+  font-size: 9px;
+}
+
+.prompt-context-section {
+  margin-top: 14px;
+}
+
+.prompt-context-section h3 {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.prompt-context-section pre,
+.prompt-context-messages pre {
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  color: var(--foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--df-editor);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+.prompt-context-tools {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.prompt-context-messages {
+  display: grid;
+  gap: 8px;
+}
+
+.prompt-context-messages article strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted-foreground);
+  font-size: 9px;
+}
+
+.prompt-context-note,
+.prompt-context-empty,
+.prompt-context-state {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.prompt-context-state.is-error {
+  color: var(--destructive);
+}
+
 .message-avatar {
   display: grid;
   place-items: center;

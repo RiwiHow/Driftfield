@@ -49,6 +49,10 @@ import type {
   UpdateAgentConversationMessageRequest,
 } from '../shared/contracts/agent-conversations';
 import type { ProjectStorySnapshot } from '../shared/contracts/project-story';
+import type {
+  AgentPromptPreview,
+  AgentPromptPreviewRequest,
+} from '../shared/contracts/agent-prompt-preview';
 
 const api: DriftfieldAPI = {
   platform: process.platform,
@@ -103,6 +107,11 @@ const api: DriftfieldAPI = {
     ipcRenderer.invoke(
       IPC_CHANNELS.getAgentConversationState,
     ) as Promise<AgentConversationState>,
+  getAgentPromptPreview: (request: AgentPromptPreviewRequest) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.getAgentPromptPreview,
+      request,
+    ) as Promise<AgentPromptPreview>,
   onProjectChanged: (listener) => {
     const handleProjectChanged = (
       _event: Electron.IpcRendererEvent,

@@ -1,6 +1,7 @@
 import {
   ArrowUp,
   Bot,
+  Braces,
   Check,
   ChevronRight,
   CircleStop,
@@ -66,6 +67,7 @@ import {
 } from './agent-conversation-state';
 import { groupConsecutiveReadTools } from './agent-tool-activity';
 import { SafeMarkdown } from './SafeMarkdown';
+import { PromptContextDialog } from './PromptContextDialog';
 import { useAgentConversation } from './use-agent-conversation';
 
 interface AssistantPanelProps {
@@ -110,6 +112,7 @@ export function AssistantPanel({
   const [renameError, setRenameError] = useState(false);
   const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
   const [isRenaming, setIsRenaming] = useState(false);
+  const [promptContextOpen, setPromptContextOpen] = useState(false);
   const conversationRef = useRef<HTMLDivElement>(null);
   const followConversationRef = useRef(true);
   const followedConversationIdRef = useRef<string | null>(null);
@@ -305,6 +308,20 @@ export function AssistantPanel({
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
+                aria-label={t('actions.viewPromptContext')}
+                disabled={projectId === null}
+                onClick={() => setPromptContextOpen(true)}
+                size="icon"
+                variant="ghost"
+              >
+                <Braces aria-hidden="true" size={13} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t('actions.viewPromptContext')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
                 aria-label={t('history.rename')}
                 disabled={isActive || activeConversationId === null}
                 onClick={openRenameConversation}
@@ -349,6 +366,12 @@ export function AssistantPanel({
           </Tooltip>
         </div>
       </div>
+
+      <PromptContextDialog
+        onOpenChange={setPromptContextOpen}
+        open={promptContextOpen}
+        prompt={prompt}
+      />
 
       <Dialog
         onOpenChange={(open) => {

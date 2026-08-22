@@ -3,6 +3,7 @@ export const IPC_CHANNELS = {
   createAgentConversation: "agent:conversation-create",
   deleteAgentConversation: "agent:conversation-delete",
   getAgentConversationState: "agent:conversation-get-state",
+  getAgentPromptPreview: "agent:get-prompt-preview",
   renameAgentConversation: "agent:conversation-rename",
   selectAgentConversation: "agent:conversation-select",
   updateAgentConversationMessage: "agent:conversation-update-message",

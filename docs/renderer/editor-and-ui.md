@@ -136,6 +136,12 @@ Concurrent reviewed story-operation calls sharing one request and story
 revision render as one story-sync review card instead of repeating one activity
 row and proposal card per record. Their individual calls remain persisted in
 the conversation audit.
+
+The Agent header exposes a read-only prompt-context inspector. It displays the
+Main-built Curator and Scribe system prompts, profile versions, enabled tool
+names, projected conversation history, and the current unsent composer draft.
+It states that novel context is added only by actual tool calls and that the
+selected model may trim older projected messages further.
 Open story questions have a separate story-panel section. They are not approval
 cards because no canonical mutation is pending: the Agent asks the author in
 conversation, while the panel preserves unresolved context, suggested answers,

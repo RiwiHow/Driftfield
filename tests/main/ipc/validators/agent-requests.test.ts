@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  isAgentPromptPreviewRequest,
   isRejectAgentProposalRequest,
   isStartAgentPromptRequest,
 } from '../../../../src/main/ipc/validators/agent-requests';
@@ -8,6 +9,14 @@ import {
 const revision = 'a'.repeat(64);
 
 describe('Agent IPC request validation', () => {
+  it('accepts only a bounded prompt preview draft', () => {
+    expect(isAgentPromptPreviewRequest({ prompt: '' })).toBe(true);
+    expect(isAgentPromptPreviewRequest({ prompt: 'Draft', extra: true })).toBe(false);
+    expect(isAgentPromptPreviewRequest({
+      prompt: '中'.repeat(11_000),
+    })).toBe(false);
+  });
+
   it('accepts a bounded current-document draft pair', () => {
     expect(
       isStartAgentPromptRequest({

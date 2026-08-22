@@ -18,9 +18,18 @@ import type {
   SelectAgentConversationRequest,
   UpdateAgentConversationMessageRequest,
 } from '../../../shared/contracts/agent-conversations';
+import type { AgentPromptPreviewRequest } from '../../../shared/contracts/agent-prompt-preview';
 
 const isConversationId = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= 128;
+
+export const isAgentPromptPreviewRequest = (
+  value: unknown,
+): value is AgentPromptPreviewRequest =>
+  isRecord(value) &&
+  Object.keys(value).length === 1 &&
+  typeof value.prompt === 'string' &&
+  Buffer.byteLength(value.prompt, 'utf8') <= 32 * 1024;
 
 export const isCreateAgentConversationRequest = (
   value: unknown,

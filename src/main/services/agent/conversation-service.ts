@@ -74,6 +74,26 @@ export class AgentConversationService {
     return this.readState(database, conversationId);
   }
 
+  getPromptHistory(session: ProjectSession): AgentPromptHistory {
+    const database = this.getDatabase(session);
+    const conversationId = this.ensureActiveConversation(database);
+    const history = database.connection.prepare(`
+      SELECT role, content FROM conversation_messages
+      WHERE conversation_id = ? AND active = 1
+        AND (role = 'user' OR run_status = 'completed')
+      ORDER BY sequence DESC
+    `).all(conversationId) as unknown as AgentHistoryMessage[];
+    const outcomeRows = database.connection.prepare(`
+      SELECT parts_json FROM conversation_messages
+      WHERE conversation_id = ? AND active = 1 AND parts_json IS NOT NULL
+      ORDER BY sequence DESC LIMIT 50
+    `).all(conversationId) as Array<{ parts_json: string }>;
+    return {
+      history: selectBoundedHistory(history),
+      proposalOutcomes: parseProposalOutcomeRows(outcomeRows),
+    };
+  }
+
   create(session: ProjectSession, requestedTitle?: string): AgentConversationState {
     const database = this.getDatabase(session);
     const count = database.connection.prepare(`
@@ -494,23 +514,7 @@ export class AgentConversationService {
         AND (role = 'user' OR run_status = 'completed')
       ORDER BY sequence DESC
     `).all(conversationId, requestId) as unknown as AgentHistoryMessage[];
-    const selected: AgentHistoryMessage[] = [];
-    let characters = 0;
-    for (const row of rows) {
-      if (row.content.length === 0) continue;
-      const historyRow = {
-        ...row,
-        content: expireRequestScopedReferences(row.content),
-      };
-      if (
-        selected.length > 0 &&
-        characters + historyRow.content.length > MAX_CONTEXT_CHARACTERS
-      ) break;
-      selected.push(historyRow);
-      characters += historyRow.content.length;
-      if (selected.length >= MAX_CONTEXT_MESSAGES) break;
-    }
-    return selected.reverse();
+    return selectBoundedHistory(rows);
   }
 
   private buildProposalOutcomes(
@@ -528,27 +532,7 @@ export class AgentConversationService {
     `).all(conversationId, requestId) as Array<{
       parts_json: string;
     }>;
-    return rows
-      .reverse()
-      .flatMap<AgentProposalOutcome>((row) =>
-        parseStoredParts(row.parts_json)
-          .filter(
-            (part): part is Extract<
-              AgentConversationPart,
-              { type: 'proposal' }
-            > =>
-              part.type === 'proposal' &&
-              part.status !== 'pending' &&
-              part.status !== 'applying',
-          )
-          .map((part) => ({
-            operation:
-              'operation' in part.proposal ? part.proposal.operation : 'edit',
-            proposalId: part.proposal.proposalId,
-            status: toProposalOutcomeStatus(part.status),
-          })),
-      )
-      .slice(-50);
+    return parseProposalOutcomeRows(rows);
   }
 
   private scheduleFlush(active: ActiveRequest): void {
@@ -587,6 +571,50 @@ export class AgentConversationService {
     );
   }
 }
+
+const selectBoundedHistory = (
+  rows: AgentHistoryMessage[],
+): AgentHistoryMessage[] => {
+  const selected: AgentHistoryMessage[] = [];
+  let characters = 0;
+  for (const row of rows) {
+    if (row.content.length === 0) continue;
+    const historyRow = {
+      ...row,
+      content: expireRequestScopedReferences(row.content),
+    };
+    if (
+      selected.length > 0 &&
+      characters + historyRow.content.length > MAX_CONTEXT_CHARACTERS
+    ) break;
+    selected.push(historyRow);
+    characters += historyRow.content.length;
+    if (selected.length >= MAX_CONTEXT_MESSAGES) break;
+  }
+  return selected.reverse();
+};
+
+const parseProposalOutcomeRows = (
+  rows: Array<{ parts_json: string }>,
+): AgentProposalOutcome[] => rows
+  .reverse()
+  .flatMap<AgentProposalOutcome>((row) =>
+    parseStoredParts(row.parts_json)
+      .filter(
+        (part): part is Extract<AgentConversationPart, { type: 'proposal' }> =>
+          part.type === 'proposal' &&
+          part.status !== 'pending' &&
+          part.status !== 'applying',
+      )
+      .map((part) => ({
+        operation: 'operation' in part.proposal
+          ? part.proposal.operation
+          : 'edit',
+        proposalId: part.proposal.proposalId,
+        status: toProposalOutcomeStatus(part.status),
+      })),
+  )
+  .slice(-50);
 
 const normalizeTitle = (value?: string): string | null => {
   const title = value?.trim();
