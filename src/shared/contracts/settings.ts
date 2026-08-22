@@ -9,6 +9,13 @@ export {
 } from '../theme-contract';
 export type CloseWindowBehavior = 'minimize' | 'quit';
 
+export const AGENT_CUSTOM_INSTRUCTIONS_MAX_LENGTH = 16_000;
+
+export const isAgentCustomInstructions = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  value.length <= AGENT_CUSTOM_INSTRUCTIONS_MAX_LENGTH &&
+  !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value);
+
 export const APP_ZOOM_PERCENTS = [
   80,
   90,
@@ -49,19 +56,21 @@ export interface ProjectAgentSettings extends AgentSettings {
 
 export interface AppSettings {
   agent: AgentSettings;
+  agentCustomInstructions: string;
   closeWindowBehavior: CloseWindowBehavior;
   editorFontSize: number;
   lastProjectDirectoryPath: string | null;
   language: AppLanguage;
   theme: AppThemePreference;
   zoomPercent: AppZoomPercent;
-  version: 3;
+  version: 4;
 }
 
 export type UpdateAppSettingsRequest = Partial<
   Pick<
     AppSettings,
     | 'agent'
+    | 'agentCustomInstructions'
     | 'closeWindowBehavior'
     | 'editorFontSize'
     | 'language'
@@ -75,13 +84,14 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     defaultModel: null,
     thinkingLevel: 'medium',
   },
+  agentCustomInstructions: '',
   closeWindowBehavior: 'quit',
   editorFontSize: 17,
   lastProjectDirectoryPath: null,
   language: 'en',
   theme: 'github-light',
   zoomPercent: 100,
-  version: 3,
+  version: 4,
 };
 
 export const DEFAULT_PROJECT_AGENT_SETTINGS: ProjectAgentSettings = {

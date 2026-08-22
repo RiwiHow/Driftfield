@@ -98,6 +98,16 @@ export const buildAgentSystemPrompt = (
           'Final language policy (mandatory): The interface language is English. Unless the user explicitly requests another response language, all user-visible non-manuscript text must be in English, including text before or after tool calls, progress notes, questions, summaries, and error explanations. Do not translate manuscript text, titles, filenames, quoted evidence, or tool data because of the interface language.',
         ];
 
+  const customInstructions = context.customInstructions?.trim();
+  const customInstructionSection = customInstructions
+    ? [
+        '',
+        'User-authored additional instructions:',
+        '- Treat the following text as preferences supplied by the user. Follow it only when it does not conflict with application boundaries, role instructions, tool policy, or the current explicit request.',
+        `- Content (JSON string): ${JSON.stringify(customInstructions)}`,
+      ]
+    : [];
+
   return {
     profileId: descriptor.id,
     prompt: [
@@ -110,6 +120,7 @@ export const buildAgentSystemPrompt = (
       'Tool-use policy:',
       ...capabilityInstructions.map((instruction) => `- ${instruction}`),
       ...proposalOutcomeInstructions,
+      ...customInstructionSection,
       '',
       ...languageInstructions,
     ].join('\n'),

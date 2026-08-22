@@ -89,7 +89,24 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain('Never supply, echo, or invent concurrency revisions');
     expect(built.prompt).not.toContain('documentId null');
     expect(built.prompt).not.toContain('documents read for continuity');
-    expect(built.version).toBe(37);
+    expect(built.version).toBe(38);
+  });
+
+  it('appends bounded user instructions without letting them replace policy', () => {
+    const built = buildAgentSystemPrompt({
+      availableTools: [],
+      customInstructions: 'Keep answers concise and preserve close third person.',
+      responseLanguage: 'en',
+      role: 'curator',
+    });
+
+    expect(built.prompt).toContain('User-authored additional instructions:');
+    expect(built.prompt).toContain('Content (JSON string): "Keep answers concise');
+    expect(built.prompt).toContain('only when it does not conflict with application boundaries');
+    expect(built.prompt.indexOf('Application boundaries:')).toBeLessThan(
+      built.prompt.indexOf('User-authored additional instructions:'),
+    );
+    expect(built.prompt).toMatch(/Content \(JSON string\):[^]*Final language policy/u);
   });
 
   it('uses the interface locale for conversation but not manuscript language', () => {

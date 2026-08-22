@@ -5,7 +5,11 @@ import {
   type AgentRole,
   type AgentStopReason,
 } from "./agent";
-import { AGENT_THINKING_LEVELS, type AgentThinkingLevel } from "./settings";
+import {
+  AGENT_THINKING_LEVELS,
+  isAgentCustomInstructions,
+  type AgentThinkingLevel,
+} from "./settings";
 import {
   AGENT_TOOL_NAMES,
   isAgentToolName,
@@ -19,6 +23,7 @@ import { isAppLanguage, type AppLanguage } from '../i18n/languages';
 export interface AgentWorkerStartCommand {
   authPath: string;
   cwd: string;
+  customInstructions: string;
   enabledTools: AgentToolName[];
   history: Array<{ content: string; role: 'assistant' | 'user' }>;
   modelsPath: string;
@@ -183,6 +188,7 @@ export const isAgentWorkerCommand = (
     command.type === "start" &&
     typeof command.authPath === "string" &&
     typeof command.cwd === "string" &&
+    isAgentCustomInstructions(command.customInstructions) &&
     Array.isArray(command.enabledTools) &&
     command.enabledTools.length <= AGENT_TOOL_NAMES.length &&
     new Set(command.enabledTools).size === command.enabledTools.length &&

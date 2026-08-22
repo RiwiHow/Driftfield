@@ -160,6 +160,7 @@ describe("IPC handler composition", () => {
     })).resolves.toMatchObject({ status: 'started' });
     expect(context.aiAgentService.start).toHaveBeenCalledWith(
       expect.objectContaining({
+        customInstructions: 'Keep responses concise.',
         model: { modelId: 'model-1', providerId: 'anthropic' },
         responseLanguage: 'en',
         thinkingLevel: 'medium',
@@ -330,6 +331,7 @@ const createContext = (): IpcHandlerContext => {
           defaultModel: { modelId: "model-1", providerId: "anthropic" },
           thinkingLevel: "medium",
         },
+        agentCustomInstructions: 'Keep responses concise.',
         language: 'en',
       })),
       update: vi.fn(async () => ({

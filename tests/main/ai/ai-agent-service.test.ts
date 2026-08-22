@@ -110,6 +110,7 @@ describe('AiAgentService', () => {
   ) =>
     service.start({
       currentDocumentId: 'chapter.md',
+      customInstructions: 'Use restrained prose.',
       history: [],
       proposalOutcomes: [],
       model: { modelId: 'model', providerId: 'anthropic' },
@@ -368,6 +369,7 @@ describe('AiAgentService', () => {
       (message as { toolCallId?: unknown }).toolCallId === 'tool-propose-writing'));
 
     expect(workers[0].messages).toContainEqual(expect.objectContaining({
+      customInstructions: 'Use restrained prose.',
       enabledTools: [
         'read_novel_context',
         'submit_writing_artifact',

@@ -7,6 +7,7 @@ export type { AgentToolName } from '../../../shared/contracts/agent-tools';
 
 export interface AgentPromptContext {
   availableTools: readonly AgentToolName[];
+  customInstructions?: string;
   proposalOutcomes?: readonly AgentProposalOutcome[];
   responseLanguage: AppLanguage;
   role: AgentRole;

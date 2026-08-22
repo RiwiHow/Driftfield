@@ -27,26 +27,28 @@ describe('settings parsing and validation', () => {
           defaultModel: { modelId: 'model-a', providerId: 'anthropic' },
           thinkingLevel: 'high',
         },
+        agentCustomInstructions: 'Keep responses concise.',
         closeWindowBehavior: 'minimize',
         editorFontSize: 20,
         language: 'zh-CN',
         lastProjectDirectoryPath: '/Novels/Example',
         theme: 'github-dark',
         zoomPercent: 125,
-        version: 3,
+        version: 4,
       }),
     ).toEqual({
       agent: {
         defaultModel: { modelId: 'model-a', providerId: 'anthropic' },
         thinkingLevel: 'high',
       },
+      agentCustomInstructions: 'Keep responses concise.',
       closeWindowBehavior: 'minimize',
       editorFontSize: 20,
       language: 'zh-CN',
       lastProjectDirectoryPath: '/Novels/Example',
       theme: 'github-dark',
       zoomPercent: 125,
-      version: 3,
+      version: 4,
     });
   });
 
@@ -68,11 +70,12 @@ describe('settings parsing and validation', () => {
   it('uses defaults for invalid stored fields', () => {
     expect(parseStoredSettings({ editorFontSize: 100 })).toMatchObject({
       editorFontSize: 17,
+      agentCustomInstructions: '',
       lastProjectDirectoryPath: null,
       language: 'en',
       theme: 'github-light',
       zoomPercent: 100,
-      version: 3,
+      version: 4,
     });
   });
 
@@ -84,7 +87,7 @@ describe('settings parsing and validation', () => {
     );
   });
 
-  it('uses defaults for outdated settings versions', () => {
+  it('migrates the complete version 3 shape and defaults older versions', () => {
     expect(parseStoredSettings(PREVIOUS_SETTINGS)).toEqual(DEFAULT_SETTINGS);
     expect(parseStoredSettings(LEGACY_SETTINGS)).toEqual(DEFAULT_SETTINGS);
   });
@@ -115,6 +118,18 @@ describe('settings parsing and validation', () => {
     })).toThrow('Invalid global Agent settings');
   });
 
+  it('validates bounded Agent custom instructions', () => {
+    expect(parseSettingsUpdate({
+      agentCustomInstructions: 'Keep responses concise.',
+    })).toEqual({ agentCustomInstructions: 'Keep responses concise.' });
+    expect(() => parseSettingsUpdate({
+      agentCustomInstructions: 'x'.repeat(16_001),
+    })).toThrow('Invalid Agent custom instructions');
+    expect(() => parseSettingsUpdate({
+      agentCustomInstructions: 'invalid\u0000text',
+    })).toThrow('Invalid Agent custom instructions');
+  });
+
   it('validates the last project directory path', () => {
     expect(
       parseStoredSettings({
@@ -140,7 +155,7 @@ describe('settings parsing and validation', () => {
   });
 
   it('rejects unknown update fields, including the schema version', () => {
-    expect(() => parseSettingsUpdate({ version: 3 })).toThrow(
+    expect(() => parseSettingsUpdate({ version: 4 })).toThrow(
       'Unknown application setting',
     );
   });
@@ -161,7 +176,7 @@ describe('settings parsing and validation', () => {
     });
     expect(
       JSON.parse(await readFile(path.join(directory, 'settings.json'), 'utf8')),
-    ).toMatchObject({ lastProjectDirectoryPath: '/Novels/Example', version: 3 });
+    ).toMatchObject({ lastProjectDirectoryPath: '/Novels/Example', version: 4 });
   });
 });
 
@@ -170,13 +185,14 @@ const DEFAULT_SETTINGS = {
     defaultModel: null,
     thinkingLevel: 'medium',
   },
+  agentCustomInstructions: '',
   closeWindowBehavior: 'quit',
   editorFontSize: 17,
   language: 'en',
   lastProjectDirectoryPath: null,
   theme: 'github-light',
   zoomPercent: 100,
-  version: 3,
+  version: 4,
 } as const;
 
 const LEGACY_SETTINGS = {
@@ -189,6 +205,12 @@ const LEGACY_SETTINGS = {
 } as const;
 
 const PREVIOUS_SETTINGS = {
-  ...DEFAULT_SETTINGS,
-  version: 2,
+  agent: DEFAULT_SETTINGS.agent,
+  closeWindowBehavior: DEFAULT_SETTINGS.closeWindowBehavior,
+  editorFontSize: DEFAULT_SETTINGS.editorFontSize,
+  language: DEFAULT_SETTINGS.language,
+  lastProjectDirectoryPath: DEFAULT_SETTINGS.lastProjectDirectoryPath,
+  theme: DEFAULT_SETTINGS.theme,
+  zoomPercent: DEFAULT_SETTINGS.zoomPercent,
+  version: 3,
 } as const;

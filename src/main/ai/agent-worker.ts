@@ -156,6 +156,7 @@ async function startRequest(command: AgentWorkerStartCommand): Promise<void> {
     });
     const systemPrompt = buildAgentSystemPrompt({
       availableTools: enabledToolNames,
+      customInstructions: command.customInstructions,
       proposalOutcomes: command.proposalOutcomes,
       responseLanguage: command.responseLanguage,
       role: command.role,

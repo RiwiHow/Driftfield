@@ -55,6 +55,7 @@ const SCRIBE_TOOLS = [
 interface ActiveAgentRequest {
   cancelled: boolean;
   childTaskId?: string;
+  customInstructions: string;
   draftSnapshot?: AgentDraftSnapshot;
   model: AgentModelSelection;
   modelsPath: string;
@@ -104,6 +105,7 @@ interface PendingWritingTask {
 
 interface StartAgentRequest {
   currentDocumentId?: string;
+  customInstructions: string;
   draftSnapshot?: AgentDraftSnapshot;
   history: AgentHistoryMessage[];
   ownerId: number;
@@ -157,6 +159,7 @@ export class AiAgentService {
     const directory = path.join(this.userDataPath, 'ai', 'pi');
     const active: ActiveAgentRequest = {
       cancelled: false,
+      customInstructions: request.customInstructions,
       draftSnapshot: request.draftSnapshot,
       model: request.model,
       modelsPath: request.modelsPath ?? path.join(directory, 'models.json'),
@@ -186,6 +189,7 @@ export class AiAgentService {
       worker.postMessage({
         authPath: path.join(directory, 'auth.json'),
         cwd: directory,
+        customInstructions: request.customInstructions,
         enabledTools: [...CURATOR_TOOLS],
         history: request.history,
         modelsPath: active.modelsPath,
@@ -702,6 +706,7 @@ export class AiAgentService {
       this.worker!.postMessage({
         authPath: path.join(active.workingDirectory, 'auth.json'),
         cwd: active.workingDirectory,
+        customInstructions: active.customInstructions,
         enabledTools: [...SCRIBE_TOOLS],
         history: [],
         modelId: active.model.modelId,

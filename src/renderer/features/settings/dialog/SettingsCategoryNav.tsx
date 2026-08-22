@@ -1,9 +1,9 @@
-import { Cpu, MonitorCog } from "lucide-react";
+import { Cpu, MessageSquareText, MonitorCog } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
 
-export type SettingsCategory = "interface" | "models";
+export type SettingsCategory = "interface" | "models" | "agentInstructions";
 
 interface SettingsCategoryNavProps {
   category: SettingsCategory;
@@ -38,6 +38,24 @@ export function SettingsCategoryNav({
         <span>
           <strong>{t("categories.interfaceTitle")}</strong>
           <small>{t("categories.interfaceDescription")}</small>
+        </span>
+      </button>
+      <button
+        aria-controls="settings-agent-instructions-panel"
+        aria-selected={category === "agentInstructions"}
+        className={cn(
+          "settings-category-button",
+          category === "agentInstructions" && "is-active",
+        )}
+        id="settings-agent-instructions-tab"
+        onClick={() => onCategoryChange("agentInstructions")}
+        role="tab"
+        type="button"
+      >
+        <MessageSquareText aria-hidden="true" size={17} />
+        <span>
+          <strong>{t("categories.agentInstructionsTitle")}</strong>
+          <small>{t("categories.agentInstructionsDescription")}</small>
         </span>
       </button>
       <button

@@ -259,6 +259,7 @@ export const registerAgentIpcHandlers = ({
         const modelsPath = await agentModelConfigService.prepareRuntime(session);
         const requestId = await aiAgentService.start({
           ...value,
+          customInstructions: appSettings.agentCustomInstructions,
           history: promptHistory.history,
           proposalOutcomes: promptHistory.proposalOutcomes,
           model: selectedModel,

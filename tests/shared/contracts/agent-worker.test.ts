@@ -31,6 +31,7 @@ describe("Agent utility-process protocol", () => {
       isAgentWorkerCommand({
         authPath: "/app-data/auth.json",
         cwd: "/project",
+        customInstructions: '',
         enabledTools: [],
         history: [],
         proposalOutcomes: [],
@@ -72,6 +73,7 @@ describe("Agent utility-process protocol", () => {
       isAgentWorkerCommand({
         authPath: "/app-data/auth.json",
         cwd: "/project",
+        customInstructions: '',
         enabledTools: ["read_novel_context"],
         history: [],
         proposalOutcomes: [],

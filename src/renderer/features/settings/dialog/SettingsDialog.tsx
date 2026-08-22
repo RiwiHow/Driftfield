@@ -22,6 +22,7 @@ import type {
   UpdateAppSettingsRequest,
   UpdateProjectAgentSettingsRequest,
 } from "../../../../shared/contracts/settings";
+import { AgentInstructionsSettingsPanel } from "../agent/AgentInstructionsSettingsPanel";
 import { InterfaceSettingsPanel } from "../interface/InterfaceSettingsPanel";
 import { AgentModelSettingsPanel } from "../models/AgentModelSettingsPanel";
 import {
@@ -76,6 +77,8 @@ export function SettingsDialog({
   const [credentialProvider, setCredentialProvider] =
     useState<AgentApiKeyProviderId>("anthropic");
   const [isModelOverrideDirty, setIsModelOverrideDirty] = useState(false);
+  const [areAgentInstructionsDirty, setAreAgentInstructionsDirty] =
+    useState(false);
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -99,6 +102,13 @@ export function SettingsDialog({
               isSaving={isSaving}
               onUpdate={onUpdate}
               resolvedTheme={resolvedTheme}
+              settings={settings}
+            />
+          ) : category === "agentInstructions" ? (
+            <AgentInstructionsSettingsPanel
+              isSaving={isSaving}
+              onDirtyChange={setAreAgentInstructionsDirty}
+              onUpdate={onUpdate}
               settings={settings}
             />
           ) : (
@@ -131,7 +141,10 @@ export function SettingsDialog({
                         ? "saveStatus.modelUnsaved"
                         : "saveStatus.modelSaved",
                     )
-                  : t("saveStatus.saved"))}
+                  : category === "agentInstructions" &&
+                      areAgentInstructionsDirty
+                    ? t("saveStatus.instructionsUnsaved")
+                    : t("saveStatus.saved"))}
           </span>
           <Button
             className="h-8 px-3 text-xs"

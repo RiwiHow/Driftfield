@@ -391,6 +391,14 @@ application-owned role profiles. The prompt registry composes:
 - role instructions;
 - cross-tool usage policy.
 
+The global application settings may contain a bounded user-authored additional
+instruction block. Main validates and snapshots it at request start, and the
+worker appends it after the application-owned boundaries, role instructions,
+and tool policy but before the final language policy. It applies to Curator and
+delegated Scribe runs. It is preference context only: it cannot replace or
+override application boundaries, role policy, tool permissions, or the user's
+current explicit request.
+
 Do not embed complete prompts in the worker entry or accept arbitrary
 renderer-supplied system prompts. Future user writing instructions may be
 size-bounded additions, but cannot replace application boundaries.

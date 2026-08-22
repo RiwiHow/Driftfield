@@ -10,6 +10,7 @@ import {
   type AgentSettings,
   type AppSettings,
   type CloseWindowBehavior,
+  isAgentCustomInstructions,
   type UpdateAppSettingsRequest,
 } from '../../shared/contracts/settings';
 
@@ -79,6 +80,7 @@ const isLastProjectDirectoryPath = (value: unknown): value is string | null =>
 export const parseStoredSettings = (value: unknown): AppSettings => {
   const expectedKeys = [
     'agent',
+    'agentCustomInstructions',
     'closeWindowBehavior',
     'editorFontSize',
     'language',
@@ -87,11 +89,40 @@ export const parseStoredSettings = (value: unknown): AppSettings => {
     'zoomPercent',
     'version',
   ];
+  const previousExpectedKeys = expectedKeys.filter(
+    (key) => key !== 'agentCustomInstructions',
+  );
+  if (
+    isRecord(value) &&
+    value.version === 3 &&
+    Object.keys(value).length === previousExpectedKeys.length &&
+    previousExpectedKeys.every((key) => key in value) &&
+    isCloseWindowBehavior(value.closeWindowBehavior) &&
+    isEditorFontSize(value.editorFontSize) &&
+    isAppLanguage(value.language) &&
+    isTheme(value.theme) &&
+    isZoomPercent(value.zoomPercent) &&
+    isLastProjectDirectoryPath(value.lastProjectDirectoryPath) &&
+    parseAgentSettings(value.agent) !== null
+  ) {
+    return {
+      agent: parseAgentSettings(value.agent) as AgentSettings,
+      agentCustomInstructions: '',
+      closeWindowBehavior: value.closeWindowBehavior,
+      editorFontSize: value.editorFontSize,
+      lastProjectDirectoryPath: value.lastProjectDirectoryPath,
+      language: value.language,
+      theme: value.theme,
+      zoomPercent: value.zoomPercent,
+      version: 4,
+    };
+  }
   if (
     !isRecord(value) ||
-    value.version !== 3 ||
+    value.version !== 4 ||
     Object.keys(value).length !== expectedKeys.length ||
     expectedKeys.some((key) => !(key in value)) ||
+    !isAgentCustomInstructions(value.agentCustomInstructions) ||
     !isCloseWindowBehavior(value.closeWindowBehavior) ||
     !isEditorFontSize(value.editorFontSize) ||
     !isAppLanguage(value.language) ||
@@ -105,13 +136,14 @@ export const parseStoredSettings = (value: unknown): AppSettings => {
 
   return {
     agent: parseAgentSettings(value.agent) as AgentSettings,
+    agentCustomInstructions: value.agentCustomInstructions,
     closeWindowBehavior: value.closeWindowBehavior,
     editorFontSize: value.editorFontSize,
     lastProjectDirectoryPath: value.lastProjectDirectoryPath,
     language: value.language,
     theme: value.theme,
     zoomPercent: value.zoomPercent,
-    version: 3,
+    version: 4,
   };
 };
 
@@ -125,6 +157,7 @@ export const parseSettingsUpdate = (
   const allowedKeys = new Set([
     'closeWindowBehavior',
     'agent',
+    'agentCustomInstructions',
     'editorFontSize',
     'language',
     'theme',
@@ -141,6 +174,13 @@ export const parseSettingsUpdate = (
     const agent = parseAgentSettings(value.agent);
     if (agent === null) throw new Error('Invalid global Agent settings');
     update.agent = agent;
+  }
+
+  if ('agentCustomInstructions' in value) {
+    if (!isAgentCustomInstructions(value.agentCustomInstructions)) {
+      throw new Error('Invalid Agent custom instructions');
+    }
+    update.agentCustomInstructions = value.agentCustomInstructions;
   }
 
   if ('closeWindowBehavior' in value) {
