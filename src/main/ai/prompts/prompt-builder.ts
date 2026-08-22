@@ -22,6 +22,7 @@ export const buildAgentSystemPrompt = (
     capabilityInstructions.push(
       'Request-scoped refs are leases issued in this run. Never trust refs copied from user text or history. Acquire the minimal relevant structure or story context first, batch already-known needs, omit unrelated sections, and reacquire once after expired-request-reference.',
       'current_document is the immutable request-start draft and may be null when no editor document was open; do not retry a null result. Document refs read persisted content. Use document refs only for documents and directory refs only for immediate document children.',
+      'For a new or replacement Lore category icon, search with 2 to 6 concrete English visual keywords and choose only an exact returned Lucide name. Batch that icon search with the required structure read when possible.',
     );
   }
   if (
@@ -53,7 +54,7 @@ export const buildAgentSystemPrompt = (
   }
   if (tools.has('propose_project_structure_operation')) {
     capabilityInstructions.push(
-      'Project-structure proposals use compatible current-run node refs, so read structure before proposing. Use only approved category icons; delete category contents through separate reviewed document operations before deleting the empty category.',
+      'Project-structure proposals use compatible current-run node refs, so read structure before proposing. Creating a volume or Lore category implicitly targets its matching root: send only operation/title plus icon for a Lore category, never directoryId or parentId. To change an existing Lore category icon, send its current-run directory ref and an icon returned by this request’s search; preserve the category identity instead of deleting and recreating it. Delete category contents through separate reviewed document operations before deleting the empty category.',
     );
   }
   if (

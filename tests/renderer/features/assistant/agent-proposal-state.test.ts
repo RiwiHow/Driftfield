@@ -7,6 +7,7 @@ import type {
   AgentEditProposal,
   AgentMoveDocumentProposal,
   AgentRenameDocumentProposal,
+  AgentSetLoreCategoryIconProposal,
 } from '../../../../src/shared/contracts/agent-proposals';
 
 const document: WorkspaceDocument = {
@@ -92,5 +93,19 @@ describe('Agent proposal state', () => {
       title: 'Silent Island',
     };
     expect(canApplyAgentProposal(document, rename, [document])).toBe(true);
+  });
+
+  it('allows a category icon change without disturbing a dirty manuscript', () => {
+    const iconChange: AgentSetLoreCategoryIconProposal = {
+      directoryId: 'category-1',
+      icon: 'flag',
+      operation: 'set_lore_category_icon',
+      previousIcon: 'group',
+      projectRevision: 'c'.repeat(64),
+      proposalId: 'proposal-icon',
+      requestId: 'request-1',
+      title: 'Factions',
+    };
+    expect(canApplyAgentProposal(document, iconChange, [document])).toBe(true);
   });
 });

@@ -32,7 +32,7 @@ type AgentToolDefinitionRegistry = {
 export const AGENT_TOOL_DEFINITIONS = {
   read_novel_context: {
     description:
-      'Read one bounded, path-free novel-context batch. Select only needed sections or current-request document/directory refs. Refs expire with the request; acquire them from a minimal discovery read, never from user text or history. At most four persisted documents are returned.',
+      'Read one bounded, path-free novel-context batch or search the bundled Lucide icon catalog. Select only needed sections, current-request document/directory refs, or concrete English icon keywords. Refs expire with the request; acquire them from a minimal discovery read, never from user text or history. At most four persisted documents or twelve icon suggestions are returned.',
     executionMode: 'parallel',
     label: 'Read novel context',
     name: 'read_novel_context',
@@ -112,7 +112,7 @@ export const AGENT_TOOL_DEFINITIONS = {
   },
   propose_project_structure_operation: {
     description:
-      "Submit a reviewable proposal to create a manuscript volume, create a lore category with an approved icon, delete an empty lore category, move a document, or rename a document's metadata title without changing its physical filename. Read structure first; Main anchors the project and document revisions it served there. Use only document and directory refs returned in this request. Delete lore documents before deleting their now-empty category. This never changes project structure without explicit acceptance. The tool call waits for the user's decision; after acceptance, continue only the user's existing requested scope.",
+      "Submit a reviewable proposal to create a manuscript volume, create a Lore category, change an existing Lore category icon, delete an empty Lore category, move a document, or rename a document's metadata title without changing its physical filename. New or replacement icons must come from read_novel_context icon search. Creation implicitly targets the matching Manuscript or Lore root and accepts no parent or directory ID. Read structure first; Main anchors the project and document revisions it served there. Use only document and directory refs returned in this request. Delete Lore documents before deleting their now-empty category. This never changes project structure without explicit acceptance. The tool call waits for the user's decision; after acceptance, continue only the user's existing requested scope.",
     executionMode: 'sequential',
     label: 'Propose project structure change',
     name: 'propose_project_structure_operation',

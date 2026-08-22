@@ -8,7 +8,7 @@ import type {
   AgentToolContractMap,
   AgentToolName,
 } from './agent-tools';
-import { PROJECT_ICON_IDS } from './project-layout';
+import { isProjectIconId } from './project-layout';
 import { isProjectStoryOperation } from './project-story';
 
 export const AGENT_NOVEL_CONTEXT_SECTIONS = [
@@ -63,6 +63,14 @@ export const NOVEL_CONTEXT_PARAMETERS = Type.Object(
         maxItems: 4,
         uniqueItems: true,
       },
+    ),
+    iconQuery: Type.Optional(
+      Type.String({
+        description:
+          'Search the bundled Lucide catalog for a Lore category icon. Supply 2 to 6 concrete English visual keywords, such as "magic wand sparkles". The result returns at most 12 exact valid icon names.',
+        maxLength: 120,
+        minLength: 1,
+      }),
     ),
     include: Type.Array(
       stringEnum(AGENT_NOVEL_CONTEXT_SECTIONS),
@@ -214,13 +222,17 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
     ),
     directoryId: Type.Optional(
       Type.String({
-        description: 'Required for delete_lore_category: request-scoped empty category ref.',
+        description:
+          'Required for delete_lore_category and set_lore_category_icon: request-scoped Lore category ref. Never send directoryId when creating a volume or Lore category.',
         pattern: requestRefPattern('directory'),
       }),
     ),
     icon: Type.Optional(
-      stringEnum(PROJECT_ICON_IDS, {
-        description: 'Required for create_lore_category.',
+      Type.String({
+        description:
+          'Required for create_lore_category and set_lore_category_icon. Use an exact kebab-case Lucide name returned by read_novel_context icon search.',
+        maxLength: 35,
+        pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$',
       }),
     ),
     operation: stringEnum(
@@ -228,9 +240,14 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
         'create_volume',
         'create_lore_category',
         'delete_lore_category',
+        'set_lore_category_icon',
         'move_document',
         'rename_document',
       ] as const,
+      {
+        description:
+          'create_volume implicitly targets the Manuscript root; create_lore_category implicitly targets the Lore root. Neither create operation accepts a parent or directory ID.',
+      },
     ),
     metadataTitle: Type.Optional(
       Type.String({
@@ -248,7 +265,8 @@ export const PROJECT_STRUCTURE_OPERATION_PARAMETERS = Type.Object(
     ),
     title: Type.Optional(
       Type.String({
-        description: 'Required when creating a volume or lore category.',
+        description:
+          'Required when creating a volume or Lore category. Creation targets the corresponding root implicitly.',
         maxLength: 500,
         minLength: 1,
       }),
@@ -1129,10 +1147,15 @@ const storyOperationArgumentError = (
 const issueNovelContext = (value: unknown): string | undefined => {
   if (!Check(NOVEL_CONTEXT_PARAMETERS, value)) return '';
   const args = value as AgentToolContractMap['read_novel_context']['arguments'];
+  const iconQueryIsValid = args.iconQuery === undefined ||
+    (isBoundedText(args.iconQuery, 120, false) &&
+      /[a-z0-9]/iu.test(args.iconQuery));
+  if (!iconQueryIsValid) return '';
   if (
     args.include.length > 0 ||
     args.documentIds.length > 0 ||
-    args.directoryIds.length > 0
+    args.directoryIds.length > 0 ||
+    args.iconQuery !== undefined
   ) return undefined;
   return '';
 };
@@ -1178,26 +1201,53 @@ const issueDocumentFileOperation = (value: unknown): string | undefined => {
 };
 
 const issueProjectStructureOperation = (value: unknown): string | undefined => {
-  if (!Check(PROJECT_STRUCTURE_OPERATION_PARAMETERS, value)) return undefined;
-  const args = value as Record<string, unknown>;
-  if (args.operation === 'rename_document') {
-    if (hasExactKeys(args, ['operation', 'documentId', 'metadataTitle']) &&
-      isValidMetadataTitle(args.metadataTitle)) return undefined;
-    return 'rename_document requires exactly operation, documentId, and metadataTitle. metadataTitle is the raw title without generated numbering; the physical filename is preserved.';
+  if (!isRecord(value)) {
+    return 'propose_project_structure_operation requires one operation object.';
   }
+  const args = value;
   const operationKeys = {
     create_volume: ['operation', 'title'],
     create_lore_category: ['operation', 'title', 'icon'],
     delete_lore_category: ['operation', 'directoryId'],
+    set_lore_category_icon: ['operation', 'directoryId', 'icon'],
     move_document: ['operation', 'documentId', 'targetParentId'],
+    rename_document: ['operation', 'documentId', 'metadataTitle'],
   } as const;
   const expectedKeys = operationKeys[
     args.operation as keyof typeof operationKeys
   ];
+  if (expectedKeys === undefined) {
+    return 'operation must be create_volume, create_lore_category, delete_lore_category, set_lore_category_icon, move_document, or rename_document.';
+  }
+  const expectedDescription = expectedKeys.join(', ');
+  const unexpected = Object.keys(args).filter((key) =>
+    !(expectedKeys as readonly string[]).includes(key));
+  if (unexpected.length > 0) {
+    const createTargetHint = args.operation === 'create_lore_category'
+      ? ' The Lore root is implicit; do not pass directoryId or parentId.'
+      : args.operation === 'create_volume'
+        ? ' The Manuscript root is implicit; do not pass directoryId or parentId.'
+        : '';
+    return `${String(args.operation)} accepts exactly ${expectedDescription}. Remove unsupported ${unexpected.join(', ')}.${createTargetHint}`;
+  }
+  const missing = expectedKeys.filter((key) => !(key in args));
+  if (missing.length > 0) {
+    return `${String(args.operation)} requires exactly ${expectedDescription}. Missing ${missing.join(', ')}.`;
+  }
+  if (!Check(PROJECT_STRUCTURE_OPERATION_PARAMETERS, value)) {
+    return `${String(args.operation)} contains an invalid field value; use the documented request-scoped refs and bounded text.`;
+  }
   const titleIsValid = args.title === undefined || isValidMetadataTitle(args.title);
-  return expectedKeys !== undefined && hasExactKeys(args, expectedKeys) && titleIsValid
-    ? undefined
-    : '';
+  const iconIsValid = ![
+    'create_lore_category',
+    'set_lore_category_icon',
+  ].includes(args.operation as string) ||
+    isProjectIconId(args.icon);
+  if (!titleIsValid) return `${String(args.operation)} title must be non-empty.`;
+  if (!iconIsValid) {
+    return `${String(args.operation)} icon must be an exact name returned by read_novel_context icon search.`;
+  }
+  return undefined;
 };
 
 const issueStoryOperation = (value: unknown): string | undefined => {

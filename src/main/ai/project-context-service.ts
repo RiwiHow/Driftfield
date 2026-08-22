@@ -16,7 +16,6 @@ import type {
   LoreEntry,
   ManuscriptDocumentEntry,
 } from '../../shared/contracts/project-layout';
-import { PROJECT_ICON_IDS } from '../../shared/contracts/project-layout';
 import {
   loadProjectLayout,
   type LoadedProjectLayout,
@@ -207,7 +206,6 @@ export class ProjectContextService {
       };
     });
     const result: AgentNovelStructureToolResult = {
-      availableIcons: [...PROJECT_ICON_IDS],
       format: 'driftfield',
       manuscript: {
         children: manuscriptChildren,

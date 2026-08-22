@@ -13,7 +13,8 @@ rules for these tools are defined in
 The Agent data surface contains one bounded `read_novel_context` tool. One call
 may request any combination of the fixed `structure`, `current_document`,
 `story_state`, and `accepted_reconciliation` sections, persisted documents by
-request-scoped ref, and directories by request-scoped ref.
+request-scoped ref, directories by request-scoped ref, and one bounded Lucide
+icon search using concrete English visual keywords.
 `accepted_reconciliation` is available
 only after an accepted Scribe-backed manuscript proposal. It returns the exact
 persisted accepted document and a compact semantic view of Personae, Chronicle,
@@ -189,12 +190,25 @@ The reviewed mutation surface additionally contains:
   actions to the anchored project revision, and deletion additionally to the
   anchored document revision.
 - `propose_project_structure_operation`, which proposes creating a manuscript
-  volume, creating an icon-bearing lore category, deleting an empty lore
+  volume, creating an icon-bearing lore category, changing an existing lore
+  category icon without changing its stable identity, deleting an empty lore
   category, moving a document between compatible request-scoped directory refs, or
   changing a document's metadata title without renaming its physical file.
-  `read_novel_context.structure` returns both each directory's selected icon and the
-  complete fixed icon allow-list. Category creation accepts only an icon from
-  that list. Category deletion is rejected until every contained document has
+  `read_novel_context.structure` returns each directory's selected icon. Its
+  optional icon search ranks the complete bundled Lucide catalog by exact,
+  token, prefix, and substring matches and returns at most twelve names.
+  Category creation accepts an exact returned kebab-case name; Main validates
+  it against that exact catalog.
+  Volume and Lore-category creation implicitly target their corresponding root;
+  their calls do not accept a parent or directory ref. Refine reports exact
+  missing and unexpected fields so the Agent can correct one invalid call
+  without guessing operation-specific shapes.
+  Icon changes require both the current-request category ref and an icon issued
+  by a search in that same request. They update only the catalog metadata and
+  preserve the physical directory, stable ID, ordering, and children.
+  The catalog is not copied into every structure result or provider schema,
+  avoiding thousands of repeated model-context tokens. Category deletion is
+  rejected until every contained document has
   been separately reviewed and deleted. Main binds these operations to the
   anchored project revision, and a move additionally to the anchored document
   revision; manuscript documents cannot be moved into lore or vice versa.
@@ -300,8 +314,11 @@ the provider receive an error ToolResult rather than successful text that merely
 contains `{ "ok": false }`.
 `read_novel_context.structure` exposes the optional knowledge root as `lore` with
 directory kind `lore`, matching the project format and application domain. Its
-path-free result includes directory icons and the fixed `availableIcons` list;
-it never exposes YAML or physical metadata paths.
+path-free result includes selected directory icons; it never exposes YAML or
+physical metadata paths. The structure-operation schema identifies Lucide as
+the icon namespace while the optional icon search returns at most twelve exact
+candidate names and Main validates the selected name against the complete
+bundled catalog.
 
 The worker emits bounded Tool activity events around the Driftfield-owned tool
 bridge. Main annotates those events with the executing Agent role before they

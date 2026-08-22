@@ -32,7 +32,6 @@ const documentContext = {
 };
 
 const novelStructure = {
-  availableIcons: [],
   format: 'driftfield' as const,
   lore: {
     children: [{
@@ -120,6 +119,62 @@ const readFirstDocumentRefs = async (
 };
 
 describe('AgentToolDispatcher', () => {
+  it('returns bounded Lucide suggestions without loading novel data', async () => {
+    const context = {
+      getDocument: vi.fn(),
+      getNovelStructure: vi.fn(),
+      getStoryState: vi.fn(),
+    } as unknown as ProjectContextService;
+    const dispatcher = new AgentToolDispatcher(context);
+
+    const result = await dispatcher.execute(scope, {
+      arguments: {
+        directoryIds: [],
+        documentIds: [],
+        iconQuery: 'magic wand sparkles',
+        include: [],
+      },
+      toolName: 'read_novel_context',
+    });
+
+    expect(result).toMatchObject({
+      data: {
+        documents: [],
+        iconSuggestions: {
+          icons: expect.arrayContaining(['wand', 'wand-sparkles', 'sparkles']),
+          query: 'magic wand sparkles',
+        },
+      },
+      ok: true,
+      toolName: 'read_novel_context',
+    });
+    expect(context.getNovelStructure).not.toHaveBeenCalled();
+  });
+
+  it('explains operation-specific extra fields instead of returning a bare error', async () => {
+    const dispatcher = new AgentToolDispatcher({} as ProjectContextService);
+
+    const result = await dispatcher.execute(scope, {
+      arguments: {
+        directoryId: 'directory:2',
+        icon: 'group',
+        operation: 'create_lore_category',
+        title: 'Factions',
+      },
+      toolName: 'propose_project_structure_operation',
+    });
+
+    expect(result).toMatchObject({
+      error: {
+        code: 'invalid-arguments',
+        detail: expect.stringContaining(
+          'The Lore root is implicit; do not pass directoryId or parentId.',
+        ),
+      },
+      ok: false,
+    });
+  });
+
   it('reads selected novel context and persisted documents in one bounded call', async () => {
     const currentDocument = { ...documentResult, source: 'draft' as const };
     const storyState = {
@@ -1243,6 +1298,64 @@ describe('AgentToolDispatcher', () => {
       ok: true,
       toolName: 'propose_project_structure_operation',
     });
+    expect(sendProposal).toHaveBeenCalledWith(proposal);
+  });
+
+  it('changes a Lore category icon only from current structure and search results', async () => {
+    const proposal = {
+      directoryId: 'world-directory',
+      icon: 'flag' as const,
+      operation: 'set_lore_category_icon' as const,
+      previousIcon: 'earth' as const,
+      projectRevision: 'a'.repeat(64),
+      proposalId: 'proposal-icon',
+      requestId: 'request-1',
+      title: 'World',
+    };
+    const proposals = {
+      cancelRequest: vi.fn(),
+      createStructureOperation: vi.fn().mockResolvedValue(proposal),
+      waitForDecision: vi.fn().mockResolvedValue({
+        proposalId: proposal.proposalId,
+        status: 'accepted',
+      }),
+    } as unknown as AgentProposalService;
+    const sendProposal = vi.fn();
+    const dispatcher = new AgentToolDispatcher(
+      { getNovelStructure: vi.fn().mockResolvedValue(novelStructure) } as unknown as ProjectContextService,
+      undefined,
+      proposals,
+    );
+    await expect(dispatcher.execute(scope, {
+      arguments: {
+        directoryIds: [],
+        documentIds: [],
+        iconQuery: 'flag banner political',
+        include: ['structure'],
+      },
+      toolName: 'read_novel_context',
+    })).resolves.toMatchObject({ ok: true });
+
+    await expect(dispatcher.execute({ ...scope, sendProposal }, {
+      arguments: {
+        directoryId: 'directory:3',
+        icon: 'flag',
+        operation: 'set_lore_category_icon',
+      },
+      toolName: 'propose_project_structure_operation',
+    })).resolves.toMatchObject({
+      data: { status: 'accepted' },
+      ok: true,
+    });
+    expect(proposals.createStructureOperation).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        directoryId: 'world-directory',
+        icon: 'flag',
+        operation: 'set_lore_category_icon',
+        projectRevision: 'revision',
+      },
+    );
     expect(sendProposal).toHaveBeenCalledWith(proposal);
   });
 

@@ -355,6 +355,39 @@ describe('Agent conversation persistence', () => {
     restoredService.dispose();
   });
 
+  it('restores a pending Lore category icon proposal for revalidation', async () => {
+    const session = await createSession();
+    const service = new AgentConversationService();
+    const state = service.getState(session);
+    const proposal = {
+      directoryId: 'category-factions',
+      icon: 'flag' as const,
+      operation: 'set_lore_category_icon' as const,
+      previousIcon: 'group' as const,
+      projectRevision: 'a'.repeat(64),
+      proposalId: 'proposal-icon',
+      requestId: 'assistant-icon',
+      title: 'Factions',
+    };
+    service.beginPrompt(session, {
+      conversationId: state.activeConversation.id,
+      prompt: 'Change the category icon.',
+      requestId: 'assistant-icon',
+      userMessageId: 'user-icon',
+    });
+    service.recordEvent({
+      proposal,
+      requestId: 'assistant-icon',
+      type: 'proposal',
+    });
+    service.recordEvent({ requestId: 'assistant-icon', type: 'completed' });
+    service.dispose();
+
+    const restoredService = new AgentConversationService();
+    expect(restoredService.getProposal(session, proposal.proposalId)).toEqual(proposal);
+    restoredService.dispose();
+  });
+
   it('restores a pending story proposal for main-owned revalidation', async () => {
     const session = await createSession();
     const service = new AgentConversationService();

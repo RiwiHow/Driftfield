@@ -1146,6 +1146,8 @@ function ProposalCard({
             ? 'moved'
             : operation === 'rename_document'
               ? 'renamed'
+            : operation === 'set_lore_category_icon'
+              ? 'updatedLoreCategoryIcon'
             : operation === 'delete_lore_category'
               ? 'deletedLoreCategory'
               : operation === 'create_volume'
@@ -1201,6 +1203,15 @@ function ProposalCard({
           proposal.operation === 'create_lore_category' ? (
             <section>
               <span>{t('proposal.icon')}</span>
+              <pre>{proposal.icon}</pre>
+            </section>
+          ) : null}
+          {'operation' in proposal &&
+          proposal.operation === 'set_lore_category_icon' ? (
+            <section>
+              <span>{t('proposal.original')}</span>
+              <pre>{proposal.previousIcon ?? '—'}</pre>
+              <span>{t('proposal.proposed')}</span>
               <pre>{proposal.icon}</pre>
             </section>
           ) : null}

@@ -806,6 +806,28 @@ describe('AgentProposalService', () => {
       directoryId: society.directoryId,
       status: 'created-directory',
     });
+    const iconChange = await service.createStructureOperation(scope, {
+      directoryId: society.directoryId,
+      icon: 'flag',
+      operation: 'set_lore_category_icon',
+      projectRevision: session.project.revision,
+    });
+    expect(iconChange).toMatchObject({
+      icon: 'flag',
+      previousIcon: 'landmark',
+      title: 'Society',
+    });
+    await expect(service.apply(7, iconChange.proposalId)).resolves.toMatchObject({
+      directoryId: society.directoryId,
+      status: 'updated-directory',
+    });
+    expect((await loadProjectLayout(directoryPath)).lore?.categories)
+      .toContainEqual(expect.objectContaining({
+        index: expect.objectContaining({
+          icon: 'flag',
+          id: society.directoryId,
+        }),
+      }));
 
     const world = (await loadProjectLayout(directoryPath)).lore?.categories.find(
       ({ index }) => index.title === 'World',

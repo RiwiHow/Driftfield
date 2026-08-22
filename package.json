@@ -7,6 +7,7 @@
   "main": ".vite/build/main.js",
   "scripts": {
     "dev": "electron-forge start",
+    "generate:icon-catalog": "node scripts/generate-lucide-icon-catalog.mjs",
     "test": "node tests/run-vitest-in-electron.cjs",
     "test:packaged-i18n": "node tests/packaged/verify-i18n.cjs",
     "test:packaged-pi": "node tests/packaged/verify-pi.cjs",

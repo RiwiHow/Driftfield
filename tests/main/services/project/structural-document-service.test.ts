@@ -12,6 +12,7 @@ import {
   deleteStructuredProjectDocument,
   deleteStructuredLoreCategory,
   moveStructuredProjectDocument,
+  setStructuredLoreCategoryIcon,
 } from '../../../../src/main/services/project/structural-document-service';
 import { contentRevision } from '../../../../src/main/services/project/document-utils';
 import { ProjectDatabase } from '../../../../src/main/database/project-database';
@@ -165,16 +166,27 @@ describe('structured project documents', () => {
       title: 'Society book',
     });
 
+    await setStructuredLoreCategoryIcon(directory, {
+      directoryId: 'society-id',
+      icon: 'flag',
+    });
+
     const created = await loadProjectLayout(directory);
     expect(created.lore?.categories).toContainEqual(
       expect.objectContaining({
         index: expect.objectContaining({
-          icon: 'landmark',
+          children: [expect.objectContaining({ id: 'society-book-id' })],
+          icon: 'flag',
           id: 'society-id',
           title: 'Society',
         }),
       }),
     );
+    const database = new ProjectDatabase(directory);
+    expect(database.connection.prepare(`
+      SELECT operation_kind FROM project_operations ORDER BY created_at
+    `).all()).toContainEqual({ operation_kind: 'set-directory-icon' });
+    database.close();
     await expect(
       deleteStructuredLoreCategory(directory, { directoryId: 'society-id' }),
     ).rejects.toThrow('must be empty');

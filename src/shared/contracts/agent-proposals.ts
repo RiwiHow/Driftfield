@@ -57,6 +57,17 @@ export interface AgentDeleteLoreCategoryProposal {
   title: string;
 }
 
+export interface AgentSetLoreCategoryIconProposal {
+  directoryId: string;
+  icon: import('./project-layout').ProjectIconId;
+  operation: 'set_lore_category_icon';
+  previousIcon?: import('./project-layout').ProjectIconId;
+  projectRevision: string;
+  proposalId: string;
+  requestId: string;
+  title: string;
+}
+
 export interface AgentMoveDocumentProposal {
   baseRevision: string;
   documentId: string;
@@ -95,6 +106,7 @@ export type AgentDocumentProposal =
   | AgentCreateDocumentProposal
   | AgentDeleteDocumentProposal
   | AgentDeleteLoreCategoryProposal
+  | AgentSetLoreCategoryIconProposal
   | AgentCreateDirectoryProposal
   | AgentMoveDocumentProposal
   | AgentRenameDocumentProposal;
@@ -117,6 +129,7 @@ export interface AgentProposalOutcome {
     | 'create_volume'
     | 'create_lore_category'
     | 'delete_lore_category'
+    | 'set_lore_category_icon'
     | 'move_document'
     | 'rename_document'
     | 'story';
@@ -146,7 +159,7 @@ export type ApplyAgentProposalResult =
       directoryId: string;
       project: import('./project').ProjectSnapshot;
       proposalId: string;
-      status: 'created-directory' | 'deleted-directory';
+      status: 'created-directory' | 'deleted-directory' | 'updated-directory';
     }
   | {
       proposalId: string;

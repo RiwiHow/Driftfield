@@ -24,6 +24,18 @@ import {
 import type { AgentToolName } from '../../../src/shared/contracts/agent-tools';
 
 describe('Agent tool parameter schemas', () => {
+  it('defines a bounded optional Lucide icon search', () => {
+    const schema = NOVEL_CONTEXT_PARAMETERS as unknown as Record<string, unknown>;
+    const properties = schema.properties as Record<string, Record<string, unknown>>;
+
+    expect(schema.required).toEqual(['directoryIds', 'documentIds', 'include']);
+    expect(properties.iconQuery).toMatchObject({
+      maxLength: 120,
+      minLength: 1,
+      type: 'string',
+    });
+  });
+
   it('defines a bounded terminal Scribe artifact submission', () => {
     const schema = WRITING_ARTIFACT_SUBMISSION_PARAMETERS as unknown as Record<string, unknown>;
     const properties = schema.properties as Record<string, Record<string, unknown>>;
@@ -115,19 +127,26 @@ describe('Agent tool parameter schemas', () => {
     expect(schema.type).toBe('object');
     expect(schema.required).toEqual(['operation']);
     expect(properties.operation).toMatchObject({
+      description: expect.stringContaining('Lore root'),
       enum: [
         'create_volume',
         'create_lore_category',
         'delete_lore_category',
+        'set_lore_category_icon',
         'move_document',
         'rename_document',
       ],
       type: 'string',
     });
     expect(properties.icon).toMatchObject({
-      enum: expect.arrayContaining(['earth', 'map', 'users']),
+      maxLength: 35,
+      pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$',
       type: 'string',
     });
+    expect(properties.icon).not.toHaveProperty('enum');
+    expect(properties.directoryId.description).toContain(
+      'Never send directoryId when creating',
+    );
     expect(properties.metadataTitle.description).toContain('rename_document');
     expect(JSON.stringify(schema)).not.toContain('anyOf');
     expect(JSON.stringify(schema)).not.toContain('const');

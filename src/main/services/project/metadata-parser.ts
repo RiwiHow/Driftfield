@@ -3,7 +3,7 @@ import { parseDocument } from 'yaml';
 import {
   CHAPTER_NUMBERING_MODES,
   MANUSCRIPT_DOCUMENT_KINDS,
-  PROJECT_ICON_IDS,
+  isProjectIconId,
   type ChapterNumberingPolicy,
   type LoreCategoryIndex,
   type LoreEntry,
@@ -78,13 +78,10 @@ export const parseProjectTitle = (value: unknown): string => {
 };
 
 export const parseProjectIcon = (value: unknown): ProjectIconId => {
-  if (
-    typeof value !== 'string' ||
-    !PROJECT_ICON_IDS.includes(value as ProjectIconId)
-  ) {
+  if (!isProjectIconId(value)) {
     throw new Error('Project metadata contains an invalid icon');
   }
-  return value as ProjectIconId;
+  return value;
 };
 
 const parseSegment = (value: unknown): string => {

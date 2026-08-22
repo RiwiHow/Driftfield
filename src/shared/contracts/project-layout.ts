@@ -1,22 +1,21 @@
+import {
+  PROJECT_ICON_IDS,
+  type ProjectIconId,
+} from './lucide-icon-catalog.generated';
+
+export {
+  PROJECT_ICON_IDS,
+  type ProjectIconId,
+} from './lucide-icon-catalog.generated';
+
+const PROJECT_ICON_ID_SET: ReadonlySet<string> = new Set(PROJECT_ICON_IDS);
+
+export const isProjectIconId = (value: unknown): value is ProjectIconId =>
+  typeof value === 'string' && PROJECT_ICON_ID_SET.has(value);
+
 export const DRIFTFIELD_PROJECT_FORMAT_VERSION = 3 as const;
 export const DRIFTFIELD_PROJECT_MARKER = 'driftfield-project' as const;
 export const LEGACY_PROJECT_INDEX_NAME = '_index.yaml' as const;
-export const PROJECT_ICON_IDS = [
-  'book-open',
-  'book-marked',
-  'castle',
-  'crown',
-  'earth',
-  'landmark',
-  'map',
-  'orbit',
-  'scroll-text',
-  'shield',
-  'sparkles',
-  'swords',
-  'users',
-] as const;
-export type ProjectIconId = (typeof PROJECT_ICON_IDS)[number];
 export const PROJECT_ROOT_DIRECTORIES = {
   lore: 'lore',
   manuscript: 'manuscript',

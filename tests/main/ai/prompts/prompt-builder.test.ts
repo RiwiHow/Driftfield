@@ -56,6 +56,7 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain('expired-request-reference');
     expect(built.prompt).toContain('batch already-known needs');
     expect(built.prompt).toContain('current_document is the immutable request-start draft');
+    expect(built.prompt).toContain('2 to 6 concrete English visual keywords');
     expect(built.prompt).not.toContain('Prefer one reconcile_accepted_document call');
     expect(built.prompt).not.toContain('propose_document_file_operation');
     expect(built.prompt).not.toContain('One Scribe delegation is available');
@@ -89,7 +90,7 @@ describe('Agent prompt registry', () => {
     expect(built.prompt).toContain('Never supply, echo, or invent concurrency revisions');
     expect(built.prompt).not.toContain('documentId null');
     expect(built.prompt).not.toContain('documents read for continuity');
-    expect(built.version).toBe(40);
+    expect(built.version).toBe(44);
   });
 
   it('places raw user instructions at the very beginning', () => {

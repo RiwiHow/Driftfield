@@ -6,7 +6,7 @@ import {
   isAgentToolArguments,
 } from './agent-tool-schema';
 import { isProjectStorySnapshot } from './project-story';
-import { PROJECT_ICON_IDS } from './project-layout';
+import { isProjectIconId } from './project-layout';
 
 export {
   ACCEPTED_DOCUMENT_REFERENCE,
@@ -18,9 +18,7 @@ export {
 
 const isProjectIcon = (
   value: unknown,
-): value is import('./project-layout').ProjectIconId =>
-  typeof value === 'string' &&
-  PROJECT_ICON_IDS.includes(value as import('./project-layout').ProjectIconId);
+): value is import('./project-layout').ProjectIconId => isProjectIconId(value);
 
 export interface AgentDraftSnapshot {
   baseRevision: string;
@@ -80,7 +78,6 @@ export type AgentStructureNode =
 
 /** Main-internal structure read. `revision` fields stay on the Main side. */
 export interface AgentNovelStructureToolResult {
-  availableIcons: import('./project-layout').ProjectIconId[];
   format: 'driftfield';
   lore?: AgentStructureDirectory;
   manuscript: AgentStructureDirectory;
@@ -106,9 +103,15 @@ export type AgentNovelContextSection =
 export interface AgentNovelContextToolResult {
   currentDocument?: AgentDocumentContext | null;
   documents: AgentDocumentContext[];
+  iconSuggestions?: AgentIconSuggestions;
   reconciliation?: AgentAcceptedReconciliationContext;
   storyState?: AgentStoryStateContext;
   structure?: AgentNovelStructureContext;
+}
+
+export interface AgentIconSuggestions {
+  icons: import('./project-layout').ProjectIconId[];
+  query: string;
 }
 
 /**
@@ -396,6 +399,11 @@ export type AgentProjectStructureOperationArguments =
       operation: 'delete_lore_category';
     }
   | {
+      directoryId: string;
+      icon: import('./project-layout').ProjectIconId;
+      operation: 'set_lore_category_icon';
+    }
+  | {
       documentId: string;
       operation: 'move_document';
       targetParentId: string;
@@ -411,6 +419,7 @@ export interface AgentToolContractMap {
     arguments: {
       directoryIds: string[];
       documentIds: string[];
+      iconQuery?: string;
       include: AgentNovelContextSection[];
     };
     result: AgentNovelContextToolResult;
@@ -630,18 +639,30 @@ const isNovelContextResult = (
     [
       'currentDocument',
       'documents',
+      'iconSuggestions',
       'reconciliation',
       'storyState',
       'structure',
     ].includes(key)) &&
   Array.isArray(value.documents) && value.documents.length <= 4 &&
   value.documents.every(isDocumentResult) &&
+  (value.iconSuggestions === undefined ||
+    isIconSuggestions(value.iconSuggestions)) &&
   (value.currentDocument === undefined || value.currentDocument === null ||
     isDocumentResult(value.currentDocument)) &&
   (value.reconciliation === undefined ||
     isAcceptedReconciliationContext(value.reconciliation)) &&
   (value.storyState === undefined || isAgentStorySnapshot(value.storyState)) &&
   (value.structure === undefined || isNovelStructureResult(value.structure));
+
+const isIconSuggestions = (value: unknown): value is AgentIconSuggestions =>
+  isRecord(value) &&
+  Object.keys(value).length === 2 &&
+  isBoundedText(value.query, 120, false) &&
+  Array.isArray(value.icons) &&
+  value.icons.length <= 12 &&
+  new Set(value.icons).size === value.icons.length &&
+  value.icons.every(isProjectIcon);
 
 const isAgentStorySnapshot = (value: unknown): boolean => {
   if (!isRecord(value) || !Array.isArray(value.eventSources) ||
@@ -820,10 +841,6 @@ const isNovelStructureResult = (
 ): value is AgentNovelStructureContext => {
   if (
     !isRecord(value) ||
-    !Array.isArray(value.availableIcons) ||
-    value.availableIcons.length !== PROJECT_ICON_IDS.length ||
-    !value.availableIcons.every(isProjectIcon) ||
-    new Set(value.availableIcons).size !== value.availableIcons.length ||
     value.format !== 'driftfield' ||
     !isRecord(value.project) ||
     Object.keys(value.project).length !== 2 ||

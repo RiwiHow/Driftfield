@@ -259,6 +259,17 @@ export class ProjectCatalogRepository {
     });
   }
 
+  updateIcon(nodeId: string, icon: ProjectIconId): void {
+    this.database.transaction(() => {
+      const result = this.database.connection.prepare(`
+        UPDATE project_nodes SET icon = ?, updated_at = ?
+        WHERE node_id = ? AND node_type = 'directory' AND kind = 'category'
+      `).run(icon, new Date().toISOString(), nodeId);
+      if (result.changes !== 1) throw new Error('Project lore category was not found');
+      this.bumpRevision();
+    });
+  }
+
   updateDocumentRevision(
     nodeId: string,
     contentRevision: string,

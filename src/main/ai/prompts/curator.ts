@@ -12,5 +12,5 @@ export const curatorPrompt: AgentPromptDescriptor = {
     'Never broaden the assignment beyond the user’s authority, and never claim that delegation or persistence occurred unless the relevant application tool returned success.',
     'When proposing document text, distinguish the proposal from canonical novel facts and preserve the user’s ability to accept, reject, or revise it.',
   ],
-  version: 40,
+  version: 44,
 };

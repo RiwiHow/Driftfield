@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  agentToolArgumentHint,
   isAgentToolAuditName,
   isAgentToolExecutionResult,
   isAgentToolName,
@@ -25,6 +26,24 @@ describe('Agent proposal tool contract', () => {
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: { directoryIds: [], documentIds: [], include: [] },
+      toolName: 'read_novel_context',
+    })).toBe(false);
+    expect(isAgentToolRequest({
+      arguments: {
+        directoryIds: [],
+        documentIds: [],
+        iconQuery: 'magic wand sparkles',
+        include: [],
+      },
+      toolName: 'read_novel_context',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: {
+        directoryIds: [],
+        documentIds: [],
+        iconQuery: '   ',
+        include: [],
+      },
       toolName: 'read_novel_context',
     })).toBe(false);
     expect(isAgentToolRequest({
@@ -77,6 +96,17 @@ describe('Agent proposal tool contract', () => {
     })).toBe(true);
     expect(isAgentToolExecutionResult({
       data: { currentDocument: null, documents: [] },
+      ok: true,
+      toolName: 'read_novel_context',
+    })).toBe(true);
+    expect(isAgentToolExecutionResult({
+      data: {
+        documents: [],
+        iconSuggestions: {
+          icons: ['wand', 'wand-sparkles', 'sparkles'],
+          query: 'magic wand sparkles',
+        },
+      },
       ok: true,
       toolName: 'read_novel_context',
     })).toBe(true);
@@ -460,7 +490,7 @@ describe('Agent proposal tool contract', () => {
     })).toBe(true);
     expect(isAgentToolRequest({
       arguments: {
-        icon: 'landmark',
+        icon: 'zodiac-sagittarius',
         operation: 'create_lore_category',
         title: 'Society',
       },
@@ -475,7 +505,41 @@ describe('Agent proposal tool contract', () => {
       toolName: 'propose_project_structure_operation',
     })).toBe(false);
     expect(isAgentToolRequest({
+      arguments: {
+        directoryId: 'directory:2',
+        icon: 'group',
+        operation: 'create_lore_category',
+        title: 'Factions',
+      },
+      toolName: 'propose_project_structure_operation',
+    })).toBe(false);
+    expect(agentToolArgumentHint('propose_project_structure_operation', {
+      directoryId: 'directory:2',
+      icon: 'group',
+      operation: 'create_lore_category',
+      title: 'Factions',
+    })).toContain(
+      'The Lore root is implicit; do not pass directoryId or parentId.',
+    );
+    expect(agentToolArgumentHint('propose_project_structure_operation', {
+      operation: 'create_lore_category',
+      title: 'Factions',
+    })).toContain('Missing icon');
+    expect(agentToolArgumentHint('propose_project_structure_operation', {
+      icon: 'not-an-icon',
+      operation: 'create_lore_category',
+      title: 'Factions',
+    })).toContain('exact name returned by read_novel_context icon search');
+    expect(isAgentToolRequest({
       arguments: { directoryId: 'directory:1', operation: 'delete_lore_category' },
+      toolName: 'propose_project_structure_operation',
+    })).toBe(true);
+    expect(isAgentToolRequest({
+      arguments: {
+        directoryId: 'directory:1',
+        icon: 'flag',
+        operation: 'set_lore_category_icon',
+      },
       toolName: 'propose_project_structure_operation',
     })).toBe(true);
     expect(isAgentToolRequest({

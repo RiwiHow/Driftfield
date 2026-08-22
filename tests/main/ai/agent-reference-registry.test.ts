@@ -6,10 +6,25 @@ const uuid = '2a256007-92f2-423c-b1fb-9c194577713f';
 const hash = '0c71edf716b9204ec064e7b1082f725ba8c8e0fe77ea2cef0a2a070a792775bd';
 
 describe('AgentReferenceRegistry', () => {
+  it('requires Lore category icons to come from a current-request search', () => {
+    const refs = new AgentReferenceRegistry();
+
+    try {
+      refs.requireIconSuggestion('wand-sparkles');
+      throw new Error('Expected the unissued icon to be rejected');
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: 'invalid-arguments',
+        detail: expect.stringContaining('Search the Lucide icon catalog'),
+      });
+    }
+    refs.anchorIconSuggestions(['wand', 'wand-sparkles']);
+    expect(() => refs.requireIconSuggestion('wand-sparkles')).not.toThrow();
+  });
+
   it('replaces persistent identities and withholds every revision', () => {
     const refs = new AgentReferenceRegistry();
     const structure = refs.exposeStructure({
-      availableIcons: [],
       format: 'driftfield',
       lore: {
         children: [{
@@ -89,7 +104,6 @@ describe('AgentReferenceRegistry', () => {
     const refs = new AgentReferenceRegistry();
     const listedRevision = 'b'.repeat(64);
     refs.exposeStructure({
-      availableIcons: [],
       format: 'driftfield',
       manuscript: {
         children: [{

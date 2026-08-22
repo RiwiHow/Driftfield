@@ -39,7 +39,6 @@ const waitFor = async (predicate: () => boolean): Promise<void> => {
 
 const writingContext = (): ProjectContextService => ({
   getNovelStructure: vi.fn().mockResolvedValue({
-    availableIcons: [],
     format: 'driftfield',
     manuscript: {
       children: [{

@@ -73,6 +73,11 @@ interface RenameDocumentRequest {
   metadataTitle: string;
 }
 
+interface SetLoreCategoryIconRequest {
+  directoryId: string;
+  icon: ProjectIconId;
+}
+
 export interface StructuredDirectoryDescriptor {
   childCount: number;
   id: string;
@@ -410,6 +415,33 @@ export const deleteStructuredLoreCategory = async (
         operationKind: 'delete-directory',
         payload: { directoryId: request.directoryId },
         rollbackFilesystem: () => rename(tombstonePath, categoryPath),
+    });
+  });
+};
+
+export const setStructuredLoreCategoryIcon = async (
+  directoryPath: string,
+  request: SetLoreCategoryIconRequest,
+): Promise<void> => {
+  const projectPath = await realpath(directoryPath);
+  return enqueueMutation(projectPath, async () => {
+    const layout = await loadProjectLayout(projectPath);
+    const category = layout.lore?.categories.find(
+      ({ index }) => index.id === request.directoryId,
+    );
+    if (category === undefined) throw new Error('Lore category was not found');
+    if (category.index.icon === request.icon) {
+      throw new Error('Lore category already has this icon');
+    }
+    await new ProjectMutationCoordinator(projectPath).execute({
+      applyDatabase: () => withCatalog(projectPath, (catalog) =>
+        catalog.updateIcon(request.directoryId, request.icon)),
+      applyFilesystem: async () => {},
+      baseProjectRevision: withCatalog(projectPath, (catalog) => catalog.getRevision()),
+      files: [],
+      operationKind: 'set-directory-icon',
+      payload: { directoryId: request.directoryId, icon: request.icon },
+      rollbackFilesystem: async () => {},
     });
   });
 };

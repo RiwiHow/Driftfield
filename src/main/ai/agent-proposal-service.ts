@@ -9,6 +9,7 @@ import type {
   AgentEditProposal,
   AgentMoveDocumentProposal,
   AgentRenameDocumentProposal,
+  AgentSetLoreCategoryIconProposal,
   AgentStoryProposal,
   AgentProposalOutcomeStatus,
   ApplyAgentProposalResult,
@@ -37,6 +38,7 @@ import {
   getStructuredRootDirectoryDescriptor,
   moveStructuredProjectDocument,
   renameStructuredProjectDocument,
+  setStructuredLoreCategoryIcon,
 } from '../services/project/structural-document-service';
 import { parseProjectTitle } from '../services/project/metadata-parser';
 import { assertValidManuscriptMarkdown } from '../services/project/manuscript-markdown-validator';
@@ -309,8 +311,12 @@ export class AgentProposalService {
   ): Promise<AgentRenameDocumentProposal>;
   async createStructureOperation(
     scope: ProposalScope,
+    request: Extract<ResolvedProjectStructureOperationArguments, { operation: 'set_lore_category_icon' }>,
+  ): Promise<AgentSetLoreCategoryIconProposal>;
+  async createStructureOperation(
+    scope: ProposalScope,
     request: Exclude<ResolvedProjectStructureOperationArguments, {
-      operation: 'delete_lore_category' | 'move_document' | 'rename_document';
+      operation: 'delete_lore_category' | 'move_document' | 'rename_document' | 'set_lore_category_icon';
     }>,
   ): Promise<AgentCreateDirectoryProposal>;
   async createStructureOperation(
@@ -320,7 +326,8 @@ export class AgentProposalService {
     AgentCreateDirectoryProposal |
     AgentDeleteLoreCategoryProposal |
     AgentMoveDocumentProposal |
-    AgentRenameDocumentProposal
+    AgentRenameDocumentProposal |
+    AgentSetLoreCategoryIconProposal
   >;
   async createStructureOperation(
     scope: ProposalScope,
@@ -329,7 +336,8 @@ export class AgentProposalService {
     AgentCreateDirectoryProposal |
     AgentDeleteLoreCategoryProposal |
     AgentMoveDocumentProposal |
-    AgentRenameDocumentProposal
+    AgentRenameDocumentProposal |
+    AgentSetLoreCategoryIconProposal
   > {
     const session = this.sessions.get(scope.ownerId);
     if (
@@ -346,7 +354,8 @@ export class AgentProposalService {
       | AgentCreateDirectoryProposal
       | AgentDeleteLoreCategoryProposal
       | AgentMoveDocumentProposal
-      | AgentRenameDocumentProposal;
+      | AgentRenameDocumentProposal
+      | AgentSetLoreCategoryIconProposal;
     if (request.operation === 'move_document') {
       const [document, target] = await Promise.all([
         getStructuredDocumentDescriptor(session.directoryPath, request.documentId),
@@ -375,6 +384,30 @@ export class AgentProposalService {
         targetParentId: target.id,
         targetParentTitle: target.title,
         title: document.title,
+      };
+    } else if (request.operation === 'set_lore_category_icon') {
+      const directory = await getStructuredDirectoryDescriptor(
+        session.directoryPath,
+        request.directoryId,
+      );
+      if (
+        directory === null ||
+        directory.kind !== 'category' ||
+        directory.icon === request.icon
+      ) {
+        throw new ProjectContextError('invalid-arguments');
+      }
+      proposal = {
+        directoryId: directory.id,
+        icon: request.icon,
+        operation: 'set_lore_category_icon',
+        ...(directory.icon === undefined
+          ? {}
+          : { previousIcon: directory.icon }),
+        projectRevision: request.projectRevision,
+        proposalId: randomUUID(),
+        requestId: scope.requestId,
+        title: directory.title,
       };
     } else if (request.operation === 'rename_document') {
       const document = await getStructuredDocumentDescriptor(
@@ -492,6 +525,7 @@ export class AgentProposalService {
         result.status === 'renamed' ||
         result.status === 'created-directory' ||
         result.status === 'deleted-directory' ||
+        result.status === 'updated-directory' ||
         result.status === 'story-updated'
         ? 'accepted'
         : result.status === 'not-found'
@@ -685,6 +719,11 @@ export class AgentProposalService {
             documentId: proposal.documentId,
             metadataTitle: proposal.title,
           });
+        } else if (proposal.operation === 'set_lore_category_icon') {
+          await setStructuredLoreCategoryIcon(session.directoryPath, {
+            directoryId: proposal.directoryId,
+            icon: proposal.icon,
+          });
         } else {
           await createStructuredProjectDirectory(session.directoryPath, {
             directoryId: proposal.directoryId,
@@ -704,7 +743,8 @@ export class AgentProposalService {
       if (
         proposal.operation === 'create_volume' ||
         proposal.operation === 'create_lore_category' ||
-        proposal.operation === 'delete_lore_category'
+        proposal.operation === 'delete_lore_category' ||
+        proposal.operation === 'set_lore_category_icon'
       ) {
         return {
           directoryId: proposal.directoryId,
@@ -712,7 +752,9 @@ export class AgentProposalService {
           proposalId,
           status: proposal.operation === 'delete_lore_category'
             ? 'deleted-directory'
-            : 'created-directory',
+            : proposal.operation === 'set_lore_category_icon'
+              ? 'updated-directory'
+              : 'created-directory',
         };
       }
       if (!('documentId' in proposal)) {

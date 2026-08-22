@@ -433,6 +433,7 @@ export function useAgentConversation(
         result.status === 'renamed' ||
         result.status === 'created-directory' ||
         result.status === 'deleted-directory' ||
+        result.status === 'updated-directory' ||
         result.status === 'story-updated'
       ) {
         onProposalApplied(result);
@@ -619,6 +620,7 @@ export function canApplyAgentProposal(
       proposal.operation === 'create_volume' ||
       proposal.operation === 'create_lore_category' ||
       proposal.operation === 'delete_lore_category' ||
+      proposal.operation === 'set_lore_category_icon' ||
       proposal.operation === 'rename_document'
     ) return true;
     if (!('documentId' in proposal) || !('baseRevision' in proposal)) return false;

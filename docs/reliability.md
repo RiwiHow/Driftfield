@@ -159,6 +159,10 @@ Preserve these properties when changing affected subsystems.
   change by request-scoped refs. Acceptance updates only the owning
   catalog node; it preserves the physical filename and Markdown and remains safe while
   the renderer has an unsaved manuscript draft.
+- Lore-category icon changes require a current-request category ref and an icon
+  returned by the current request's bounded Lucide search. Acceptance updates
+  only that catalog node and preserves its stable ID, physical directory,
+  ordering, children, and manuscript drafts.
 - Request-start draft snapshots preserve unsaved current-document content.
 - Pi works from application-owned Agent data, not the novel folder.
 - Assistant Markdown does not interpret raw HTML, load remote images, or permit

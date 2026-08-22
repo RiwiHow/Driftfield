@@ -8,6 +8,7 @@ import type {
   AgentStructureDirectory,
   AgentStructureNode,
 } from '../../shared/contracts/agent-tools';
+import type { ProjectIconId } from '../../shared/contracts/project-layout';
 import type {
   ProjectStoryOperation,
   ProjectStorySnapshot,
@@ -49,6 +50,7 @@ export class AgentReferenceRegistry {
   private readonly refs = new Map<string, ReferenceEntry>();
   private readonly values = new Map<string, string>();
   private readonly documentAnchors = new Map<string, AgentDocumentAnchor>();
+  private readonly iconSuggestions = new Set<ProjectIconId>();
   private projectRevisionAnchor: string | undefined;
   private storyRevisionAnchor: number | undefined;
 
@@ -149,6 +151,18 @@ export class AgentReferenceRegistry {
 
   anchorStoryRevision(revision: number): void {
     this.storyRevisionAnchor = revision;
+  }
+
+  anchorIconSuggestions(icons: readonly ProjectIconId[]): void {
+    for (const icon of icons) this.iconSuggestions.add(icon);
+  }
+
+  requireIconSuggestion(icon: ProjectIconId): void {
+    if (this.iconSuggestions.has(icon)) return;
+    throw new ProjectContextError(
+      'invalid-arguments',
+      `Search the Lucide icon catalog in this request and use an exact returned name before creating a Lore category: ${icon}.`,
+    );
   }
 
   exposeDocument(document: AgentDocumentToolResult): AgentDocumentContext {

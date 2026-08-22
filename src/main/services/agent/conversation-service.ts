@@ -19,7 +19,7 @@ import {
   type AgentRole,
 } from '../../../shared/contracts/agent';
 import { isAgentToolAuditName } from '../../../shared/contracts/agent-tools';
-import { PROJECT_ICON_IDS } from '../../../shared/contracts/project-layout';
+import { isProjectIconId } from '../../../shared/contracts/project-layout';
 import { ProjectDatabase } from '../../database/project-database';
 import type { ProjectSession } from '../project/session-service';
 import { expireRequestScopedReferences } from './model-history';
@@ -787,8 +787,7 @@ const parseStoredProposal = (value: string): AgentProposal => {
           ((proposal.operation === 'create_volume' && proposal.directoryKind === 'volume') ||
             (proposal.operation === 'create_lore_category' && proposal.directoryKind === 'category')) &&
           (proposal.icon === undefined ||
-            (typeof proposal.icon === 'string' &&
-              PROJECT_ICON_IDS.includes(proposal.icon as (typeof PROJECT_ICON_IDS)[number]))) &&
+            isProjectIconId(proposal.icon)) &&
           isId(proposal.parentId) &&
           typeof proposal.parentTitle === 'string' &&
           proposal.parentTitle.length <= 500 &&
@@ -799,6 +798,13 @@ const parseStoredProposal = (value: string): AgentProposal => {
             isId(proposal.parentId) &&
             typeof proposal.parentTitle === 'string' &&
             proposal.parentTitle.length <= 500 &&
+            isRevision(proposal.projectRevision)
+        : proposal.operation === 'set_lore_category_icon'
+          ? hasCommonFields &&
+            isId(proposal.directoryId) &&
+            isProjectIconId(proposal.icon) &&
+            (proposal.previousIcon === undefined ||
+              isProjectIconId(proposal.previousIcon)) &&
             isRevision(proposal.projectRevision)
         : proposal.operation === 'move_document'
           ? hasCommonFields &&

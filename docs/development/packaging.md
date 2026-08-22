@@ -37,6 +37,7 @@ Reassess when Forge 8 is stable or Forge 7 updates its rebuild dependency.
 ## Commands
 
 ```bash
+pnpm run generate:icon-catalog # Sync the shared catalog after a Lucide upgrade
 pnpm run dev                  # Start Vite and Electron
 pnpm test                     # Run Vitest once
 pnpm run typecheck            # TypeScript without emit
@@ -47,6 +48,11 @@ pnpm run test:packaged-i18n   # Verify packaged locale catalogs
 pnpm audit --prod             # Audit shipped dependencies
 pnpm audit                    # Audit all dependencies
 ```
+
+`src/shared/contracts/lucide-icon-catalog.generated.ts` is generated from the
+installed `lucide-react/dynamicIconImports` keys. Regenerate and commit it with
+every Lucide version change; contract tests fail when the generated catalog and
+the installed package differ.
 
 For structural or security-sensitive changes, run at minimum:
 

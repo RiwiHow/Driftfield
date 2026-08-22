@@ -45,6 +45,7 @@ import type {
 import type { ProjectStorySnapshot } from '../../shared/contracts/project-story';
 import { AgentReferenceRegistry } from './agent-reference-registry';
 import { contentRevision } from '../services/project/document-utils';
+import { searchProjectIcons } from './project-icon-search';
 
 export interface AgentToolScope {
   acceptedDocumentId?: string;
@@ -219,7 +220,7 @@ export class AgentToolDispatcher {
       projectSessionId: scope.projectSessionId,
     };
     if (request.toolName === 'read_novel_context') {
-      const { directoryIds, documentIds, include } = request.arguments;
+      const { directoryIds, documentIds, iconQuery, include } = request.arguments;
       const includeSet = new Set(include);
       const needsStructure = includeSet.has('structure') ||
         documentIds.length > 0 || directoryIds.length > 0;
@@ -320,12 +321,19 @@ export class AgentToolDispatcher {
       const exposedStoryState = !includeSet.has('story_state') || storyState === undefined
         ? undefined
         : refs.exposeStory(storyState);
+      const iconSuggestions = iconQuery === undefined
+        ? undefined
+        : { icons: searchProjectIcons(iconQuery), query: iconQuery };
+      if (iconSuggestions !== undefined) {
+        refs.anchorIconSuggestions(iconSuggestions.icons);
+      }
       return {
         data: {
           ...(exposedCurrentDocument === undefined
             ? {}
             : { currentDocument: exposedCurrentDocument }),
           documents: exposedDocuments,
+          ...(iconSuggestions === undefined ? {} : { iconSuggestions }),
           ...(reconciliation === undefined ? {} : { reconciliation }),
           ...(exposedStoryState === undefined
             ? {}
@@ -1084,9 +1092,18 @@ const resolveStructureOperation = (
   const projectRevision = refs.requireProjectRevision();
   switch (operation.operation) {
     case 'create_volume':
+      return { ...operation, projectRevision };
     case 'create_lore_category':
+      refs.requireIconSuggestion(operation.icon);
       return { ...operation, projectRevision };
     case 'delete_lore_category':
+      return {
+        ...operation,
+        directoryId: refs.resolve(operation.directoryId, 'directory'),
+        projectRevision,
+      };
+    case 'set_lore_category_icon':
+      refs.requireIconSuggestion(operation.icon);
       return {
         ...operation,
         directoryId: refs.resolve(operation.directoryId, 'directory'),

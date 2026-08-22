@@ -115,7 +115,6 @@ describe('ProjectContextService', () => {
       source: 'disk',
     });
     expect(structure).toMatchObject({
-      availableIcons: expect.arrayContaining(['earth', 'map', 'users']),
       format: 'driftfield',
       lore: {
         children: [
