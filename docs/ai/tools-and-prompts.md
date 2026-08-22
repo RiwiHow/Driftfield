@@ -393,8 +393,10 @@ application-owned role profiles. The prompt registry composes:
 
 The global application settings may contain a bounded user-authored additional
 instruction block. Main validates and snapshots it at request start, and the
-worker appends it after the application-owned boundaries, role instructions,
-and tool policy but before the final language policy. It applies to Curator and
+worker places the user-authored text verbatim at the very beginning of the
+system prompt without adding a title, explanation, delimiter, or serialization
+wrapper. Application boundaries, role instructions, tool policy, and the final
+language policy follow it. It applies to Curator and
 delegated Scribe runs. It is preference context only: it cannot replace or
 override application boundaries, role policy, tool permissions, or the user's
 current explicit request.
