@@ -5,8 +5,16 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { AgentConversationService } from '../../../../src/main/services/agent/conversation-service';
 import type { ProjectSession } from '../../../../src/main/services/project/session-service';
+import { ProjectStoreRegistry } from '../../../../src/main/database/project-store';
 
 const directories: string[] = [];
+const storeRegistries: ProjectStoreRegistry[] = [];
+
+const createConversationService = (): AgentConversationService => {
+  const stores = new ProjectStoreRegistry();
+  storeRegistries.push(stores);
+  return new AgentConversationService(stores);
+};
 
 const createSession = async (): Promise<ProjectSession> => {
   const directoryPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-conversations-'));
@@ -31,6 +39,7 @@ const createSession = async (): Promise<ProjectSession> => {
 };
 
 afterEach(async () => {
+  for (const stores of storeRegistries.splice(0)) stores.dispose();
   await Promise.all(directories.splice(0).map((directory) =>
     rm(directory, { force: true, recursive: true }),
   ));
@@ -39,7 +48,7 @@ afterEach(async () => {
 describe('Agent conversation persistence', () => {
   it('renames a conversation and restores the persisted title', async () => {
     const session = await createSession();
-    const service = new AgentConversationService();
+    const service = createConversationService();
     const initial = service.getState(session);
 
     const renamed = service.rename(
@@ -50,7 +59,7 @@ describe('Agent conversation persistence', () => {
     expect(renamed.activeConversation.title).toBe('Revised opening');
     service.dispose();
 
-    const restoredService = new AgentConversationService();
+    const restoredService = createConversationService();
     expect(restoredService.getState(session).activeConversation.title).toBe(
       'Revised opening',
     );
@@ -59,7 +68,7 @@ describe('Agent conversation persistence', () => {
 
   it('creates the project-owned database and restores completed messages', async () => {
     const session = await createSession();
-    const service = new AgentConversationService();
+    const service = createConversationService();
     const initial = service.getState(session);
     service.beginPrompt(session, {
       conversationId: initial.activeConversation.id,
@@ -88,7 +97,7 @@ describe('Agent conversation persistence', () => {
     service.recordEvent({ requestId: 'assistant-1', type: 'completed' });
     service.dispose();
 
-    const restoredService = new AgentConversationService();
+    const restoredService = createConversationService();
     const restored = restoredService.getState(session);
     expect(restored.activeConversation.messages.map(({ content, role, terminal }) => ({ content, role, terminal }))).toEqual([
       { content: 'Remember the lantern.', role: 'user', terminal: undefined },
@@ -109,7 +118,7 @@ describe('Agent conversation persistence', () => {
 
   it('treats story refresh notifications as non-terminal transient events', async () => {
     const session = await createSession();
-    const service = new AgentConversationService();
+    const service = createConversationService();
     const state = service.getState(session);
     service.beginPrompt(session, {
       conversationId: state.activeConversation.id,
@@ -139,7 +148,7 @@ describe('Agent conversation persistence', () => {
 
   it('marks an unfinished generation as interrupted after shutdown', async () => {
     const session = await createSession();
-    const service = new AgentConversationService();
+    const service = createConversationService();
     const state = service.getState(session);
     service.beginPrompt(session, {
       conversationId: state.activeConversation.id,
@@ -150,7 +159,7 @@ describe('Agent conversation persistence', () => {
     service.recordEvent({ delta: 'Partial', requestId: 'assistant-1', type: 'text-delta' });
     service.dispose();
 
-    const restoredService = new AgentConversationService();
+    const restoredService = createConversationService();
     const restored = restoredService.getState(session);
     expect(restored.activeConversation.messages.at(-1)).toMatchObject({
       content: 'Partial',
@@ -161,7 +170,7 @@ describe('Agent conversation persistence', () => {
 
   it('keeps an edited user message as the active branch', async () => {
     const session = await createSession();
-    const service = new AgentConversationService();
+    const service = createConversationService();
     const state = service.getState(session);
     service.beginPrompt(session, {
       conversationId: state.activeConversation.id,
@@ -188,7 +197,7 @@ describe('Agent conversation persistence', () => {
 
   it('previews the current model history without mutating the conversation', async () => {
     const session = await createSession();
-    const service = new AgentConversationService();
+    const service = createConversationService();
     const state = service.getState(session);
     service.beginPrompt(session, {
       conversationId: state.activeConversation.id,
@@ -219,7 +228,7 @@ describe('Agent conversation persistence', () => {
 
   it('restores a pending edit proposal for main-owned revalidation', async () => {
     const session = await createSession();
-    const service = new AgentConversationService();
+    const service = createConversationService();
     const state = service.getState(session);
     const revision = 'a'.repeat(64);
     const proposal = {
@@ -246,14 +255,14 @@ describe('Agent conversation persistence', () => {
     service.recordEvent({ requestId: 'assistant-1', type: 'completed' });
     service.dispose();
 
-    const restoredService = new AgentConversationService();
+    const restoredService = createConversationService();
     expect(restoredService.getProposal(session, proposal.proposalId)).toEqual(proposal);
     restoredService.dispose();
   });
 
   it('restores a pending structural proposal for main-owned revalidation', async () => {
     const session = await createSession();
-    const service = new AgentConversationService();
+    const service = createConversationService();
     const state = service.getState(session);
     const proposal = {
       documentId: 'chapter-created',
@@ -281,14 +290,14 @@ describe('Agent conversation persistence', () => {
     service.recordEvent({ requestId: 'assistant-create', type: 'completed' });
     service.dispose();
 
-    const restoredService = new AgentConversationService();
+    const restoredService = createConversationService();
     expect(restoredService.getProposal(session, proposal.proposalId)).toEqual(proposal);
     restoredService.dispose();
   });
 
   it('restores a pending document-title proposal for main-owned revalidation', async () => {
     const session = await createSession();
-    const service = new AgentConversationService();
+    const service = createConversationService();
     const state = service.getState(session);
     const proposal = {
       documentId: 'chapter-3',
@@ -309,14 +318,14 @@ describe('Agent conversation persistence', () => {
     service.recordEvent({ requestId: 'assistant-rename', type: 'completed' });
     service.dispose();
 
-    const restoredService = new AgentConversationService();
+    const restoredService = createConversationService();
     expect(restoredService.getProposal(session, proposal.proposalId)).toEqual(proposal);
     restoredService.dispose();
   });
 
   it('restores a pending Lore category icon proposal for revalidation', async () => {
     const session = await createSession();
-    const service = new AgentConversationService();
+    const service = createConversationService();
     const state = service.getState(session);
     const proposal = {
       directoryId: 'category-factions',
@@ -342,14 +351,14 @@ describe('Agent conversation persistence', () => {
     service.recordEvent({ requestId: 'assistant-icon', type: 'completed' });
     service.dispose();
 
-    const restoredService = new AgentConversationService();
+    const restoredService = createConversationService();
     expect(restoredService.getProposal(session, proposal.proposalId)).toEqual(proposal);
     restoredService.dispose();
   });
 
   it('restores a pending story proposal for main-owned revalidation', async () => {
     const session = await createSession();
-    const service = new AgentConversationService();
+    const service = createConversationService();
     const state = service.getState(session);
     const proposal = {
       change: {
@@ -374,14 +383,14 @@ describe('Agent conversation persistence', () => {
     service.recordEvent({ requestId: 'assistant-story', type: 'completed' });
     service.dispose();
 
-    const restoredService = new AgentConversationService();
+    const restoredService = createConversationService();
     expect(restoredService.getProposal(session, proposal.proposalId)).toEqual(proposal);
     restoredService.dispose();
   });
 
   it('returns accepted proposal outcomes as trusted context on the next turn', async () => {
     const session = await createSession();
-    const service = new AgentConversationService();
+    const service = createConversationService();
     const state = service.getState(session);
     const revision = 'a'.repeat(64);
     const proposal = {
@@ -421,7 +430,7 @@ describe('Agent conversation persistence', () => {
 
   it('preserves multiple sequential proposal decisions in one Agent run', async () => {
     const session = await createSession();
-    const service = new AgentConversationService();
+    const service = createConversationService();
     const state = service.getState(session);
     const revision = 'a'.repeat(64);
     const first = {
@@ -469,7 +478,7 @@ describe('Agent conversation persistence', () => {
     ]);
     service.dispose();
 
-    const restored = new AgentConversationService();
+    const restored = createConversationService();
     expect(
       restored.getState(session).activeConversation.messages
         .find((message) => message.id === 'assistant-sequential')?.parts

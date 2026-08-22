@@ -39,12 +39,17 @@ Agent workers never receive database handles or issue SQL. Internal
 foreign-key relationships are enabled; references from global stores use
 validated stable IDs.
 
-Project settings and story runtime services share one project-scoped
-`ProjectStore`. The Store owns their connection and transaction boundary and
-exposes domain repositories through read and write units of work. Remaining
-project domains will move behind the same boundary as their repositories are
-extracted. Project recognition, migration, and recovery checks may use bounded
-short-lived connections before a runtime session is established.
+Project settings, conversations, story records, writing artifacts,
+reconciliation, and operation-ledger persistence use `ProjectStore` units of
+work. The Store owns their connection and transaction boundary and exposes
+domain repositories through read and write units of work. Conversation
+services retain only active streaming state and flush scheduling; durable
+messages, edits, history, proposal linkage, and interrupted-run recovery stay
+in the conversation repository. Filesystem sagas use a dedicated Store for the
+complete operation lifetime so each durable state transition commits before
+the next filesystem step. Project recognition, migration, and recovery checks
+may use bounded short-lived connections before a runtime session is
+established.
 
 ## Runtime rules
 

@@ -13,6 +13,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { ProjectCatalogRepository, type NewProjectCatalogNode } from '../../database/project-catalog-repository';
 import { ProjectDatabase } from '../../database/project-database';
+import { ProjectLegacyRepository } from '../../database/project-legacy-repository';
 import { DRIFTFIELD_PROJECT_FORMAT_VERSION, LEGACY_PROJECT_INDEX_NAME } from '../../../shared/contracts/project-layout';
 import { contentRevision } from './document-utils';
 import type { LoadedProjectLayout } from './layout-service';
@@ -412,29 +413,7 @@ const buildCatalog = async (
 
 const importSettings = (database: ProjectDatabase, settings: LegacySettings | null): void => {
   if (settings === null) return;
-  database.connection.prepare(`
-    UPDATE agent_settings
-    SET provider_id = ?, model_id = ?, thinking_level = ?, use_global = ?
-    WHERE singleton = 1
-  `).run(
-    settings.providerId,
-    settings.modelId,
-    settings.thinkingLevel,
-    settings.useGlobal,
-  );
-  const insert = database.connection.prepare(`
-    INSERT OR REPLACE INTO legacy_agent_model_overrides(
-      provider_id, model_id, override_json, updated_at
-    ) VALUES (?, ?, ?, ?)
-  `);
-  for (const override of settings.overrides) {
-    insert.run(
-      override.providerId,
-      override.modelId,
-      override.overrideJson,
-      override.updatedAt,
-    );
-  }
+  new ProjectLegacyRepository(database).importSettings(settings);
 };
 
 const importConversations = (
@@ -442,41 +421,7 @@ const importConversations = (
   data: LegacyConversationData | null,
 ): void => {
   if (data === null) return;
-  const insertConversation = database.connection.prepare(`
-    INSERT INTO conversations(id, title, created_at, updated_at, deleted_at)
-    VALUES (?, ?, ?, ?, ?)
-  `);
-  for (const row of data.conversations) {
-    insertConversation.run(row.id, row.title, row.created_at, row.updated_at, row.deleted_at);
-  }
-  const insertMessage = database.connection.prepare(`
-    INSERT INTO conversation_messages(
-      id, conversation_id, sequence, role, content, parts_json, terminal,
-      proposal_id, proposal_json, proposal_status, run_status, active,
-      created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  for (const row of data.messages) {
-    insertMessage.run(
-      row.id,
-      row.conversation_id,
-      row.sequence,
-      row.role,
-      row.content,
-      row.parts_json,
-      row.terminal,
-      row.proposal_id,
-      row.proposal_json,
-      row.proposal_status,
-      row.run_status,
-      row.active,
-      row.created_at,
-      row.updated_at,
-    );
-  }
-  database.connection.prepare(`
-    UPDATE conversation_state SET active_conversation_id = ? WHERE singleton = 1
-  `).run(data.activeConversationId);
+  new ProjectLegacyRepository(database).importConversations(data);
 };
 
 const retireLegacyFiles = async (

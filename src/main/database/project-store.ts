@@ -1,14 +1,20 @@
 import { ProjectCatalogRepository } from './project-catalog-repository';
+import { ProjectConversationRepository } from './project-conversation-repository';
 import { ProjectDatabase } from './project-database';
 import { ProjectReconciliationRepository } from './project-reconciliation-repository';
+import { ProjectOperationRepository } from './project-operation-repository';
 import { ProjectSettingsRepository } from './project-settings-repository';
 import { ProjectStoryRepository } from './project-story-repository';
+import { ProjectWritingArtifactRepository } from './project-writing-artifact-repository';
 
 export interface ProjectUnitOfWork {
   catalog: ProjectCatalogRepository;
+  conversations: ProjectConversationRepository;
+  operations: ProjectOperationRepository;
   reconciliation: ProjectReconciliationRepository;
   settings: ProjectSettingsRepository;
   stories: ProjectStoryRepository;
+  writingArtifacts: ProjectWritingArtifactRepository;
 }
 
 export class ProjectStore {
@@ -19,9 +25,12 @@ export class ProjectStore {
     this.database = new ProjectDatabase(projectDirectory);
     this.unitOfWork = {
       catalog: new ProjectCatalogRepository(this.database),
+      conversations: new ProjectConversationRepository(this.database),
+      operations: new ProjectOperationRepository(this.database),
       reconciliation: new ProjectReconciliationRepository(this.database),
       settings: new ProjectSettingsRepository(this.database),
       stories: new ProjectStoryRepository(this.database),
+      writingArtifacts: new ProjectWritingArtifactRepository(this.database),
     };
   }
 

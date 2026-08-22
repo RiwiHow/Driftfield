@@ -36,12 +36,11 @@ import type {
   AgentProposalOutcome,
 } from '../../../shared/contracts/agent-proposals';
 import type { AppLanguage } from '../../../shared/i18n/languages';
-import { ProjectDatabase } from '../../database/project-database';
 import {
-  ProjectReconciliationRepository,
   type StoryReconciliationJob,
   type StoryReconciliationOutcome,
 } from '../../database/project-reconciliation-repository';
+import { ProjectStoreRegistry, type ProjectStore } from '../../database/project-store';
 import {
   validateManuscriptMarkdown,
   type ManuscriptMarkdownValidationCode,
@@ -151,6 +150,7 @@ export class AiAgentService {
       ownerId: number,
       projectSessionId: string,
     ) => string | undefined,
+    private readonly projectStores?: ProjectStoreRegistry,
   ) {}
 
   async start(request: StartAgentRequest): Promise<string> {
@@ -925,37 +925,15 @@ export class AiAgentService {
       task.artifactMarkdown === undefined ||
       this.getProjectDirectory === undefined
     ) return;
-    const projectDirectory = this.getProjectDirectory(
-      active.ownerId,
-      active.projectSessionId,
-    );
-    if (projectDirectory === undefined) return;
-    const now = new Date().toISOString();
-    const database = new ProjectDatabase(projectDirectory);
-    try {
-      database.connection.prepare(`
-        INSERT INTO writing_artifacts(
-          artifact_id, request_id, target_document_id, state, markdown,
-          validation_code, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(artifact_id) DO UPDATE SET
-          state = excluded.state,
-          markdown = excluded.markdown,
-          validation_code = excluded.validation_code,
-          updated_at = excluded.updated_at
-      `).run(
-        assignmentId,
-        task.parentRequestId,
-        task.targetDocumentId,
-        task.artifactValidationCode === undefined ? 'validated' : 'invalid',
-        task.artifactMarkdown,
-        task.artifactValidationCode ?? null,
-        now,
-        now,
-      );
-    } finally {
-      database.close();
-    }
+    this.getProjectStore(active)?.write(({ writingArtifacts }) => {
+      writingArtifacts.upsertPending({
+        artifactId: assignmentId,
+        markdown: task.artifactMarkdown!,
+        requestId: task.parentRequestId,
+        targetDocumentId: task.targetDocumentId,
+        validationCode: task.artifactValidationCode ?? null,
+      });
+    });
   }
 
   private persistWritingArtifact(
@@ -970,35 +948,19 @@ export class AiAgentService {
       active.projectSessionId === undefined ||
       this.getProjectDirectory === undefined
     ) return;
-    const projectDirectory = this.getProjectDirectory(
-      active.ownerId,
-      active.projectSessionId,
-    );
-    if (projectDirectory === undefined) return;
-    const database = new ProjectDatabase(projectDirectory);
-    try {
-      database.connection.prepare(`
-        UPDATE writing_artifacts
-        SET state = ?, markdown = ?, target_document_id = ?,
-            proposal_id = COALESCE(?, proposal_id),
-            proposed_document_id = COALESCE(?, proposed_document_id),
-            validation_code = NULL, updated_at = ?
-        WHERE artifact_id = ? AND request_id = ?
-      `).run(
-        state,
-        artifact.markdown,
-        state === 'accepted'
-          ? artifact.proposedDocumentId ?? artifact.targetDocumentId
-          : artifact.targetDocumentId,
+    this.getProjectStore(active)?.write(({ writingArtifacts }) => {
+      writingArtifacts.update({
+        artifactId: artifact.assignmentId,
+        markdown: artifact.markdown,
         proposalId,
         proposedDocumentId,
-        new Date().toISOString(),
-        artifact.assignmentId,
-        artifact.parentRequestId,
-      );
-    } finally {
-      database.close();
-    }
+        requestId: artifact.parentRequestId,
+        state,
+        targetDocumentId: state === 'accepted'
+          ? artifact.proposedDocumentId ?? artifact.targetDocumentId
+          : artifact.targetDocumentId,
+      });
+    });
   }
 
   private acceptWritingArtifact(
@@ -1010,35 +972,17 @@ export class AiAgentService {
       active.projectSessionId === undefined ||
       this.getProjectDirectory === undefined
     ) return null;
-    const projectDirectory = this.getProjectDirectory(
-      active.ownerId,
-      active.projectSessionId,
-    );
-    if (projectDirectory === undefined) return null;
-    const database = new ProjectDatabase(projectDirectory);
-    try {
-      return database.transaction(() => {
-        const result = database.connection.prepare(`
-          UPDATE writing_artifacts
-          SET state = 'accepted', markdown = ?, target_document_id = ?,
-              validation_code = NULL, updated_at = ?
-          WHERE artifact_id = ? AND request_id = ?
-        `).run(
-          artifact.markdown,
-          artifact.proposedDocumentId ?? artifact.targetDocumentId,
-          new Date().toISOString(),
-          artifact.assignmentId,
-          artifact.parentRequestId,
-        );
-        if (result.changes !== 1) {
-          throw new Error('Accepted writing artifact is missing');
-        }
-        return new ProjectReconciliationRepository(database)
-          .ensureAcceptedArtifact(artifact.assignmentId);
+    const store = this.getProjectStore(active);
+    if (store === null) return null;
+    return store.write(({ reconciliation, writingArtifacts }) => {
+      writingArtifacts.accept({
+        artifactId: artifact.assignmentId,
+        markdown: artifact.markdown,
+        requestId: artifact.parentRequestId,
+        targetDocumentId: artifact.proposedDocumentId ?? artifact.targetDocumentId,
       });
-    } finally {
-      database.close();
-    }
+      return reconciliation.ensureAcceptedArtifact(artifact.assignmentId);
+    });
   }
 
   private restorePendingReconciliation(active: ActiveAgentRequest): void {
@@ -1046,20 +990,10 @@ export class AiAgentService {
       active.projectSessionId === undefined ||
       this.getProjectDirectory === undefined
     ) return;
-    const projectDirectory = this.getProjectDirectory(
-      active.ownerId,
-      active.projectSessionId,
-    );
-    if (projectDirectory === undefined) return;
-    const database = new ProjectDatabase(projectDirectory);
-    try {
-      this.setReconciliationJob(
-        active,
-        new ProjectReconciliationRepository(database).recoverPending(),
-      );
-    } finally {
-      database.close();
-    }
+    const job = this.getProjectStore(active)?.write(
+      ({ reconciliation }) => reconciliation.recoverPending(),
+    ) ?? null;
+    this.setReconciliationJob(active, job);
   }
 
   private setReconciliationJob(
@@ -1095,20 +1029,24 @@ export class AiAgentService {
       active.projectSessionId === undefined ||
       this.getProjectDirectory === undefined
     ) return false;
+    return this.getProjectStore(active)?.write(({ reconciliation }) =>
+      reconciliation.complete(active.reconciliation.jobId!, outcome),
+    ) ?? false;
+  }
+
+  private getProjectStore(active: ActiveAgentRequest): ProjectStore | null {
+    if (
+      active.projectSessionId === undefined ||
+      this.getProjectDirectory === undefined ||
+      this.projectStores === undefined
+    ) return null;
     const projectDirectory = this.getProjectDirectory(
       active.ownerId,
       active.projectSessionId,
     );
-    if (projectDirectory === undefined) return false;
-    const database = new ProjectDatabase(projectDirectory);
-    try {
-      return new ProjectReconciliationRepository(database).complete(
-        active.reconciliation.jobId,
-        outcome,
-      );
-    } finally {
-      database.close();
-    }
+    return projectDirectory === undefined
+      ? null
+      : this.projectStores.get(projectDirectory);
   }
 
   private rejectWritingTasks(message: string): void {

@@ -150,7 +150,7 @@ void app.whenReady().then(async () => {
     const agentModelConfigService = new AgentModelConfigService(
       app.getPath("userData"),
     );
-    const agentConversationService = new AgentConversationService();
+    const agentConversationService = new AgentConversationService(projectStores);
     const projectSettingsService = new ProjectSettingsService(projectStores);
     const projectStoryService = new ProjectStoryService(projectStores);
     const agentProposalService = new AgentProposalService(
@@ -174,6 +174,7 @@ void app.whenReady().then(async () => {
           ? session.directoryPath
           : undefined;
       },
+      projectStores,
     );
     disposeActiveServices = () => {
       aiAgentService.dispose();

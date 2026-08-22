@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const electronMock = vi.hoisted(() => ({
   fork: vi.fn(),
@@ -18,6 +18,7 @@ import type { AgentProposalService } from '../../../../src/main/ai/agent/proposa
 import type { ProjectContextService } from '../../../../src/main/ai/agent/context-service';
 import { ProjectDatabase } from '../../../../src/main/database/project-database';
 import { ProjectReconciliationRepository } from '../../../../src/main/database/project-reconciliation-repository';
+import { ProjectStoreRegistry } from '../../../../src/main/database/project-store';
 import type { AgentEvent } from '../../../../src/shared/contracts/agent';
 
 class FakeUtilityProcess extends EventEmitter {
@@ -92,10 +93,12 @@ const seedPendingReconciliation = (projectDirectory: string): void => {
 describe('AiAgentService', () => {
   let userDataPath: string;
   let workers: FakeUtilityProcess[];
+  let storeRegistries: ProjectStoreRegistry[];
 
   beforeEach(async () => {
     userDataPath = await mkdtemp(path.join(os.tmpdir(), 'driftfield-agent-'));
     workers = [];
+    storeRegistries = [];
     electronMock.fork.mockReset();
     electronMock.fork.mockImplementation(() => {
       const worker = new FakeUtilityProcess();
@@ -103,6 +106,16 @@ describe('AiAgentService', () => {
       return worker;
     });
   });
+
+  afterEach(() => {
+    for (const stores of storeRegistries) stores.dispose();
+  });
+
+  const projectStores = (): ProjectStoreRegistry => {
+    const stores = new ProjectStoreRegistry();
+    storeRegistries.push(stores);
+    return stores;
+  };
 
   const start = (
     service: AiAgentService,
@@ -703,6 +716,7 @@ describe('AiAgentService', () => {
         { cancelRequest: vi.fn() } as unknown as AgentProposalService,
       ),
       () => projectDirectory,
+      projectStores(),
     );
     const started = start(service, 'request-1', (event) => events.push(event));
     await waitFor(() => workers.length === 1);
@@ -789,6 +803,7 @@ describe('AiAgentService', () => {
       () => true,
       dispatcher,
       () => projectDirectory,
+      projectStores(),
     );
     const started = start(service, 'request-1', (event) => events.push(event));
     await waitFor(() => workers.length === 1);
@@ -897,6 +912,7 @@ describe('AiAgentService', () => {
       () => true,
       dispatcher,
       () => projectDirectory,
+      projectStores(),
     );
     const started = start(service, 'request-1', (event) => events.push(event));
     await waitFor(() => workers.length === 1);

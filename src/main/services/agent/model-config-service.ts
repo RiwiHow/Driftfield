@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ProjectDatabase } from '../../database/project-database';
+import { ProjectLegacyRepository } from '../../database/project-legacy-repository';
 import type { ProjectSession } from '../project/session-service';
 
 import {
@@ -357,7 +358,7 @@ export class AgentModelConfigService {
         try {
           const database = new ProjectDatabase(projectSession.directoryPath);
           try {
-            database.connection.exec('DELETE FROM legacy_agent_model_overrides');
+            new ProjectLegacyRepository(database).clearModelOverrides();
           } finally {
             database.close();
           }
@@ -408,16 +409,12 @@ export class AgentModelConfigService {
 
     if (legacyProjectSession === undefined) return [];
     const database = this.getDatabase(legacyProjectSession);
-    const rows = database.connection.prepare(`
-      SELECT override_json FROM legacy_agent_model_overrides
-      ORDER BY provider_id, model_id
-    `)
-      .all() as unknown as Array<{ override_json: string }>;
-    const overrides = rows.map(({ override_json }) =>
-      parseAgentModelOverrideRequest({ override: JSON.parse(override_json) }),
+    const legacy = new ProjectLegacyRepository(database);
+    const overrides = legacy.readModelOverrideJson().map((overrideJson) =>
+      parseAgentModelOverrideRequest({ override: JSON.parse(overrideJson) }),
     );
     await this.persist(this.storePath, { overrides, version: 1 });
-    database.connection.exec('DELETE FROM legacy_agent_model_overrides');
+    legacy.clearModelOverrides();
     return overrides;
   }
 

@@ -20,7 +20,8 @@ import {
 } from '../../../shared/contracts/agent';
 import { isAgentToolName } from '../../../shared/contracts/agent-tools';
 import { isProjectIconId } from '../../../shared/contracts/project-layout';
-import { ProjectDatabase } from '../../database/project-database';
+import type { ProjectConversationRepository } from '../../database/project-conversation-repository';
+import { ProjectStoreRegistry } from '../../database/project-store';
 import type { ProjectSession } from '../project/session-service';
 
 const DEFAULT_TITLE = '';
@@ -47,7 +48,7 @@ interface ConversationRow {
 }
 
 interface ActiveRequest {
-  database: ProjectDatabase;
+  repository: ProjectConversationRepository;
   message: AgentConversationMessage;
   outcome: 'running' | 'completed' | 'cancelled' | 'failed' | 'interrupted';
   timer: ReturnType<typeof setTimeout> | null;
@@ -64,65 +65,50 @@ export interface AgentPromptHistory {
 }
 
 export class AgentConversationService {
-  private readonly databases = new Map<string, ProjectDatabase>();
   private readonly activeRequests = new Map<string, ActiveRequest>();
+  private readonly initializedProjects = new Set<string>();
+
+  constructor(private readonly stores: ProjectStoreRegistry) {}
 
   getState(session: ProjectSession): AgentConversationState {
-    const database = this.getDatabase(session);
-    const conversationId = this.ensureActiveConversation(database);
-    return this.readState(database, conversationId);
+    return this.withRepository(session, 'write', (repository) => {
+      const conversationId = this.ensureActiveConversation(repository);
+      return this.readState(repository, conversationId);
+    });
   }
 
   getPromptHistory(session: ProjectSession): AgentPromptHistory {
-    const database = this.getDatabase(session);
-    const conversationId = this.ensureActiveConversation(database);
-    const history = database.connection.prepare(`
-      SELECT role, content FROM conversation_messages
-      WHERE conversation_id = ? AND active = 1
-        AND (role = 'user' OR run_status = 'completed')
-      ORDER BY sequence DESC
-    `).all(conversationId) as unknown as AgentHistoryMessage[];
-    const outcomeRows = database.connection.prepare(`
-      SELECT parts_json FROM conversation_messages
-      WHERE conversation_id = ? AND active = 1 AND parts_json IS NOT NULL
-      ORDER BY sequence DESC LIMIT 50
-    `).all(conversationId) as Array<{ parts_json: string }>;
-    return {
-      history: selectBoundedHistory(history),
-      proposalOutcomes: parseProposalOutcomeRows(outcomeRows),
-    };
+    return this.withRepository(session, 'write', (repository) => {
+      const conversationId = this.ensureActiveConversation(repository);
+      return {
+        history: selectBoundedHistory(repository.history(conversationId)),
+        proposalOutcomes: parseProposalOutcomeRows(
+          repository.proposalOutcomeRows(conversationId),
+        ),
+      };
+    });
   }
 
   create(session: ProjectSession, requestedTitle?: string): AgentConversationState {
-    const database = this.getDatabase(session);
-    const count = database.connection.prepare(`
-      SELECT COUNT(*) AS count FROM conversations WHERE deleted_at IS NULL
-    `).get() as { count: number };
-    if (count.count >= MAX_CONVERSATIONS) {
+    return this.withRepository(session, 'write', (repository) => {
+    if (repository.countConversations() >= MAX_CONVERSATIONS) {
       throw new Error('Project contains too many Agent conversations');
     }
     const now = new Date().toISOString();
     const id = randomUUID();
     const title = normalizeTitle(requestedTitle) ?? DEFAULT_TITLE;
-    database.transaction(() => {
-      database.connection.prepare(`
-        INSERT INTO conversations(id, title, created_at, updated_at)
-        VALUES (?, ?, ?, ?)
-      `).run(id, title, now, now);
-      database.connection.prepare(`
-        UPDATE conversation_state SET active_conversation_id = ? WHERE singleton = 1
-      `).run(id);
+    repository.create(id, title, now);
+    repository.setActive(id);
+    return this.readState(repository, id);
     });
-    return this.readState(database, id);
   }
 
   select(session: ProjectSession, conversationId: string): AgentConversationState {
-    const database = this.getDatabase(session);
-    this.assertConversation(database, conversationId);
-    database.connection.prepare(`
-      UPDATE conversation_state SET active_conversation_id = ? WHERE singleton = 1
-    `).run(conversationId);
-    return this.readState(database, conversationId);
+    return this.withRepository(session, 'write', (repository) => {
+      this.assertConversation(repository, conversationId);
+      repository.setActive(conversationId);
+      return this.readState(repository, conversationId);
+    });
   }
 
   rename(
@@ -130,30 +116,22 @@ export class AgentConversationService {
     conversationId: string,
     requestedTitle: string,
   ): AgentConversationState {
-    const database = this.getDatabase(session);
+    return this.withRepository(session, 'write', (repository) => {
     const title = normalizeTitle(requestedTitle);
     if (title === null) throw new Error('Invalid conversation title');
-    const result = database.connection.prepare(`
-      UPDATE conversations SET title = ?, updated_at = ?
-      WHERE id = ? AND deleted_at IS NULL
-    `).run(title, new Date().toISOString(), conversationId);
-    if (result.changes !== 1) throw new Error('Unknown conversation');
-    return this.readState(database, this.ensureActiveConversation(database));
+    if (!repository.rename(conversationId, title)) throw new Error('Unknown conversation');
+    return this.readState(repository, this.ensureActiveConversation(repository));
+    });
   }
 
   delete(session: ProjectSession, conversationId: string): AgentConversationState {
-    const database = this.getDatabase(session);
-    const now = new Date().toISOString();
-    const result = database.connection.prepare(`
-      UPDATE conversations SET deleted_at = ?, updated_at = ?
-      WHERE id = ? AND deleted_at IS NULL
-    `).run(now, now, conversationId);
-    if (result.changes !== 1) throw new Error('Unknown conversation');
-    const activeId = this.ensureActiveConversation(database);
-    database.connection.prepare(`
-      UPDATE conversation_state SET active_conversation_id = ? WHERE singleton = 1
-    `).run(activeId);
-    return this.readState(database, activeId);
+    return this.withRepository(session, 'write', (repository) => {
+      const now = new Date().toISOString();
+      if (!repository.softDelete(conversationId, now)) throw new Error('Unknown conversation');
+      const activeId = this.ensureActiveConversation(repository);
+      repository.setActive(activeId);
+      return this.readState(repository, activeId);
+    });
   }
 
   updateAssistantMessage(
@@ -162,7 +140,7 @@ export class AgentConversationService {
     messageId: string,
     content: string,
   ): AgentConversationState {
-    const database = this.getDatabase(session);
+    return this.withRepository(session, 'write', (repository) => {
     const trimmed = content.trim();
     if (
       trimmed.length === 0 ||
@@ -170,27 +148,20 @@ export class AgentConversationService {
     ) {
       throw new Error('Invalid assistant message');
     }
-    const row = database.connection.prepare(`
-      SELECT parts_json FROM conversation_messages
-      WHERE id = ? AND conversation_id = ? AND role = 'assistant' AND active = 1
-    `).get(messageId, conversationId) as { parts_json: string | null } | undefined;
-    if (row === undefined) throw new Error('Unknown assistant message');
-    const retainedParts = row.parts_json === null
+    const partsJson = repository.assistantParts(messageId, conversationId);
+    if (partsJson === undefined) throw new Error('Unknown assistant message');
+    const retainedParts = partsJson === null
       ? []
-      : (JSON.parse(row.parts_json) as AgentConversationPart[]).filter(
+      : (JSON.parse(partsJson) as AgentConversationPart[]).filter(
           (part) => part.type !== 'text',
         );
-    database.connection.prepare(`
-      UPDATE conversation_messages
-      SET content = ?, parts_json = ?, terminal = NULL, updated_at = ?
-      WHERE id = ?
-    `).run(
+    repository.updateAssistant(
+      messageId,
       trimmed,
       JSON.stringify([...retainedParts, { content: trimmed, type: 'text' }]),
-      new Date().toISOString(),
-      messageId,
     );
-    return this.readState(database, conversationId);
+    return this.readState(repository, conversationId);
+    });
   }
 
   beginPrompt(
@@ -203,63 +174,50 @@ export class AgentConversationService {
       userMessageId: string;
     },
   ): AgentPromptHistory {
-    const database = this.getDatabase(session);
-    this.assertConversation(database, input.conversationId);
-    const activeMessageCount = database.connection.prepare(`
-      SELECT COUNT(*) AS count FROM conversation_messages
-      WHERE conversation_id = ? AND active = 1
-    `).get(input.conversationId) as { count: number };
+    const repository = this.getRepository(session);
+    this.assertConversation(repository, input.conversationId);
+    const activeMessageCount = repository.activeMessageCount(input.conversationId);
     if (
       input.editMessageId === undefined &&
-      activeMessageCount.count > MAX_MESSAGES_PER_CONVERSATION - 2
+      activeMessageCount > MAX_MESSAGES_PER_CONVERSATION - 2
     ) {
       throw new Error('Agent conversation contains too many messages');
     }
     const now = new Date().toISOString();
-    database.transaction(() => {
+    this.stores.get(session.directoryPath).write(() => {
       let userSequence: number;
       if (input.editMessageId !== undefined) {
-        const edited = database.connection.prepare(`
-          SELECT sequence FROM conversation_messages
-          WHERE id = ? AND conversation_id = ? AND role = 'user' AND active = 1
-        `).get(input.editMessageId, input.conversationId) as
-          | { sequence: number }
-          | undefined;
-        if (edited === undefined) throw new Error('Unknown conversation message');
-        userSequence = edited.sequence;
-        database.connection.prepare(`
-          UPDATE conversation_messages SET active = 0, updated_at = ?
-          WHERE conversation_id = ? AND sequence > ? AND active = 1
-        `).run(now, input.conversationId, userSequence);
-        database.connection.prepare(`
-          UPDATE conversation_messages SET content = ?, updated_at = ? WHERE id = ?
-        `).run(input.prompt, now, input.editMessageId);
+        const editedSequence = repository.userSequence(
+          input.editMessageId,
+          input.conversationId,
+        );
+        if (editedSequence === null) throw new Error('Unknown conversation message');
+        userSequence = editedSequence;
+        repository.deactivateAfter(input.conversationId, userSequence, now);
+        repository.updateUser(input.editMessageId, input.prompt, now);
       } else {
-        const row = database.connection.prepare(`
-          SELECT COALESCE(MAX(sequence), 0) + 1 AS sequence
-          FROM conversation_messages WHERE conversation_id = ?
-        `).get(input.conversationId) as { sequence: number };
-        userSequence = row.sequence;
-        database.connection.prepare(`
-          INSERT INTO conversation_messages(
-            id, conversation_id, sequence, role, content, created_at, updated_at
-          ) VALUES (?, ?, ?, 'user', ?, ?, ?)
-        `).run(input.userMessageId, input.conversationId, userSequence, input.prompt, now, now);
+        userSequence = repository.nextSequence(input.conversationId);
+        repository.insertUser(
+          input.userMessageId,
+          input.conversationId,
+          userSequence,
+          input.prompt,
+          now,
+        );
       }
-      database.connection.prepare(`
-        INSERT INTO conversation_messages(
-          id, conversation_id, sequence, role, content, run_status, created_at, updated_at
-        ) VALUES (?, ?, ?, 'assistant', '', 'running', ?, ?)
-      `).run(input.requestId, input.conversationId, userSequence + 1, now, now);
-      const count = database.connection.prepare(`
-        SELECT COUNT(*) AS count FROM conversation_messages
-        WHERE conversation_id = ? AND role = 'user' AND active = 1
-      `).get(input.conversationId) as { count: number };
-      database.connection.prepare(`
-        UPDATE conversations SET
-          title = CASE WHEN ? = 1 AND title = ? THEN ? ELSE title END,
-          updated_at = ? WHERE id = ?
-      `).run(count.count, DEFAULT_TITLE, deriveTitle(input.prompt), now, input.conversationId);
+      repository.insertAssistant(
+        input.requestId,
+        input.conversationId,
+        userSequence + 1,
+        now,
+      );
+      repository.updateTitleAfterPrompt(
+        input.conversationId,
+        repository.userCount(input.conversationId),
+        DEFAULT_TITLE,
+        deriveTitle(input.prompt),
+        now,
+      );
     });
 
     const message: AgentConversationMessage = {
@@ -270,15 +228,15 @@ export class AgentConversationService {
       role: 'assistant',
     };
     this.activeRequests.set(input.requestId, {
-      database,
+      repository,
       message,
       outcome: 'running',
       timer: null,
     });
     return {
-      history: this.buildHistory(database, input.conversationId, input.requestId),
+      history: this.buildHistory(repository, input.conversationId, input.requestId),
       proposalOutcomes: this.buildProposalOutcomes(
-        database,
+        repository,
         input.conversationId,
         input.requestId,
       ),
@@ -369,13 +327,8 @@ export class AgentConversationService {
     session: ProjectSession,
     proposalId: string,
   ): AgentProposal | null {
-    const row = this.getDatabase(session).connection.prepare(`
-      SELECT m.proposal_json FROM conversation_messages m
-      JOIN conversations c ON c.id = m.conversation_id
-      WHERE m.proposal_id = ? AND m.active = 1
-        AND m.proposal_status = 'pending' AND c.deleted_at IS NULL
-    `).get(proposalId) as { proposal_json: string } | undefined;
-    return row === undefined ? null : parseStoredProposal(row.proposal_json);
+    const proposalJson = this.getRepository(session).pendingProposalJson(proposalId);
+    return proposalJson === null ? null : parseStoredProposal(proposalJson);
   }
 
   setProposalStatus(
@@ -384,7 +337,7 @@ export class AgentConversationService {
     status: AgentProposalStatus,
   ): void {
     for (const active of this.activeRequests.values()) {
-      if (active.database !== this.getDatabase(session)) continue;
+      if (active.repository !== this.getRepository(session)) continue;
       const containsProposal = active.message.parts?.some(
         (part) => part.type === 'proposal' && part.proposal.proposalId === proposalId,
       );
@@ -397,21 +350,16 @@ export class AgentConversationService {
       this.persistMessage(active);
       return;
     }
-    const database = this.getDatabase(session);
-    const row = database.connection.prepare(`
-      SELECT id, parts_json FROM conversation_messages WHERE proposal_id = ?
-    `).get(proposalId) as { id: string; parts_json: string | null } | undefined;
-    if (row === undefined) return;
-    const parts = row.parts_json === null ? [] : parseStoredParts(row.parts_json);
+    const repository = this.getRepository(session);
+    const row = repository.proposalMessage(proposalId);
+    if (row === null) return;
+    const parts = row.partsJson === null ? [] : parseStoredParts(row.partsJson);
     const nextParts = parts.map((part) =>
       part.type === 'proposal' && part.proposal.proposalId === proposalId
         ? { ...part, status }
         : part,
     );
-    database.connection.prepare(`
-      UPDATE conversation_messages
-      SET parts_json = ?, proposal_status = ?, updated_at = ? WHERE id = ?
-    `).run(JSON.stringify(nextParts), status, new Date().toISOString(), row.id);
+    repository.updateProposalMessage(row.id, JSON.stringify(nextParts), status);
   }
 
   dispose(): void {
@@ -423,70 +371,53 @@ export class AgentConversationService {
       }
       this.flushRequest(requestId);
     }
-    for (const database of this.databases.values()) database.close();
-    this.databases.clear();
   }
 
-  private getDatabase(session: ProjectSession): ProjectDatabase {
-    let database = this.databases.get(session.directoryPath);
-    if (database === undefined) {
-      database = new ProjectDatabase(session.directoryPath);
-      database.connection.prepare(`
-        UPDATE conversation_messages
-        SET terminal = 'interrupted', run_status = 'interrupted', updated_at = ?
-        WHERE role = 'assistant' AND run_status = 'running'
-      `).run(new Date().toISOString());
-      this.databases.set(session.directoryPath, database);
+  private getRepository(session: ProjectSession): ProjectConversationRepository {
+    const store = this.stores.get(session.directoryPath);
+    if (!this.initializedProjects.has(session.directoryPath)) {
+      store.write(({ conversations }) => conversations.interruptRunning());
+      this.initializedProjects.add(session.directoryPath);
     }
-    return database;
+    return store.read(({ conversations }) => conversations);
   }
 
-  private ensureActiveConversation(database: ProjectDatabase): string {
-    const active = database.connection.prepare(`
-      SELECT c.id FROM conversation_state s
-      JOIN conversations c ON c.id = s.active_conversation_id
-      WHERE s.singleton = 1 AND c.deleted_at IS NULL
-    `).get() as { id: string } | undefined;
-    if (active !== undefined) return active.id;
-    const latest = database.connection.prepare(`
-      SELECT id FROM conversations WHERE deleted_at IS NULL
-      ORDER BY updated_at DESC LIMIT 1
-    `).get() as { id: string } | undefined;
-    if (latest !== undefined) return latest.id;
+  private withRepository<T>(
+    session: ProjectSession,
+    mode: 'read' | 'write',
+    operation: (repository: ProjectConversationRepository) => T,
+  ): T {
+    this.getRepository(session);
+    const store = this.stores.get(session.directoryPath);
+    return mode === 'read'
+      ? store.read(({ conversations }) => operation(conversations))
+      : store.write(({ conversations }) => operation(conversations));
+  }
+
+  private ensureActiveConversation(repository: ProjectConversationRepository): string {
+    const activeId = repository.findActiveId();
+    if (activeId !== null) return activeId;
+    const latestId = repository.findLatestId();
+    if (latestId !== null) return latestId;
     const now = new Date().toISOString();
     const id = randomUUID();
-    database.connection.prepare(`
-      INSERT INTO conversations(id, title, created_at, updated_at)
-      VALUES (?, ?, ?, ?)
-    `).run(id, DEFAULT_TITLE, now, now);
-    database.connection.prepare(`
-      UPDATE conversation_state SET active_conversation_id = ? WHERE singleton = 1
-    `).run(id);
+    repository.create(id, DEFAULT_TITLE, now);
+    repository.setActive(id);
     return id;
   }
 
-  private assertConversation(database: ProjectDatabase, id: string): void {
-    const row = database.connection.prepare(`
-      SELECT 1 AS found FROM conversations WHERE id = ? AND deleted_at IS NULL
-    `).get(id);
-    if (row === undefined) throw new Error('Unknown conversation');
+  private assertConversation(repository: ProjectConversationRepository, id: string): void {
+    if (!repository.exists(id)) throw new Error('Unknown conversation');
   }
 
-  private readState(database: ProjectDatabase, id: string): AgentConversationState {
-    this.assertConversation(database, id);
-    const conversations = database.connection.prepare(`
-      SELECT id, title, created_at, updated_at FROM conversations
-      WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?
-    `).all(MAX_CONVERSATIONS + 1) as unknown as ConversationRow[];
+  private readState(repository: ProjectConversationRepository, id: string): AgentConversationState {
+    this.assertConversation(repository, id);
+    const conversations = repository.list(MAX_CONVERSATIONS + 1);
     if (conversations.length > MAX_CONVERSATIONS) {
       throw new Error('Project contains too many Agent conversations');
     }
     const active = conversations.find((conversation) => conversation.id === id)!;
-    const rows = database.connection.prepare(`
-      SELECT id, role, content, parts_json, terminal, created_at
-      FROM conversation_messages
-      WHERE conversation_id = ? AND active = 1 ORDER BY sequence LIMIT ?
-    `).all(id, MAX_MESSAGES_PER_CONVERSATION + 1) as unknown as MessageRow[];
+    const rows = repository.listMessages(id, MAX_MESSAGES_PER_CONVERSATION + 1);
     if (rows.length > MAX_MESSAGES_PER_CONVERSATION) {
       throw new Error('Agent conversation contains too many messages');
     }
@@ -500,38 +431,21 @@ export class AgentConversationService {
   }
 
   private buildHistory(
-    database: ProjectDatabase,
+    repository: ProjectConversationRepository,
     conversationId: string,
     requestId: string,
   ): AgentHistoryMessage[] {
-    const rows = database.connection.prepare(`
-      SELECT role, content FROM conversation_messages
-      WHERE conversation_id = ? AND active = 1
-        AND sequence < (
-          SELECT sequence - 1 FROM conversation_messages WHERE id = ?
-        )
-        AND (role = 'user' OR run_status = 'completed')
-      ORDER BY sequence DESC
-    `).all(conversationId, requestId) as unknown as AgentHistoryMessage[];
-    return selectBoundedHistory(rows);
+    return selectBoundedHistory(repository.history(conversationId, requestId));
   }
 
   private buildProposalOutcomes(
-    database: ProjectDatabase,
+    repository: ProjectConversationRepository,
     conversationId: string,
     requestId: string,
   ): AgentProposalOutcome[] {
-    const rows = database.connection.prepare(`
-      SELECT parts_json FROM conversation_messages
-      WHERE conversation_id = ? AND active = 1 AND parts_json IS NOT NULL
-        AND sequence < (
-          SELECT sequence - 1 FROM conversation_messages WHERE id = ?
-        )
-      ORDER BY sequence DESC LIMIT 50
-    `).all(conversationId, requestId) as Array<{
-      parts_json: string;
-    }>;
-    return parseProposalOutcomeRows(rows);
+    return parseProposalOutcomeRows(
+      repository.proposalOutcomeRows(conversationId, requestId),
+    );
   }
 
   private scheduleFlush(active: ActiveRequest): void {
@@ -553,21 +467,18 @@ export class AgentConversationService {
   private persistMessage(active: ActiveRequest): void {
     const { message } = active;
     const proposalPart = findLatestProposalPart(message.parts ?? []);
-    active.database.connection.prepare(`
-      UPDATE conversation_messages SET content = ?, parts_json = ?, terminal = ?,
-        proposal_id = ?, proposal_json = ?, proposal_status = ?, run_status = ?, updated_at = ?
-      WHERE id = ?
-    `).run(
-      message.content,
-      message.parts === undefined ? null : JSON.stringify(message.parts),
-      message.terminal ?? null,
-      proposalPart?.proposal.proposalId ?? null,
-      proposalPart === undefined ? null : JSON.stringify(proposalPart.proposal),
-      proposalPart?.status ?? null,
-      active.outcome,
-      new Date().toISOString(),
-      message.id,
-    );
+    active.repository.persistAssistant({
+      content: message.content,
+      id: message.id,
+      outcome: active.outcome,
+      partsJson: message.parts === undefined ? null : JSON.stringify(message.parts),
+      proposalId: proposalPart?.proposal.proposalId ?? null,
+      proposalJson: proposalPart === undefined
+        ? null
+        : JSON.stringify(proposalPart.proposal),
+      proposalStatus: proposalPart?.status ?? null,
+      terminal: message.terminal ?? null,
+    });
   }
 }
 
