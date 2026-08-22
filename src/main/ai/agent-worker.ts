@@ -19,7 +19,7 @@ import {
   type AgentWorkerStartCommand,
 } from "../../shared/contracts/agent-worker";
 import { buildAgentSystemPrompt } from "./prompts/prompt-builder";
-import { AgentToolResultBridge } from "./agent-tool-result-bridge";
+import { AgentToolResultBridge } from "./tools/agent-tool-result-bridge";
 import {
   closesStoryReconciliation,
   normalizeStopReason,
@@ -29,9 +29,9 @@ import {
 import {
   normalizeStoryMaintenanceBatchArguments,
   normalizeStoryMaintenanceArguments,
-} from "./agent-tool-parameters";
-import { AGENT_TOOL_DEFINITIONS } from './agent-tool-definitions';
-import { serializeSuccessfulToolResult } from './agent-tool-model-result';
+} from "./tools/agent-tool-parameters";
+import { AGENT_TOOL_DEFINITIONS } from './tools/agent-tool-definitions';
+import { serializeSuccessfulToolResult } from './tools/agent-tool-model-result';
 import {
   AGENT_TOOL_NAMES,
   isAgentToolName,

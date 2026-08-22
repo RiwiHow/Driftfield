@@ -20,7 +20,7 @@ src/
 ├── main.ts                       # Stable Forge main entry
 ├── main/
 │   ├── index.ts                  # Lifecycle and dependency composition
-│   ├── ai/                       # AI interface, Pi worker, tools, prompts
+│   ├── ai/                       # AI interface, Pi worker, tools/, prompts/
 │   ├── i18n/                     # Main translator and native UI copy
 │   ├── ipc/                      # Validated privileged IPC handlers
 │   ├── services/                 # Project, layout, session, settings services

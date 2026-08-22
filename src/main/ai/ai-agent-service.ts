@@ -27,7 +27,7 @@ import {
   isAgentWorkerMessage,
   type AgentWorkerMessage,
 } from '../../shared/contracts/agent-worker';
-import type { AgentToolDispatcher } from './agent-tool-dispatcher';
+import type { AgentToolDispatcher } from './tools/agent-tool-dispatcher';
 import { ProjectContextError } from './project-context-service';
 import type { AgentHistoryMessage } from '../services/agent/conversation-service';
 import type {

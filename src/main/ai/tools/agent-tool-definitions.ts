@@ -1,4 +1,4 @@
-import type { AgentToolName } from '../../shared/contracts/agent-tools';
+import type { AgentToolName } from '../../../shared/contracts/agent-tools';
 import {
   ACCEPTED_DOCUMENT_PATH,
   AGENT_DIRECTORY_INDEX_NAME,

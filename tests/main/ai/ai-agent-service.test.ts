@@ -13,7 +13,7 @@ vi.mock('electron', () => ({
 }));
 
 import { AiAgentService } from '../../../src/main/ai/ai-agent-service';
-import { AgentToolDispatcher } from '../../../src/main/ai/agent-tool-dispatcher';
+import { AgentToolDispatcher } from '../../../src/main/ai/tools/agent-tool-dispatcher';
 import type { AgentProposalService } from '../../../src/main/ai/agent-proposal-service';
 import type { ProjectContextService } from '../../../src/main/ai/project-context-service';
 import { ProjectDatabase } from '../../../src/main/database/project-database';

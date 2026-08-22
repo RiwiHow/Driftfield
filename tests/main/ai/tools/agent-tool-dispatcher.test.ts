@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { AgentToolDispatcher } from '../../../src/main/ai/agent-tool-dispatcher';
-import type { AgentProjectBashExecution, ProjectContextService } from '../../../src/main/ai/project-context-service';
+import { AgentToolDispatcher } from '../../../../src/main/ai/tools/agent-tool-dispatcher';
+import type { AgentProjectBashExecution, ProjectContextService } from '../../../../src/main/ai/project-context-service';
 
 const scope = { ownerId: 7, projectSessionId: 'session-1', requestId: 'request-1' };
 

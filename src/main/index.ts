@@ -8,7 +8,7 @@ import type {
 } from "../shared/contracts/window-lifecycle";
 import { registerIpcHandlers } from "./ipc/register-ipc-handlers";
 import { AiAgentService } from "./ai/ai-agent-service";
-import { AgentToolDispatcher } from "./ai/agent-tool-dispatcher";
+import { AgentToolDispatcher } from "./ai/tools/agent-tool-dispatcher";
 import { ProjectContextService } from "./ai/project-context-service";
 import { AgentProposalService } from "./ai/agent-proposal-service";
 import { ProjectSessionService } from "./services/project/session-service";

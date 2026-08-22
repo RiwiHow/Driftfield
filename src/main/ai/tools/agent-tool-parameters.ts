@@ -18,4 +18,4 @@ export {
   WRITING_ARTIFACT_SUBMISSION_PARAMETERS,
   normalizeStoryMaintenanceArguments,
   normalizeStoryMaintenanceBatchArguments,
-} from '../../shared/contracts/agent-tool-schema';
+} from '../../../shared/contracts/agent-tool-schema';

@@ -4,7 +4,7 @@ import {
   type AgentToolExecutionResult,
   type AgentToolName,
   type AgentToolRequest as SharedAgentToolRequest,
-} from '../../shared/contracts/agent-tools';
+} from '../../../shared/contracts/agent-tools';
 
 interface PendingToolResult {
   abortListener?: () => void;

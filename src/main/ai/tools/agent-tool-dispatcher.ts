@@ -12,37 +12,37 @@ import type {
   AgentStoryMaintenanceChange,
   AgentStoryOperationInput,
   AgentCanonicalStoryQuestionArguments,
-} from '../../shared/contracts/agent-tools';
+} from '../../../shared/contracts/agent-tools';
 import type {
   AgentWritingAssignment,
   AgentWritingTaskResult,
-} from './agent-writing';
+} from '../agent-writing';
 import {
   ACCEPTED_DOCUMENT_PATH,
   AGENT_STORY_CONTEXT_PATH,
   agentToolArgumentHint,
   isAgentToolRequest,
   isLongRunningAgentTool,
-} from '../../shared/contracts/agent-tools';
+} from '../../../shared/contracts/agent-tools';
 import {
   ProjectContextError,
   type AgentBashAcceptedDocument,
   type AgentProjectBashExecution,
   type ProjectContextService,
-} from './project-context-service';
+} from '../project-context-service';
 import type {
   AgentProposalDecision,
   AgentProposalService,
   ResolvedDocumentFileOperationArguments,
   ResolvedProjectStructureOperationArguments,
-} from './agent-proposal-service';
+} from '../agent-proposal-service';
 import type {
   AgentCreateDocumentProposal,
   AgentEditProposal,
   AgentProposal,
-} from '../../shared/contracts/agent-proposals';
-import type { ProjectStorySnapshot } from '../../shared/contracts/project-story';
-import { contentRevision } from '../services/project/document-utils';
+} from '../../../shared/contracts/agent-proposals';
+import type { ProjectStorySnapshot } from '../../../shared/contracts/project-story';
+import { contentRevision } from '../../services/project/document-utils';
 
 export interface AgentToolScope {
   acceptedDocumentId?: string;
@@ -106,7 +106,7 @@ interface ReconciliationRegistry {
   storyRevision: number;
   threadOrderKey: number;
   threadIds: Map<string, string>;
-  threadStatuses: Map<string, import('../../shared/contracts/project-story').ThreadStatus>;
+  threadStatuses: Map<string, import('../../../shared/contracts/project-story').ThreadStatus>;
 }
 
 export class AgentToolDispatcher {
@@ -977,10 +977,10 @@ const requireStoryRevision = (snapshot: AgentProjectBashExecution): number => {
 const resolveStoryOperation = (
   snapshot: AgentProjectBashExecution,
   operation: AgentStoryOperationInput,
-): import('../../shared/contracts/project-story').ProjectStoryOperation => {
+): import('../../../shared/contracts/project-story').ProjectStoryOperation => {
   validateStoryOperationReferences(snapshot, operation);
   if (operation.operation !== 'create_event' || operation.sources === undefined) {
-    return operation as import('../../shared/contracts/project-story').ProjectStoryOperation;
+    return operation as import('../../../shared/contracts/project-story').ProjectStoryOperation;
   }
   return {
     ...operation,
@@ -1092,7 +1092,7 @@ const claimWritingArtifact = (
 
 
 const documentDomainForKind = (
-  kind: import('../../shared/contracts/project-layout').ManuscriptDocumentKind | 'entry',
+  kind: import('../../../shared/contracts/project-layout').ManuscriptDocumentKind | 'entry',
 ): AgentDocumentDomain => kind === 'entry' ? 'lore' : 'manuscript';
 
 const documentDomainForDirectoryKind = (

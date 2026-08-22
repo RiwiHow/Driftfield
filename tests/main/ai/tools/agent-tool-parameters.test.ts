@@ -13,8 +13,8 @@ import {
   STORY_QUESTION_PARAMETERS,
   STORY_RECONCILIATION_COMPLETION_PARAMETERS,
   WRITING_ARTIFACT_SUBMISSION_PARAMETERS,
-} from '../../../src/main/ai/agent-tool-parameters';
-import { AGENT_TOOL_NAMES, isAgentToolArguments, type AgentToolName } from '../../../src/shared/contracts/agent-tools';
+} from '../../../../src/main/ai/tools/agent-tool-parameters';
+import { AGENT_TOOL_NAMES, isAgentToolArguments, type AgentToolName } from '../../../../src/shared/contracts/agent-tools';
 
 describe('path-based Agent tool schemas', () => {
   it('accepts project paths and rejects protocol-shaped pseudo-paths', () => {
