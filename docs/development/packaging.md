@@ -24,6 +24,11 @@ Electron.
   `package.json.main` change together.
 - Keep target-specific Vite configs under `config/vite/`; resolve paths through
   repository root rather than assuming configs remain at root.
+- Forge CommonJS main must resolve `just-bash` through its package `require`
+  export. The package's ESM split bundle prepends
+  `createRequire(import.meta.url)` to every chunk; Vite would copy that into
+  CJS output where `import.meta.url` is undefined. Do not load the ESM just-bash
+  chunks into main or preload.
 - Project persistence uses Electron's bundled `node:sqlite`; do not add a native
   SQLite addon without reviewing Electron rebuild, ASAR unpacking, and packaged
   database smoke coverage.

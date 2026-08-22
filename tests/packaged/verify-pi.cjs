@@ -140,6 +140,11 @@ assert.match(
   /javascript:!1,python:!1/,
   'The packaged Main bundle enables an unexpected just-bash runtime.',
 );
+assert.doesNotMatch(
+  mainBundle,
+  /createRequire\(import\.meta\.url\)|createRequire\(void 0\)/,
+  'The packaged Main bundle still loads the ESM just-bash split chunks.',
+);
 
 const electronPath = require('electron');
 const smoke = spawnSync(

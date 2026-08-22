@@ -81,6 +81,8 @@ This is Node's supported ESM-to-CommonJS interoperability mechanism. It is not a
   Vite, or Rolldown changes.
 
 Keep the shared main/preload Vite configuration while their behavior matches.
+Main resolves `just-bash` through its CommonJS export so Vite never inlines the
+package's ESM `createRequire(import.meta.url)` chunk banners.
 Split it only when targets genuinely require different behavior.
 
 ## Persistence and current limitations
